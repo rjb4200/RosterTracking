@@ -1,15 +1,21 @@
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
-
-import { seedFoundation } from "../../src/server/db/seed";
-import { auditLogs, permissions, rolePermissions, roles } from "../../src/server/db/schema";
 import * as schema from "../../src/server/db/schema";
+import {
+  auditLogs,
+  permissions,
+  rolePermissions,
+  roles,
+} from "../../src/server/db/schema";
+import { seedFoundation } from "../../src/server/db/seed";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
-const pool = connectionString ? new Pool({ connectionString, max: 1 }) : undefined;
+const pool = connectionString
+  ? new Pool({ connectionString, max: 1 })
+  : undefined;
 
 afterAll(async () => {
   await pool?.end();
@@ -28,7 +34,14 @@ describeDatabase("database foundation", () => {
     );
     const tables = new Set(result.rows.map(({ table_name }) => table_name));
 
-    for (const table of ["users", "roles", "permissions", "user_roles", "role_permissions", "audit_logs"]) {
+    for (const table of [
+      "users",
+      "roles",
+      "permissions",
+      "user_roles",
+      "role_permissions",
+      "audit_logs",
+    ]) {
       expect(tables.has(table)).toBe(true);
     }
   });
@@ -61,7 +74,9 @@ describeDatabase("database foundation", () => {
       client.release();
     }
 
-    const result = await pool.query("select 1 from users where username = $1", [username]);
+    const result = await pool.query("select 1 from users where username = $1", [
+      username,
+    ]);
     expect(result.rowCount).toBe(0);
   });
 
@@ -70,12 +85,19 @@ describeDatabase("database foundation", () => {
     const database = drizzle(pool, { schema });
     const [event] = await database
       .insert(auditLogs)
-      .values({ actorType: "system", action: "test.created", entityType: "test" })
+      .values({
+        actorType: "system",
+        action: "test.created",
+        entityType: "test",
+      })
       .returning({ id: auditLogs.id });
     if (!event) throw new Error("Audit test event was not inserted.");
 
-    await expect(pool.query("update audit_logs set action = 'test.changed' where id = $1", [event.id])).rejects.toThrow(
-      /append-only/,
-    );
+    await expect(
+      pool.query(
+        "update audit_logs set action = 'test.changed' where id = $1",
+        [event.id],
+      ),
+    ).rejects.toThrow(/append-only/);
   });
 });

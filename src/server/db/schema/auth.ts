@@ -14,8 +14,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 const timestamps = {
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 };
 
 export const users = pgTable(
@@ -35,8 +39,14 @@ export const users = pgTable(
   (table) => [
     uniqueIndex("users_username_unique").on(table.username),
     index("users_active_idx").on(table.isActive),
-    check("users_username_normalized", sql`${table.username} = lower(btrim(${table.username}))`),
-    check("users_failed_login_count_nonnegative", sql`${table.failedLoginCount} >= 0`),
+    check(
+      "users_username_normalized",
+      sql`${table.username} = lower(btrim(${table.username}))`,
+    ),
+    check(
+      "users_failed_login_count_nonnegative",
+      sql`${table.failedLoginCount} >= 0`,
+    ),
     check("users_session_version_positive", sql`${table.sessionVersion} > 0`),
   ],
 );
@@ -60,7 +70,9 @@ export const permissions = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     code: text("code").notNull(),
     description: text("description").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [uniqueIndex("permissions_code_unique").on(table.code)],
 );
@@ -74,8 +86,12 @@ export const userRoles = pgTable(
     roleId: uuid("role_id")
       .notNull()
       .references(() => roles.id, { onDelete: "restrict" }),
-    assignedByUserId: uuid("assigned_by_user_id").references(() => users.id, { onDelete: "restrict" }),
-    assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow().notNull(),
+    assignedByUserId: uuid("assigned_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.roleId] }),
@@ -92,7 +108,9 @@ export const rolePermissions = pgTable(
     permissionId: uuid("permission_id")
       .notNull()
       .references(() => permissions.id, { onDelete: "restrict" }),
-    grantedAt: timestamp("granted_at", { withTimezone: true }).defaultNow().notNull(),
+    grantedAt: timestamp("granted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.roleId, table.permissionId] }),
@@ -104,19 +122,33 @@ export const auditLogs = pgTable(
   "audit_logs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "restrict" }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
     actorType: text("actor_type").notNull(),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id"),
     ipAddress: text("ip_address"),
-    details: jsonb("details").$type<Record<string, unknown>>().default({}).notNull(),
-    occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+    details: jsonb("details")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
-    index("audit_logs_entity_time_idx").on(table.entityType, table.entityId, table.occurredAt),
+    index("audit_logs_entity_time_idx").on(
+      table.entityType,
+      table.entityId,
+      table.occurredAt,
+    ),
     index("audit_logs_actor_time_idx").on(table.actorUserId, table.occurredAt),
-    check("audit_logs_actor_type", sql`${table.actorType} in ('user', 'system')`),
+    check(
+      "audit_logs_actor_type",
+      sql`${table.actorType} in ('user', 'system')`,
+    ),
   ],
 );
 

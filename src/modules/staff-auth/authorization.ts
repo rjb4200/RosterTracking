@@ -2,7 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 
 import { getDatabase } from "@/server/db/client";
-import { permissions, rolePermissions, roles, userRoles, users } from "@/server/db/schema";
+import {
+  permissions,
+  rolePermissions,
+  roles,
+  userRoles,
+  users,
+} from "@/server/db/schema";
 
 import { authOptions } from "./options";
 import { hasPermission, type PermissionCode } from "./permissions";
@@ -24,7 +30,11 @@ export async function getCurrentStaff(): Promise<CurrentStaff | null> {
   }
 
   const db = getDatabase();
-  const [account] = await db.select().from(users).where(eq(users.id, sessionUser.id)).limit(1);
+  const [account] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, sessionUser.id))
+    .limit(1);
 
   if (!account || !isSessionCurrent(sessionUser, account)) {
     return null;
@@ -33,7 +43,10 @@ export async function getCurrentStaff(): Promise<CurrentStaff | null> {
   const permissionRows = await db
     .select({ code: permissions.code })
     .from(userRoles)
-    .innerJoin(roles, and(eq(roles.id, userRoles.roleId), eq(roles.isActive, true)))
+    .innerJoin(
+      roles,
+      and(eq(roles.id, userRoles.roleId), eq(roles.isActive, true)),
+    )
     .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
     .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
     .where(eq(userRoles.userId, account.id));
@@ -54,7 +67,9 @@ export async function requireStaff(): Promise<CurrentStaff> {
   return staff;
 }
 
-export async function requirePermission(permission: PermissionCode): Promise<CurrentStaff> {
+export async function requirePermission(
+  permission: PermissionCode,
+): Promise<CurrentStaff> {
   const staff = await requireStaff();
   if (!hasPermission(staff.permissions, permission)) {
     throw new PermissionDeniedError(permission);

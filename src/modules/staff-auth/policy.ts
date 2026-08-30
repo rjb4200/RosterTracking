@@ -9,10 +9,12 @@ export interface AccountState {
   sessionVersion: number;
 }
 
-export function isSessionCurrent(session: SessionIdentity, account: AccountState | undefined): boolean {
+export function isSessionCurrent(
+  session: SessionIdentity,
+  account: AccountState | undefined,
+): boolean {
   return Boolean(
-    account &&
-      account.isActive &&
+    account?.isActive &&
       session.id === account.id &&
       session.sessionVersion === account.sessionVersion,
   );

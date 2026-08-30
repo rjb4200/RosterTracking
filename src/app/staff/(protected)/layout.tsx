@@ -7,7 +7,9 @@ import { LogoutButton } from "../logout-button";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProtectedStaffLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function ProtectedStaffLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const staff = await getCurrentStaff();
   if (!staff || !hasPermission(staff.permissions, PERMISSIONS.STAFF_ACCESS)) {
     redirect("/staff/login");

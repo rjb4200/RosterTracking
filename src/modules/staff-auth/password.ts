@@ -33,6 +33,9 @@ export function hashPassword(password: string): Promise<string> {
   return hash(validatePassword(password), argonOptions);
 }
 
-export function verifyPassword(passwordHash: string, candidate: string): Promise<boolean> {
+export function verifyPassword(
+  passwordHash: string,
+  candidate: string,
+): Promise<boolean> {
   return verify(passwordHash, candidate);
 }

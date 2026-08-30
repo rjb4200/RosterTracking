@@ -10,7 +10,9 @@ export const metadata: Metadata = {
   description: "Fire and EMS training attendance and roster management.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>{children}</body>

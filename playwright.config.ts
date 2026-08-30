@@ -19,9 +19,15 @@ export default defineConfig({
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     env: {
-      AUTH_SECRET: process.env.AUTH_SECRET ?? "playwright-secret-at-least-32-characters-long",
-      DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgresql://unused:unused@127.0.0.1:5432/unused",
-      DATABASE_URL_DIRECT: process.env.TEST_DATABASE_URL ?? "postgresql://unused:unused@127.0.0.1:5432/unused",
+      AUTH_SECRET:
+        process.env.AUTH_SECRET ??
+        "playwright-secret-at-least-32-characters-long",
+      DATABASE_URL:
+        process.env.TEST_DATABASE_URL ??
+        "postgresql://unused:unused@127.0.0.1:5432/unused",
+      DATABASE_URL_DIRECT:
+        process.env.TEST_DATABASE_URL ??
+        "postgresql://unused:unused@127.0.0.1:5432/unused",
       NEXTAUTH_URL: "http://127.0.0.1:3000",
     },
   },

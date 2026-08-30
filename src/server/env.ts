@@ -30,9 +30,11 @@ export function getServerEnv(): ServerEnv {
 }
 
 export function getRuntimeDatabaseUrl(): string {
-  return runtimeDatabaseSchema.parse({ DATABASE_URL: process.env.DATABASE_URL }).DATABASE_URL;
+  return runtimeDatabaseSchema.parse({ DATABASE_URL: process.env.DATABASE_URL })
+    .DATABASE_URL;
 }
 
 export function getAuthSecret(): string {
-  return authSecretSchema.parse({ AUTH_SECRET: process.env.AUTH_SECRET }).AUTH_SECRET;
+  return authSecretSchema.parse({ AUTH_SECRET: process.env.AUTH_SECRET })
+    .AUTH_SECRET;
 }

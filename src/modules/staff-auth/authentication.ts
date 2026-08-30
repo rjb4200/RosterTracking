@@ -1,7 +1,6 @@
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
-
-import { getDatabase } from "@/server/db/client";
 import { writeAuditLog } from "@/server/db/audit";
+import { getDatabase } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 
 import { normalizeUsername, verifyPassword } from "./password";
@@ -33,18 +32,33 @@ export async function authenticateStaff(
   }
 
   const db = getDatabase();
-  const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, username))
+    .limit(1);
 
   if (!user) {
     await verifyPassword(DUMMY_PASSWORD_HASH, submittedPassword);
     return null;
   }
 
-  const passwordMatches = await verifyPassword(user.passwordHash, submittedPassword);
+  const passwordMatches = await verifyPassword(
+    user.passwordHash,
+    submittedPassword,
+  );
   const now = new Date();
 
-  if (!user.isActive || (user.lockedUntil && user.lockedUntil > now) || !passwordMatches) {
-    if (user.isActive && (!user.lockedUntil || user.lockedUntil <= now) && !passwordMatches) {
+  if (
+    !user.isActive ||
+    (user.lockedUntil && user.lockedUntil > now) ||
+    !passwordMatches
+  ) {
+    if (
+      user.isActive &&
+      (!user.lockedUntil || user.lockedUntil <= now) &&
+      !passwordMatches
+    ) {
       await db
         .update(users)
         .set({
@@ -71,7 +85,12 @@ export async function authenticateStaff(
   await db.transaction(async (transaction) => {
     await transaction
       .update(users)
-      .set({ failedLoginCount: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now })
+      .set({
+        failedLoginCount: 0,
+        lockedUntil: null,
+        lastLoginAt: now,
+        updatedAt: now,
+      })
       .where(eq(users.id, user.id));
     await writeAuditLog(transaction, {
       actorUserId: user.id,
@@ -95,6 +114,9 @@ export async function authenticateStaff(
 export async function invalidateUserSessions(userId: string): Promise<void> {
   await getDatabase()
     .update(users)
-    .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+    .set({
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, userId));
 }

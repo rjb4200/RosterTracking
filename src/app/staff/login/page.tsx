@@ -9,10 +9,14 @@ export default function StaffLoginPage() {
   return (
     <main className="login-shell">
       <section className="login-panel">
-        <Link className="back-link" href="/">Roster Command</Link>
+        <Link className="back-link" href="/">
+          Roster Command
+        </Link>
         <p className="eyebrow">Department access</p>
         <h1 className="login-title">Staff login</h1>
-        <p className="login-copy">Use the username and password provided by your administrator.</p>
+        <p className="login-copy">
+          Use the username and password provided by your administrator.
+        </p>
         <LoginForm />
       </section>
       <aside className="login-aside" aria-hidden="true">

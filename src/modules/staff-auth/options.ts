@@ -40,8 +40,14 @@ export const authOptions: NextAuthOptions = {
         }
 
         const forwardedFor = request.headers?.["x-forwarded-for"];
-        const ipAddress = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(",")[0]?.trim();
-        return authenticateStaff(parsed.data.username, parsed.data.password, ipAddress);
+        const ipAddress = Array.isArray(forwardedFor)
+          ? forwardedFor[0]
+          : forwardedFor?.split(",")[0]?.trim();
+        return authenticateStaff(
+          parsed.data.username,
+          parsed.data.password,
+          ipAddress,
+        );
       },
     }),
   ],

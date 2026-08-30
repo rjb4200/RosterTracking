@@ -1,7 +1,7 @@
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { useState } from "react";
 
 export function LoginForm() {
@@ -34,14 +34,34 @@ export function LoginForm() {
   return (
     <form className="login-form" onSubmit={handleSubmit}>
       <label htmlFor="username">Username</label>
-      <input autoComplete="username" id="username" name="username" required type="text" />
+      <input
+        autoComplete="username"
+        id="username"
+        name="username"
+        required
+        type="text"
+      />
 
       <label htmlFor="password">Password</label>
-      <input autoComplete="current-password" id="password" name="password" required type="password" />
+      <input
+        autoComplete="current-password"
+        id="password"
+        name="password"
+        required
+        type="password"
+      />
 
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-      <button className="button button-primary" disabled={isSubmitting} type="submit">
+      <button
+        className="button button-primary"
+        disabled={isSubmitting}
+        type="submit"
+      >
         {isSubmitting ? "Signing in..." : "Sign in"}
       </button>
     </form>

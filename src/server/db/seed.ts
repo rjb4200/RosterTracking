@@ -5,12 +5,20 @@ import { PERMISSIONS, ROLE_CODES } from "@/modules/staff-auth/permissions";
 import type { DatabaseTransaction } from "./client";
 import { permissions, rolePermissions, roles } from "./schema";
 
-export async function seedFoundation(transaction: DatabaseTransaction): Promise<void> {
+export async function seedFoundation(
+  transaction: DatabaseTransaction,
+): Promise<void> {
   await transaction
     .insert(permissions)
     .values([
-      { code: PERMISSIONS.STAFF_ACCESS, description: "Access protected staff pages" },
-      { code: PERMISSIONS.STAFF_MANAGE, description: "Create and manage staff accounts" },
+      {
+        code: PERMISSIONS.STAFF_ACCESS,
+        description: "Access protected staff pages",
+      },
+      {
+        code: PERMISSIONS.STAFF_MANAGE,
+        description: "Create and manage staff accounts",
+      },
     ])
     .onConflictDoUpdate({
       target: permissions.code,
@@ -20,8 +28,16 @@ export async function seedFoundation(transaction: DatabaseTransaction): Promise<
   await transaction
     .insert(roles)
     .values([
-      { code: ROLE_CODES.ADMINISTRATOR, name: "Administrator", description: "Full staff administration" },
-      { code: ROLE_CODES.INSTRUCTOR, name: "Instructor", description: "Instructor staff access" },
+      {
+        code: ROLE_CODES.ADMINISTRATOR,
+        name: "Administrator",
+        description: "Full staff administration",
+      },
+      {
+        code: ROLE_CODES.INSTRUCTOR,
+        name: "Instructor",
+        description: "Instructor staff access",
+      },
     ])
     .onConflictDoUpdate({
       target: roles.code,
@@ -42,14 +58,21 @@ export async function seedFoundation(transaction: DatabaseTransaction): Promise<
     .from(roles)
     .where(inArray(roles.code, Object.values(ROLE_CODES)));
 
-  const permissionByCode = new Map(permissionRows.map((permission) => [permission.code, permission.id]));
+  const permissionByCode = new Map(
+    permissionRows.map((permission) => [permission.code, permission.id]),
+  );
   const roleByCode = new Map(roleRows.map((role) => [role.code, role.id]));
   const administratorRoleId = roleByCode.get(ROLE_CODES.ADMINISTRATOR);
   const instructorRoleId = roleByCode.get(ROLE_CODES.INSTRUCTOR);
   const accessPermissionId = permissionByCode.get(PERMISSIONS.STAFF_ACCESS);
   const managePermissionId = permissionByCode.get(PERMISSIONS.STAFF_MANAGE);
 
-  if (!administratorRoleId || !instructorRoleId || !accessPermissionId || !managePermissionId) {
+  if (
+    !administratorRoleId ||
+    !instructorRoleId ||
+    !accessPermissionId ||
+    !managePermissionId
+  ) {
     throw new Error("Foundation seed could not resolve roles and permissions.");
   }
 

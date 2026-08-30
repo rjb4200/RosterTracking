@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { hashPassword, normalizeUsername, validatePassword, verifyPassword } from "./password";
+import {
+  hashPassword,
+  normalizeUsername,
+  validatePassword,
+  verifyPassword,
+} from "./password";
 
 describe("staff password helpers", () => {
   it("normalizes a valid username", () => {
@@ -21,6 +26,8 @@ describe("staff password helpers", () => {
 
     expect(passwordHash).not.toContain(password);
     await expect(verifyPassword(passwordHash, password)).resolves.toBe(true);
-    await expect(verifyPassword(passwordHash, "incorrect-password-value")).resolves.toBe(false);
+    await expect(
+      verifyPassword(passwordHash, "incorrect-password-value"),
+    ).resolves.toBe(false);
   });
 });

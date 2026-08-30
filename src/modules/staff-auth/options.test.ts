@@ -6,7 +6,9 @@ describe("staff session configuration", () => {
   });
 
   it("uses the one-year maximum for both the session and its JWT", async () => {
-    const { authOptions, STAFF_SESSION_MAX_AGE_SECONDS } = await import("./options");
+    const { authOptions, STAFF_SESSION_MAX_AGE_SECONDS } = await import(
+      "./options"
+    );
 
     expect(authOptions.session?.maxAge).toBe(STAFF_SESSION_MAX_AGE_SECONDS);
     expect(authOptions.jwt?.maxAge).toBe(STAFF_SESSION_MAX_AGE_SECONDS);
