@@ -16,8 +16,8 @@ describe("staff password helpers", () => {
     expect(() => normalizeUsername("Fire Chief")).toThrow();
   });
 
-  it("rejects short passwords", () => {
-    expect(() => validatePassword("too-short")).toThrow();
+  it("requires a password", () => {
+    expect(() => validatePassword("")).toThrow();
   });
 
   it("hashes and verifies a valid password without retaining plaintext", async () => {

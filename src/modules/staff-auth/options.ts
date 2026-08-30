@@ -40,11 +40,16 @@ export const authOptions: NextAuthOptions = {
         const ipAddress = Array.isArray(forwardedFor)
           ? forwardedFor[0]
           : forwardedFor?.split(",")[0]?.trim();
-        return authenticateStaff(
-          parsed.data.username,
-          parsed.data.password,
-          ipAddress,
-        );
+        try {
+          return await authenticateStaff(
+            parsed.data.username,
+            parsed.data.password,
+            ipAddress,
+          );
+        } catch (error) {
+          console.error("[auth] staff authentication failed", error);
+          throw new Error("server_error");
+        }
       },
     }),
   ],

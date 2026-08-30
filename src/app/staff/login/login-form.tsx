@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
 export function LoginForm() {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -22,12 +20,15 @@ export function LoginForm() {
     });
 
     if (result?.ok) {
-      router.push("/staff");
-      router.refresh();
+      window.location.href = "/staff";
       return;
     }
 
-    setError("The username or password is incorrect.");
+    setError(
+      result?.error && result.error !== "CredentialsSignin"
+        ? "Something went wrong signing you in. Please try again, and contact an administrator if the problem continues."
+        : "The username or password is incorrect.",
+    );
     setIsSubmitting(false);
   }
 

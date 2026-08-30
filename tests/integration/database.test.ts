@@ -53,9 +53,9 @@ describeDatabase("database foundation", () => {
     await database.transaction(seedFoundation);
     await database.transaction(seedFoundation);
 
-    expect((await database.select().from(roles)).length).toBe(2);
+    expect((await database.select().from(roles)).length).toBe(3);
     expect((await database.select().from(permissions)).length).toBe(2);
-    expect((await database.select().from(rolePermissions)).length).toBe(3);
+    expect((await database.select().from(rolePermissions)).length).toBe(4);
   });
 
   it("rolls back a failed transaction", async () => {

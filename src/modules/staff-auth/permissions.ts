@@ -15,4 +15,5 @@ export function hasPermission(
 export const ROLE_CODES = {
   ADMINISTRATOR: "administrator",
   INSTRUCTOR: "instructor",
+  TRAINING_MAJOR: "training-major",
 } as const;

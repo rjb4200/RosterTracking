@@ -1,10 +1,7 @@
 import { hash, verify } from "@node-rs/argon2";
 import { z } from "zod";
 
-const passwordSchema = z
-  .string()
-  .min(12, "Password must be at least 12 characters.")
-  .max(128, "Password must be 128 characters or fewer.");
+const passwordSchema = z.string().min(1, "Password is required.");
 
 const usernameSchema = z
   .string()

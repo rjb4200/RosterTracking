@@ -14,7 +14,7 @@ The current implementation provides the application foundation and internal staf
 ## Local Setup
 
 1. Install dependencies with `npm install`.
-2. Create `.env.local` from `.env.example` and replace every placeholder.
+2. Create `.env` from `.env.example` and replace every placeholder.
 3. Generate `AUTH_SECRET` with `npx auth secret` or another cryptographically secure generator.
 4. Apply migrations with `npm run db:migrate`.
 5. Seed foundation roles and permissions with `npm run db:seed`.
@@ -22,6 +22,8 @@ The current implementation provides the application foundation and internal staf
 7. Start the application with `npm run dev`.
 
 Database credentials are server-only. Never prefix them with `NEXT_PUBLIC_` or expose them to browser code.
+
+The migration, seed, and admin scripts load `.env` from the project root automatically. Next.js also reads `.env` for the running application.
 
 ## Database Workflow
 
@@ -50,6 +52,17 @@ npm run admin -- bootstrap
 ```
 
 Run `npm run db:seed` first. Bootstrap is idempotent and grants the administrator role.
+
+### Create Staff Accounts
+
+Create an instructor or Training Major account the same way. Roles are `administrator`, `instructor`, and `training-major`.
+
+```text
+ADMIN_USERNAME=jsmith ADMIN_PASSWORD=... ADMIN_DISPLAY_NAME="Jane Smith" npm run admin -- create instructor
+ADMIN_USERNAME=tmajor ADMIN_PASSWORD=... npm run admin -- create training-major
+```
+
+All staff roles currently land on the same protected staff area; role-specific tools (class creation, reporting queues) are added in later phases.
 
 ### Account Operations
 
@@ -84,7 +97,12 @@ Install the Playwright Chromium browser once with `npx playwright install chromi
 
 - Deploy the application to Vercel using the Node.js runtime and Fluid Compute.
 - Place Neon and Vercel compute in the same region.
-- Configure `DATABASE_URL`, `DATABASE_URL_DIRECT`, `AUTH_SECRET`, and `NEXTAUTH_URL` as protected environment variables.
+- Set these in the Vercel project dashboard:
+  - `DATABASE_URL` — Neon connection string for the running application.
+  - `AUTH_SECRET` — cookie encryption secret for staff login.
+  - `NEXTAUTH_URL` — optional; set to the production URL if NextAuth logs origin warnings.
+- Do **not** add `DATABASE_URL_DIRECT`, `TEST_DATABASE_URL`, or the `ADMIN_*` variables to Vercel; those are local/CI only.
+- Apply migrations (`npm run db:migrate`), seed (`npm run db:seed`), and bootstrap the administrator against the Neon database from a trusted machine before staff can log in.
 - Apply reviewed migrations through CI or an explicit release step before deploying schema-dependent code.
 - Keep the runtime pool small and monitor aggregate Neon connections.
 - Do not run migrations automatically from a Vercel Function.

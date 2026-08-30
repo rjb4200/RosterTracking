@@ -38,6 +38,11 @@ export async function seedFoundation(
         name: "Instructor",
         description: "Instructor staff access",
       },
+      {
+        code: ROLE_CODES.TRAINING_MAJOR,
+        name: "Training Major",
+        description: "Training Major staff access",
+      },
     ])
     .onConflictDoUpdate({
       target: roles.code,
@@ -64,12 +69,14 @@ export async function seedFoundation(
   const roleByCode = new Map(roleRows.map((role) => [role.code, role.id]));
   const administratorRoleId = roleByCode.get(ROLE_CODES.ADMINISTRATOR);
   const instructorRoleId = roleByCode.get(ROLE_CODES.INSTRUCTOR);
+  const trainingMajorRoleId = roleByCode.get(ROLE_CODES.TRAINING_MAJOR);
   const accessPermissionId = permissionByCode.get(PERMISSIONS.STAFF_ACCESS);
   const managePermissionId = permissionByCode.get(PERMISSIONS.STAFF_MANAGE);
 
   if (
     !administratorRoleId ||
     !instructorRoleId ||
+    !trainingMajorRoleId ||
     !accessPermissionId ||
     !managePermissionId
   ) {
@@ -82,6 +89,7 @@ export async function seedFoundation(
       { roleId: administratorRoleId, permissionId: accessPermissionId },
       { roleId: administratorRoleId, permissionId: managePermissionId },
       { roleId: instructorRoleId, permissionId: accessPermissionId },
+      { roleId: trainingMajorRoleId, permissionId: accessPermissionId },
     ])
     .onConflictDoNothing();
 }
