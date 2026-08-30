@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build and tooling
+*.tsbuildinfo
+.vercel/
+drizzle/meta/_journal.json.tmp
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

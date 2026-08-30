@@ -36,7 +36,7 @@ Alternatives considered: Neon HTTP is efficient for one-shot queries but does no
 
 ### Auth.js Credentials with encrypted cookie sessions
 
-Use Auth.js Credentials for username/password verification and an encrypted HTTP-only cookie session with a 30-day maximum age. Usernames are trimmed and normalized to lowercase. Passwords are hashed with Argon2id. The session carries only the user identifier and password/session version; protected server entry points reload the user and permissions from Neon, which makes account disabling and permission changes effective without waiting for cookie expiry.
+Use Auth.js Credentials for username/password verification and an encrypted HTTP-only cookie session with a one-year maximum age. Usernames are trimmed and normalized to lowercase. Passwords are hashed with Argon2id. The session carries only the user identifier and password/session version; protected server entry points reload the user and permissions from Neon, which makes account disabling and permission changes effective without waiting for cookie expiry.
 
 Password reset increments a `session_version`, invalidating sessions issued under older credentials. Failed-login counters and a bounded `locked_until` timestamp provide simple account throttling without introducing another service. Public registration and email-based recovery are absent; an administrator uses an explicit account-management command.
 
@@ -66,7 +66,7 @@ Add an architecture document recording indefinite business-record retention, imm
 
 ## Risks / Trade-offs
 
-- [Thirty-day cookie sessions cannot be individually revoked] -> Reload account status, session version, and permissions on protected server operations; logout removes the current cookie.
+- [One-year cookie sessions cannot be individually revoked] -> Reload account status, session version, and permissions on protected server operations; logout removes the current cookie.
 - [Database checks add latency to protected requests] -> Keep authorization queries indexed and local to the same Neon/Vercel region; optimize only after measurement.
 - [Direct PostgreSQL pools can consume connections across warm instances] -> Use a deliberately small pool, attach it to Fluid Compute, monitor aggregate connections, and retain the option to use Neon's pooled endpoint.
 - [Native Argon2 packages can complicate deployment] -> Use a maintained package with supported Node/Vercel prebuilt binaries and verify the production build in CI.

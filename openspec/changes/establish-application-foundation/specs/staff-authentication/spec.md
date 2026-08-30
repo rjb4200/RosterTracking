@@ -27,7 +27,7 @@ The system SHALL store only memory-hard password hashes and SHALL never return p
 - **THEN** the system stores an Argon2id hash rather than the supplied password
 
 ### Requirement: Persistent staff session
-The system SHALL maintain a successful staff login across browser restarts for up to 30 days unless the user logs out, the account is disabled, the password is reset, or the session expires.
+The system SHALL maintain a successful staff login across browser restarts for up to one year unless the user logs out, the account is disabled, the password is reset, or the session expires.
 
 #### Scenario: Authenticated user returns later
 - **WHEN** an active staff user returns with a valid unexpired session cookie
