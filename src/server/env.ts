@@ -14,7 +14,6 @@ const serverEnvSchema = z.object({
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
 const runtimeDatabaseSchema = z.object({ DATABASE_URL: databaseUrl });
-const authSecretSchema = z.object({ AUTH_SECRET: z.string().min(32) });
 
 let cachedEnv: ServerEnv | undefined;
 
@@ -32,9 +31,4 @@ export function getServerEnv(): ServerEnv {
 export function getRuntimeDatabaseUrl(): string {
   return runtimeDatabaseSchema.parse({ DATABASE_URL: process.env.DATABASE_URL })
     .DATABASE_URL;
-}
-
-export function getAuthSecret(): string {
-  return authSecretSchema.parse({ AUTH_SECRET: process.env.AUTH_SECRET })
-    .AUTH_SECRET;
 }

@@ -2,8 +2,6 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { z } from "zod";
 
-import { getAuthSecret } from "@/server/env";
-
 import { authenticateStaff } from "./authentication";
 
 export const STAFF_SESSION_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
@@ -14,7 +12,6 @@ const credentialsSchema = z.object({
 });
 
 export const authOptions: NextAuthOptions = {
-  secret: getAuthSecret(),
   session: {
     strategy: "jwt",
     maxAge: STAFF_SESSION_MAX_AGE_SECONDS,
