@@ -5,21 +5,88 @@ import { PERMISSIONS, ROLE_CODES } from "@/modules/staff-auth/permissions";
 import type { DatabaseTransaction } from "./client";
 import { permissions, rolePermissions, roles } from "./schema";
 
+const permissionDefinitions = [
+  {
+    code: PERMISSIONS.STAFF_ACCESS,
+    description: "Access protected staff pages",
+  },
+  {
+    code: PERMISSIONS.STAFF_MANAGE,
+    description: "Create and manage staff accounts",
+  },
+  {
+    code: PERMISSIONS.STUDENTS_MANAGE,
+    description: "Manage student records and memberships",
+  },
+  {
+    code: PERMISSIONS.AGENCIES_MANAGE,
+    description: "Manage agency records",
+  },
+  {
+    code: PERMISSIONS.COURSES_MANAGE,
+    description: "Manage courses and training codes",
+  },
+  {
+    code: PERMISSIONS.SITES_MANAGE,
+    description: "Manage training sites",
+  },
+  {
+    code: PERMISSIONS.SITES_CREATE,
+    description: "Create a new training site",
+  },
+  {
+    code: PERMISSIONS.REPORTING_MANAGE,
+    description: "Manage reporting systems and requirements",
+  },
+];
+
+const roleDefinitions = [
+  {
+    code: ROLE_CODES.ADMINISTRATOR,
+    name: "Administrator",
+    description: "Full staff administration",
+  },
+  {
+    code: ROLE_CODES.INSTRUCTOR,
+    name: "Instructor",
+    description: "Instructor staff access",
+  },
+  {
+    code: ROLE_CODES.TRAINING_MAJOR,
+    name: "Training Major",
+    description: "Training Major staff access",
+  },
+];
+
+const grants: Array<[string, string]> = [
+  // Administrator: everything.
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.STAFF_ACCESS],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.STAFF_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.STUDENTS_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.AGENCIES_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.COURSES_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.SITES_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.SITES_CREATE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.REPORTING_MANAGE],
+  // Training Major: manage reference data and reporting, but not staff accounts.
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STAFF_ACCESS],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STUDENTS_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.AGENCIES_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.COURSES_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.SITES_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.SITES_CREATE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.REPORTING_MANAGE],
+  // Instructor: staff access plus quick site creation.
+  [ROLE_CODES.INSTRUCTOR, PERMISSIONS.STAFF_ACCESS],
+  [ROLE_CODES.INSTRUCTOR, PERMISSIONS.SITES_CREATE],
+];
+
 export async function seedFoundation(
   transaction: DatabaseTransaction,
 ): Promise<void> {
   await transaction
     .insert(permissions)
-    .values([
-      {
-        code: PERMISSIONS.STAFF_ACCESS,
-        description: "Access protected staff pages",
-      },
-      {
-        code: PERMISSIONS.STAFF_MANAGE,
-        description: "Create and manage staff accounts",
-      },
-    ])
+    .values(permissionDefinitions)
     .onConflictDoUpdate({
       target: permissions.code,
       set: { description: sql`excluded.description` },
@@ -27,23 +94,7 @@ export async function seedFoundation(
 
   await transaction
     .insert(roles)
-    .values([
-      {
-        code: ROLE_CODES.ADMINISTRATOR,
-        name: "Administrator",
-        description: "Full staff administration",
-      },
-      {
-        code: ROLE_CODES.INSTRUCTOR,
-        name: "Instructor",
-        description: "Instructor staff access",
-      },
-      {
-        code: ROLE_CODES.TRAINING_MAJOR,
-        name: "Training Major",
-        description: "Training Major staff access",
-      },
-    ])
+    .values(roleDefinitions)
     .onConflictDoUpdate({
       target: roles.code,
       set: {
@@ -67,29 +118,17 @@ export async function seedFoundation(
     permissionRows.map((permission) => [permission.code, permission.id]),
   );
   const roleByCode = new Map(roleRows.map((role) => [role.code, role.id]));
-  const administratorRoleId = roleByCode.get(ROLE_CODES.ADMINISTRATOR);
-  const instructorRoleId = roleByCode.get(ROLE_CODES.INSTRUCTOR);
-  const trainingMajorRoleId = roleByCode.get(ROLE_CODES.TRAINING_MAJOR);
-  const accessPermissionId = permissionByCode.get(PERMISSIONS.STAFF_ACCESS);
-  const managePermissionId = permissionByCode.get(PERMISSIONS.STAFF_MANAGE);
 
-  if (
-    !administratorRoleId ||
-    !instructorRoleId ||
-    !trainingMajorRoleId ||
-    !accessPermissionId ||
-    !managePermissionId
-  ) {
-    throw new Error("Foundation seed could not resolve roles and permissions.");
-  }
+  const rows = grants.flatMap(([roleCode, permissionCode]) => {
+    const roleId = roleByCode.get(roleCode);
+    const permissionId = permissionByCode.get(permissionCode);
+    if (!roleId || !permissionId) {
+      throw new Error(
+        `Foundation seed could not resolve role '${roleCode}' or permission '${permissionCode}'.`,
+      );
+    }
+    return [{ roleId, permissionId }];
+  });
 
-  await transaction
-    .insert(rolePermissions)
-    .values([
-      { roleId: administratorRoleId, permissionId: accessPermissionId },
-      { roleId: administratorRoleId, permissionId: managePermissionId },
-      { roleId: instructorRoleId, permissionId: accessPermissionId },
-      { roleId: trainingMajorRoleId, permissionId: accessPermissionId },
-    ])
-    .onConflictDoNothing();
+  await transaction.insert(rolePermissions).values(rows).onConflictDoNothing();
 }

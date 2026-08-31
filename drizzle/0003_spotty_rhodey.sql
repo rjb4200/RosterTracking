@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "reporting_requirement_sets_active_unique" ON "reporting_requirement_sets" USING btree ("reporting_system_id") WHERE "reporting_requirement_sets"."is_active";

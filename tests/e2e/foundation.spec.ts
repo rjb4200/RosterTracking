@@ -37,6 +37,16 @@ test("configured staff user can log in and log out", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/staff$/);
 
+  await page.getByRole("link", { name: "Students" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Students", exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "Courses" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Courses", exact: true }),
+  ).toBeVisible();
+
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goto("/staff");

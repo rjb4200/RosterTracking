@@ -1,6 +1,12 @@
 export const PERMISSIONS = {
   STAFF_ACCESS: "staff.access",
   STAFF_MANAGE: "staff.manage",
+  STUDENTS_MANAGE: "students.manage",
+  AGENCIES_MANAGE: "agencies.manage",
+  COURSES_MANAGE: "courses.manage",
+  SITES_MANAGE: "sites.manage",
+  SITES_CREATE: "sites.create",
+  REPORTING_MANAGE: "reporting.manage",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

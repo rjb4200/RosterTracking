@@ -2,6 +2,7 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { z } from "zod";
+import { seedReferenceData } from "../src/server/db/reference-seed";
 import * as schema from "../src/server/db/schema";
 import { seedFoundation } from "../src/server/db/seed";
 
@@ -14,9 +15,12 @@ const pool = new Pool({ connectionString: directUrl, max: 1 });
 const db = drizzle(pool, { schema });
 
 try {
-  await db.transaction(seedFoundation);
+  await db.transaction(async (transaction) => {
+    await seedFoundation(transaction);
+    await seedReferenceData(transaction);
+  });
 
-  console.log("Foundation roles and permissions seeded.");
+  console.log("Roles, permissions, and reference data seeded.");
 } finally {
   await pool.end();
 }
