@@ -7,6 +7,7 @@ export const PERMISSIONS = {
   SITES_MANAGE: "sites.manage",
   SITES_CREATE: "sites.create",
   REPORTING_MANAGE: "reporting.manage",
+  CLASSES_MANAGE: "classes.manage",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

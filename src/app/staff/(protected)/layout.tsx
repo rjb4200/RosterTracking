@@ -10,6 +10,11 @@ export const dynamic = "force-dynamic";
 
 const navItems: Array<{ href: string; label: string; permission: string }> = [
   {
+    href: "/staff/classes",
+    label: "Classes",
+    permission: PERMISSIONS.CLASSES_MANAGE,
+  },
+  {
     href: "/staff/students",
     label: "Students",
     permission: PERMISSIONS.STUDENTS_MANAGE,

@@ -3,12 +3,21 @@ import "server-only";
 import { z } from "zod";
 
 const databaseUrl = z.string().url().startsWith("postgresql://");
+const timeZone = z.string().refine((value) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}, "Must be a valid IANA time zone.");
 
 const serverEnvSchema = z.object({
   DATABASE_URL: databaseUrl,
   DATABASE_URL_DIRECT: databaseUrl,
   AUTH_SECRET: z.string().min(32),
   NEXTAUTH_URL: z.string().url().optional(),
+  DEPARTMENT_TIME_ZONE: timeZone.default("America/New_York"),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -23,6 +32,7 @@ export function getServerEnv(): ServerEnv {
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
     AUTH_SECRET: process.env.AUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    DEPARTMENT_TIME_ZONE: process.env.DEPARTMENT_TIME_ZONE,
   });
 
   return cachedEnv;

@@ -32,22 +32,22 @@
 
 ## Phase 3: Core Reference Data
 
-- [ ] Add students
-- [ ] Add agencies and student-agency memberships
-- [ ] Add credential types and student credentials
-- [ ] Add reporting systems and versioned requirement sets
-- [ ] Add training codes, courses, and training sites
-- [ ] Import verified Fire Commission training codes
-- [ ] Add searchable administration screens
+- [x] Add students
+- [x] Add agencies and student-agency memberships
+- [x] Add credential types and student credentials
+- [x] Add reporting systems and versioned requirement sets
+- [x] Add training codes, courses, and training sites
+- [x] Import verified Fire Commission training codes
+- [x] Add searchable administration screens
 
 ## Phase 4: Class Creation
 
-- [ ] Add classes, class components, and instructors
-- [ ] Implement the stepped class-creation wizard
-- [ ] Add delivery methods and reporting-system selection
-- [ ] Implement draft, open, completed, finalized, and cancelled states
-- [ ] Generate class-specific random sign-in tokens and QR codes
-- [ ] Add lifecycle authorization and audit events
+- [x] Add classes, class components, and instructors
+- [x] Implement the stepped class-creation wizard
+- [x] Add delivery methods and reporting-system selection
+- [x] Implement draft, open, completed, finalized, and cancelled states
+- [x] Generate class-specific random sign-in tokens and QR codes
+- [x] Add lifecycle authorization and audit events
 
 ## Phase 5: Student Sign-In
 

@@ -38,6 +38,10 @@ const permissionDefinitions = [
     code: PERMISSIONS.REPORTING_MANAGE,
     description: "Manage reporting systems and requirements",
   },
+  {
+    code: PERMISSIONS.CLASSES_MANAGE,
+    description: "Create and manage training classes",
+  },
 ];
 
 const roleDefinitions = [
@@ -68,6 +72,7 @@ const grants: Array<[string, string]> = [
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.SITES_MANAGE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.SITES_CREATE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.REPORTING_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.CLASSES_MANAGE],
   // Training Major: manage reference data and reporting, but not staff accounts.
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STAFF_ACCESS],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STUDENTS_MANAGE],
@@ -76,9 +81,11 @@ const grants: Array<[string, string]> = [
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.SITES_MANAGE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.SITES_CREATE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.REPORTING_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.CLASSES_MANAGE],
   // Instructor: staff access plus quick site creation.
   [ROLE_CODES.INSTRUCTOR, PERMISSIONS.STAFF_ACCESS],
   [ROLE_CODES.INSTRUCTOR, PERMISSIONS.SITES_CREATE],
+  [ROLE_CODES.INSTRUCTOR, PERMISSIONS.CLASSES_MANAGE],
 ];
 
 export async function seedFoundation(

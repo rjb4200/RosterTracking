@@ -29,6 +29,9 @@ export default defineConfig({
         process.env.TEST_DATABASE_URL ??
         "postgresql://unused:unused@127.0.0.1:5432/unused",
       NEXTAUTH_URL: "http://127.0.0.1:3000",
+      CREDENTIAL_ENCRYPTION_KEY:
+        process.env.CREDENTIAL_ENCRYPTION_KEY ??
+        "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     },
   },
 });

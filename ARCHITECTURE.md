@@ -41,7 +41,7 @@ Staff authentication will use a username and password with:
 
 MFA and external identity providers are not required for the initial release.
 
-Initial staff roles are Instructor, Training Major, and Administrator. All currently grant `staff.access`; Training Major gains reporting/finalization permissions and instructors gain class-management permissions in later phases. Student access does not use a staff account. Authorization uses permission records rather than hard-coded role-name checks so more staff permission levels can be added later.
+Initial staff roles are Instructor, Training Major, and Administrator. All grant `staff.access`; instructors, Training Majors, and administrators have class-management permission, while reporting and finalization permissions remain deferred. Student access does not use a staff account. Authorization uses permission records rather than hard-coded role-name checks so more staff permission levels can be added later.
 
 ## Student Identification
 

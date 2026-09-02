@@ -2,7 +2,7 @@
 
 Fire and EMS training attendance and roster management for one department. The project is a Next.js modular monolith backed by Neon PostgreSQL.
 
-The current implementation provides the application foundation and internal staff authentication. Student sign-in, classes, attendance, finalization, external reporting, and official roster PDFs are implemented in later OpenSpec changes.
+The current implementation provides the application foundation, internal staff authentication, reference-data administration, class creation and lifecycle management, and secure class sign-in links. Student identity and attendance, finalization, external reporting, and official roster PDFs are implemented in later OpenSpec changes.
 
 ## Requirements
 
