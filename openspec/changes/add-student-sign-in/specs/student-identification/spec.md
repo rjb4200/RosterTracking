@@ -5,7 +5,7 @@ Identify regular students through privacy-preserving public pathways and collect
 ## ADDED Requirements
 
 ### Requirement: Regular identification follows a defined priority
-The system SHALL attempt regular student identification in this order: a valid remembered device, normalized phone lookup, Student ID plus PIN recovery, and then the secondary guest pathway. Identification SHALL use only active student records.
+The system SHALL attempt regular student identification in this order: a valid remembered device, normalized current-phone lookup, changed-number recovery using the prior phone plus an existing FFN or KEMSIS ID, and then the secondary guest pathway. Identification SHALL use only active student records.
 
 #### Scenario: Recognize a remembered student
 - **WHEN** a visitor enters an open class with a valid remembered-device token for an active student
@@ -13,7 +13,7 @@ The system SHALL attempt regular student identification in this order: a valid r
 
 #### Scenario: Fall back after regular lookup fails
 - **WHEN** no regular identification pathway resolves an active student
-- **THEN** the workflow offers Student ID plus PIN recovery and a visually secondary guest option without displaying possible student matches
+- **THEN** the workflow offers changed-number recovery and a visually secondary guest option without displaying possible student matches
 
 ### Requirement: Phone lookup is normalized and bounded
 The system SHALL normalize a submitted phone number before exact-match lookup. A successful exact match MAY show that student's name for `Is this you?` confirmation, but the workflow SHALL never return candidate lists, partial matches, credentials, or data from any other student. Every lookup attempt SHALL be rate-limited to prevent bulk enumeration.
@@ -24,29 +24,30 @@ The system SHALL normalize a submitted phone number before exact-match lookup. A
 
 #### Scenario: Handle an unknown phone
 - **WHEN** a visitor submits a phone number that does not resolve
-- **THEN** the response offers Student ID plus PIN recovery and guest options without suggesting partial matches or exposing student data
+- **THEN** the response offers `My phone number changed` and guest options without suggesting partial matches or exposing student data
 
-### Requirement: Student ID and PIN provide recovery access
-The system SHALL allow an active student with a unique Student ID and valid PIN to recover regular access, including staging a replacement for an outdated phone number. The replacement SHALL be applied only if the class attendance confirmation succeeds. PIN values SHALL be hashed and SHALL never be stored or displayed after submission.
+### Requirement: A prior phone and stored credential recover a changed number
+When a new phone number does not identify a regular student, the system SHALL allow changed-number recovery by exact matching a submitted prior phone to one active student and then exact matching a student-selected FFN or KEMSIS ID already stored for that student. The challenge SHALL offer the same supported credential choices without revealing which types the matched record stores. When both supported credential types are present, either matching credential SHALL be accepted. The workflow SHALL never display the stored credential value. After a match, the student SHALL affirmatively confirm the displayed profile before a unique, available new phone is staged. The new phone SHALL be revalidated and applied only if class attendance confirmation succeeds.
 
 #### Scenario: Recover after a phone change
-- **WHEN** a student supplies a valid Student ID and PIN and confirms a new available phone number
-- **THEN** the system stages the replacement, continues the class sign-in workflow, and updates the record only in the successful attendance transaction
+- **WHEN** a new phone does not match, and the student supplies the exact prior phone plus a matching stored FFN or KEMSIS ID
+- **THEN** the system shows the student's profile and masked credentials, requires affirmative verification, stages the available new phone, and updates the record only in the successful attendance transaction
 
 #### Scenario: Reject invalid recovery generically
-- **WHEN** a visitor submits an unknown Student ID or invalid PIN
-- **THEN** the system returns the same generic recovery failure and does not reveal which value was incorrect
+- **WHEN** the prior phone is unknown, the credential is absent or incorrect, the student is inactive, or the new phone is unavailable
+- **THEN** the system returns the same generic recovery failure and offers guest entry without revealing which value failed
 
-### Requirement: PIN bootstrap and reset are staff-controlled
-The system SHALL require authorized staff to establish or reset a student's PIN. A student with a valid existing PIN MAY replace it by supplying that PIN first. Phone lookup or remembered-device recognition alone SHALL NOT authorize PIN creation or replacement. Every successful staff or student PIN mutation SHALL record an audit event without PIN material.
+#### Scenario: Use guest entry without regular recovery data
+- **WHEN** a visitor cannot use a remembered device, current phone, or valid changed-number recovery
+- **THEN** the workflow offers class-scoped guest entry that saves no permanent student record
 
-#### Scenario: Establish a first PIN through staff
-- **WHEN** authorized staff submit and confirm an acceptable PIN for a student without one
-- **THEN** the system stores only its password hash and enables later Student ID plus PIN recovery without redisplaying the PIN
+#### Scenario: Reject the recovered profile
+- **WHEN** the visitor selects `Not me` instead of affirmatively confirming the recovered profile
+- **THEN** the system clears the recovery state, does not stage or apply the new phone, and offers regular or guest entry
 
-#### Scenario: Block PIN takeover after phone lookup
-- **WHEN** a visitor is recognized only by phone number and attempts to establish or replace the student's PIN
-- **THEN** the system refuses the PIN change and directs the student to the staff reset process
+#### Scenario: Recheck the new phone at confirmation
+- **WHEN** a staged new phone becomes unavailable before attendance confirmation
+- **THEN** the transaction applies no student or attendance changes and returns a generic recovery-restart response
 
 ### Requirement: Remembered devices use revocable opaque tokens
 The system SHALL issue an unpredictable remembered-device token only after a successful regular sign-in, store only its cryptographic hash, and associate it with one student, expiration, and revocation state. A remembered device SHALL identify a student but SHALL not itself prove attendance.
@@ -70,9 +71,13 @@ The system SHALL resolve the effective versioned requirement set for every repor
 - **WHEN** the student already has every required field and credential
 - **THEN** the workflow proceeds without requesting duplicate profile data
 
+#### Scenario: Do not overwrite an existing permanent value
+- **WHEN** a public regular sign-in submits a value that conflicts with an existing student field or credential
+- **THEN** the system does not overwrite the permanent value and requires later staff correction when necessary
+
 ### Requirement: Public identification resists enumeration and abuse
-The system SHALL rate-limit all phone lookups and repeated PIN attempts using request source and one-way identifier fingerprints. Responses and logs SHALL exclude student lists, partial matches, plaintext PINs, raw remembered tokens, and full credential values.
+The system SHALL rate-limit workflow creation, staging writes, current-phone lookup, prior-phone lookup, and credential recovery attempts using class context, request source, and one-way identifier fingerprints. Responses and logs SHALL exclude student lists, partial matches, raw phones, raw remembered tokens, and full credential values.
 
 #### Scenario: Limit repeated attempts
-- **WHEN** a request source or identifier exceeds the configured lookup or failed-PIN threshold
+- **WHEN** a request source or identifier exceeds a configured phone-lookup or credential-recovery threshold
 - **THEN** further attempts receive a generic temporary-limit response without confirming whether the identifier exists

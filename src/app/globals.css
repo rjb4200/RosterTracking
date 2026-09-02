@@ -710,6 +710,258 @@ h1 {
   justify-content: center;
 }
 
+.public-sign-in-page {
+  min-height: 100vh;
+  background:
+    linear-gradient(160deg, rgba(16, 24, 32, 0.98), rgba(16, 24, 32, 0.86)),
+    repeating-linear-gradient(135deg, #26343d 0 2px, #101820 2px 16px);
+  padding: 1rem;
+  color: var(--ink);
+}
+
+.public-sign-in-card {
+  width: min(100%, 620px);
+  min-height: calc(100vh - 2rem);
+  margin: 0 auto;
+  border-top: 6px solid var(--signal);
+  background: var(--paper);
+  padding: clamp(1.25rem, 5vw, 3rem);
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.32);
+}
+
+.sign-in-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+}
+
+.sign-in-header .eyebrow {
+  margin-bottom: 0.4rem;
+  color: var(--signal-dark);
+}
+
+.sign-in-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  background: var(--signal);
+  color: white;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 800;
+}
+
+.sign-in-title {
+  max-width: none;
+  color: var(--ink);
+  font-size: clamp(2.2rem, 10vw, 3.7rem);
+  line-height: 0.95;
+}
+
+.sign-in-copy {
+  margin: 0 0 1.5rem;
+  color: #52616a;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.sign-in-kicker {
+  margin: 0 0 0.35rem;
+  color: var(--steel);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.recognized-name {
+  margin: 0 0 1.25rem;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.recovered-credentials {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.recovered-credentials li {
+  border-left: 3px solid var(--signal);
+  background: white;
+  padding: 0.6rem 0.75rem;
+  color: #3d4b53;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.sign-in-form,
+.sign-in-action-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.sign-in-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sign-in-field label,
+.sign-in-choice-group legend {
+  color: #3d4b53;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sign-in-field input,
+.sign-in-field select {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid #929da2;
+  border-radius: 0;
+  background: white;
+  padding: 0.75rem;
+  color: var(--ink);
+  font: inherit;
+}
+
+.sign-in-field input:focus,
+.sign-in-field select:focus,
+.sign-in-button:focus-visible,
+.sign-in-options a:focus-visible,
+.sign-in-back:focus-visible {
+  outline: 3px solid rgba(201, 54, 43, 0.3);
+  outline-offset: 2px;
+}
+
+.sign-in-button {
+  width: 100%;
+  min-height: 50px;
+  border: 0;
+  border-radius: 0;
+  background: var(--signal);
+  color: white;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 #691712;
+}
+
+.sign-in-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.sign-in-button-secondary {
+  border: 1px solid #89959b;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.sign-in-options {
+  display: grid;
+  gap: 0.65rem;
+  border-top: 1px solid var(--line);
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+}
+
+.sign-in-options a,
+.sign-in-back {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  color: var(--signal-dark);
+  font-weight: 800;
+}
+
+.sign-in-options .guest-link {
+  color: #52616a;
+  font-weight: 700;
+}
+
+.sign-in-back {
+  margin-top: 1.25rem;
+}
+
+.sign-in-alert {
+  border-left: 4px solid var(--signal);
+  margin: 0 0 1.25rem;
+  background: #f7dcd7;
+  padding: 0.85rem 1rem;
+  color: #6f1c17;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.sign-in-choice-group {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--line);
+  margin: 0;
+  padding: 1rem;
+}
+
+.sign-in-choice-group label,
+.remember-choice {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 0.75rem;
+  color: #3d4b53;
+  font-weight: 700;
+}
+
+.sign-in-choice-group input,
+.remember-choice input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--signal);
+}
+
+.sign-in-name-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.attestation {
+  margin: 0 0 1.5rem;
+  border-left: 5px solid var(--signal);
+  background: white;
+  padding: 1.25rem;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.35rem, 5vw, 1.8rem);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@media (min-width: 560px) {
+  .public-sign-in-page {
+    padding: 2rem;
+  }
+
+  .public-sign-in-card {
+    min-height: calc(100vh - 4rem);
+  }
+
+  .sign-in-name-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 780px) {
   .admin-heading,
   .member-row {

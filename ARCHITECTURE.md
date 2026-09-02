@@ -49,16 +49,15 @@ Regular student sign-in is the preferred flow. Student sign-in pathways, in prio
 
 1. Remembered browser device
 2. Mobile phone lookup
-3. Record recovery after a phone-number change
-4. Student ID and unique PIN
-5. Guest sign-in when no regular student record can be found
-6. Instructor manual addition
+3. Changed-number recovery using the prior phone plus FFN or KEMSIS ID
+4. Guest sign-in when no regular student record can be used
+5. Instructor manual addition
 
 Phone numbers may be unique for the initial department deployment. The data model must not embed phone numbers into attendance or other foreign keys, so relaxing that constraint later remains a migration rather than a redesign.
 
-Remembered-device cookies contain a random token. Only a cryptographic hash of that token is stored in the database. A remembered device is a convenience signal, not proof of attendance.
+Remembered-device cookies contain a random token. Only a cryptographic hash of that token is stored in the database. A remembered device is a convenience signal, not proof of attendance. A new phone number can be linked only after an exact active prior-phone match, an exact FFN or KEMSIS ID match selected by the student, and affirmative profile confirmation. The new phone is rechecked and applied only inside the successful attendance transaction.
 
-PINs are hashed with Argon2id and are never stored or displayed in plaintext after creation. Lookup and recovery responses must not expose lists of students or full credential values. Guest sign-in is visually secondary, stores class-specific participant data rather than creating a permanent student automatically, and requires roster information again for each class.
+Lookup and recovery responses must not expose lists of students or full credential values. The changed-number challenge always offers FFN and KEMSIS choices, without disclosing which credentials a matched record has. Guest sign-in is visually secondary, stores class-specific participant data rather than creating or updating a permanent student, and requires roster information again for each class.
 
 ## Attendance Attestation
 
@@ -79,16 +78,20 @@ Controls include:
 - HTTPS and secure cookies
 - server-side authorization and validation
 - parameterized queries through Drizzle
-- rate limiting for public lookup and PIN attempts
+- database-backed limits for public workflow creation, staging writes, phone lookup, changed-number recovery, and attendance confirmation
 - unpredictable class sign-in tokens stored as hashes
+- short-lived signed workflow cookies and encrypted, expiring server-side workflow state
+- tokenless sign-in pages after the initial QR token is resolved, with no-referrer responses and raw-token redaction from application telemetry
 - masked credential display
-- encryption at rest provided by Neon and object storage
+- application-level AES-GCM encryption for staged sign-in data, attendance snapshots, and credential values, in addition to Neon and object-storage encryption at rest
 - secrets stored only in environment variables
 - no database credentials in browser code
 - audit logging for important mutations
-- sanitized logs that exclude passwords, PINs, raw device tokens, and full credential values
+- sanitized logs that exclude passwords, raw class/device tokens, phone numbers, and full credential values
 
-Application-level field encryption is not required initially. This decision can be revisited if the sensitivity or regulatory requirements increase.
+The credential encryption key is required for credential, workflow-state, and attendance-snapshot decryption. It must be securely backed up and retained for as long as protected attendance records must remain readable. Signing and rate-limit HMAC keys are purpose-separated derivations from the durable authentication secret; key rotation requires a planned versioned migration rather than replacing an environment value without preserving historical decryption capability.
+
+Public sign-in actions may add only missing class-required student fields or credentials. They cannot replace existing permanent profile data. The one exception is a verified changed-phone recovery. Every public mutation reloads the current open class and token version, validates same-origin request metadata and the signed workflow nonce, and writes the relevant attendance facts and audit event in the same transaction.
 
 ## Data Durability and Retention
 
@@ -96,6 +99,7 @@ Avoiding data loss is the primary operational concern.
 
 - Core records use deactivation or status changes instead of hard deletion.
 - Attendance, attestations, audit logs, finalization revisions, and generated-roster metadata have no automatic deletion policy initially.
+- Attendance removal is a retained state change with a staff actor and reason; it never deletes the original attendance or attestation facts. A later attendance may become active for the same class/student only after the prior record is retained as removed.
 - Finalized roster snapshots are immutable and retained indefinitely unless a future legal retention policy requires otherwise.
 - Reopening a class never deletes or overwrites a prior finalization revision.
 - Generated files use immutable object keys, object versioning, and checksums.

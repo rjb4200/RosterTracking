@@ -4,6 +4,7 @@ import {
   credentialLookupHash,
   decryptCredential,
   encryptCredential,
+  normalizeCredentialValue,
 } from "./crypto";
 
 const key = "WfAtPIckXdR1AkTmkBZOPGTns2gUyVLExMfK/1islVM=";
@@ -29,5 +30,16 @@ describe("credential encryption", () => {
     expect(credentialLookupHash("FF-123456")).toBe(
       credentialLookupHash(" FF-123456"),
     );
+  });
+
+  it("uses the same exact normalization for stored and submitted credentials", () => {
+    expect(normalizeCredentialValue("  FF-123456  ")).toBe("FF-123456");
+    expect(credentialLookupHash("FF-123456 ")).toBe(
+      credentialLookupHash("FF-123456"),
+    );
+    expect(credentialLookupHash("ff-123456")).not.toBe(
+      credentialLookupHash("FF-123456"),
+    );
+    expect(() => normalizeCredentialValue("   ")).toThrow(/valid credential/i);
   });
 });

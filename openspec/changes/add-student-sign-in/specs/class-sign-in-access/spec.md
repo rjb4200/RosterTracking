@@ -7,6 +7,10 @@ The system SHALL resolve a valid sign-in token only for an open class. A resolve
 - **WHEN** a visitor requests a valid token for an open class
 - **THEN** the system presents the student sign-in workflow within that class context
 
+#### Scenario: Remove the token after initial resolution
+- **WHEN** the server resolves a valid raw class token
+- **THEN** it establishes the protected workflow context, redirects to a tokenless path, sets a no-referrer policy, and excludes the raw token from application logs, analytics, and error metadata
+
 #### Scenario: Maintain class context through sign-in
 - **WHEN** a visitor advances through identification, requirement completion, and attendance confirmation
 - **THEN** each step revalidates the same open class and current token version before reading or writing sign-in data

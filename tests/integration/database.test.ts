@@ -86,6 +86,15 @@ describeDatabase("database foundation", () => {
       "class_components",
       "class_instructors",
       "class_reporting_systems",
+      "remembered_devices",
+      "public_rate_limit_windows",
+      "sign_in_workflow_staging",
+      "class_guests",
+      "attendance",
+      "attendance_attestations",
+      "attendance_reporting_contexts",
+      "attendance_required_field_snapshots",
+      "attendance_credential_snapshots",
     ]) {
       expect(tables.has(table)).toBe(true);
     }

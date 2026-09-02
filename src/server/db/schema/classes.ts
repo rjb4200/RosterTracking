@@ -42,6 +42,7 @@ export const trainingClasses = pgTable(
     deliveryMethod: text("delivery_method").notNull(),
     status: text("status").default("draft").notNull(),
     signInTokenHash: text("sign_in_token_hash").notNull(),
+    signInTokenVersion: integer("sign_in_token_version").default(1).notNull(),
     cancellationReason: text("cancellation_reason"),
     openedAt: timestamp("opened_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -54,6 +55,10 @@ export const trainingClasses = pgTable(
     index("classes_creator_status_idx").on(table.createdByUserId, table.status),
     index("classes_status_idx").on(table.status),
     uniqueIndex("classes_sign_in_token_hash_unique").on(table.signInTokenHash),
+    check(
+      "classes_sign_in_token_version_positive",
+      sql`${table.signInTokenVersion} > 0`,
+    ),
     check(
       "classes_delivery_method",
       sql`${table.deliveryMethod} in ('in_person', 'virtual', 'hybrid')`,

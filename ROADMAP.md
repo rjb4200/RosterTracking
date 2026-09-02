@@ -52,15 +52,14 @@
 ## Phase 5: Student Sign-In
 
 - [ ] Add remembered-device token support
-- [ ] Implement primary phone lookup
-- [ ] Implement Student ID and PIN access
-- [ ] Add secondary guest sign-in that collects class-specific roster data when regular lookup fails
+- [ ] Implement primary phone lookup and changed-number recovery through prior phone plus FFN or KEMSIS ID
+- [ ] Add secondary guest sign-in that collects class-specific roster data without creating or updating a permanent student
 - [ ] Resolve versioned reporting requirements during sign-in
-- [ ] Collect and retain missing credentials
+- [ ] Collect missing requirements and retain encrypted attendance snapshots
 - [ ] Allow selection of the attendance agency
 - [ ] Record the short class-specific attestation
 - [ ] Make attendance submission transactional and idempotent
-- [ ] Add rate limits and enumeration protections
+- [ ] Add encrypted workflow staging, rate limits, enumeration protections, and tokenless public context handling
 - [ ] Add mobile Playwright coverage for every sign-in pathway
 
 ## Phase 6: Instructor Roster

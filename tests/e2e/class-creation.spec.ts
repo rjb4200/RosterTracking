@@ -61,6 +61,7 @@ test("unknown class token returns a generic unavailable response", async ({
 }) => {
   test.skip(!connectionString, "Set TEST_DATABASE_URL.");
   await page.goto("/sign-in/not-a-valid-token");
+  await expect(page).toHaveURL(/\/sign-in\?status=unavailable$/);
   await expect(
     page.getByRole("heading", { name: "Class sign-in unavailable" }),
   ).toBeVisible();

@@ -12,7 +12,11 @@ import {
   trainingCodes,
   trainingSites,
 } from "@/server/db/schema";
-import { credentialLookupHash, encryptCredential } from "./crypto";
+import {
+  credentialLookupHash,
+  encryptCredential,
+  normalizeCredentialValue,
+} from "./crypto";
 import { credentialMaskedSuffix, normalizePhone } from "./masking";
 
 export interface Actor {
@@ -463,9 +467,10 @@ export async function upsertStudentCredential(
   input: z.infer<typeof credentialInput>,
 ) {
   const parsed = credentialInput.parse(input);
-  const maskedSuffix = credentialMaskedSuffix(parsed.value);
-  const valueHash = credentialLookupHash(parsed.value);
-  const encryptedValue = encryptCredential(parsed.value);
+  const normalizedValue = normalizeCredentialValue(parsed.value);
+  const maskedSuffix = credentialMaskedSuffix(normalizedValue);
+  const valueHash = credentialLookupHash(normalizedValue);
+  const encryptedValue = encryptCredential(normalizedValue);
   const expirationDate = parsed.expirationDate ? parsed.expirationDate : null;
 
   return db.transaction(async (transaction) => {

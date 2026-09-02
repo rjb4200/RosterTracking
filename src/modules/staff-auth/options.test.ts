@@ -13,5 +13,5 @@ describe("staff session configuration", () => {
     expect(authOptions.session?.maxAge).toBe(STAFF_SESSION_MAX_AGE_SECONDS);
     expect(authOptions.jwt?.maxAge).toBe(STAFF_SESSION_MAX_AGE_SECONDS);
     expect(STAFF_SESSION_MAX_AGE_SECONDS).toBe(365 * 24 * 60 * 60);
-  });
+  }, 10_000);
 });

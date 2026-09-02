@@ -205,6 +205,7 @@ export async function createClassDraft(
         createdByUserId: actor.id,
         deliveryMethod: parsed.deliveryMethod,
         signInTokenHash: hashClassSignInToken(rawToken),
+        signInTokenVersion: 1,
       })
       .returning();
     if (!created) throw new Error("Class was not created.");
@@ -483,15 +484,20 @@ export async function rotateClassSignInToken(
       .update(trainingClasses)
       .set({
         signInTokenHash: hashClassSignInToken(rawToken),
+        signInTokenVersion: sql`${trainingClasses.signInTokenVersion} + 1`,
         updatedAt: new Date(),
       })
       .where(
         and(
           eq(trainingClasses.id, classId),
           eq(trainingClasses.status, current.status),
+          eq(trainingClasses.signInTokenVersion, current.signInTokenVersion),
         ),
       )
-      .returning({ id: trainingClasses.id });
+      .returning({
+        id: trainingClasses.id,
+        signInTokenVersion: trainingClasses.signInTokenVersion,
+      });
     if (!updated) {
       throw new Error("Class status changed in another request. Try again.");
     }
@@ -508,7 +514,10 @@ export async function rotateClassSignInToken(
 
 export async function resolveOpenClassToken(db: Database, rawToken: string) {
   const [resolved] = await db
-    .select({ id: trainingClasses.id })
+    .select({
+      id: trainingClasses.id,
+      signInTokenVersion: trainingClasses.signInTokenVersion,
+    })
     .from(trainingClasses)
     .where(
       and(

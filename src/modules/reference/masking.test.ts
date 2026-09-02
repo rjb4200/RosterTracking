@@ -28,4 +28,11 @@ describe("phone normalization", () => {
   it("keeps an 11-digit number", () => {
     expect(normalizePhone("18595551234")).toBe("+18595551234");
   });
+
+  it("rejects non-US and incomplete numbers", () => {
+    expect(() => normalizePhone("44 20 7946 0958")).toThrow(/10-digit US/i);
+    expect(() => normalizePhone("555-1234")).toThrow(/10-digit US/i);
+    expect(() => normalizePhone("28595551234")).toThrow(/10-digit US/i);
+    expect(() => normalizePhone("859-555-1234 ext 2")).toThrow(/10-digit US/i);
+  });
 });

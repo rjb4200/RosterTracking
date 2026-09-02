@@ -55,7 +55,15 @@ export function decryptCredential(payload: string): string {
   ]).toString("utf8");
 }
 
-export function credentialLookupHash(value: string): string {
+export function normalizeCredentialValue(value: string): string {
   const normalized = value.trim();
+  if (!normalized || normalized.length > 200) {
+    throw new Error("Enter a valid credential value.");
+  }
+  return normalized;
+}
+
+export function credentialLookupHash(value: string): string {
+  const normalized = normalizeCredentialValue(value);
   return createHmac("sha256", getKey()).update(normalized).digest("base64");
 }
