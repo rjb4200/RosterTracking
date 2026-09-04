@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
 import { encryptCredential } from "@/modules/reference/crypto";
@@ -13,6 +13,7 @@ import {
   attendanceCredentialSnapshots,
   attendanceReportingContexts,
   attendanceRequiredFieldSnapshots,
+  classComponents,
   classGuests,
   rememberedDevices,
   signInWorkflowStaging,
@@ -452,6 +453,16 @@ export async function confirmAttendance(
         context.classId,
         now,
       );
+      const [scheduled] = await transaction
+        .select({
+          hours: sql<string>`coalesce(sum(${classComponents.creditedHours}), 0)`,
+        })
+        .from(classComponents)
+        .where(eq(classComponents.classId, context.classId));
+      const scheduledHours = Number(scheduled?.hours ?? 0);
+      if (!Number.isFinite(scheduledHours) || scheduledHours <= 0) {
+        throw new AttendanceConfirmationError("Class schedule is unavailable.");
+      }
       const currentRequirementSets = requirements.sets.map(
         ({ id, version }) => ({
           id,
@@ -584,6 +595,7 @@ export async function confirmAttendance(
           idempotencyKey: context.idempotencyKey,
           payloadFingerprint,
           signedInAt: now,
+          creditedHours: String(scheduledHours),
         })
         .returning({ id: attendance.id });
       if (!created)

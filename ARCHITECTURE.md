@@ -100,6 +100,8 @@ Avoiding data loss is the primary operational concern.
 - Core records use deactivation or status changes instead of hard deletion.
 - Attendance, attestations, audit logs, finalization revisions, and generated-roster metadata have no automatic deletion policy initially.
 - Attendance removal is a retained state change with a staff actor and reason; it never deletes the original attendance or attestation facts. A later attendance may become active for the same class/student only after the prior record is retained as removed.
+- The instructor roster is available only to staff assigned to the class. Manual attendance records the instructor and method, defaults credit to the sum of scheduled components, and keeps guests scoped to the class.
+- Credit adjustments are bounded from zero through the scheduled total and retain an actor, timestamp, and reason whenever they differ from the default. Completing an open class requires active attendance with valid credit and reporting context.
 - Finalized roster snapshots are immutable and retained indefinitely unless a future legal retention policy requires otherwise.
 - Reopening a class never deletes or overwrites a prior finalization revision.
 - Generated files use immutable object keys, object versioning, and checksums.

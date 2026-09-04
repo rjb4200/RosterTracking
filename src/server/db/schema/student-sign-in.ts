@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   index,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -246,6 +248,21 @@ export const attendance = pgTable(
       onDelete: "restrict",
     }),
     removalReason: text("removal_reason"),
+    creditedHours: numeric("credited_hours", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    creditAdjustmentReason: text("credit_adjustment_reason"),
+    creditAdjustedByUserId: uuid("credit_adjusted_by_user_id").references(
+      () => users.id,
+      { onDelete: "restrict" },
+    ),
+    creditAdjustedAt: timestamp("credit_adjusted_at", { withTimezone: true }),
+    isManual: boolean("is_manual").default(false).notNull(),
+    manualRecordedByUserId: uuid("manual_recorded_by_user_id").references(
+      () => users.id,
+      { onDelete: "restrict" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -270,6 +287,9 @@ export const attendance = pgTable(
     index("attendance_guest_idx").on(table.guestId),
     index("attendance_agency_idx").on(table.agencyId),
     index("attendance_removed_idx").on(table.classId, table.removedAt),
+    index("attendance_roster_active_idx")
+      .on(table.classId, table.signedInAt)
+      .where(sql`${table.removedAt} is null`),
     check(
       "attendance_participant_xor",
       sql`(${table.studentId} is not null) <> (${table.guestId} is not null)`,
@@ -289,6 +309,18 @@ export const attendance = pgTable(
     check(
       "attendance_removed_after_sign_in",
       sql`${table.removedAt} is null or ${table.removedAt} >= ${table.signedInAt}`,
+    ),
+    check(
+      "attendance_credited_hours_nonnegative",
+      sql`${table.creditedHours} >= 0`,
+    ),
+    check(
+      "attendance_credit_adjustment_fields",
+      sql`(${table.creditAdjustmentReason} is null and ${table.creditAdjustedByUserId} is null and ${table.creditAdjustedAt} is null) or (nullif(btrim(${table.creditAdjustmentReason}), '') is not null and ${table.creditAdjustedByUserId} is not null and ${table.creditAdjustedAt} is not null)`,
+    ),
+    check(
+      "attendance_manual_fields",
+      sql`(${table.isManual} = false and ${table.manualRecordedByUserId} is null) or (${table.isManual} = true and ${table.manualRecordedByUserId} is not null)`,
     ),
   ],
 );

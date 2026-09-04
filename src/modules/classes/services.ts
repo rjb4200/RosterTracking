@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
-
+import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -426,6 +426,9 @@ export async function transitionClass(
         leadCount: leadCount[0]?.count ?? 0,
         reportingCount: reportingCount[0]?.count ?? 0,
       });
+    }
+    if (nextStatus === CLASS_STATUSES.COMPLETED) {
+      await validateRosterCompletion(transaction, classId);
     }
     const now = new Date();
     const [updated] = await transaction

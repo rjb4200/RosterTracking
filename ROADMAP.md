@@ -64,12 +64,12 @@
 
 ## Phase 6: Instructor Roster
 
-- [ ] Add the live class roster
-- [ ] Add instructor manual attendance
-- [ ] Add audited attendance removal
-- [ ] Add credited-hour adjustments and reasons
-- [ ] Add completion validation
-- [ ] Add instructor-focused tablet and desktop tests
+- [x] Add the live class roster
+- [x] Add instructor manual attendance
+- [x] Add audited attendance removal
+- [x] Add credited-hour adjustments and reasons
+- [x] Add completion validation
+- [x] Add instructor-focused tablet and desktop tests
 
 ## Phase 7: Finalization and Reporting
 

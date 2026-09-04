@@ -291,6 +291,12 @@ h1 {
   font-weight: 700;
 }
 
+.form-success {
+  margin: 0.4rem 0 0;
+  color: #22613e;
+  font-weight: 700;
+}
+
 .login-aside {
   display: flex;
   flex-direction: column;
@@ -655,6 +661,60 @@ h1 {
   list-style: none;
 }
 
+.roster-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  padding: 1rem 0;
+}
+
+.roster-row > div {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.roster-row span,
+.roster-note {
+  color: var(--steel);
+  font-size: 0.9rem;
+}
+
+.roster-credit,
+.roster-entry-controls,
+.roster-forms {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.roster-forms {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.roster-form {
+  max-width: none;
+  border-left: 4px solid var(--signal);
+  background: white;
+  padding: 1rem;
+}
+
+.roster-form h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.credit-input {
+  width: 6rem;
+}
+
 .member-row {
   min-height: 3rem;
   justify-content: space-between;
@@ -980,5 +1040,13 @@ h1 {
 
   .field-wide {
     grid-column: auto;
+  }
+
+  .roster-row {
+    flex-direction: column;
+  }
+
+  .roster-forms {
+    grid-template-columns: 1fr;
   }
 }

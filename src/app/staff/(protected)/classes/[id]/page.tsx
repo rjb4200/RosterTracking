@@ -65,6 +65,14 @@ export default async function ClassDetailPage({
           >
             Back
           </Link>
+          {["open", "completed"].includes(classRecord.status) ? (
+            <Link
+              href={`/staff/classes/${classRecord.id}/roster`}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              Instructor roster
+            </Link>
+          ) : null}
         </div>
       </div>
 

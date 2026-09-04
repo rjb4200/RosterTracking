@@ -13,7 +13,9 @@ import * as schema from "../../src/server/db/schema";
 import {
   agencies,
   attendance,
+  classComponents,
   classGuests,
+  classInstructors,
   courses,
   rememberedDevices,
   studentAgencies,
@@ -86,6 +88,17 @@ async function createOpenClassFixture() {
     })
     .returning({ id: trainingClasses.id });
   if (!classRecord) throw new Error("Open class fixture was not created.");
+  await db.insert(classInstructors).values({
+    classId: classRecord.id,
+    userId: actor.id,
+    isLead: true,
+  });
+  await db.insert(classComponents).values({
+    classId: classRecord.id,
+    startsAt: new Date("2026-09-10T13:00:00Z"),
+    endsAt: new Date("2026-09-10T17:00:00Z"),
+    creditedHours: "4",
+  });
   return { db, actor, agency, classRecord, rawToken };
 }
 
