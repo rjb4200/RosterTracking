@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { getFinalizationHistory } from "@/modules/classes/finalization";
 import {
   getClassDetail,
   listClassFormOptions,
@@ -17,6 +18,8 @@ import { getDatabase } from "@/server/db/client";
 
 import {
   assignInstructorAction,
+  finalizeClassAction,
+  reopenClassAction,
   rotateTokenAction,
   saveComponentAction,
   transitionClassAction,
@@ -24,6 +27,7 @@ import {
 } from "../actions";
 import { ClassForm } from "../class-form";
 import { ComponentForm } from "../component-form";
+import { FinalizationControls } from "../finalization-controls";
 import { LifecycleControls } from "../lifecycle-controls";
 import { TokenPanel } from "../token-panel";
 
@@ -43,7 +47,10 @@ export default async function ClassDetailPage({
   } catch {
     notFound();
   }
-  const options = await listClassFormOptions(db);
+  const [options, revisionHistory] = await Promise.all([
+    listClassFormOptions(db),
+    getFinalizationHistory(db, actor, id),
+  ]);
   const isDraft = classRecord.status === "draft";
 
   return (
@@ -174,12 +181,47 @@ export default async function ClassDetailPage({
           status={classRecord.status}
           action={transitionClassAction}
         />
+        <FinalizationControls
+          classId={classRecord.id}
+          status={classRecord.status}
+          finalizeAction={finalizeClassAction}
+          reopenAction={reopenClassAction}
+        />
         {!["completed", "finalized", "cancelled"].includes(
           classRecord.status,
         ) ? (
           <TokenPanel classId={classRecord.id} action={rotateTokenAction} />
         ) : null}
       </section>
+      {revisionHistory.length ? (
+        <section className="admin-section">
+          <p className="eyebrow">Finalization history</p>
+          <h2>Immutable revisions</h2>
+          <ul className="member-list">
+            {revisionHistory.map((revision) => (
+              <li key={revision.id} className="member-row">
+                <span>
+                  Revision {revision.revisionNumber} finalized by{" "}
+                  {revision.finalizedBy}
+                </span>
+                <span className="text-muted-foreground">
+                  {revision.reopenReason
+                    ? `Reopened: ${revision.reopenReason}`
+                    : "Current or retained revision"}
+                </span>
+                <span>
+                  {revision.destinations
+                    .map(
+                      (destination) =>
+                        `${destination.systemName}: ${destination.status}`,
+                    )
+                    .join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </main>
   );
 }

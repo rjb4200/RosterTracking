@@ -6,6 +6,9 @@ import {
   validateClassTransition,
   validateComponentRange,
   validateDeliverySite,
+  validateFinalizationTransition,
+  validateReopenReason,
+  validateReportingStatusTransition,
 } from "./policy";
 
 describe("class policy", () => {
@@ -52,6 +55,28 @@ describe("class policy", () => {
         leadCount: 1,
         reportingCount: 1,
       }),
+    ).not.toThrow();
+  });
+
+  it("allows finalization only after completion and requires reopen reasons", () => {
+    expect(() => validateFinalizationTransition(CLASS_STATUSES.OPEN)).toThrow(
+      /completed/i,
+    );
+    expect(() =>
+      validateFinalizationTransition(CLASS_STATUSES.COMPLETED),
+    ).not.toThrow();
+    expect(() => validateReopenReason(" ")).toThrow(/reason/i);
+  });
+
+  it("keeps reporting destination transitions independent and correction notes explicit", () => {
+    expect(() =>
+      validateReportingStatusTransition("pending", "needs_correction"),
+    ).toThrow(/notes/i);
+    expect(() =>
+      validateReportingStatusTransition("reported", "pending"),
+    ).toThrow(/corrected/i);
+    expect(() =>
+      validateReportingStatusTransition("pending", "reported", "submitted"),
     ).not.toThrow();
   });
 });

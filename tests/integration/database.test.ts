@@ -95,6 +95,9 @@ describeDatabase("database foundation", () => {
       "attendance_reporting_contexts",
       "attendance_required_field_snapshots",
       "attendance_credential_snapshots",
+      "finalization_revisions",
+      "finalization_reopens",
+      "finalization_reporting_statuses",
     ]) {
       expect(tables.has(table)).toBe(true);
     }

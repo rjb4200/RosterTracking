@@ -57,6 +57,13 @@
       "when": 1788459313725,
       "tag": "0007_pink_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788554923684,
+      "tag": "0008_abandoned_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

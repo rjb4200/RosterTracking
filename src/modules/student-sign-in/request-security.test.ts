@@ -54,6 +54,22 @@ describe("public request security", () => {
     ).toBe(false);
   });
 
+  it("uses the request origin in production when NEXTAUTH_URL is localhost", () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(
+        isSameOriginRequest(
+          new Headers({ origin: "https://roster-tracking.vercel.app" }),
+          "https://roster-tracking.vercel.app/sign-in/action",
+          "http://localhost:3000",
+        ),
+      ).toBe(true);
+    } finally {
+      vi.stubEnv("NODE_ENV", previousNodeEnv ?? "test");
+    }
+  });
+
   it("accepts Web Request headers used by Next route handlers", async () => {
     const request = new Request("https://roster.example.com/sign-in/action", {
       method: "POST",

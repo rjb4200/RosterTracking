@@ -22,6 +22,15 @@ function firstHeaderValue(value: string | null): string | null {
   return first || null;
 }
 
+function isLocalOrigin(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    return ["localhost", "127.0.0.1", "::1"].includes(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function requestSourceFingerprint(ipAddress: string): string {
   return keyedHash("sign-in-request-source", ipAddress.trim().toLowerCase());
 }
@@ -56,7 +65,11 @@ export function isSameOriginRequest(
   const supplied = headers.get("origin");
   if (!supplied) return false;
   try {
-    const expected = new URL(configuredOrigin ?? requestUrl ?? "").origin;
+    const expected = new URL(
+      process.env.NODE_ENV === "production" && isLocalOrigin(configuredOrigin)
+        ? (requestUrl ?? "")
+        : (configuredOrigin ?? requestUrl ?? ""),
+    ).origin;
     return new URL(supplied).origin === expected;
   } catch {
     return false;

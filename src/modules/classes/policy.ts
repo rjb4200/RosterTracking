@@ -61,3 +61,31 @@ export function validateClassTransition(
     throw new Error("A cancellation reason is required.");
   }
 }
+
+export function validateFinalizationTransition(status: string): void {
+  if (status !== CLASS_STATUSES.COMPLETED) {
+    throw new Error("Only completed classes can be finalized.");
+  }
+}
+
+export function validateReopenReason(reason: string): void {
+  if (!reason.trim()) throw new Error("A reopen reason is required.");
+}
+
+export function validateReportingStatusTransition(
+  current: string,
+  next: string,
+  notes?: string,
+): void {
+  if (!["pending", "reported", "needs_correction"].includes(next)) {
+    throw new Error("Invalid reporting status.");
+  }
+  if (current === "reported" && next === "pending") {
+    throw new Error(
+      "Reported destinations must be corrected rather than reset.",
+    );
+  }
+  if (next === "needs_correction" && !notes?.trim()) {
+    throw new Error("Correction notes are required.");
+  }
+}

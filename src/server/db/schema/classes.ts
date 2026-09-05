@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   primaryKey,
@@ -144,5 +145,104 @@ export const classReportingSystems = pgTable(
   (table) => [
     primaryKey({ columns: [table.classId, table.reportingSystemId] }),
     index("class_reporting_systems_system_idx").on(table.reportingSystemId),
+  ],
+);
+
+export const finalizationRevisions = pgTable(
+  "finalization_revisions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    classId: uuid("class_id")
+      .notNull()
+      .references(() => trainingClasses.id, { onDelete: "restrict" }),
+    revisionNumber: integer("revision_number").notNull(),
+    finalizedByUserId: uuid("finalized_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    // The encrypted payload keeps historical roster facts out of normal reads.
+    encryptedSnapshot: text("encrypted_snapshot").notNull(),
+    summary: jsonb("summary").notNull(),
+  },
+  (table) => [
+    uniqueIndex("finalization_revisions_class_number_unique").on(
+      table.classId,
+      table.revisionNumber,
+    ),
+    index("finalization_revisions_class_finalized_idx").on(
+      table.classId,
+      table.finalizedAt,
+    ),
+    check(
+      "finalization_revisions_number_positive",
+      sql`${table.revisionNumber} > 0`,
+    ),
+    check(
+      "finalization_revisions_snapshot_not_blank",
+      sql`length(btrim(${table.encryptedSnapshot})) > 0`,
+    ),
+  ],
+);
+
+export const finalizationReopens = pgTable(
+  "finalization_reopens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    revisionId: uuid("revision_id")
+      .notNull()
+      .references(() => finalizationRevisions.id, { onDelete: "restrict" }),
+    reopenedByUserId: uuid("reopened_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("finalization_reopens_revision_unique").on(table.revisionId),
+    check(
+      "finalization_reopens_reason_not_blank",
+      sql`length(btrim(${table.reason})) > 0`,
+    ),
+  ],
+);
+
+export const finalizationReportingStatuses = pgTable(
+  "finalization_reporting_statuses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    revisionId: uuid("revision_id")
+      .notNull()
+      .references(() => finalizationRevisions.id, { onDelete: "restrict" }),
+    reportingSystemId: uuid("reporting_system_id")
+      .notNull()
+      .references(() => reportingSystems.id, { onDelete: "restrict" }),
+    status: text("status").default("pending").notNull(),
+    reportedByUserId: uuid("reported_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    reportedAt: timestamp("reported_at", { withTimezone: true }),
+    referenceNumber: text("reference_number"),
+    notes: text("notes"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("finalization_reporting_revision_system_unique").on(
+      table.revisionId,
+      table.reportingSystemId,
+    ),
+    index("finalization_reporting_status_idx").on(
+      table.status,
+      table.updatedAt,
+    ),
+    check(
+      "finalization_reporting_status_valid",
+      sql`${table.status} in ('pending', 'reported', 'needs_correction')`,
+    ),
   ],
 );

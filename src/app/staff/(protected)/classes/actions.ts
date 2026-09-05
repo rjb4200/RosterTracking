@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import { CLASS_STATUSES, type ClassStatus } from "@/modules/classes/constants";
 import {
+  finalizeClass,
+  reopenFinalizedClass,
+} from "@/modules/classes/finalization";
+import {
   buildClassSignInUrl,
   createClassQrDataUrl,
   getClassSignInBaseUrl,
@@ -190,6 +194,48 @@ export async function rotateTokenAction(
     return {
       error:
         error instanceof Error ? error.message : "Could not rotate access.",
+    };
+  }
+}
+
+export async function finalizeClassAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await finalizeClass(getDatabase(), actor, classId);
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath("/staff/reporting");
+    return { classId };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not finalize class.",
+    };
+  }
+}
+
+export async function reopenClassAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await reopenFinalizedClass(
+      getDatabase(),
+      actor,
+      classId,
+      read(formData, "reason"),
+    );
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath("/staff/reporting");
+    return { classId };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not reopen class.",
     };
   }
 }
