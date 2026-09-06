@@ -2,7 +2,7 @@
 
 Fire and EMS training attendance and roster management for one department. The project is a Next.js modular monolith backed by Neon PostgreSQL.
 
-The current implementation provides the application foundation, internal staff authentication, reference-data administration, class creation and lifecycle management, and secure class sign-in links. Student identity and attendance, finalization, external reporting, and official roster PDFs are implemented in later OpenSpec changes.
+The current implementation provides staff authentication, reference data, class lifecycle, attendance finalization/reporting, and private official roster PDF generation.
 
 ## Requirements
 
@@ -22,6 +22,12 @@ The current implementation provides the application foundation, internal staff a
 7. Start the application with `npm run dev`.
 
 Database credentials are server-only. Never prefix them with `NEXT_PUBLIC_` or expose them to browser code.
+
+## Official Roster PDFs
+
+KFS-1A October 2023 and KBEMS-E16 September 2012 are the only approved official PDF outputs. Their supplied source files and SHA-256 checksums are versioned in `src/modules/official-roster-pdfs`; mapping changes require a new approved template version and visual fixture review. Training Majors and Administrators generate retained PDFs from encrypted finalization revisions only.
+
+Generated PDFs require either `OFFICIAL_ROSTER_STORAGE_DIR` for local development or the `OFFICIAL_ROSTER_STORAGE_*` S3-compatible settings in production. The configured Neon bucket is `official-roster-artifacts` on the production branch and must remain private. The application never returns object keys or public storage URLs. Artifacts and metadata are append-only; retain them according to the department's official-record retention policy. Signature and initials controls remain blank for physical completion. KFS-1B remains deferred in GitHub issue #1, and FEMA output is deferred until an approved current form is supplied.
 
 The migration, seed, and admin scripts load `.env` from the project root automatically. Next.js also reads `.env` for the running application.
 

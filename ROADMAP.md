@@ -51,16 +51,16 @@
 
 ## Phase 5: Student Sign-In
 
-- [ ] Add remembered-device token support
-- [ ] Implement primary phone lookup and changed-number recovery through prior phone plus FFN or KEMSIS ID
-- [ ] Add secondary guest sign-in that collects class-specific roster data without creating or updating a permanent student
-- [ ] Resolve versioned reporting requirements during sign-in
-- [ ] Collect missing requirements and retain encrypted attendance snapshots
-- [ ] Allow selection of the attendance agency
-- [ ] Record the short class-specific attestation
-- [ ] Make attendance submission transactional and idempotent
-- [ ] Add encrypted workflow staging, rate limits, enumeration protections, and tokenless public context handling
-- [ ] Add mobile Playwright coverage for every sign-in pathway
+- [x] Add remembered-device token support
+- [x] Implement primary phone lookup and changed-number recovery through prior phone plus FFN or KEMSIS ID
+- [x] Add secondary guest sign-in that collects class-specific roster data without creating or updating a permanent student
+- [x] Resolve versioned reporting requirements during sign-in
+- [x] Collect missing requirements and retain encrypted attendance snapshots
+- [x] Allow selection of the attendance agency
+- [x] Record the short class-specific attestation
+- [x] Make attendance submission transactional and idempotent
+- [x] Add encrypted workflow staging, rate limits, enumeration protections, and tokenless public context handling
+- [x] Add mobile Playwright coverage for every sign-in pathway
 
 ## Phase 6: Instructor Roster
 
@@ -73,13 +73,13 @@
 
 ## Phase 7: Finalization and Reporting
 
-- [ ] Create immutable finalization revisions and snapshots
-- [ ] Lock normal editing after finalization
-- [ ] Add authorized reopen with required reason
-- [ ] Preserve and supersede prior revisions correctly
-- [ ] Add independent Fire, KBEMS, and FEMA reporting statuses
-- [ ] Add pending and needs-correction queues
-- [ ] Record reporting actor, time, reference number, and notes
+- [x] Create immutable finalization revisions and snapshots
+- [x] Lock normal editing after finalization
+- [x] Add authorized reopen with required reason
+- [x] Preserve and supersede prior revisions correctly
+- [x] Add independent Fire, KBEMS, and FEMA reporting statuses
+- [x] Add pending and needs-correction queues
+- [x] Record reporting actor, time, reference number, and notes
 
 ## Phase 8: Official Rosters
 

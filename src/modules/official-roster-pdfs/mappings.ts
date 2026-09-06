@@ -1,0 +1,128 @@
+export const OFFICIAL_ROSTER_FORMS = {
+  KFS_1A: "kfs-1a",
+  KBEMS_E16: "kbems-e16",
+} as const;
+
+export type OfficialRosterForm =
+  (typeof OFFICIAL_ROSTER_FORMS)[keyof typeof OFFICIAL_ROSTER_FORMS];
+
+export interface TemplateMapping {
+  formType: OfficialRosterForm;
+  templateVersion: string;
+  assetName: string;
+  sourceChecksum: string;
+  pageCapacity: number;
+  pageSize: { width: number; height: number };
+  typography: { fontSize: number; font: "Helvetica" };
+  // PDF user-space rectangles extracted from the approved source template.
+  fieldCoordinates: Record<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >;
+  fields: Record<string, string>;
+  blankFields: readonly string[];
+}
+
+const kfsRows = Array.from({ length: 25 }, (_, index) => index + 1);
+const kbemsRows = Array.from({ length: 16 }, (_, index) => index + 1);
+
+export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
+  "kfs-1a": {
+    formType: "kfs-1a",
+    templateVersion: "kfs-1a-october-2023",
+    assetName: "kfs-1a-october-2023.pdf",
+    sourceChecksum:
+      "1c986b7c39f4754317508e42a9a466f1df6993139a0a83a28e876dce626d6874",
+    pageCapacity: 25,
+    pageSize: { width: 612, height: 792 },
+    typography: { font: "Helvetica", fontSize: 8 },
+    fieldCoordinates: {
+      date: { x: 58.56, y: 686.28, width: 85.56, height: 25.32 },
+      hostAgency: { x: 234.24, y: 686.28, width: 161.88, height: 25.32 },
+      attendeeFfnRow1: { x: 37.08, y: 528.12, width: 70.68, height: 16.44 },
+      attendeeLastNameRow1: {
+        x: 109.32,
+        y: 528.12,
+        width: 175.32,
+        height: 16.44,
+      },
+      attendeeFirstNameRow1: {
+        x: 286.2,
+        y: 528.12,
+        width: 187.44,
+        height: 16.44,
+      },
+      attendeeHoursRow1: { x: 528.96, y: 528.12, width: 21, height: 16.44 },
+    },
+    fields: {
+      date: "Date",
+      hostAgency: "Host Agency",
+      location: "Location",
+      leadInstructor: "Lead Instructor Print",
+      assistingInstructor: "Assisting Instructor Print",
+      className: "Class NameRow1",
+      component: "Lesson PlanRow1",
+      start: "StartRow1",
+      end: "EndRow1",
+      hours: "HoursCR  HO  OL",
+    },
+    // These form controls are intentionally never populated electronically.
+    blankFields: [
+      ...kfsRows.flatMap((row) => [
+        `InitialRow${row}`,
+        `InitialsRow${row}`,
+        `SignatureRow${row}`,
+      ]),
+      "Lead Instructor Signature",
+      "Assisting Instructor Signature",
+    ],
+  },
+  "kbems-e16": {
+    formType: "kbems-e16",
+    templateVersion: "kbems-e16-september-2012",
+    assetName: "kbems-e16-september-2012.pdf",
+    sourceChecksum:
+      "5c56ffcd9b6481ce9019a9fdecd827ecaefc7bc63b9dc6d5f4d5fd0021796416",
+    pageCapacity: 16,
+    pageSize: { width: 792, height: 612 },
+    typography: { font: "Helvetica", fontSize: 8 },
+    fieldCoordinates: {
+      courseName: { x: 228.36, y: 567.12, width: 286.68, height: 12.84 },
+      attendeeNameRow1: { x: 31.56, y: 445.68, width: 180.96, height: 21.12 },
+      attendeeKemsisIdRow1: {
+        x: 214.32,
+        y: 445.68,
+        width: 95.4,
+        height: 21.12,
+      },
+      attendeeServiceRow1: {
+        x: 518.52,
+        y: 445.68,
+        width: 242.04,
+        height: 21.12,
+      },
+    },
+    fields: {
+      courseName: "Course Name",
+      instructor: "Instructor Name",
+      location: "Location",
+      date: "Date",
+      startTime: "Start Time",
+      endTime: "End Time",
+      totalHours: "Total Hours",
+      objectives: "Course Description or Objectives",
+      page: "Please mark out blank lines at the conclusion of the course",
+      pageCount: "of",
+    },
+    blankFields: [
+      ...kbemsRows.flatMap((row) => [`Student SignatureRow${row}`]),
+      "Instructor Signature",
+    ],
+  },
+};
+
+export function getTemplateMapping(
+  formType: OfficialRosterForm,
+): TemplateMapping {
+  return TEMPLATE_MAPPINGS[formType];
+}

@@ -13,6 +13,7 @@ import {
   attendanceAttestations,
   attendanceCredentialSnapshots,
   attendanceRequiredFieldSnapshots,
+  classComponents,
   classGuests,
   classInstructors,
   classReportingSystems,
@@ -209,6 +210,16 @@ async function buildSnapshot(
   return {
     class: classRow,
     instructors,
+    components: await transaction
+      .select({
+        title: classComponents.title,
+        startsAt: classComponents.startsAt,
+        endsAt: classComponents.endsAt,
+        creditedHours: classComponents.creditedHours,
+      })
+      .from(classComponents)
+      .where(eq(classComponents.classId, classId))
+      .orderBy(asc(classComponents.position)),
     attendance: roster,
     destinations,
     requirements,

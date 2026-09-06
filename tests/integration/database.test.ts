@@ -30,6 +30,8 @@ import {
   courseReportingDefaults,
   courses,
   credentialTypes,
+  finalizationRevisions,
+  officialRosterArtifacts,
   permissions,
   reportingRequirementSets,
   reportingSystems,
@@ -98,6 +100,7 @@ describeDatabase("database foundation", () => {
       "finalization_revisions",
       "finalization_reopens",
       "finalization_reporting_statuses",
+      "official_roster_artifacts",
     ]) {
       expect(tables.has(table)).toBe(true);
     }
@@ -111,8 +114,8 @@ describeDatabase("database foundation", () => {
     await database.transaction(seedFoundation);
 
     expect((await database.select().from(roles)).length).toBe(3);
-    expect((await database.select().from(permissions)).length).toBe(9);
-    expect((await database.select().from(rolePermissions)).length).toBe(20);
+    expect((await database.select().from(permissions)).length).toBe(10);
+    expect((await database.select().from(rolePermissions)).length).toBe(22);
   });
 
   it("seeds reference data idempotently and supports reference CRUD", async () => {
@@ -381,6 +384,69 @@ describeDatabase("database foundation", () => {
       username,
     ]);
     expect(result.rowCount).toBe(0);
+  });
+
+  it("retains append-only official roster artifact metadata", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const database = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const [actor] = await database
+      .insert(users)
+      .values({
+        username: `artifact-test-${suffix}`,
+        displayName: "Artifact Test",
+        passwordHash: "not-a-real-hash",
+      })
+      .returning({ id: users.id });
+    const [course] = await database
+      .insert(courses)
+      .values({ name: `Artifact Course ${suffix}` })
+      .returning({ id: courses.id });
+    if (!actor || !course)
+      throw new Error("Artifact test fixture was not created.");
+    const [classRecord] = await database
+      .insert(trainingClasses)
+      .values({
+        courseId: course.id,
+        createdByUserId: actor.id,
+        deliveryMethod: "virtual",
+        status: "finalized",
+        signInTokenHash: `artifact-${suffix}`,
+      })
+      .returning({ id: trainingClasses.id });
+    if (!classRecord)
+      throw new Error("Artifact class fixture was not created.");
+    const [revision] = await database
+      .insert(finalizationRevisions)
+      .values({
+        classId: classRecord.id,
+        revisionNumber: 1,
+        finalizedByUserId: actor.id,
+        encryptedSnapshot: "fixture.payload.value",
+        summary: {},
+      })
+      .returning({ id: finalizationRevisions.id });
+    if (!revision)
+      throw new Error("Artifact revision fixture was not created.");
+    const [artifact] = await database
+      .insert(officialRosterArtifacts)
+      .values({
+        revisionId: revision.id,
+        formType: "kfs-1a",
+        templateVersion: "fixture",
+        objectKey: `fixture/${crypto.randomUUID()}.pdf`,
+        checksum: "a".repeat(64),
+        byteSize: 1,
+        generatedByUserId: actor.id,
+      })
+      .returning({ id: officialRosterArtifacts.id });
+    if (!artifact) throw new Error("Artifact metadata was not created.");
+    await expect(
+      pool.query(
+        "update official_roster_artifacts set byte_size = 2 where id = $1",
+        [artifact.id],
+      ),
+    ).rejects.toThrow(/instead|rule/i);
   });
 
   it("rejects audit log mutation", async () => {

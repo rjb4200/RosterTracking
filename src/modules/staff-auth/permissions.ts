@@ -7,6 +7,7 @@ export const PERMISSIONS = {
   SITES_MANAGE: "sites.manage",
   SITES_CREATE: "sites.create",
   REPORTING_MANAGE: "reporting.manage",
+  OFFICIAL_ROSTERS_MANAGE: "official-rosters.manage",
   CLASSES_MANAGE: "classes.manage",
 } as const;
 

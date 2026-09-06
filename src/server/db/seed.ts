@@ -39,6 +39,10 @@ const permissionDefinitions = [
     description: "Manage reporting systems and requirements",
   },
   {
+    code: PERMISSIONS.OFFICIAL_ROSTERS_MANAGE,
+    description: "Generate and retrieve official roster artifacts",
+  },
+  {
     code: PERMISSIONS.CLASSES_MANAGE,
     description: "Create and manage training classes",
   },
@@ -72,6 +76,7 @@ const grants: Array<[string, string]> = [
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.SITES_MANAGE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.SITES_CREATE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.REPORTING_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.OFFICIAL_ROSTERS_MANAGE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.CLASSES_MANAGE],
   // Training Major: manage reference data and reporting, but not staff accounts.
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STAFF_ACCESS],
@@ -81,6 +86,7 @@ const grants: Array<[string, string]> = [
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.SITES_MANAGE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.SITES_CREATE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.REPORTING_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.OFFICIAL_ROSTERS_MANAGE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.CLASSES_MANAGE],
   // Instructor: staff access plus quick site creation.
   [ROLE_CODES.INSTRUCTOR, PERMISSIONS.STAFF_ACCESS],
