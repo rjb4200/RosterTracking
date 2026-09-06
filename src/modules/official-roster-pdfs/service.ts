@@ -1,31 +1,19 @@
 import "server-only";
 
-import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
 import { decryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
-import { writeAuditLog } from "@/server/db/audit";
 import type { Database } from "@/server/db/client";
-import {
-  finalizationRevisions,
-  officialRosterArtifacts,
-  roles,
-  userRoles,
-  users,
-} from "@/server/db/schema";
+import { finalizationRevisions, roles, userRoles } from "@/server/db/schema";
 
 import {
   getTemplateMapping,
   type OfficialRosterForm,
   type TemplateMapping,
 } from "./mappings";
-import {
-  getPrivateArtifactStorage,
-  type PrivateArtifactStorage,
-} from "./storage";
 
 export interface OfficialRosterActor {
   id: string;
@@ -64,17 +52,6 @@ export interface FinalizationSnapshot {
     endsAt: string;
     creditedHours: string;
   }>;
-}
-
-export interface ArtifactSummary {
-  id: string;
-  revisionId: string;
-  formType: OfficialRosterForm;
-  templateVersion: string;
-  checksum: string;
-  byteSize: number;
-  generatedAt: Date;
-  generatedBy: string;
 }
 
 function formatDate(value: string | null): string {
@@ -310,91 +287,11 @@ export async function generateOfficialRoster(
   actor: OfficialRosterActor,
   revisionId: string,
   formType: OfficialRosterForm,
-  storage: PrivateArtifactStorage = getPrivateArtifactStorage(),
-): Promise<ArtifactSummary> {
+): Promise<{ bytes: Uint8Array; filename: string }> {
   const snapshot = await readSnapshot(db, actor, revisionId);
   const mapping = getTemplateMapping(formType);
-  const bytes = await renderOfficialRoster(formType, snapshot);
-  const checksum = createHash("sha256").update(bytes).digest("hex");
-  const objectKey = `official-rosters/${revisionId}/${randomUUID()}.pdf`;
-  await storage.put(objectKey, bytes);
-  const [artifact] = await db
-    .insert(officialRosterArtifacts)
-    .values({
-      revisionId,
-      formType,
-      templateVersion: mapping.templateVersion,
-      objectKey,
-      checksum,
-      byteSize: bytes.length,
-      generatedByUserId: actor.id,
-    })
-    .returning();
-  if (!artifact) throw new Error("Official roster artifact was not recorded.");
-  await db.transaction((transaction) =>
-    writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "official_roster.generated",
-      entityType: "official_roster_artifact",
-      entityId: artifact.id,
-      details: {
-        revisionId,
-        formType,
-        templateVersion: mapping.templateVersion,
-      },
-    }),
-  );
   return {
-    ...artifact,
-    formType: artifact.formType as OfficialRosterForm,
-    generatedBy: actor.username,
-  };
-}
-
-export async function listOfficialRosterArtifacts(
-  db: Database,
-  actor: OfficialRosterActor,
-  revisionId: string,
-): Promise<ArtifactSummary[]> {
-  await assertRosterAuthority(db, actor);
-  return db
-    .select({
-      id: officialRosterArtifacts.id,
-      revisionId: officialRosterArtifacts.revisionId,
-      formType: officialRosterArtifacts.formType,
-      templateVersion: officialRosterArtifacts.templateVersion,
-      checksum: officialRosterArtifacts.checksum,
-      byteSize: officialRosterArtifacts.byteSize,
-      generatedAt: officialRosterArtifacts.generatedAt,
-      generatedBy: users.displayName,
-    })
-    .from(officialRosterArtifacts)
-    .innerJoin(users, eq(users.id, officialRosterArtifacts.generatedByUserId))
-    .where(eq(officialRosterArtifacts.revisionId, revisionId))
-    .orderBy(desc(officialRosterArtifacts.generatedAt))
-    .then((rows) => rows as ArtifactSummary[]);
-}
-
-export async function downloadOfficialRoster(
-  db: Database,
-  actor: OfficialRosterActor,
-  artifactId: string,
-  storage: PrivateArtifactStorage = getPrivateArtifactStorage(),
-): Promise<{ bytes: Uint8Array; filename: string }> {
-  await assertRosterAuthority(db, actor);
-  const [artifact] = await db
-    .select({
-      objectKey: officialRosterArtifacts.objectKey,
-      formType: officialRosterArtifacts.formType,
-      templateVersion: officialRosterArtifacts.templateVersion,
-    })
-    .from(officialRosterArtifacts)
-    .where(eq(officialRosterArtifacts.id, artifactId))
-    .limit(1);
-  if (!artifact) throw new Error("Official roster artifact not found.");
-  return {
-    bytes: await storage.get(artifact.objectKey),
-    filename: `${artifact.formType}-${artifact.templateVersion}.pdf`,
+    bytes: await renderOfficialRoster(formType, snapshot),
+    filename: `${formType}-${mapping.templateVersion}.pdf`,
   };
 }

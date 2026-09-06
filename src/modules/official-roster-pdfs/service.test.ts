@@ -2,11 +2,15 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { encryptCredential } from "@/modules/reference/crypto";
+import type { Database } from "@/server/db/client";
 
 import { TEMPLATE_MAPPINGS } from "./mappings";
 import {
   type FinalizationSnapshot,
+  generateOfficialRoster,
   hasOfficialRosterAuthority,
   renderOfficialRoster,
 } from "./service";
@@ -77,5 +81,44 @@ describe("official roster PDF templates", () => {
     expect(hasOfficialRosterAuthority(["training-major"])).toBe(true);
     expect(hasOfficialRosterAuthority(["administrator"])).toBe(true);
     expect(hasOfficialRosterAuthority(["instructor"])).toBe(false);
+  });
+
+  it("renders a direct download without database metadata writes", async () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    const authorityQuery = {
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({ limit: async () => [{ code: "training-major" }] }),
+        }),
+      }),
+    };
+    const revisionQuery = {
+      from: () => ({
+        where: () => ({
+          limit: async () => [
+            { encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)) },
+          ],
+        }),
+      }),
+    };
+    const select = vi
+      .fn()
+      .mockReturnValueOnce(authorityQuery)
+      .mockReturnValueOnce(revisionQuery);
+    const db = { select } as unknown as Database;
+
+    const roster = await generateOfficialRoster(
+      db,
+      { id: "staff-id", username: "major" },
+      "revision-id",
+      "kfs-1a",
+    );
+
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(roster.bytes).toBeInstanceOf(Uint8Array);
+    expect(roster.filename).toBe("kfs-1a-kfs-1a-october-2023.pdf");
   });
 });

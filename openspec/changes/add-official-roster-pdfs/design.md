@@ -6,14 +6,14 @@ See proposal.md for motivation. Phase 7 stores an encrypted finalization snapsho
 
 **Goals:**
 - Fill approved KFS-1A and KBEMS-E16 form fields from a single finalization revision.
-- Retain an auditable, downloadable official-record artifact without allowing mutable source records to alter it.
+- Generate downloadable PDFs without allowing mutable source records to alter their content.
 - Cover multi-page output and field placement with fixtures based on the supplied source forms.
 
 **Non-Goals:**
 - KFS-1B individual Training Notice generation; it is tracked in GitHub issue #1.
 - FEMA form generation or external agency submission.
 - Treating an attendance attestation as a handwritten signature or initial.
-- Editing a generated PDF or changing a prior artifact after generation.
+- Retaining, editing, or redistributing generated PDFs after the download request completes.
 
 ## Decisions
 
@@ -29,26 +29,25 @@ The generator will resolve and decrypt only the selected finalization revision s
 
 Existing electronic attendance attestations are not a substitute for the signature/initial fields on KFS-1A or KBEMS-E16. The mapped templates will intentionally leave these fields blank. This matches the supplied forms and avoids representing an attestation as an agency-approved signature.
 
-### Use private branchable object storage and append-only metadata
+### Return generated PDFs directly without persistence
 
-Create a private object-storage bucket and store each generated PDF under a random immutable key. Add roster-artifact metadata keyed to finalization revision and containing form/template versions, checksum, byte size, actor, and time. A repeat generation creates another retained artifact rather than overwriting the prior file. Storing PDF bytes in Postgres was rejected because object storage is better suited to immutable binary records and downloads.
+Generate the PDF in the server request, stream it to the authorized requester, then discard the bytes. The immutable finalization revision and versioned source template are the durable inputs; no object storage, artifact metadata, or generated-file history is needed. Retaining generated PDFs was rejected because staff need reproducible forms, not separately retained copies.
 
 ### Make generation a Major/Admin workflow
 
-Require the reporting authority used for official reporting tasks: Training Major or Administrator. The staff revision-history/reporting experience will show available forms and retained artifacts. The generator will not update Fire, KBEMS, or FEMA reporting status; staff record those outcomes separately.
+Require the reporting authority used for official reporting tasks: Training Major or Administrator. The staff revision-history experience will show available forms and direct downloads. The generator will not update Fire, KBEMS, or FEMA reporting status; staff record those outcomes separately.
 
 ## Risks / Trade-offs
 
 - [Agency form acceptance rules may differ from the supplied references] → retain source/template versions, validate output with representative fixtures, and require a final staff visual approval before releasing a new template version.
 - [Long attendee lists overflow a page] → use template-specific capacity and page cloning with explicit page numbering, verified by overflow fixtures.
 - [Protected credential values are needed for a form] → decrypt only within server-side generation and avoid logging values, URLs, or artifact contents.
-- [A future template changes coordinates] → add a new template version and mapping; never alter a prior artifact.
-- [Private artifact storage is unavailable in a deployment] → fail generation before recording metadata and show a recoverable staff error.
+- [A future template changes coordinates] → add a new template version and mapping; future downloads use the approved version selected by the application.
+- [PDF generation fails during a request] → return a recoverable staff error without leaving partial files or metadata.
 
 ## Migration Plan
 
-1. Add the PDF dependency, source-template assets, mapping manifests, private bucket, and additive artifact metadata schema.
-2. Deploy database/storage changes and seed approved template definitions without changing historical revisions.
-3. Generate and visually compare fixture outputs for KFS-1A and KBEMS-E16, including overflow pages.
-4. Release Major/Admin generation and download controls after template verification.
-5. Roll back application access if needed; retained artifacts and metadata remain immutable records.
+1. Add the PDF dependency, source-template assets, and mapping manifests without changing historical revisions.
+2. Generate and visually compare fixture outputs for KFS-1A and KBEMS-E16, including overflow pages.
+3. Release Major/Admin generation and direct-download controls after template verification.
+4. Roll back application access if needed; no generated files require cleanup.

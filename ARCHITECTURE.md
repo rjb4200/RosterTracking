@@ -20,7 +20,6 @@ The application will be a modular monolith deployed as one Next.js application. 
 - Vitest for unit and integration tests
 - Playwright for critical end-to-end workflows
 - `pdf-lib` for future official roster generation
-- Private S3-compatible object storage behind a storage adapter
 - Vercel Fluid Compute using the Node.js runtime
 
 Application runtime database access will use a small `pg` pool managed with Vercel's `attachDatabasePool()`. Migrations will use a separate direct Neon connection and will run once from CI, never during application startup.
@@ -83,7 +82,7 @@ Controls include:
 - short-lived signed workflow cookies and encrypted, expiring server-side workflow state
 - tokenless sign-in pages after the initial QR token is resolved, with no-referrer responses and raw-token redaction from application telemetry
 - masked credential display
-- application-level AES-GCM encryption for staged sign-in data, attendance snapshots, and credential values, in addition to Neon and object-storage encryption at rest
+- application-level AES-GCM encryption for staged sign-in data, attendance snapshots, and credential values, in addition to Neon encryption at rest
 - secrets stored only in environment variables
 - no database credentials in browser code
 - audit logging for important mutations
@@ -98,17 +97,15 @@ Public sign-in actions may add only missing class-required student fields or cre
 Avoiding data loss is the primary operational concern.
 
 - Core records use deactivation or status changes instead of hard deletion.
-- Attendance, attestations, audit logs, finalization revisions, and generated-roster metadata have no automatic deletion policy initially.
+- Attendance, attestations, audit logs, and finalization revisions have no automatic deletion policy initially.
 - Attendance removal is a retained state change with a staff actor and reason; it never deletes the original attendance or attestation facts. A later attendance may become active for the same class/student only after the prior record is retained as removed.
 - The instructor roster is available only to staff assigned to the class. Manual attendance records the instructor and method, defaults credit to the sum of scheduled components, and keeps guests scoped to the class.
 - Credit adjustments are bounded from zero through the scheduled total and retain an actor, timestamp, and reason whenever they differ from the default. Completing an open class requires active attendance with valid credit and reporting context.
 - Finalized roster snapshots are immutable and retained indefinitely unless a future legal retention policy requires otherwise.
 - Reopening a class never deletes or overwrites a prior finalization revision.
-- Generated files use immutable object keys, object versioning, and checksums.
 - Neon point-in-time recovery and scheduled snapshots will be enabled at the production plan's supported retention level.
 - Periodic logical database exports will be stored separately from Neon.
 - Backup restoration will be tested on a schedule; an untested backup is not considered sufficient.
-- Object storage versioning and lifecycle rules must not automatically delete official roster files.
 
 Backup retention and record retention are separate: finite backup history does not remove live application records.
 
@@ -124,7 +121,7 @@ Finalization creates a new immutable revision containing snapshots of:
 - scheduled and credited hours
 - attendance and attestation facts
 
-Editing a current student, agency, credential, course, or site cannot change an existing finalized revision. Re-finalizing after an authorized reopen creates another revision and preserves all prior revisions and generated documents.
+Editing a current student, agency, credential, course, or site cannot change an existing finalized revision. Re-finalizing after an authorized reopen creates another revision and preserves all prior revisions.
 
 ## Official Form Verification
 

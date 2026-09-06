@@ -4,17 +4,17 @@ const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
 const classId = process.env.E2E_OFFICIAL_ROSTER_CLASS_ID;
 
-test("official roster downloads do not disclose artifacts without staff authorization", async ({
+test("official roster downloads do not disclose revisions without staff authorization", async ({
   request,
 }) => {
   const response = await request.get(
-    "/api/staff/official-rosters/00000000-0000-0000-0000-000000000000",
+    "/api/staff/official-rosters/00000000-0000-0000-0000-000000000000/kfs-1a",
   );
   expect(response.status()).toBe(404);
   expect(await response.text()).toBe("Not found.");
 });
 
-test("authorized staff can generate and retrieve a retained official roster", async ({
+test("authorized staff can download an on-demand official roster", async ({
   page,
 }) => {
   test.skip(
@@ -27,16 +27,15 @@ test("authorized staff can generate and retrieve a retained official roster", as
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.goto(`/staff/classes/${classId}`);
-  const controls = page.getByLabel("Official roster generation").first();
+  const controls = page.getByLabel("Official roster downloads").first();
   await expect(controls).toBeVisible();
   await expect(
-    controls.getByRole("option", { name: /kfs-1a/i }),
-  ).toBeAttached();
-  await expect(
-    controls.getByRole("option", { name: /kbems-e16/i }),
-  ).toBeAttached();
-  await controls.getByRole("button", { name: "Generate PDF" }).click();
-  await expect(
-    page.getByRole("link", { name: "Download PDF" }).first(),
+    controls.getByRole("link", { name: /download kfs-1a pdf/i }),
   ).toBeVisible();
+  await expect(
+    controls.getByRole("link", { name: /download kbems-e16 pdf/i }),
+  ).toBeVisible();
+  const download = page.waitForEvent("download");
+  await controls.getByRole("link", { name: /download kfs-1a pdf/i }).click();
+  expect((await download).suggestedFilename()).toMatch(/^kfs-1a-.*\.pdf$/);
 });

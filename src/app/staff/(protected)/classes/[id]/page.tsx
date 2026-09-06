@@ -12,7 +12,6 @@ import {
   formatDepartmentDateTime,
   formatDepartmentDateTimeInput,
 } from "@/modules/classes/time";
-import { listOfficialRosterArtifacts } from "@/modules/official-roster-pdfs/service";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -21,7 +20,6 @@ import { getDatabase } from "@/server/db/client";
 import {
   assignInstructorAction,
   finalizeClassAction,
-  generateOfficialRosterAction,
   reopenClassAction,
   rotateTokenAction,
   saveComponentAction,
@@ -59,18 +57,6 @@ export default async function ClassDetailPage({
   const canManageOfficialRosters = Boolean(
     staff?.permissions.has(PERMISSIONS.OFFICIAL_ROSTERS_MANAGE),
   );
-  const artifactHistory = canManageOfficialRosters
-    ? await Promise.all(
-        revisionHistory.map(
-          async (revision) =>
-            [
-              revision.id,
-              await listOfficialRosterArtifacts(db, actor, revision.id),
-            ] as const,
-        ),
-      )
-    : [];
-  const artifactsByRevision = new Map(artifactHistory);
   const isDraft = classRecord.status === "draft";
 
   return (
@@ -238,23 +224,8 @@ export default async function ClassDetailPage({
                     .join(", ")}
                 </span>
                 {canManageOfficialRosters ? (
-                  <OfficialRosterControls
-                    classId={classRecord.id}
-                    revisionId={revision.id}
-                    action={generateOfficialRosterAction}
-                  />
+                  <OfficialRosterControls revisionId={revision.id} />
                 ) : null}
-                {artifactsByRevision.get(revision.id)?.map((artifact) => (
-                  <span key={artifact.id}>
-                    {artifact.formType} ({artifact.templateVersion}),{" "}
-                    {artifact.generatedBy},{" "}
-                    {formatDepartmentDateTime(artifact.generatedAt)}. Checksum{" "}
-                    {artifact.checksum}.{" "}
-                    <Link href={`/api/staff/official-rosters/${artifact.id}`}>
-                      Download PDF
-                    </Link>
-                  </span>
-                ))}
               </li>
             ))}
           </ul>

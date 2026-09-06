@@ -1,6 +1,6 @@
 ## Purpose
 
-Generate private, printable KFS-1A and KBEMS-E16 roster PDFs from immutable finalization revisions while retaining evidence of each generated official record.
+Generate printable KFS-1A and KBEMS-E16 roster PDFs on demand from immutable finalization revisions.
 
 ## ADDED Requirements
 
@@ -33,23 +33,23 @@ The system SHALL paginate attendees without omitting any finalized attendee and 
 - **WHEN** a finalized revision contains more attendees than one form page supports
 - **THEN** the system generates all required pages with each attendee represented once
 
-### Requirement: Official roster artifacts are private and immutable
-The system SHALL retain every generated roster PDF in private storage with an immutable key, checksum, byte size, form type, template version, generation actor, generation timestamp, and finalization-revision reference. Staff SHALL not be able to replace or delete a retained artifact through the application.
+### Requirement: Official rosters are generated on demand
+The system SHALL generate each official roster PDF from the selected finalized revision and return it directly to the authorized requester. The system SHALL not retain generated PDF bytes, object-storage records, or artifact metadata after the request completes.
 
-#### Scenario: Record generation metadata
-- **WHEN** a roster PDF is generated successfully
-- **THEN** the system records its immutable artifact metadata and source revision
+#### Scenario: Download an on-demand roster
+- **WHEN** authorized staff request an official roster for a finalized revision
+- **THEN** the system returns a newly generated PDF derived from that revision
 
-#### Scenario: Regenerate after a new template version
-- **WHEN** authorized staff generate the same form for a revision using a later approved template version
-- **THEN** the system retains a separate artifact without changing the earlier artifact
+#### Scenario: Regenerate a roster
+- **WHEN** authorized staff request the same official roster again
+- **THEN** the system generates another PDF from the same preserved revision without retaining either generated copy
 
 ### Requirement: Official roster access is controlled
-The system SHALL allow only Training Majors and Administrators to generate, list, and download official roster artifacts for finalized revisions.
+The system SHALL allow only Training Majors and Administrators to generate and download official rosters for finalized revisions.
 
 #### Scenario: Prevent unauthorized artifact access
-- **WHEN** a user without roster-artifact authority requests generation or download
-- **THEN** the system denies access without disclosing artifact content or storage location
+- **WHEN** a user without roster authority requests generation or download
+- **THEN** the system denies access without disclosing generated roster content
 
 ### Requirement: Initial official-form scope is limited
 The system SHALL support KFS-1A (October 2023) and KBEMS-E16 (September 2012) only. The system SHALL not generate KFS-1B individual Training Notices or FEMA roster PDFs in this capability.

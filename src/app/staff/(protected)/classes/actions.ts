@@ -20,11 +20,6 @@ import {
   transitionClass,
   updateClassDraft,
 } from "@/modules/classes/services";
-import {
-  OFFICIAL_ROSTER_FORMS,
-  type OfficialRosterForm,
-} from "@/modules/official-roster-pdfs/mappings";
-import { generateOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -241,30 +236,6 @@ export async function reopenClassAction(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not reopen class.",
-    };
-  }
-}
-
-export async function generateOfficialRosterAction(
-  _prev: ActionState | undefined,
-  formData: FormData,
-): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.OFFICIAL_ROSTERS_MANAGE);
-  const revisionId = read(formData, "revisionId");
-  const formType = read(formData, "formType") as OfficialRosterForm;
-  if (!Object.values(OFFICIAL_ROSTER_FORMS).includes(formType)) {
-    return { error: "Select an approved official roster form." };
-  }
-  try {
-    await generateOfficialRoster(getDatabase(), actor, revisionId, formType);
-    revalidatePath(`/staff/classes/${read(formData, "classId")}`);
-    return { classId: read(formData, "classId") };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not generate official roster.",
     };
   }
 }
