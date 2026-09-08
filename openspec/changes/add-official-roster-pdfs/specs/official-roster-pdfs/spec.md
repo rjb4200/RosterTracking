@@ -17,7 +17,7 @@ The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster
 
 #### Scenario: Block non-finalized source data
 - **WHEN** staff attempt to generate an official roster for a class without a finalized revision
-- **THEN** the system rejects the request without creating an artifact
+- **THEN** the system rejects the request without returning a roster document
 
 ### Requirement: Form fields preserve official-signature boundaries
 The system SHALL populate only approved non-signature and non-initial fields from finalization facts. The PDF SHALL leave KFS-1A attendee and instructor initials/signature fields and KBEMS-E16 student and instructor signature fields blank for the required physical signing process.
@@ -45,11 +45,33 @@ The system SHALL generate each official roster PDF from the selected finalized r
 - **THEN** the system generates another PDF from the same preserved revision without retaining either generated copy
 
 ### Requirement: Official roster access is controlled
-The system SHALL allow only Training Majors and Administrators to generate and download official rosters for finalized revisions.
+The system SHALL allow Training Majors and Administrators to generate, view, print, download, and email official rosters for any finalized revision. The system SHALL allow an instructor to perform those actions only for a revision belonging to a class to which the instructor is assigned.
 
-#### Scenario: Prevent unauthorized artifact access
-- **WHEN** a user without roster authority requests generation or download
+#### Scenario: Permit an assigned instructor
+- **WHEN** an instructor requests an official roster for a finalized class to which they are assigned
+- **THEN** the system permits the requested roster action
+
+#### Scenario: Prevent unrelated instructor access
+- **WHEN** an instructor requests an official roster for a finalized class to which they are not assigned
 - **THEN** the system denies access without disclosing generated roster content
+
+### Requirement: All roster delivery methods use one rendered document
+The system SHALL render a selected form from the same finalization revision and approved template for view, print, download, and email. The rendered form content and layout SHALL be identical across delivery methods for the same revision, form type, and template version.
+
+#### Scenario: View and print an official roster
+- **WHEN** authorized staff choose view or print for a form
+- **THEN** the system presents the same rendered PDF inline and allows the browser print workflow
+
+#### Scenario: Email an official roster
+- **WHEN** authorized staff enter a valid recipient address for a form
+- **THEN** the system sends the same rendered PDF as an attachment from `noreply@winchesterfireems.com` without storing its bytes in the application
+
+### Requirement: Official roster email deliveries are audited
+The system SHALL record the actor, finalization revision, form type, plaintext recipient email address, sender address, and server timestamp for each successful official-roster email delivery. The audit record SHALL not include PDF bytes or protected roster values.
+
+#### Scenario: Record email delivery
+- **WHEN** Resend accepts an authorized roster email for delivery
+- **THEN** the system writes the required email-delivery audit record
 
 ### Requirement: Initial official-form scope is limited
 The system SHALL support KFS-1A (October 2023) and KBEMS-E16 (September 2012) only. The system SHALL not generate KFS-1B individual Training Notices or FEMA roster PDFs in this capability.

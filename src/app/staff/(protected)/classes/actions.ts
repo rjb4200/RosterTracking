@@ -20,6 +20,9 @@ import {
   transitionClass,
   updateClassDraft,
 } from "@/modules/classes/services";
+import { getTemplateMapping } from "@/modules/official-roster-pdfs/mappings";
+import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
+import { requireStaff } from "@/modules/staff-auth/authorization";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -29,6 +32,11 @@ export interface ActionState {
   classId?: string;
   signInUrl?: string;
   qrDataUrl?: string;
+}
+
+export interface OfficialRosterEmailActionState {
+  error?: string;
+  success?: string;
 }
 
 function read(formData: FormData, key: string): string {
@@ -236,6 +244,34 @@ export async function reopenClassAction(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not reopen class.",
+    };
+  }
+}
+
+export async function sendOfficialRosterEmailAction(
+  _prev: OfficialRosterEmailActionState | undefined,
+  formData: FormData,
+): Promise<OfficialRosterEmailActionState> {
+  try {
+    const actor = await requireStaff();
+    const formType = read(formData, "formType");
+    if (formType !== "kfs-1a" && formType !== "kbems-e16") {
+      return { error: "Select an official roster form." };
+    }
+    await emailOfficialRoster(
+      getDatabase(),
+      actor,
+      read(formData, "revisionId"),
+      getTemplateMapping(formType).formType,
+      read(formData, "recipient"),
+    );
+    return { success: "Official roster email accepted for delivery." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not send the official roster email.",
     };
   }
 }

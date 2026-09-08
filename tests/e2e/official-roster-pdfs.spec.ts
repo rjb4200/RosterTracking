@@ -35,6 +35,15 @@ test("authorized staff can download an on-demand official roster", async ({
   await expect(
     controls.getByRole("link", { name: /download kbems-e16 pdf/i }),
   ).toBeVisible();
+  await expect(
+    controls.getByRole("link", { name: /view kfs-1a pdf/i }),
+  ).toHaveAttribute("target", "_blank");
+  await expect(
+    controls.getByRole("link", { name: /print kfs-1a pdf/i }),
+  ).toHaveAttribute("target", "_blank");
+  await expect(
+    controls.getByLabel(/email recipient for kfs-1a/i),
+  ).toBeVisible();
   const download = page.waitForEvent("download");
   await controls.getByRole("link", { name: /download kfs-1a pdf/i }).click();
   expect((await download).suggestedFilename()).toMatch(/^kfs-1a-.*\.pdf$/);

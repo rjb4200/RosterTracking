@@ -13,7 +13,7 @@ See proposal.md for motivation. Phase 7 stores an encrypted finalization snapsho
 - KFS-1B individual Training Notice generation; it is tracked in GitHub issue #1.
 - FEMA form generation or external agency submission.
 - Treating an attendance attestation as a handwritten signature or initial.
-- Retaining, editing, or redistributing generated PDFs after the download request completes.
+- Retaining generated PDF bytes or attaching roster contents to audit events.
 
 ## Decisions
 
@@ -29,13 +29,17 @@ The generator will resolve and decrypt only the selected finalization revision s
 
 Existing electronic attendance attestations are not a substitute for the signature/initial fields on KFS-1A or KBEMS-E16. The mapped templates will intentionally leave these fields blank. This matches the supplied forms and avoids representing an attestation as an agency-approved signature.
 
-### Return generated PDFs directly without persistence
+### Render once per requested delivery method without persistence
 
-Generate the PDF in the server request, stream it to the authorized requester, then discard the bytes. The immutable finalization revision and versioned source template are the durable inputs; no object storage, artifact metadata, or generated-file history is needed. Retaining generated PDFs was rejected because staff need reproducible forms, not separately retained copies.
+Generate the PDF in the server request, use the same renderer for inline preview, browser print, download, and Resend attachment delivery, then discard the bytes. The immutable finalization revision and versioned source template are the durable inputs; no object storage, artifact metadata, or generated-file history is needed. Set deterministic PDF metadata so repeated requests for the same form render the same content and layout. Retaining generated PDFs was rejected because staff need reproducible forms, not separately retained copies.
 
-### Make generation a Major/Admin workflow
+### Authorize department staff and assigned instructors
 
-Require the reporting authority used for official reporting tasks: Training Major or Administrator. The staff revision-history experience will show available forms and direct downloads. The generator will not update Fire, KBEMS, or FEMA reporting status; staff record those outcomes separately.
+Training Majors and Administrators can act on any finalized roster. Instructors can act only when assigned to the roster's class. The staff revision-history experience will show preview, print, download, and email actions. The generator will not update Fire, KBEMS, or FEMA reporting status; staff record those outcomes separately.
+
+### Deliver emails through Resend
+
+Use the server-only `RESEND_API_KEY` to send generated PDF attachments from `noreply@winchesterfireems.com`. The email form accepts an entered recipient, validates it server-side, and sends no authenticated application URL. Record a plaintext recipient address and non-sensitive delivery facts in the audit log after Resend accepts the request. The email provider and recipient may retain the attachment; the application does not.
 
 ## Risks / Trade-offs
 
@@ -43,11 +47,12 @@ Require the reporting authority used for official reporting tasks: Training Majo
 - [Long attendee lists overflow a page] → use template-specific capacity and page cloning with explicit page numbering, verified by overflow fixtures.
 - [Protected credential values are needed for a form] → decrypt only within server-side generation and avoid logging values, URLs, or artifact contents.
 - [A future template changes coordinates] → add a new template version and mapping; future downloads use the approved version selected by the application.
-- [PDF generation fails during a request] → return a recoverable staff error without leaving partial files or metadata.
+- [PDF generation or Resend delivery fails] → return a recoverable staff error without leaving application-held PDF bytes or a successful-delivery audit record.
+- [Recipient typo sends sensitive roster data to the wrong person] → require explicit recipient entry and a final confirmation action before delivery; retain the plaintext recipient audit fact for operational follow-up.
 
 ## Migration Plan
 
 1. Add the PDF dependency, source-template assets, and mapping manifests without changing historical revisions.
 2. Generate and visually compare fixture outputs for KFS-1A and KBEMS-E16, including overflow pages.
-3. Release Major/Admin generation and direct-download controls after template verification.
+3. Configure the verified Resend sender and server-only API key, then release authorized preview, print, download, and email controls after template verification.
 4. Roll back application access if needed; no generated files require cleanup.

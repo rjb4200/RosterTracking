@@ -2,17 +2,19 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encryptCredential } from "@/modules/reference/crypto";
 import type { Database } from "@/server/db/client";
 
 import { TEMPLATE_MAPPINGS } from "./mappings";
 import {
+  emailOfficialRoster,
   type FinalizationSnapshot,
   generateOfficialRoster,
   hasOfficialRosterAuthority,
   renderOfficialRoster,
+  validateOfficialRosterRecipient,
 } from "./service";
 
 const snapshot: FinalizationSnapshot = {
@@ -47,6 +49,11 @@ const snapshot: FinalizationSnapshot = {
 };
 
 describe("official roster PDF templates", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
   it("uses supplied approved templates and mapped AcroForm fields", async () => {
     for (const mapping of Object.values(TEMPLATE_MAPPINGS)) {
       const bytes = await readFile(
@@ -74,6 +81,12 @@ describe("official roster PDF templates", () => {
     expect((await PDFDocument.load(kfs)).getForm().getFields()).toHaveLength(0);
     expect((await PDFDocument.load(kbems)).getForm().getFields()).toHaveLength(
       0,
+    );
+  });
+
+  it("renders the same finalized inputs deterministically", async () => {
+    await expect(renderOfficialRoster("kfs-1a", snapshot)).resolves.toEqual(
+      await renderOfficialRoster("kfs-1a", snapshot),
     );
   });
 
@@ -106,8 +119,8 @@ describe("official roster PDF templates", () => {
     };
     const select = vi
       .fn()
-      .mockReturnValueOnce(authorityQuery)
-      .mockReturnValueOnce(revisionQuery);
+      .mockReturnValueOnce(revisionQuery)
+      .mockReturnValueOnce(authorityQuery);
     const db = { select } as unknown as Database;
 
     const roster = await generateOfficialRoster(
@@ -120,5 +133,156 @@ describe("official roster PDF templates", () => {
     expect(select).toHaveBeenCalledTimes(2);
     expect(roster.bytes).toBeInstanceOf(Uint8Array);
     expect(roster.filename).toBe("kfs-1a-kfs-1a-october-2023.pdf");
+  });
+
+  it("permits an instructor assigned to the revision class", async () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    const revisionQuery = {
+      from: () => ({
+        where: () => ({
+          limit: async () => [
+            {
+              classId: "class-id",
+              encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+            },
+          ],
+        }),
+      }),
+    };
+    const authorityQuery = {
+      from: () => ({
+        innerJoin: () => ({ where: () => ({ limit: async () => [] }) }),
+      }),
+    };
+    const assignedQuery = {
+      from: () => ({
+        where: () => ({ limit: async () => [{ classId: "class-id" }] }),
+      }),
+    };
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(revisionQuery)
+        .mockReturnValueOnce(authorityQuery)
+        .mockReturnValueOnce(assignedQuery),
+    } as unknown as Database;
+
+    await expect(
+      generateOfficialRoster(
+        db,
+        { id: "instructor-id", username: "instructor" },
+        "revision-id",
+        "kfs-1a",
+      ),
+    ).resolves.toMatchObject({ filename: expect.stringMatching(/^kfs-1a-/) });
+  });
+
+  it("validates recipients and audits a successful Resend delivery", async () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    vi.stubEnv("RESEND_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    const auditValues = vi.fn().mockResolvedValue(undefined);
+    const transaction = vi.fn(async (callback) =>
+      callback({ insert: () => ({ values: auditValues }) }),
+    );
+    const revisionQuery = {
+      from: () => ({
+        where: () => ({
+          limit: async () => [
+            {
+              classId: "class-id",
+              encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+            },
+          ],
+        }),
+      }),
+    };
+    const authorityQuery = {
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({ limit: async () => [{ code: "training-major" }] }),
+        }),
+      }),
+    };
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(revisionQuery)
+        .mockReturnValueOnce(authorityQuery),
+      transaction,
+    } as unknown as Database;
+
+    expect(() => validateOfficialRosterRecipient("invalid")).toThrow();
+    await emailOfficialRoster(
+      db,
+      { id: "staff-id", username: "major" },
+      "revision-id",
+      "kbems-e16",
+      "recipient@example.com",
+    );
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(auditValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "official_roster.email.sent",
+        entityId: "revision-id",
+        details: expect.objectContaining({
+          recipient: "recipient@example.com",
+        }),
+      }),
+    );
+  });
+
+  it("does not audit a failed Resend delivery", async () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    vi.stubEnv("RESEND_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const transaction = vi.fn();
+    const revisionQuery = {
+      from: () => ({
+        where: () => ({
+          limit: async () => [
+            {
+              classId: "class-id",
+              encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+            },
+          ],
+        }),
+      }),
+    };
+    const authorityQuery = {
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({ limit: async () => [{ code: "training-major" }] }),
+        }),
+      }),
+    };
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(revisionQuery)
+        .mockReturnValueOnce(authorityQuery),
+      transaction,
+    } as unknown as Database;
+
+    await expect(
+      emailOfficialRoster(
+        db,
+        { id: "staff-id", username: "major" },
+        "revision-id",
+        "kfs-1a",
+        "recipient@example.com",
+      ),
+    ).rejects.toThrow("Official roster email could not be sent.");
+    expect(transaction).not.toHaveBeenCalled();
   });
 });

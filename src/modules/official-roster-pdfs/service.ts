@@ -3,11 +3,18 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { and, eq, inArray } from "drizzle-orm";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { z } from "zod";
 
 import { decryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
+import { writeAuditLog } from "@/server/db/audit";
 import type { Database } from "@/server/db/client";
-import { finalizationRevisions, roles, userRoles } from "@/server/db/schema";
+import {
+  classInstructors,
+  finalizationRevisions,
+  roles,
+  userRoles,
+} from "@/server/db/schema";
 
 import {
   getTemplateMapping,
@@ -113,7 +120,11 @@ export function hasOfficialRosterAuthority(
   );
 }
 
-async function assertRosterAuthority(db: Database, actor: OfficialRosterActor) {
+async function assertRosterAuthority(
+  db: Database,
+  actor: OfficialRosterActor,
+  classId: string,
+) {
   const rows = await db
     .select({ code: roles.code })
     .from(userRoles)
@@ -129,11 +140,19 @@ async function assertRosterAuthority(db: Database, actor: OfficialRosterActor) {
       ),
     )
     .limit(1);
-  if (!hasOfficialRosterAuthority(rows.map((row) => row.code))) {
-    throw new Error(
-      "Official roster access requires Training Major or Administrator access.",
-    );
-  }
+  if (hasOfficialRosterAuthority(rows.map((row) => row.code))) return;
+
+  const assigned = await db
+    .select({ classId: classInstructors.classId })
+    .from(classInstructors)
+    .where(
+      and(
+        eq(classInstructors.classId, classId),
+        eq(classInstructors.userId, actor.id),
+      ),
+    )
+    .limit(1);
+  if (!assigned.length) throw new Error("Official roster access denied.");
 }
 
 async function readSnapshot(
@@ -141,13 +160,16 @@ async function readSnapshot(
   actor: OfficialRosterActor,
   revisionId: string,
 ): Promise<FinalizationSnapshot> {
-  await assertRosterAuthority(db, actor);
   const [revision] = await db
-    .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
+    .select({
+      classId: finalizationRevisions.classId,
+      encryptedSnapshot: finalizationRevisions.encryptedSnapshot,
+    })
     .from(finalizationRevisions)
     .where(eq(finalizationRevisions.id, revisionId))
     .limit(1);
   if (!revision) throw new Error("Finalization revision not found.");
+  await assertRosterAuthority(db, actor, revision.classId);
   try {
     return JSON.parse(
       decryptCredential(revision.encryptedSnapshot),
@@ -279,7 +301,13 @@ export async function renderOfficialRoster(
     const copied = await output.copyPages(page, [0]);
     output.addPage(copied[0]);
   }
-  return output.save();
+  // Fixed metadata keeps equivalent finalized inputs byte-for-byte reproducible.
+  output.setCreationDate(new Date(0));
+  output.setModificationDate(new Date(0));
+  output.setCreator("Roster Command");
+  output.setProducer("Roster Command");
+  output.setTitle(`${mapping.formType} official roster`);
+  return output.save({ useObjectStreams: false });
 }
 
 export async function generateOfficialRoster(
@@ -294,4 +322,65 @@ export async function generateOfficialRoster(
     bytes: await renderOfficialRoster(formType, snapshot),
     filename: `${formType}-${mapping.templateVersion}.pdf`,
   };
+}
+
+const recipientSchema = z.string().trim().email().max(320);
+
+export function validateOfficialRosterRecipient(value: string): string {
+  return recipientSchema.parse(value);
+}
+
+async function sendWithResend(input: {
+  recipient: string;
+  filename: string;
+  bytes: Uint8Array;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("Official roster email is not configured.");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "noreply@winchesterfireems.com",
+      to: [input.recipient],
+      subject: "Official training roster",
+      text: "An official training roster PDF is attached.",
+      attachments: [
+        {
+          filename: input.filename,
+          content: Buffer.from(input.bytes).toString("base64"),
+        },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error("Official roster email could not be sent.");
+}
+
+export async function emailOfficialRoster(
+  db: Database,
+  actor: OfficialRosterActor,
+  revisionId: string,
+  formType: OfficialRosterForm,
+  recipientInput: string,
+): Promise<void> {
+  const recipient = validateOfficialRosterRecipient(recipientInput);
+  const roster = await generateOfficialRoster(db, actor, revisionId, formType);
+  await sendWithResend({ recipient, ...roster });
+  await db.transaction(async (transaction) => {
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "official_roster.email.sent",
+      entityType: "finalization_revision",
+      entityId: revisionId,
+      details: {
+        formType,
+        recipient,
+        sender: "noreply@winchesterfireems.com",
+      },
+    });
+  });
 }

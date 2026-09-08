@@ -23,6 +23,7 @@ import {
   reopenClassAction,
   rotateTokenAction,
   saveComponentAction,
+  sendOfficialRosterEmailAction,
   transitionClassAction,
   updateClassAction,
 } from "../actions";
@@ -54,9 +55,7 @@ export default async function ClassDetailPage({
     getFinalizationHistory(db, actor, id),
     getCurrentStaff(),
   ]);
-  const canManageOfficialRosters = Boolean(
-    staff?.permissions.has(PERMISSIONS.OFFICIAL_ROSTERS_MANAGE),
-  );
+  const canManageOfficialRosters = Boolean(staff);
   const isDraft = classRecord.status === "draft";
 
   return (
@@ -224,7 +223,10 @@ export default async function ClassDetailPage({
                     .join(", ")}
                 </span>
                 {canManageOfficialRosters ? (
-                  <OfficialRosterControls revisionId={revision.id} />
+                  <OfficialRosterControls
+                    revisionId={revision.id}
+                    emailAction={sendOfficialRosterEmailAction}
+                  />
                 ) : null}
               </li>
             ))}

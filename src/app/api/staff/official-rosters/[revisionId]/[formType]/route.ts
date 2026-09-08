@@ -1,12 +1,11 @@
 import { generateOfficialRoster } from "@/modules/official-roster-pdfs/service";
-import { requireActor } from "@/modules/staff-auth/guards";
-import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { requireStaff } from "@/modules/staff-auth/authorization";
 import { getDatabase } from "@/server/db/client";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   {
     params,
   }: {
@@ -14,7 +13,7 @@ export async function GET(
   },
 ) {
   try {
-    const actor = await requireActor(PERMISSIONS.OFFICIAL_ROSTERS_MANAGE);
+    const actor = await requireStaff();
     const { revisionId, formType } = await params;
     if (formType !== "kfs-1a" && formType !== "kbems-e16") {
       throw new Error("Unknown official roster form.");
@@ -32,7 +31,11 @@ export async function GET(
     return new Response(body, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${roster.filename}"`,
+        "Content-Disposition": `${
+          new URL(request.url).searchParams.get("disposition") === "inline"
+            ? "inline"
+            : "attachment"
+        }; filename="${roster.filename}"`,
         "Cache-Control": "private, no-store",
       },
     });
