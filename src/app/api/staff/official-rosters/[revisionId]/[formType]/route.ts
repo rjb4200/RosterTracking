@@ -39,8 +39,9 @@ export async function GET(
         "Cache-Control": "private, no-store",
       },
     });
-  } catch {
+  } catch (error) {
     // Do not reveal revision existence or snapshot content to unauthorized users.
+    console.error("Official roster request failed.", error);
     return new Response("Not found.", { status: 404 });
   }
 }
