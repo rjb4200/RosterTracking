@@ -1,6 +1,7 @@
 import "server-only";
 
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { and, eq, inArray } from "drizzle-orm";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { z } from "zod";
@@ -274,7 +275,13 @@ async function renderPage(
   fill: (pdf: PDFDocument) => void,
 ): Promise<PDFDocument> {
   const source = await readFile(
-    new URL(`./${mapping.assetName}`, import.meta.url),
+    join(
+      process.cwd(),
+      "src",
+      "modules",
+      "official-roster-pdfs",
+      mapping.assetName,
+    ),
   );
   const pdf = await PDFDocument.load(source);
   fill(pdf);
