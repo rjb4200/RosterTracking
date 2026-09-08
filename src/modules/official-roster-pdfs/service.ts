@@ -51,7 +51,11 @@ export interface FinalizationSnapshot {
     studentField: string;
     encryptedValue: string;
   }>;
-  credentialSnapshots: Array<{ attendanceId: string; encryptedValue: string }>;
+  credentialSnapshots: Array<{
+    attendanceId: string;
+    credentialTypeCode?: string;
+    encryptedValue: string;
+  }>;
   // This is intentionally optional because older immutable revisions predate
   // components in their encrypted finalization snapshot.
   components?: Array<{
@@ -96,19 +100,35 @@ function attendeeName(attendee: SnapshotAttendance): string {
     .join(" ");
 }
 
-function snapshotIdentifier(
+export function snapshotIdentifier(
   snapshot: FinalizationSnapshot,
   attendanceId: string,
+  formType: OfficialRosterForm,
 ): string {
+  const expectedFields =
+    formType === "kfs-1a" ? ["ffn", "studentNumber"] : ["kemsisId"];
+  const expectedCredentialCode = formType === "kfs-1a" ? "ffn" : "kemsis";
   const field = snapshot.fieldSnapshots.find(
     (value) =>
       value.attendanceId === attendanceId &&
-      ["studentNumber", "ffn", "kemsisId"].includes(value.studentField),
+      expectedFields.includes(value.studentField),
   );
   const credential = snapshot.credentialSnapshots.find(
-    (value) => value.attendanceId === attendanceId,
+    (value) =>
+      value.attendanceId === attendanceId &&
+      value.credentialTypeCode === expectedCredentialCode,
   );
-  const value = field ?? credential;
+  const legacyCredentials = snapshot.credentialSnapshots.filter(
+    (value) =>
+      value.attendanceId === attendanceId &&
+      value.credentialTypeCode === undefined,
+  );
+  // Older snapshots did not retain a credential type. A lone credential is
+  // unambiguous; otherwise leave the form blank rather than use the wrong ID.
+  const value =
+    field ??
+    credential ??
+    (legacyCredentials.length === 1 ? legacyCredentials[0] : undefined);
   return value ? decryptCredential(value.encryptedValue) : "";
 }
 
@@ -223,7 +243,7 @@ function fillKfsPage(
     setText(
       pdf,
       `FFNRow${row}`,
-      snapshotIdentifier(snapshot, attendee.attendanceId),
+      snapshotIdentifier(snapshot, attendee.attendanceId, "kfs-1a"),
     );
     setText(pdf, `LAST NAMERow${row}`, lastName.join(" "));
     setText(pdf, `FIRST NAMERow${row}`, firstName);
@@ -264,7 +284,7 @@ function fillKbemsPage(
     setText(
       pdf,
       `KEMSIS IDRow${row}`,
-      snapshotIdentifier(snapshot, attendee.attendanceId),
+      snapshotIdentifier(snapshot, attendee.attendanceId, "kbems-e16"),
     );
     setText(pdf, `Affiliated ServiceRow${row}`, attendee.agencyName);
   });

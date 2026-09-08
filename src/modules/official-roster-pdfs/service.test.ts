@@ -14,6 +14,7 @@ import {
   generateOfficialRoster,
   hasOfficialRosterAuthority,
   renderOfficialRoster,
+  snapshotIdentifier,
   validateOfficialRosterRecipient,
 } from "./service";
 
@@ -94,6 +95,36 @@ describe("official roster PDF templates", () => {
     expect(hasOfficialRosterAuthority(["training-major"])).toBe(true);
     expect(hasOfficialRosterAuthority(["administrator"])).toBe(true);
     expect(hasOfficialRosterAuthority(["instructor"])).toBe(false);
+  });
+
+  it("selects the identifier required by each official form", () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    const identifiers: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: snapshot.attendance,
+      credentialSnapshots: [
+        {
+          attendanceId: "attendance-0",
+          credentialTypeCode: "ffn",
+          encryptedValue: encryptCredential("FFN-123"),
+        },
+        {
+          attendanceId: "attendance-0",
+          credentialTypeCode: "kemsis",
+          encryptedValue: encryptCredential("KEMSIS-456"),
+        },
+      ],
+    };
+
+    expect(snapshotIdentifier(identifiers, "attendance-0", "kfs-1a")).toBe(
+      "FFN-123",
+    );
+    expect(snapshotIdentifier(identifiers, "attendance-0", "kbems-e16")).toBe(
+      "KEMSIS-456",
+    );
   });
 
   it("renders a direct download without database metadata writes", async () => {

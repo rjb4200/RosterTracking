@@ -18,6 +18,7 @@ import {
   classInstructors,
   classReportingSystems,
   courses,
+  credentialTypes,
   finalizationReopens,
   finalizationReportingStatuses,
   finalizationRevisions,
@@ -194,10 +195,15 @@ async function buildSnapshot(
         attendanceId: attendanceCredentialSnapshots.attendanceId,
         requirementSetId: attendanceCredentialSnapshots.requirementSetId,
         credentialTypeId: attendanceCredentialSnapshots.credentialTypeId,
+        credentialTypeCode: credentialTypes.code,
         encryptedValue: attendanceCredentialSnapshots.encryptedValue,
         maskedSuffix: attendanceCredentialSnapshots.maskedSuffix,
       })
       .from(attendanceCredentialSnapshots)
+      .innerJoin(
+        credentialTypes,
+        eq(credentialTypes.id, attendanceCredentialSnapshots.credentialTypeId),
+      )
       .innerJoin(
         attendance,
         eq(attendance.id, attendanceCredentialSnapshots.attendanceId),
