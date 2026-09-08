@@ -7,7 +7,7 @@ Preserve a completed class as immutable historical roster revisions and track ea
 ## Requirements
 
 ### Requirement: Finalization creates an immutable roster revision
-The system SHALL allow an assigned instructor, Training Major, or Administrator to finalize a completed class only after revalidating its roster. Finalization SHALL create a numbered immutable revision containing class, instructor, attendance, agency, credit, attestation, and reporting-requirement snapshot facts.
+The system SHALL allow an assigned instructor, Training Major, or Administrator to finalize a completed class only after revalidating its roster. Finalization SHALL create a numbered immutable revision containing class, instructor, attendance, agency, credit, attestation, and reporting-requirement snapshot facts. Authorized official-roster view, print, download, and email actions SHALL use these preserved facts without modifying the revision.
 
 #### Scenario: Finalize a completed class
 - **WHEN** authorized staff finalize a roster-ready completed class
