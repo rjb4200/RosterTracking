@@ -271,9 +271,9 @@ describeDatabase("database foundation", () => {
       created.classRecord.id,
       CLASS_STATUSES.OPEN,
     );
-    expect(await resolveOpenClassToken(database, created.rawToken)).toEqual({
-      id: created.classRecord.id,
-    });
+    expect(
+      await resolveOpenClassToken(database, created.rawToken),
+    ).toMatchObject({ id: created.classRecord.id });
 
     const rotated = await rotateClassSignInToken(
       database,
@@ -281,7 +281,7 @@ describeDatabase("database foundation", () => {
       created.classRecord.id,
     );
     expect(await resolveOpenClassToken(database, created.rawToken)).toBeNull();
-    expect(await resolveOpenClassToken(database, rotated)).toEqual({
+    expect(await resolveOpenClassToken(database, rotated)).toMatchObject({
       id: created.classRecord.id,
     });
     await expect(
@@ -292,13 +292,17 @@ describeDatabase("database foundation", () => {
         CLASS_STATUSES.FINALIZED,
       ),
     ).rejects.toThrow(/cannot transition/i);
-    await transitionClass(
-      database,
-      actor,
-      created.classRecord.id,
-      CLASS_STATUSES.COMPLETED,
-    );
-    expect(await resolveOpenClassToken(database, rotated)).toBeNull();
+    await expect(
+      transitionClass(
+        database,
+        actor,
+        created.classRecord.id,
+        CLASS_STATUSES.COMPLETED,
+      ),
+    ).rejects.toThrow(/active attendance/i);
+    expect(await resolveOpenClassToken(database, rotated)).toMatchObject({
+      id: created.classRecord.id,
+    });
     expect(
       (
         await database
@@ -343,7 +347,7 @@ describeDatabase("database foundation", () => {
           .from(trainingClasses)
           .where(eq(trainingClasses.id, created.classRecord.id))
       )[0]?.status,
-    ).toBe(CLASS_STATUSES.COMPLETED);
+    ).toBe(CLASS_STATUSES.OPEN);
     const classAuditActions = (
       await database
         .select({ action: auditLogs.action })

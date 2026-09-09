@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { hasPermission, PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 
 import { LogoutButton } from "../logout-button";
 
@@ -13,6 +14,11 @@ const navItems: Array<{ href: string; label: string; permission: string }> = [
     href: "/staff/classes",
     label: "Classes",
     permission: PERMISSIONS.CLASSES_MANAGE,
+  },
+  {
+    href: "/staff/accounts",
+    label: "Staff accounts",
+    permission: PERMISSIONS.STAFF_MANAGE,
   },
   {
     href: "/staff/students",
@@ -67,7 +73,12 @@ export default async function ProtectedStaffLayout({
       </header>
       <nav className="admin-nav" aria-label="Staff sections">
         {navItems
-          .filter((item) => staff.permissions.has(item.permission))
+          .filter(
+            (item) =>
+              staff.permissions.has(item.permission) &&
+              (item.href !== "/staff/accounts" ||
+                isAdministrator(staff.roleCodes)),
+          )
           .map((item) => (
             <Link key={item.href} href={item.href}>
               {item.label}

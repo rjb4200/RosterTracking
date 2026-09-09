@@ -19,6 +19,7 @@ export interface CurrentStaff {
   username: string;
   displayName: string;
   permissions: ReadonlySet<string>;
+  roleCodes: ReadonlySet<string>;
 }
 
 export async function getCurrentStaff(): Promise<CurrentStaff | null> {
@@ -40,22 +41,33 @@ export async function getCurrentStaff(): Promise<CurrentStaff | null> {
     return null;
   }
 
-  const permissionRows = await db
-    .select({ code: permissions.code })
-    .from(userRoles)
-    .innerJoin(
-      roles,
-      and(eq(roles.id, userRoles.roleId), eq(roles.isActive, true)),
-    )
-    .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-    .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
-    .where(eq(userRoles.userId, account.id));
+  const [permissionRows, roleRows] = await Promise.all([
+    db
+      .select({ code: permissions.code })
+      .from(userRoles)
+      .innerJoin(
+        roles,
+        and(eq(roles.id, userRoles.roleId), eq(roles.isActive, true)),
+      )
+      .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+      .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+      .where(eq(userRoles.userId, account.id)),
+    db
+      .select({ code: roles.code })
+      .from(userRoles)
+      .innerJoin(
+        roles,
+        and(eq(roles.id, userRoles.roleId), eq(roles.isActive, true)),
+      )
+      .where(eq(userRoles.userId, account.id)),
+  ]);
 
   return {
     id: account.id,
     username: account.username,
     displayName: account.displayName,
     permissions: new Set(permissionRows.map(({ code }) => code)),
+    roleCodes: new Set(roleRows.map(({ code }) => code)),
   };
 }
 
