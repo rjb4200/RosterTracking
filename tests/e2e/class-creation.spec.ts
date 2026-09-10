@@ -44,7 +44,7 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
   await page.getByLabel(systemName).check();
   await page.getByLabel("Require a four-digit student access PIN").check();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByText("Student access")).toBeVisible();
+  await expect(page.getByText("Draft created")).toBeVisible();
   await page.getByRole("link", { name: "Continue class setup" }).click();
 
   await page.getByLabel("Session title").fill("E2E Session");

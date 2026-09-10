@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 
@@ -146,19 +145,13 @@ export function ClassForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving..." : values ? "Save class setup" : "Create draft"}
       </Button>
-      {state?.signInUrl && state.qrDataUrl && state.classId ? (
+      {state?.classId ? (
         <section className="token-panel" aria-live="polite">
-          <h2>Student access</h2>
-          <p>This stable link and QR code work while the class is open.</p>
-          <a href={state.signInUrl}>{state.signInUrl}</a>
-          {state.accessPin ? <p>Student PIN: {state.accessPin}</p> : null}
-          <Image
-            src={state.qrDataUrl}
-            alt="Class sign-in QR code"
-            width={240}
-            height={240}
-            unoptimized
-          />
+          <h2>Draft created</h2>
+          <p>
+            Add at least one session and open the class before student access is
+            available.
+          </p>
           <Link
             href={`/staff/classes/${state.classId}`}
             className={buttonVariants({ variant: "secondary" })}

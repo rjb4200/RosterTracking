@@ -68,19 +68,13 @@ export async function createClassAction(
 ): Promise<ActionState> {
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   try {
-    getClassSignInBaseUrl();
     const { classRecord } = await createClassDraft(
       getDatabase(),
       actor,
       draftValues(formData),
     );
-    const signInUrl = buildClassSignInUrl(classRecord.publicCode ?? "");
     revalidatePath("/staff/classes");
-    return {
-      classId: classRecord.id,
-      signInUrl,
-      qrDataUrl: await createClassQrDataUrl(signInUrl),
-    };
+    return { classId: classRecord.id };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not create class.",
