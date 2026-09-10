@@ -1,25 +1,52 @@
 import { expect, test } from "@playwright/test";
 
-test("public landing page directs staff to login", async ({ page }) => {
+test("public landing page distinguishes staff entry paths", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: /training records that hold up/i }),
+    page.getByRole("heading", {
+      name: /start where your training work happens/i,
+    }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Staff login" }).click();
-  await expect(page).toHaveURL(/\/staff\/login$/);
+  await expect(
+    page.getByRole("link", { name: "Instructor access" }),
+  ).toHaveAttribute("href", "/instructor/login");
+  await expect(
+    page.getByRole("link", { name: "Training administration" }),
+  ).toHaveAttribute("href", "/admin/login");
+  await expect(page.getByText(/scan the class qr code/i)).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Instructor access" }),
+  ).toBeFocused();
+  expect(
+    await page
+      .locator("body")
+      .evaluate((body) => body.scrollWidth <= window.innerWidth),
+  ).toBe(true);
 });
 
-test("login fields use browser validation", async ({ page }) => {
+test("purpose-specific login routes share credentials fields", async ({
+  page,
+}) => {
+  for (const path of ["/instructor/login", "/admin/login"]) {
+    await page.goto(path);
+    await expect(page.getByLabel("Username")).toHaveAttribute("required", "");
+    await expect(page.getByLabel("Password")).toHaveAttribute("required", "");
+  }
+});
+
+test("legacy staff login returns to the entry map", async ({ page }) => {
   await page.goto("/staff/login");
-  await expect(page.getByLabel("Username")).toHaveAttribute("required", "");
-  await expect(page.getByLabel("Password")).toHaveAttribute("required", "");
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("protected staff page redirects an anonymous visitor", async ({
   page,
 }) => {
   await page.goto("/staff");
-  await expect(page).toHaveURL(/\/staff\/login$/);
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("configured staff user can log in and log out", async ({ page }) => {
@@ -31,11 +58,11 @@ test("configured staff user can log in and log out", async ({ page }) => {
   );
   if (!username || !password) return;
 
-  await page.goto("/staff/login");
+  await page.goto("/instructor/login");
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/staff$/);
+  await expect(page).toHaveURL(/\/staff\/(instructor|admin)$/);
 
   await page.getByRole("link", { name: "Students" }).click();
   await expect(
@@ -50,5 +77,5 @@ test("configured staff user can log in and log out", async ({ page }) => {
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goto("/staff");
-  await expect(page).toHaveURL(/\/staff\/login$/);
+  await expect(page).toHaveURL(/\/$/);
 });

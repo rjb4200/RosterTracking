@@ -67,6 +67,143 @@ a {
   color: inherit;
 }
 
+.entry-shell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 2px;
+  background: var(--signal);
+}
+
+.entry-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem clamp(1.3rem, 5vw, 5rem);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.entry-brand,
+.entry-region {
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.entry-region {
+  color: #aeb8bd;
+}
+
+.entry-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2.5rem, 6vw, 6rem);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.entry-intro .eyebrow {
+  color: var(--signal-dark);
+}
+
+.entry-intro .lede {
+  color: #52616a;
+}
+
+.entry-paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.entry-path {
+  display: flex;
+  min-height: 340px;
+  flex-direction: column;
+  padding: clamp(1.8rem, 4vw, 4rem);
+  text-decoration: none;
+}
+
+.entry-path-instructor {
+  background: #d95344;
+  color: white;
+}
+
+.entry-path-admin {
+  background: #263741;
+  color: var(--paper);
+}
+
+.entry-path-kicker,
+.entry-path-action {
+  font-size: 0.73rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.entry-path strong {
+  max-width: 8ch;
+  margin: auto 0 1.4rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.3rem, 4vw, 4.3rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.88;
+}
+
+.entry-path > span:not(.entry-path-kicker):not(.entry-path-action) {
+  max-width: 28ch;
+  line-height: 1.5;
+}
+
+.entry-path-action {
+  margin-top: 2rem;
+}
+
+.entry-path:hover .entry-path-action {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.entry-student-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.3rem clamp(1.3rem, 5vw, 5rem);
+  background: #111c24;
+  color: #d6dcde;
+}
+
+.entry-student-mark {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #78909b;
+  color: #ffb3a9;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.entry-student-note p,
+.entry-student-note span {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.entry-student-note p {
+  color: white;
+  font-weight: 800;
+}
+
 .landing-shell {
   display: grid;
   min-height: 100vh;
@@ -215,6 +352,62 @@ h1 {
   grid-template-columns: minmax(320px, 0.8fr) minmax(360px, 1.2fr);
   background: var(--paper);
   color: var(--ink);
+}
+
+.workflow-login {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(360px, 1.15fr);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.workflow-login-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2rem, 7vw, 6rem);
+}
+
+.workflow-login-panel .eyebrow {
+  color: var(--signal-dark);
+}
+
+.workflow-login-aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding: clamp(2rem, 6vw, 6rem);
+  color: white;
+}
+
+.workflow-login-instructor .workflow-login-aside {
+  background:
+    linear-gradient(rgba(201, 54, 43, 0.9), rgba(105, 23, 18, 0.96)),
+    repeating-linear-gradient(45deg, #d95344 0 3px, #9d281f 3px 18px);
+}
+
+.workflow-login-admin .workflow-login-aside {
+  background:
+    linear-gradient(rgba(26, 44, 54, 0.94), rgba(11, 25, 32, 0.98)),
+    repeating-linear-gradient(135deg, #304954 0 2px, #1d3039 2px 15px);
+}
+
+.workflow-login-aside span {
+  margin-bottom: 2rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.workflow-login-aside strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.7rem, 8vw, 8rem);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 0.8;
 }
 
 .login-panel {
@@ -413,6 +606,37 @@ h1 {
 }
 
 @media (max-width: 780px) {
+  .entry-shell,
+  .workflow-login {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-header {
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex-direction: column;
+  }
+
+  .entry-paths {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-path {
+    min-height: 280px;
+  }
+
+  .workflow-login-panel {
+    min-height: 100vh;
+  }
+
+  .workflow-login-aside {
+    display: none;
+  }
+
+  .workflow-login-admin .workflow-login-panel {
+    grid-row: 1;
+  }
+
   .login-shell {
     grid-template-columns: 1fr;
   }
