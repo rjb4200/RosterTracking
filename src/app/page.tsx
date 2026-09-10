@@ -2,54 +2,36 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="entry-shell">
-      <header className="entry-header">
-        <span className="entry-brand">Roster Command</span>
-        <span className="entry-region">Fire / EMS Training Records</span>
-      </header>
-      <section className="entry-intro">
-        <p className="eyebrow">Choose your workspace</p>
-        <h1>Start where your training work happens.</h1>
+    <main className="landing-shell">
+      <section className="landing-copy">
+        <p className="eyebrow">Fire / EMS Training Records</p>
+        <h1>Training records that hold up after the class ends.</h1>
         <p className="lede">
-          Class operations and department oversight use the same secure staff
-          account, with a focused entry point for each workflow.
+          Fast attendance, clear instructor review, and durable reporting
+          history for department and off-site training.
         </p>
+        <nav className="landing-actions" aria-label="Staff access paths">
+          <Link className="button button-primary" href="/instructor/login">
+            Instructor access
+          </Link>
+          <Link className="button button-primary" href="/admin/login">
+            Training administration
+          </Link>
+          <span className="student-note">
+            Students sign in from the class QR code provided by the instructor.
+          </span>
+        </nav>
       </section>
-      <section className="entry-paths" aria-label="Staff access paths">
-        <Link
-          className="entry-path entry-path-instructor"
-          href="/instructor/login"
-        >
-          <span className="entry-path-kicker">For instructors</span>
-          <strong>Run a class</strong>
-          <span>
-            Create classes, open attendance, display QR codes, and complete
-            rosters.
-          </span>
-          <span className="entry-path-action">Instructor access</span>
-        </Link>
-        <Link className="entry-path entry-path-admin" href="/admin/login">
-          <span className="entry-path-kicker">
-            For Training Majors and Administrators
-          </span>
-          <strong>Manage training</strong>
-          <span>
-            Review reporting, records, reference data, and staff access.
-          </span>
-          <span className="entry-path-action">Training administration</span>
-        </Link>
-      </section>
-      <aside className="entry-student-note" aria-label="Student attendance">
-        <span className="entry-student-mark" aria-hidden="true">
-          QR
-        </span>
-        <div>
-          <p>Attending a class?</p>
-          <span>
-            Scan the class QR code supplied by your instructor to record your
-            attendance.
-          </span>
+      <aside className="status-card" aria-label="Application priorities">
+        <div className="status-mark" aria-hidden="true">
+          RC
         </div>
+        <p className="status-label">Roster Command</p>
+        <ul>
+          <li>Class-specific attendance</li>
+          <li>Audited roster corrections</li>
+          <li>Long-term record retention</li>
+        </ul>
       </aside>
     </main>
   );
