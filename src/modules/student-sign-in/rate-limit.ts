@@ -16,6 +16,7 @@ export const PUBLIC_RATE_LIMIT_OPERATIONS = {
   KEMSIS_VERIFICATION: "kemsis_verification",
   REGULAR_CONFIRMATION: "regular_confirmation",
   GUEST_CONFIRMATION: "guest_confirmation",
+  ACCESS_PIN_VERIFICATION: "access_pin_verification",
 } as const;
 
 export type PublicRateLimitOperation =
@@ -68,6 +69,12 @@ export const PUBLIC_RATE_LIMIT_POLICIES: Record<
     windowSeconds: 3600,
     sourceAttempts: 10,
     identifierAttempts: 5,
+    failures: 10,
+  },
+  access_pin_verification: {
+    windowSeconds: 600,
+    sourceAttempts: 30,
+    identifierAttempts: 10,
     failures: 10,
   },
 };

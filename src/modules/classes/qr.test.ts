@@ -13,8 +13,8 @@ describe("class sign-in URLs", () => {
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "roster-tracking.vercel.app");
 
     expect(getClassSignInBaseUrl()).toBe("https://roster-tracking.vercel.app");
-    expect(buildClassSignInUrl("token")).toBe(
-      "https://roster-tracking.vercel.app/sign-in/token",
+    expect(buildClassSignInUrl("1YZW")).toBe(
+      "https://roster-tracking.vercel.app/1YZW",
     );
   });
 });

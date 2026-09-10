@@ -320,6 +320,74 @@ h1 {
   font-weight: 700;
 }
 
+.public-class-directory {
+  border-top: 5px solid var(--signal);
+  background: var(--paper);
+  padding: 1.5rem;
+  color: var(--ink);
+  box-shadow: 18px 18px 0 rgba(0, 0, 0, 0.28);
+}
+
+.public-class-directory .status-label {
+  color: var(--signal-dark);
+}
+
+.public-class-empty {
+  margin: 0;
+  color: #4d5961;
+}
+
+.public-class-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-class-card {
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.public-class-card h2,
+.public-class-card p {
+  margin: 0;
+}
+
+.public-class-card h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+}
+
+.public-class-card p {
+  margin-top: 0.35rem;
+  color: #4d5961;
+  font-size: 0.88rem;
+}
+
+.public-class-card .button {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.public-class-card details {
+  margin-top: 0.8rem;
+  color: var(--signal-dark);
+  font-weight: 700;
+}
+
+.public-class-card summary {
+  cursor: pointer;
+}
+
+.public-class-card details img {
+  display: block;
+  width: min(100%, 220px);
+  height: auto;
+  margin-top: 0.75rem;
+}
+
 @media (max-width: 780px) {
   .landing-shell {
     grid-template-columns: 1fr;

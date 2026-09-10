@@ -44,6 +44,9 @@ export const trainingClasses = pgTable(
     status: text("status").default("draft").notNull(),
     signInTokenHash: text("sign_in_token_hash").notNull(),
     signInTokenVersion: integer("sign_in_token_version").default(1).notNull(),
+    publicCode: text("public_code"),
+    accessPinEnabled: boolean("access_pin_enabled").default(false).notNull(),
+    accessPinEncrypted: text("access_pin_encrypted"),
     cancellationReason: text("cancellation_reason"),
     openedAt: timestamp("opened_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -56,9 +59,20 @@ export const trainingClasses = pgTable(
     index("classes_creator_status_idx").on(table.createdByUserId, table.status),
     index("classes_status_idx").on(table.status),
     uniqueIndex("classes_sign_in_token_hash_unique").on(table.signInTokenHash),
+    uniqueIndex("classes_public_code_unique")
+      .on(table.publicCode)
+      .where(sql`${table.publicCode} is not null`),
     check(
       "classes_sign_in_token_version_positive",
       sql`${table.signInTokenVersion} > 0`,
+    ),
+    check(
+      "classes_public_code_format",
+      sql`${table.publicCode} is null or ${table.publicCode} ~ '^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$'`,
+    ),
+    check(
+      "classes_access_pin_state",
+      sql`(${table.accessPinEnabled} and ${table.accessPinEncrypted} is not null) or (not ${table.accessPinEnabled} and ${table.accessPinEncrypted} is null)`,
     ),
     check(
       "classes_delivery_method",

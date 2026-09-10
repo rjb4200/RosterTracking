@@ -28,9 +28,9 @@ export function getClassSignInBaseUrl(): string {
   return baseUrl;
 }
 
-export function buildClassSignInUrl(rawToken: string): string {
+export function buildClassSignInUrl(publicCode: string): string {
   const baseUrl = getClassSignInBaseUrl();
-  return new URL(`/sign-in/${rawToken}`, baseUrl).toString();
+  return new URL(`/${publicCode}`, baseUrl).toString();
 }
 
 export async function createClassQrDataUrl(url: string): Promise<string> {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
@@ -32,7 +32,15 @@ import {
   validateDeliverySite,
 } from "./policy";
 import { parseDepartmentDateTime } from "./time";
-import { generateClassSignInToken, hashClassSignInToken } from "./token";
+import {
+  decryptClassAccessPin,
+  encryptClassAccessPin,
+  generateClassAccessPin,
+  generateClassPublicCode,
+  generateClassSignInToken,
+  hashClassSignInToken,
+  verifyClassAccessPin,
+} from "./token";
 
 export interface ClassActor {
   id: string;
@@ -44,6 +52,7 @@ const draftInput = z.object({
   trainingSiteId: z.string().uuid().nullable().optional(),
   deliveryMethod: z.enum(CLASS_DELIVERY_METHODS),
   reportingSystemIds: z.array(z.string().uuid()).optional(),
+  accessPinEnabled: z.boolean().default(false),
 });
 
 const componentInput = z.object({
@@ -169,6 +178,19 @@ async function replaceReportingSystems(
   }
 }
 
+async function findAvailablePublicCode(transaction: DatabaseTransaction) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = generateClassPublicCode();
+    const [existing] = await transaction
+      .select({ id: trainingClasses.id })
+      .from(trainingClasses)
+      .where(eq(trainingClasses.publicCode, code))
+      .limit(1);
+    if (!existing) return code;
+  }
+  throw new Error("Could not allocate a public class code. Try again.");
+}
+
 export async function createClassDraft(
   db: Database,
   actor: ClassActor,
@@ -196,6 +218,8 @@ export async function createClassDraft(
           .where(eq(courseReportingDefaults.courseId, parsed.courseId));
     const reportingSystemIds =
       parsed.reportingSystemIds ?? defaultRows.map(({ id }) => id);
+    const publicCode = await findAvailablePublicCode(transaction);
+    const accessPin = parsed.accessPinEnabled ? generateClassAccessPin() : null;
 
     const [created] = await transaction
       .insert(trainingClasses)
@@ -206,6 +230,9 @@ export async function createClassDraft(
         deliveryMethod: parsed.deliveryMethod,
         signInTokenHash: hashClassSignInToken(rawToken),
         signInTokenVersion: 1,
+        publicCode,
+        accessPinEnabled: parsed.accessPinEnabled,
+        accessPinEncrypted: accessPin ? encryptClassAccessPin(accessPin) : null,
       })
       .returning();
     if (!created) throw new Error("Class was not created.");
@@ -245,7 +272,7 @@ export async function createClassDraft(
         deliveryMethod: created.deliveryMethod,
       },
     });
-    return { classRecord: created, rawToken };
+    return { classRecord: created, rawToken, accessPin };
   });
 }
 
@@ -262,12 +289,19 @@ export async function updateClassDraft(
       throw new Error("Only draft classes can be edited.");
     }
     await validateReferences(transaction, parsed);
+    const accessPin = parsed.accessPinEnabled
+      ? existing.accessPinEnabled
+        ? existing.accessPinEncrypted
+        : encryptClassAccessPin(generateClassAccessPin())
+      : null;
     const [updated] = await transaction
       .update(trainingClasses)
       .set({
         courseId: parsed.courseId,
         trainingSiteId: parsed.trainingSiteId ?? null,
         deliveryMethod: parsed.deliveryMethod,
+        accessPinEnabled: parsed.accessPinEnabled,
+        accessPinEncrypted: accessPin,
         updatedAt: new Date(),
       })
       .where(eq(trainingClasses.id, classId))
@@ -430,6 +464,10 @@ export async function transitionClass(
     if (nextStatus === CLASS_STATUSES.COMPLETED) {
       await validateRosterCompletion(transaction, classId);
     }
+    const publicCode =
+      nextStatus === CLASS_STATUSES.OPEN && !current.publicCode
+        ? await findAvailablePublicCode(transaction)
+        : current.publicCode;
     const now = new Date();
     const [updated] = await transaction
       .update(trainingClasses)
@@ -444,6 +482,7 @@ export async function transitionClass(
           nextStatus === CLASS_STATUSES.COMPLETED ? now : current.completedAt,
         cancelledAt:
           nextStatus === CLASS_STATUSES.CANCELLED ? now : current.cancelledAt,
+        publicCode,
         updatedAt: now,
       })
       .where(
@@ -520,6 +559,8 @@ export async function resolveOpenClassToken(db: Database, rawToken: string) {
     .select({
       id: trainingClasses.id,
       signInTokenVersion: trainingClasses.signInTokenVersion,
+      accessPinEnabled: trainingClasses.accessPinEnabled,
+      publicCode: trainingClasses.publicCode,
     })
     .from(trainingClasses)
     .where(
@@ -530,6 +571,143 @@ export async function resolveOpenClassToken(db: Database, rawToken: string) {
     )
     .limit(1);
   return resolved ?? null;
+}
+
+export async function resolveOpenClassPublicCode(
+  db: Database,
+  publicCode: string,
+) {
+  const [resolved] = await db
+    .select({
+      id: trainingClasses.id,
+      signInTokenVersion: trainingClasses.signInTokenVersion,
+      accessPinEnabled: trainingClasses.accessPinEnabled,
+      accessPinEncrypted: trainingClasses.accessPinEncrypted,
+    })
+    .from(trainingClasses)
+    .where(
+      and(
+        eq(trainingClasses.publicCode, publicCode),
+        eq(trainingClasses.status, CLASS_STATUSES.OPEN),
+      ),
+    )
+    .limit(1);
+  return resolved ?? null;
+}
+
+export async function verifyOpenClassAccessPin(
+  db: Database,
+  publicCode: string,
+  pin: string,
+) {
+  const resolved = await resolveOpenClassPublicCode(db, publicCode);
+  if (
+    !resolved?.accessPinEnabled ||
+    !resolved.accessPinEncrypted ||
+    !verifyClassAccessPin(resolved.accessPinEncrypted, pin)
+  ) {
+    return null;
+  }
+  return {
+    id: resolved.id,
+    signInTokenVersion: resolved.signInTokenVersion,
+  };
+}
+
+export async function listPublicOpenClasses(db: Database) {
+  const records = await db
+    .select({
+      publicCode: trainingClasses.publicCode,
+      courseName: courses.name,
+      deliveryMethod: trainingClasses.deliveryMethod,
+      siteName: trainingSites.name,
+    })
+    .from(trainingClasses)
+    .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
+    .leftJoin(
+      trainingSites,
+      eq(trainingSites.id, trainingClasses.trainingSiteId),
+    )
+    .where(
+      and(
+        eq(trainingClasses.status, CLASS_STATUSES.OPEN),
+        isNotNull(trainingClasses.publicCode),
+      ),
+    )
+    .orderBy(courses.name)
+    .limit(100);
+
+  return Promise.all(
+    records.map(async (record) => {
+      const publicCode = record.publicCode;
+      if (!publicCode) throw new Error("Open class is missing public access.");
+      const [nextComponent] = await db
+        .select({ startsAt: classComponents.startsAt })
+        .from(classComponents)
+        .innerJoin(
+          trainingClasses,
+          eq(trainingClasses.id, classComponents.classId),
+        )
+        .where(eq(trainingClasses.publicCode, publicCode))
+        .orderBy(asc(classComponents.startsAt))
+        .limit(1);
+      const instructorRows = await db
+        .select({ displayName: users.displayName })
+        .from(classInstructors)
+        .innerJoin(users, eq(users.id, classInstructors.userId))
+        .innerJoin(
+          trainingClasses,
+          eq(trainingClasses.id, classInstructors.classId),
+        )
+        .where(eq(trainingClasses.publicCode, publicCode))
+        .orderBy(sql`${classInstructors.isLead} desc`, users.displayName);
+      return {
+        publicCode,
+        courseName: record.courseName,
+        location:
+          record.deliveryMethod === "virtual"
+            ? "Virtual"
+            : (record.siteName ?? ""),
+        nextSession: nextComponent?.startsAt ?? null,
+        instructors: instructorRows.map(({ displayName }) => {
+          const parts = displayName.trim().split(/\s+/);
+          return parts.length > 1
+            ? `${parts[0]?.[0] ?? ""}. ${parts.at(-1) ?? ""}`
+            : displayName;
+        }),
+      };
+    }),
+  );
+}
+
+export async function getClassPublicAccess(
+  db: Database,
+  actor: ClassActor,
+  classId: string,
+) {
+  return db.transaction(async (transaction) => {
+    const current = await requireClassAccess(transaction, actor, classId);
+    if (current.status !== CLASS_STATUSES.OPEN) {
+      throw new Error(
+        "Student access is available only while the class is open.",
+      );
+    }
+    const publicCode =
+      current.publicCode ?? (await findAvailablePublicCode(transaction));
+    if (!current.publicCode) {
+      await transaction
+        .update(trainingClasses)
+        .set({ publicCode, updatedAt: new Date() })
+        .where(eq(trainingClasses.id, classId));
+    }
+    return {
+      publicCode,
+      accessPin:
+        current.accessPinEnabled && current.accessPinEncrypted
+          ? decryptClassAccessPin(current.accessPinEncrypted)
+          : null,
+    };
+  });
 }
 
 export async function listClasses(

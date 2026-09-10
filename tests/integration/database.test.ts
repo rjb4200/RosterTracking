@@ -7,6 +7,7 @@ import { CLASS_STATUSES } from "../../src/modules/classes/constants";
 import {
   assignClassInstructor,
   createClassDraft,
+  resolveOpenClassPublicCode,
   resolveOpenClassToken,
   rotateClassSignInToken,
   saveClassComponent,
@@ -274,6 +275,12 @@ describeDatabase("database foundation", () => {
     expect(
       await resolveOpenClassToken(database, created.rawToken),
     ).toMatchObject({ id: created.classRecord.id });
+    expect(
+      await resolveOpenClassPublicCode(
+        database,
+        created.classRecord.publicCode ?? "",
+      ),
+    ).toMatchObject({ id: created.classRecord.id });
 
     const rotated = await rotateClassSignInToken(
       database,
@@ -284,6 +291,12 @@ describeDatabase("database foundation", () => {
     expect(await resolveOpenClassToken(database, rotated)).toMatchObject({
       id: created.classRecord.id,
     });
+    expect(
+      await resolveOpenClassPublicCode(
+        database,
+        created.classRecord.publicCode ?? "",
+      ),
+    ).toMatchObject({ id: created.classRecord.id });
     await expect(
       transitionClass(
         database,

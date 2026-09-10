@@ -44,6 +44,14 @@ export async function GET(
   const db = getDatabase();
   const resolved = await resolveOpenClassToken(db, token);
   if (!resolved) return unavailable(request);
+  if (resolved.accessPinEnabled) {
+    if (!resolved.publicCode) return unavailable(request);
+    const response = NextResponse.redirect(
+      new URL(`/sign-in/pin/${resolved.publicCode}`, request.url),
+    );
+    response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
+    return response;
+  }
 
   const metadata = await getTrustedRequestMetadata(request);
   const lease = await acquirePublicRateLimit(db, {

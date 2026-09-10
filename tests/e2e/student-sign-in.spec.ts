@@ -1,6 +1,29 @@
 import { expect, test } from "@playwright/test";
 
 const token = process.env.E2E_CLASS_SIGN_IN_TOKEN;
+const publicCode = process.env.E2E_CLASS_PUBLIC_CODE;
+const accessPin = process.env.E2E_CLASS_ACCESS_PIN;
+
+test("public class links require the configured numeric PIN", async ({
+  page,
+}) => {
+  test.skip(
+    !publicCode || !accessPin,
+    "Set E2E_CLASS_PUBLIC_CODE and E2E_CLASS_ACCESS_PIN for a PIN-protected open class.",
+  );
+  if (!publicCode || !accessPin) return;
+
+  await page.goto(`/${publicCode}`);
+  await expect(
+    page.getByRole("heading", { name: "Enter class PIN" }),
+  ).toBeVisible();
+  await page.getByLabel("Class PIN").fill("0000");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByLabel("Class PIN").fill(accessPin);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+});
 
 test("valid class access removes the raw token and shows mobile sign-in", async ({
   page,

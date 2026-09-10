@@ -5,7 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
 import {
+  buildClassSignInUrl,
+  createClassQrDataUrl,
+} from "@/modules/classes/qr";
+import {
   getClassDetail,
+  getClassPublicAccess,
   listClassFormOptions,
 } from "@/modules/classes/services";
 import {
@@ -21,7 +26,6 @@ import {
   assignInstructorAction,
   finalizeClassAction,
   reopenClassAction,
-  rotateTokenAction,
   saveComponentAction,
   sendOfficialRosterEmailAction,
   transitionClassAction,
@@ -57,6 +61,14 @@ export default async function ClassDetailPage({
   ]);
   const canManageOfficialRosters = Boolean(staff);
   const isDraft = classRecord.status === "draft";
+  const publicAccess =
+    classRecord.status === "open"
+      ? await getClassPublicAccess(db, actor, classRecord.id)
+      : null;
+  const signInUrl = publicAccess
+    ? buildClassSignInUrl(publicAccess.publicCode)
+    : null;
+  const qrDataUrl = signInUrl ? await createClassQrDataUrl(signInUrl) : null;
 
   return (
     <main className="admin-content">
@@ -99,6 +111,7 @@ export default async function ClassDetailPage({
               courseId: classRecord.courseId,
               trainingSiteId: classRecord.trainingSiteId,
               deliveryMethod: classRecord.deliveryMethod,
+              accessPinEnabled: classRecord.accessPinEnabled,
               reportingSystemIds: classRecord.reportingSystems.map(
                 (system) => system.id,
               ),
@@ -192,10 +205,12 @@ export default async function ClassDetailPage({
           finalizeAction={finalizeClassAction}
           reopenAction={reopenClassAction}
         />
-        {!["completed", "finalized", "cancelled"].includes(
-          classRecord.status,
-        ) ? (
-          <TokenPanel classId={classRecord.id} action={rotateTokenAction} />
+        {publicAccess && signInUrl && qrDataUrl ? (
+          <TokenPanel
+            accessPin={publicAccess.accessPin}
+            qrDataUrl={qrDataUrl}
+            signInUrl={signInUrl}
+          />
         ) : null}
       </section>
       {revisionHistory.length ? (

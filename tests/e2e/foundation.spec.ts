@@ -16,7 +16,7 @@ test("public landing page distinguishes staff entry paths", async ({
     page.getByRole("link", { name: "Training administration" }),
   ).toHaveAttribute("href", "/admin/login");
   await expect(
-    page.getByText(/students sign in from the class qr code/i),
+    page.getByText(/students can select an open class/i),
   ).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(

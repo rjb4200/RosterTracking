@@ -15,6 +15,7 @@ import {
 import {
   assignClassInstructor,
   createClassDraft,
+  getClassPublicAccess,
   rotateClassSignInToken,
   saveClassComponent,
   transitionClass,
@@ -32,6 +33,7 @@ export interface ActionState {
   classId?: string;
   signInUrl?: string;
   qrDataUrl?: string;
+  accessPin?: string | null;
 }
 
 export interface OfficialRosterEmailActionState {
@@ -56,6 +58,7 @@ function draftValues(formData: FormData) {
       | "virtual"
       | "hybrid",
     reportingSystemIds,
+    accessPinEnabled: read(formData, "accessPinEnabled") === "on",
   };
 }
 
@@ -66,12 +69,12 @@ export async function createClassAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   try {
     getClassSignInBaseUrl();
-    const { classRecord, rawToken } = await createClassDraft(
+    const { classRecord } = await createClassDraft(
       getDatabase(),
       actor,
       draftValues(formData),
     );
-    const signInUrl = buildClassSignInUrl(rawToken);
+    const signInUrl = buildClassSignInUrl(classRecord.publicCode ?? "");
     revalidatePath("/staff/classes");
     return {
       classId: classRecord.id,
@@ -187,16 +190,14 @@ export async function rotateTokenAction(
   const classId = read(formData, "classId");
   try {
     getClassSignInBaseUrl();
-    const rawToken = await rotateClassSignInToken(
-      getDatabase(),
-      actor,
-      classId,
-    );
-    const signInUrl = buildClassSignInUrl(rawToken);
+    await rotateClassSignInToken(getDatabase(), actor, classId);
+    const access = await getClassPublicAccess(getDatabase(), actor, classId);
+    const signInUrl = buildClassSignInUrl(access.publicCode);
     return {
       classId,
       signInUrl,
       qrDataUrl: await createClassQrDataUrl(signInUrl),
+      accessPin: access.accessPin,
     };
   } catch (error) {
     return {

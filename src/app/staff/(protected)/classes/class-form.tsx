@@ -40,6 +40,7 @@ export function ClassForm({
     trainingSiteId: string | null;
     deliveryMethod: string;
     reportingSystemIds: string[];
+    accessPinEnabled: boolean;
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -132,6 +133,14 @@ export function ClassForm({
             ))}
           </div>
         </fieldset>
+        <Label className="checkbox-field field-wide">
+          <Input
+            defaultChecked={values?.accessPinEnabled ?? false}
+            name="accessPinEnabled"
+            type="checkbox"
+          />
+          Require a four-digit student access PIN
+        </Label>
       </div>
       {state?.error ? <p className="form-error">{state.error}</p> : null}
       <Button type="submit" disabled={pending}>
@@ -139,9 +148,10 @@ export function ClassForm({
       </Button>
       {state?.signInUrl && state.qrDataUrl && state.classId ? (
         <section className="token-panel" aria-live="polite">
-          <h2>Save this sign-in access now</h2>
-          <p>The raw link is not stored and cannot be shown again.</p>
+          <h2>Student access</h2>
+          <p>This stable link and QR code work while the class is open.</p>
           <a href={state.signInUrl}>{state.signInUrl}</a>
+          {state.accessPin ? <p>Student PIN: {state.accessPin}</p> : null}
           <Image
             src={state.qrDataUrl}
             alt="Class sign-in QR code"

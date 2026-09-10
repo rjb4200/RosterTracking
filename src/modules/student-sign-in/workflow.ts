@@ -122,6 +122,53 @@ export async function createWorkflowFromClassToken(
   });
 }
 
+export async function createWorkflowFromOpenClass(
+  db: Database,
+  classId: string,
+  tokenVersion: number,
+  initialState: SignInWorkflowState = emptySignInWorkflowState(),
+  now = new Date(),
+) {
+  await cleanupExpiredSignInWorkflows(db, now);
+  return db.transaction(async (transaction) => {
+    const [classRecord] = await transaction
+      .select({
+        id: trainingClasses.id,
+        signInTokenVersion: trainingClasses.signInTokenVersion,
+      })
+      .from(trainingClasses)
+      .where(
+        and(
+          eq(trainingClasses.id, classId),
+          eq(trainingClasses.status, CLASS_STATUSES.OPEN),
+          eq(trainingClasses.signInTokenVersion, tokenVersion),
+        ),
+      )
+      .limit(1)
+      .for("share");
+    if (!classRecord) return null;
+
+    const created = createSignInContext(
+      classRecord.id,
+      classRecord.signInTokenVersion,
+      now,
+    );
+    const nonceHash = hashWorkflowNonce(created.context.nonce);
+    const expiresAt = new Date(created.context.expiresAt * 1000);
+    await transaction.insert(signInWorkflowStaging).values({
+      classId: classRecord.id,
+      nonceHash,
+      signInTokenVersion: classRecord.signInTokenVersion,
+      idempotencyKey: created.context.idempotencyKey,
+      encryptedState: encodeSignInWorkflowState(initialState, nonceHash),
+      expiresAt,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { ...created, expiresAt };
+  });
+}
+
 async function loadWithinTransaction(
   transaction: DatabaseTransaction,
   signedContext: string,

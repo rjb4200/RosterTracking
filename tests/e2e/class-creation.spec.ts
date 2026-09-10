@@ -42,8 +42,9 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
   await page.getByLabel("Course").selectOption(courseId);
   await page.getByLabel("Training site").selectOption(siteId);
   await page.getByLabel(systemName).check();
+  await page.getByLabel("Require a four-digit student access PIN").check();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByText("Save this sign-in access now")).toBeVisible();
+  await expect(page.getByText("Student access")).toBeVisible();
   await page.getByRole("link", { name: "Continue class setup" }).click();
 
   await page.getByLabel("Session title").fill("E2E Session");
@@ -54,6 +55,8 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
   await expect(page.getByText("E2E Session")).toBeVisible();
   await page.getByRole("button", { name: "Open class" }).click();
   await expect(page.getByText("open", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Student PIN: \d{4}/)).toBeVisible();
+  await expect(page.getByAltText("Class sign-in QR code")).toBeVisible();
 });
 
 test("unknown class token returns a generic unavailable response", async ({
@@ -66,4 +69,14 @@ test("unknown class token returns a generic unavailable response", async ({
     page.getByRole("heading", { name: "Class sign-in unavailable" }),
   ).toBeVisible();
   await expect(page.getByText(/ask the instructor/i)).toBeVisible();
+});
+
+test("unknown public class code returns a generic unavailable response", async ({
+  page,
+}) => {
+  await page.goto("/ZZZZ");
+  await expect(page).toHaveURL(/\/sign-in\?status=unavailable$/);
+  await expect(
+    page.getByRole("heading", { name: "Class sign-in unavailable" }),
+  ).toBeVisible();
 });
