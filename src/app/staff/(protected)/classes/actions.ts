@@ -68,13 +68,19 @@ export async function createClassAction(
 ): Promise<ActionState> {
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   try {
+    getClassSignInBaseUrl();
     const { classRecord } = await createClassDraft(
       getDatabase(),
       actor,
       draftValues(formData),
     );
+    const signInUrl = buildClassSignInUrl(classRecord.publicCode ?? "");
     revalidatePath("/staff/classes");
-    return { classId: classRecord.id };
+    return {
+      classId: classRecord.id,
+      signInUrl,
+      qrDataUrl: await createClassQrDataUrl(signInUrl),
+    };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not create class.",
@@ -116,7 +122,6 @@ export async function saveComponentAction(
       id: read(formData, "id") || undefined,
       title: read(formData, "title"),
       startsAt: read(formData, "startsAt"),
-      endsAt: read(formData, "endsAt"),
       creditedHours: read(formData, "creditedHours"),
       position: read(formData, "position") || 0,
     });

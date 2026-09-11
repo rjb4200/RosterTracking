@@ -26,6 +26,7 @@ import {
   type ClassStatus,
 } from "./constants";
 import {
+  calculateComponentEndTime,
   validateClassReadiness,
   validateClassTransition,
   validateComponentRange,
@@ -59,7 +60,6 @@ const componentInput = z.object({
   id: z.string().uuid().optional(),
   title: z.string().trim().max(200).optional().or(z.literal("")),
   startsAt: z.string().transform(parseDepartmentDateTime),
-  endsAt: z.string().transform(parseDepartmentDateTime),
   creditedHours: z.coerce.number().positive().max(999),
   position: z.coerce.number().int().min(0).default(0),
 });
@@ -339,7 +339,11 @@ export async function saveClassComponent(
   input: z.input<typeof componentInput>,
 ) {
   const parsed = componentInput.parse(input);
-  validateComponentRange(parsed.startsAt, parsed.endsAt, parsed.creditedHours);
+  const endsAt = calculateComponentEndTime(
+    parsed.startsAt,
+    parsed.creditedHours,
+  );
+  validateComponentRange(parsed.startsAt, endsAt, parsed.creditedHours);
   return db.transaction(async (transaction) => {
     const classRecord = await requireClassAccess(transaction, actor, classId);
     if (classRecord.status !== CLASS_STATUSES.DRAFT) {
@@ -349,7 +353,7 @@ export async function saveClassComponent(
       classId,
       title: parsed.title || null,
       startsAt: parsed.startsAt,
-      endsAt: parsed.endsAt,
+      endsAt,
       creditedHours: String(parsed.creditedHours),
       position: parsed.position,
       updatedAt: new Date(),

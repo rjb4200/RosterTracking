@@ -26,6 +26,19 @@ export function validateComponentRange(
   }
 }
 
+export function calculateComponentEndTime(
+  startsAt: Date,
+  creditedHours: number,
+): Date {
+  if (startsAt.getMinutes() % 15 !== 0) {
+    throw new Error("Component start time must use a 15-minute increment.");
+  }
+  if (creditedHours <= 0 || !Number.isInteger(creditedHours * 4)) {
+    throw new Error("Credited hours must use a 15-minute increment.");
+  }
+  return new Date(startsAt.getTime() + creditedHours * 60 * 60 * 1000);
+}
+
 export function validateClassReadiness(input: {
   componentCount: number;
   leadCount: number;

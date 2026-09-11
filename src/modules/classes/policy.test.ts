@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { CLASS_STATUSES } from "./constants";
 import {
+  calculateComponentEndTime,
   validateClassReadiness,
   validateClassTransition,
   validateComponentRange,
@@ -27,6 +28,19 @@ describe("class policy", () => {
     expect(() =>
       validateComponentRange(startsAt, new Date("2026-09-10T14:00:00Z"), 0),
     ).toThrow(/greater than zero/i);
+  });
+
+  it("calculates component ends from quarter-hour starts and credits", () => {
+    const startsAt = new Date("2026-09-10T13:15:00Z");
+    expect(calculateComponentEndTime(startsAt, 1.25).toISOString()).toBe(
+      "2026-09-10T14:30:00.000Z",
+    );
+    expect(() => calculateComponentEndTime(startsAt, 1.1)).toThrow(
+      /15-minute increment/i,
+    );
+    expect(() =>
+      calculateComponentEndTime(new Date("2026-09-10T13:16:00Z"), 1),
+    ).toThrow(/15-minute increment/i);
   });
 
   it("allows only supported lifecycle transitions", () => {

@@ -91,6 +91,38 @@ describe("official roster PDF templates", () => {
     );
   });
 
+  it("uses the course name when a session title is omitted", async () => {
+    const titledWithCourseName: FinalizationSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          title: "Incident Command",
+          startsAt: "2026-09-05T13:00:00.000Z",
+          endsAt: "2026-09-05T17:00:00.000Z",
+          creditedHours: "4",
+        },
+      ],
+    };
+    const untitled: FinalizationSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          title: null,
+          startsAt: "2026-09-05T13:00:00.000Z",
+          endsAt: "2026-09-05T17:00:00.000Z",
+          creditedHours: "4",
+        },
+      ],
+    };
+
+    await expect(renderOfficialRoster("kfs-1a", untitled)).resolves.toEqual(
+      await renderOfficialRoster("kfs-1a", titledWithCourseName),
+    );
+    await expect(renderOfficialRoster("kbems-e16", untitled)).resolves.toEqual(
+      await renderOfficialRoster("kbems-e16", titledWithCourseName),
+    );
+  });
+
   it("limits authority to Training Majors and Administrators", () => {
     expect(hasOfficialRosterAuthority(["training-major"])).toBe(true);
     expect(hasOfficialRosterAuthority(["administrator"])).toBe(true);

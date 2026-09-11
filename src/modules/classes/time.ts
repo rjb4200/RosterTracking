@@ -106,3 +106,22 @@ export function formatDepartmentDateTimeInput(date: Date): string {
   const pad = (value: number) => value.toString().padStart(2, "0");
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
 }
+
+export function roundDepartmentDateTimeToQuarterHour(date: Date): string {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  rounded.setMinutes(Math.round(rounded.getMinutes() / 15) * 15);
+  return formatDepartmentDateTimeInput(rounded);
+}
+
+export function calculateDepartmentEndTimeInput(
+  startsAt: string,
+  creditedHours: number,
+): string {
+  return formatDepartmentDateTimeInput(
+    new Date(
+      parseDepartmentDateTime(startsAt).getTime() +
+        creditedHours * 60 * 60 * 1000,
+    ),
+  );
+}

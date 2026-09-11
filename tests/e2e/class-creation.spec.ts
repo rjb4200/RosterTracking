@@ -44,13 +44,13 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
   await page.getByLabel(systemName).check();
   await page.getByLabel("Require a four-digit student access PIN").check();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByText("Draft created")).toBeVisible();
+  await expect(page.getByText("Student access")).toBeVisible();
   await page.getByRole("link", { name: "Continue class setup" }).click();
 
   await page.getByLabel("Session title").fill("E2E Session");
   await page.getByLabel("Credited hours").fill("4");
   await page.getByLabel("Starts").fill("2026-09-10T09:00");
-  await page.getByLabel("Ends").fill("2026-09-10T13:00");
+  await expect(page.getByLabel("Ends")).toHaveValue("2026-09-10T13:00");
   await page.getByRole("button", { name: "Add session" }).click();
   await expect(page.getByText("E2E Session")).toBeVisible();
   await page.getByRole("button", { name: "Open class" }).click();

@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { calculateDepartmentEndTimeInput } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
 
@@ -12,6 +13,7 @@ export function ComponentForm({
   classId,
   action,
   component,
+  defaultStartsAt,
 }: {
   classId: string;
   component?: {
@@ -19,8 +21,8 @@ export function ComponentForm({
     title: string | null;
     creditedHours: string;
     startsAt: string;
-    endsAt: string;
   };
+  defaultStartsAt?: string;
   action: (
     prev: ActionState | undefined,
     formData: FormData,
@@ -28,6 +30,16 @@ export function ComponentForm({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const suffix = component?.id ?? "new";
+  const [startsAt, setStartsAt] = useState(
+    component?.startsAt ?? defaultStartsAt ?? "",
+  );
+  const [creditedHours, setCreditedHours] = useState(
+    component?.creditedHours ?? "2.00",
+  );
+  const endTime =
+    startsAt && Number(creditedHours) > 0
+      ? calculateDepartmentEndTimeInput(startsAt, Number(creditedHours))
+      : "";
   return (
     <form action={formAction} className="stack-form">
       <input type="hidden" name="classId" value={classId} />
@@ -51,7 +63,8 @@ export function ComponentForm({
             type="number"
             step="0.25"
             min="0.25"
-            defaultValue={component?.creditedHours}
+            value={creditedHours}
+            onChange={(event) => setCreditedHours(event.target.value)}
             required
           />
         </div>
@@ -61,7 +74,9 @@ export function ComponentForm({
             id={`startsAt-${suffix}`}
             name="startsAt"
             type="datetime-local"
-            defaultValue={component?.startsAt}
+            step="900"
+            value={startsAt}
+            onChange={(event) => setStartsAt(event.target.value)}
             required
           />
         </div>
@@ -71,8 +86,8 @@ export function ComponentForm({
             id={`endsAt-${suffix}`}
             name="endsAt"
             type="datetime-local"
-            defaultValue={component?.endsAt}
-            required
+            value={endTime}
+            readOnly
           />
         </div>
       </div>

@@ -16,6 +16,7 @@ import {
 import {
   formatDepartmentDateTime,
   formatDepartmentDateTimeInput,
+  roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
@@ -61,6 +62,7 @@ export default async function ClassDetailPage({
   ]);
   const canManageOfficialRosters = Boolean(staff);
   const isDraft = classRecord.status === "draft";
+  const newSessionStartsAt = roundDepartmentDateTimeToQuarterHour(new Date());
   const publicAccess =
     classRecord.status === "open"
       ? await getClassPublicAccess(db, actor, classRecord.id)
@@ -141,7 +143,6 @@ export default async function ClassDetailPage({
                     title: component.title,
                     creditedHours: component.creditedHours,
                     startsAt: formatDepartmentDateTimeInput(component.startsAt),
-                    endsAt: formatDepartmentDateTimeInput(component.endsAt),
                   }}
                 />
               ) : null}
@@ -152,6 +153,7 @@ export default async function ClassDetailPage({
           <ComponentForm
             classId={classRecord.id}
             action={saveComponentAction}
+            defaultStartsAt={newSessionStartsAt}
           />
         ) : null}
       </section>

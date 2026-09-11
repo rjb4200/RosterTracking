@@ -253,7 +253,6 @@ describeDatabase("database foundation", () => {
       {
         title: "Session one",
         startsAt: "2026-09-10T13:00:00Z",
-        endsAt: "2026-09-10T17:00:00Z",
         creditedHours: 4,
         position: 0,
       },
@@ -262,7 +261,6 @@ describeDatabase("database foundation", () => {
       id: component.id,
       title: "Updated session",
       startsAt: "2026-09-10T13:00:00Z",
-      endsAt: "2026-09-10T17:00:00Z",
       creditedHours: 4,
       position: 0,
     });
