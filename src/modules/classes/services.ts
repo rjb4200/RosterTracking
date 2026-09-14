@@ -1,6 +1,16 @@
 import "server-only";
 
-import { and, asc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
@@ -13,10 +23,14 @@ import {
   classReportingSystems,
   courseReportingDefaults,
   courses,
+  credentialTypes,
   finalizationRevisions,
+  reportingRequirementSets,
+  reportingRequirements,
   reportingSystems,
   roles,
   trainingClasses,
+  trainingCodes,
   trainingSites,
   userRoles,
   users,
@@ -95,6 +109,12 @@ const componentInput = z.object({
   startsAt: z.string().transform(parseDepartmentDateTime),
   creditedHours: z.coerce.number().positive().max(999),
   position: z.coerce.number().int().min(0).default(0),
+});
+
+const scheduledDraftInput = draftInput.extend({
+  startsAt: z.string().transform(parseDepartmentDateTime),
+  creditedHours: z.coerce.number().positive().max(999),
+  leadInstructorId: z.string().uuid(),
 });
 
 async function canManageAllClasses(
@@ -228,8 +248,26 @@ export async function createClassDraft(
   db: Database,
   actor: ClassActor,
   input: z.input<typeof draftInput>,
+  initialComponent?: {
+    startsAt: Date;
+    creditedHours: number;
+    leadInstructorId: string;
+  },
 ) {
   const parsed = draftInput.parse(input);
+  const endsAt = initialComponent
+    ? calculateComponentEndTime(
+        initialComponent.startsAt,
+        initialComponent.creditedHours,
+      )
+    : null;
+  if (initialComponent && endsAt) {
+    validateComponentRange(
+      initialComponent.startsAt,
+      endsAt,
+      initialComponent.creditedHours,
+    );
+  }
   const rawToken = generateClassSignInToken();
   return db.transaction(async (transaction) => {
     await validateReferences(transaction, parsed);
@@ -281,9 +319,16 @@ export async function createClassDraft(
         details: { reportingSystemIds },
       });
     }
+    const leadInstructorId = initialComponent?.leadInstructorId ?? actor.id;
+    const [leadInstructor] = await transaction
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, leadInstructorId), eq(users.isActive, true)))
+      .limit(1);
+    if (!leadInstructor) throw new Error("Select an active lead instructor.");
     await transaction.insert(classInstructors).values({
       classId: created.id,
-      userId: actor.id,
+      userId: leadInstructorId,
       isLead: true,
     });
     await writeAuditLog(transaction, {
@@ -292,8 +337,29 @@ export async function createClassDraft(
       action: "class.instructor.assigned",
       entityType: "class",
       entityId: created.id,
-      details: { userId: actor.id, isLead: true },
+      details: { userId: leadInstructorId, isLead: true },
     });
+    if (initialComponent && endsAt) {
+      const [component] = await transaction
+        .insert(classComponents)
+        .values({
+          classId: created.id,
+          startsAt: initialComponent.startsAt,
+          endsAt,
+          creditedHours: String(initialComponent.creditedHours),
+          position: 0,
+        })
+        .returning({ id: classComponents.id });
+      if (!component) throw new Error("Class component was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "class.component.saved",
+        entityType: "class",
+        entityId: created.id,
+        details: { componentId: component.id },
+      });
+    }
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -306,6 +372,19 @@ export async function createClassDraft(
       },
     });
     return { classRecord: created, rawToken, accessPin };
+  });
+}
+
+export async function createScheduledClassDraft(
+  db: Database,
+  actor: ClassActor,
+  input: z.input<typeof scheduledDraftInput>,
+) {
+  const parsed = scheduledDraftInput.parse(input);
+  return createClassDraft(db, actor, parsed, {
+    startsAt: parsed.startsAt,
+    creditedHours: parsed.creditedHours,
+    leadInstructorId: parsed.leadInstructorId,
   });
 }
 
@@ -720,7 +799,7 @@ export async function listPublicOpenClasses(db: Database) {
         publicCode,
         courseName: record.courseName,
         location:
-          record.deliveryMethod === "virtual"
+          record.deliveryMethod === "online"
             ? "Virtual"
             : (record.siteName ?? ""),
         nextSession: nextComponent?.startsAt ?? null,
@@ -967,41 +1046,96 @@ export async function getClassDetail(
   });
 }
 
-export async function listClassFormOptions(db: Database) {
-  const [courseRows, siteRows, systemRows, staffRows, defaultRows] =
-    await Promise.all([
-      db
-        .select({ id: courses.id, name: courses.name })
-        .from(courses)
-        .where(eq(courses.isActive, true))
-        .orderBy(courses.name),
-      db
-        .select({ id: trainingSites.id, name: trainingSites.name })
-        .from(trainingSites)
-        .where(eq(trainingSites.isActive, true))
-        .orderBy(trainingSites.name),
-      db
-        .select({ id: reportingSystems.id, name: reportingSystems.name })
-        .from(reportingSystems)
-        .where(eq(reportingSystems.isActive, true))
-        .orderBy(reportingSystems.name),
-      db
-        .select({ id: users.id, displayName: users.displayName })
-        .from(users)
-        .where(eq(users.isActive, true))
-        .orderBy(users.displayName),
-      db
+export async function listClassFormOptions(db: Database, actor?: ClassActor) {
+  const [
+    courseRows,
+    siteRows,
+    systemRows,
+    staffRows,
+    defaultRows,
+    requirementRows,
+  ] = await Promise.all([
+    db
+      .select({
+        id: courses.id,
+        name: courses.name,
+        defaultHours: courses.defaultHours,
+        trainingCode: trainingCodes.code,
+      })
+      .from(courses)
+      .leftJoin(trainingCodes, eq(trainingCodes.id, courses.trainingCodeId))
+      .where(eq(courses.isActive, true))
+      .orderBy(courses.name),
+    db
+      .select({ id: trainingSites.id, name: trainingSites.name })
+      .from(trainingSites)
+      .where(eq(trainingSites.isActive, true))
+      .orderBy(trainingSites.name),
+    db
+      .select({ id: reportingSystems.id, name: reportingSystems.name })
+      .from(reportingSystems)
+      .where(eq(reportingSystems.isActive, true))
+      .orderBy(reportingSystems.name),
+    db
+      .select({ id: users.id, name: users.displayName })
+      .from(users)
+      .where(eq(users.isActive, true))
+      .orderBy(users.displayName),
+    db
+      .select({
+        courseId: courseReportingDefaults.courseId,
+        reportingSystemId: courseReportingDefaults.reportingSystemId,
+      })
+      .from(courseReportingDefaults),
+    db
+      .select({
+        reportingSystemId: reportingRequirementSets.reportingSystemId,
+        kind: reportingRequirements.kind,
+        credentialName: credentialTypes.name,
+        studentField: reportingRequirements.studentField,
+        isRequired: reportingRequirements.isRequired,
+      })
+      .from(reportingRequirements)
+      .innerJoin(
+        reportingRequirementSets,
+        eq(reportingRequirementSets.id, reportingRequirements.requirementSetId),
+      )
+      .leftJoin(
+        credentialTypes,
+        eq(credentialTypes.id, reportingRequirements.credentialTypeId),
+      )
+      .where(eq(reportingRequirementSets.isActive, true)),
+  ]);
+  const recentRows = actor
+    ? await db
         .select({
-          courseId: courseReportingDefaults.courseId,
-          reportingSystemId: courseReportingDefaults.reportingSystemId,
+          courseId: trainingClasses.courseId,
+          trainingSiteId: trainingClasses.trainingSiteId,
         })
-        .from(courseReportingDefaults),
-    ]);
+        .from(trainingClasses)
+        .where(
+          or(
+            eq(trainingClasses.createdByUserId, actor.id),
+            sql`exists (select 1 from ${classInstructors} where ${classInstructors.classId} = ${trainingClasses.id} and ${classInstructors.userId} = ${actor.id})`,
+          ),
+        )
+        .orderBy(desc(trainingClasses.updatedAt))
+        .limit(10)
+    : [];
   return {
     courses: courseRows,
     sites: siteRows,
     reportingSystems: systemRows,
     staff: staffRows,
     courseReportingDefaults: defaultRows,
+    reportingRequirements: requirementRows,
+    recentCourseIds: [...new Set(recentRows.map((row) => row.courseId))],
+    recentSiteIds: [
+      ...new Set(
+        recentRows.flatMap((row) =>
+          row.trainingSiteId ? [row.trainingSiteId] : [],
+        ),
+      ),
+    ],
   };
 }

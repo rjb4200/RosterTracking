@@ -81,7 +81,7 @@ async function createOpenClassFixture() {
       courseId: course.id,
       trainingSiteId: site.id,
       createdByUserId: actor.id,
-      deliveryMethod: "in_person",
+      deliveryMethod: "classroom",
       status: "open",
       signInTokenHash: hashClassSignInToken(rawToken),
       openedAt: new Date(),

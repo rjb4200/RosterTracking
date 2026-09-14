@@ -8,7 +8,7 @@ export function validateDeliverySite(
   deliveryMethod: string,
   trainingSiteId: string | null,
 ): void {
-  if (deliveryMethod !== CLASS_DELIVERY_METHODS.VIRTUAL && !trainingSiteId) {
+  if (deliveryMethod !== CLASS_DELIVERY_METHODS.ONLINE && !trainingSiteId) {
     throw new Error("A training site is required for this delivery method.");
   }
 }

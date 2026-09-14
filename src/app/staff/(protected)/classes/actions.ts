@@ -15,6 +15,7 @@ import {
 import {
   assignClassInstructor,
   createClassDraft,
+  createScheduledClassDraft,
   getClassPublicAccess,
   rotateClassSignInToken,
   saveClassComponent,
@@ -23,6 +24,7 @@ import {
 } from "@/modules/classes/services";
 import { getTemplateMapping } from "@/modules/official-roster-pdfs/mappings";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
+import { createSite } from "@/modules/reference/services";
 import { requireStaff } from "@/modules/staff-auth/authorization";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -34,6 +36,11 @@ export interface ActionState {
   signInUrl?: string;
   qrDataUrl?: string;
   accessPin?: string | null;
+}
+
+export interface CreateSiteActionState {
+  error?: string;
+  site?: { id: string; name: string };
 }
 
 export interface OfficialRosterEmailActionState {
@@ -54,8 +61,9 @@ function draftValues(formData: FormData) {
     courseId: read(formData, "courseId"),
     trainingSiteId: site || null,
     deliveryMethod: read(formData, "deliveryMethod") as
-      | "in_person"
-      | "virtual"
+      | "classroom"
+      | "hands_on"
+      | "online"
       | "hybrid",
     reportingSystemIds,
     accessPinEnabled: read(formData, "accessPinEnabled") === "on",
@@ -84,6 +92,61 @@ export async function createClassAction(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not create class.",
+    };
+  }
+}
+
+export async function createScheduledClassAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  try {
+    getClassSignInBaseUrl();
+    const { classRecord, accessPin } = await createScheduledClassDraft(
+      getDatabase(),
+      actor,
+      {
+        ...draftValues(formData),
+        startsAt: read(formData, "startsAt"),
+        creditedHours: read(formData, "creditedHours"),
+        leadInstructorId: read(formData, "leadInstructorId"),
+      },
+    );
+    const signInUrl = buildClassSignInUrl(classRecord.publicCode ?? "");
+    revalidatePath("/staff/classes");
+    revalidatePath("/staff");
+    return {
+      classId: classRecord.id,
+      signInUrl,
+      qrDataUrl: await createClassQrDataUrl(signInUrl),
+      accessPin,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not create class.",
+    };
+  }
+}
+
+export async function createInlineSiteAction(
+  _prev: CreateSiteActionState | undefined,
+  formData: FormData,
+): Promise<CreateSiteActionState> {
+  const actor = await requireActor(PERMISSIONS.SITES_CREATE);
+  try {
+    const site = await createSite(getDatabase(), actor, {
+      name: read(formData, "name"),
+      address: read(formData, "address"),
+      city: read(formData, "city"),
+      state: read(formData, "state"),
+      zip: read(formData, "zip"),
+    });
+    revalidatePath("/staff/classes/new");
+    return { site: { id: site.id, name: site.name } };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not create site.",
     };
   }
 }

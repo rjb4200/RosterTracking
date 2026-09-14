@@ -41,19 +41,24 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.goto("/staff/classes/new");
   await page.getByLabel("Course").selectOption(courseId);
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByLabel("Course")).toHaveValue(courseId);
+  await page.getByRole("button", { name: "Next" }).click();
   await page.getByLabel("Training site").selectOption(siteId);
-  await page.getByLabel(systemName).check();
+  await page.getByLabel("Add a new site").fill(`Inline Site ${suffix}`);
+  await page.getByRole("button", { name: "Add site" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
+  await page.getByLabel("Scheduled duration (hours)").fill("4");
   await page.getByLabel("Require a four-digit student access PIN").check();
-  await page.getByRole("button", { name: "Create draft" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByLabel(systemName).check();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Create class" }).click();
   await expect(page.getByText("Student access")).toBeVisible();
   await page.getByRole("link", { name: "Continue class setup" }).click();
 
-  await page.getByLabel("Session title").fill("E2E Session");
-  await page.getByLabel("Credited hours").fill("4");
-  await page.getByLabel("Starts").fill("2026-09-10T09:00");
-  await expect(page.getByLabel("Ends")).toHaveValue("2026-09-10T13:00");
-  await page.getByRole("button", { name: "Add session" }).click();
-  await expect(page.getByText("E2E Session")).toBeVisible();
   await page.getByRole("button", { name: "Open class" }).click();
   await expect(page.getByText("open", { exact: true })).toBeVisible();
   await expect(page.getByText(/Student PIN: \d{4}/)).toBeVisible();
@@ -133,7 +138,7 @@ test("instructor dashboard limits overdue reminders to assigned classes", async 
     [instructorId, instructorRoleId, otherInstructorId],
   );
   const assignedClass = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'in_person', 'open', $4) returning id",
+    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'classroom', 'open', $4) returning id",
     [courseId, siteId, instructorId, crypto.randomUUID()],
   );
   const unrelatedCourse = await pool.query<{ id: string }>(
@@ -141,7 +146,7 @@ test("instructor dashboard limits overdue reminders to assigned classes", async 
     [`Unrelated Overdue ${suffix}`],
   );
   const unrelatedClass = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'in_person', 'open', $4) returning id",
+    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'classroom', 'open', $4) returning id",
     [
       unrelatedCourse.rows[0]?.id,
       siteId,

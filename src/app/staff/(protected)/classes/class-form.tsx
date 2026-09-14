@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 
@@ -86,10 +87,11 @@ export function ClassForm({
             id="deliveryMethod"
             name="deliveryMethod"
             className="select-input"
-            defaultValue={values?.deliveryMethod ?? "in_person"}
+            defaultValue={values?.deliveryMethod ?? "classroom"}
           >
-            <option value="in_person">In person</option>
-            <option value="virtual">Virtual</option>
+            <option value="classroom">Classroom</option>
+            <option value="hands_on">Hands-On</option>
+            <option value="online">Online</option>
             <option value="hybrid">Hybrid</option>
           </select>
         </div>
@@ -101,7 +103,7 @@ export function ClassForm({
             className="select-input"
             defaultValue={values?.trainingSiteId ?? ""}
           >
-            <option value="">No site (virtual only)</option>
+            <option value="">No site (online only)</option>
             {sites.map((site) => (
               <option key={site.id} value={site.id}>
                 {site.name}
@@ -145,13 +147,19 @@ export function ClassForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving..." : values ? "Save class setup" : "Create draft"}
       </Button>
-      {state?.classId ? (
+      {state?.signInUrl && state.qrDataUrl && state.classId ? (
         <section className="token-panel" aria-live="polite">
-          <h2>Draft created</h2>
-          <p>
-            Add at least one session and open the class before student access is
-            available.
-          </p>
+          <h2>Student access</h2>
+          <p>This stable link and QR code work while the class is open.</p>
+          <a href={state.signInUrl}>{state.signInUrl}</a>
+          {state.accessPin ? <p>Student PIN: {state.accessPin}</p> : null}
+          <Image
+            src={state.qrDataUrl}
+            alt="Class sign-in QR code"
+            width={240}
+            height={240}
+            unoptimized
+          />
           <Link
             href={`/staff/classes/${state.classId}`}
             className={buttonVariants({ variant: "secondary" })}

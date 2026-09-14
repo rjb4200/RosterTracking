@@ -176,7 +176,7 @@ export default async function ClassDetailPage({
             <select name="userId" className="select-input" required>
               {options.staff.map((staff) => (
                 <option key={staff.id} value={staff.id}>
-                  {staff.displayName}
+                  {staff.name}
                 </option>
               ))}
             </select>

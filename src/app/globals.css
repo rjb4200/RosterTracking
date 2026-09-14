@@ -969,6 +969,82 @@ h1 {
   gap: 1rem;
 }
 
+.class-wizard {
+  max-width: 760px;
+}
+
+.class-wizard-steps {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.class-wizard-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--steel);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.class-wizard-steps li.is-current {
+  color: var(--ink);
+}
+
+.class-wizard-steps span {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.class-wizard-steps .is-current span {
+  background: var(--signal);
+  color: white;
+}
+
+.class-wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wizard-requirements,
+.wizard-review {
+  border: 1px solid var(--line);
+  padding: 1rem;
+  background: #f8f6f1;
+}
+
+.wizard-requirements h2,
+.wizard-review h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+.wizard-review dl {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.35fr) 1fr;
+  gap: 0.55rem 1rem;
+  margin: 0;
+}
+
+.wizard-review dt {
+  color: var(--steel);
+  font-weight: 800;
+}
+
+.wizard-review dd {
+  margin: 0;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

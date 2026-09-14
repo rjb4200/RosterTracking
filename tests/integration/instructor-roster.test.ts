@@ -74,7 +74,7 @@ describeDatabase("instructor roster transactions", () => {
         courseId: course.id,
         trainingSiteId: site.id,
         createdByUserId: actor.id,
-        deliveryMethod: "in_person",
+        deliveryMethod: "classroom",
         status: "open",
         signInTokenHash: crypto.randomUUID(),
       })

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
@@ -7,6 +7,8 @@ import { CLASS_STATUSES } from "../../src/modules/classes/constants";
 import {
   assignClassInstructor,
   createClassDraft,
+  createScheduledClassDraft,
+  listClassFormOptions,
   listOperationalClasses,
   resolveOpenClassPublicCode,
   resolveOpenClassToken,
@@ -216,7 +218,7 @@ describeDatabase("database foundation", () => {
     const created = await createClassDraft(database, actor, {
       courseId: course.id,
       trainingSiteId: site.id,
-      deliveryMethod: "in_person",
+      deliveryMethod: "classroom",
     });
     await expect(
       transitionClass(
@@ -387,6 +389,76 @@ describeDatabase("database foundation", () => {
     );
   });
 
+  it("creates the initial scheduled class aggregate atomically", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const database = drizzle(pool, { schema });
+    await database.transaction(seedReferenceData);
+    const suffix = crypto.randomUUID();
+    const [actor] = await database
+      .insert(users)
+      .values({
+        username: `scheduled-class-${suffix}`,
+        displayName: "Scheduled Class Instructor",
+        passwordHash: "not-a-real-hash",
+      })
+      .returning({ id: users.id, username: users.username });
+    const [course] = await database
+      .insert(courses)
+      .values({ name: `Scheduled Class Course ${suffix}` })
+      .returning({ id: courses.id });
+    const [site] = await database
+      .insert(trainingSites)
+      .values({ name: `Scheduled Class Site ${suffix}` })
+      .returning({ id: trainingSites.id });
+    if (!actor || !course || !site)
+      throw new Error("Scheduled fixtures missing.");
+
+    const created = await createScheduledClassDraft(database, actor, {
+      courseId: course.id,
+      trainingSiteId: site.id,
+      deliveryMethod: "classroom",
+      startsAt: "2026-09-10T09:00:00Z",
+      creditedHours: 4,
+      leadInstructorId: actor.id,
+    });
+    const components = await database
+      .select()
+      .from(classComponents)
+      .where(eq(classComponents.classId, created.classRecord.id));
+    const instructors = await database
+      .select()
+      .from(classInstructors)
+      .where(eq(classInstructors.classId, created.classRecord.id));
+    expect(components).toHaveLength(1);
+    expect(instructors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: actor.id, isLead: true }),
+      ]),
+    );
+    const options = await listClassFormOptions(database, actor);
+    expect(options.recentCourseIds).toContain(course.id);
+    expect(options.recentSiteIds).toContain(site.id);
+    expect(options.reportingRequirements.length).toBeGreaterThan(0);
+
+    const classCount = await database
+      .select({ count: sql<number>`count(*)::int` })
+      .from(trainingClasses);
+    await expect(
+      createScheduledClassDraft(database, actor, {
+        courseId: course.id,
+        trainingSiteId: site.id,
+        deliveryMethod: "classroom",
+        startsAt: "2026-09-10T09:00:00Z",
+        creditedHours: 4,
+        leadInstructorId: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow(/lead instructor/i);
+    const classCountAfterFailure = await database
+      .select({ count: sql<number>`count(*)::int` })
+      .from(trainingClasses);
+    expect(classCountAfterFailure[0]?.count).toBe(classCount[0]?.count);
+  });
+
   it("limits teaching dashboards to assignments while elevated staff see department work", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const database = drizzle(pool, { schema });
@@ -444,7 +516,7 @@ describeDatabase("database foundation", () => {
     const created = await createClassDraft(database, instructor, {
       courseId: course.id,
       trainingSiteId: site.id,
-      deliveryMethod: "in_person",
+      deliveryMethod: "classroom",
       reportingSystemIds: [system.id],
     });
     await assignClassInstructor(

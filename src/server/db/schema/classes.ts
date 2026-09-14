@@ -76,7 +76,7 @@ export const trainingClasses = pgTable(
     ),
     check(
       "classes_delivery_method",
-      sql`${table.deliveryMethod} in ('in_person', 'virtual', 'hybrid')`,
+      sql`${table.deliveryMethod} in ('classroom', 'hands_on', 'online', 'hybrid')`,
     ),
     check(
       "classes_status",
@@ -84,7 +84,7 @@ export const trainingClasses = pgTable(
     ),
     check(
       "classes_site_required",
-      sql`${table.deliveryMethod} = 'virtual' or ${table.trainingSiteId} is not null`,
+      sql`${table.deliveryMethod} = 'online' or ${table.trainingSiteId} is not null`,
     ),
     check(
       "classes_cancellation_reason",

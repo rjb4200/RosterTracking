@@ -1,8 +1,12 @@
 export const CLASS_DELIVERY_METHODS = {
-  IN_PERSON: "in_person",
-  VIRTUAL: "virtual",
+  CLASSROOM: "classroom",
+  HANDS_ON: "hands_on",
+  ONLINE: "online",
   HYBRID: "hybrid",
 } as const;
+
+export type ClassDeliveryMethod =
+  (typeof CLASS_DELIVERY_METHODS)[keyof typeof CLASS_DELIVERY_METHODS];
 
 export const CLASS_STATUSES = {
   DRAFT: "draft",

@@ -41,7 +41,7 @@ for (const viewport of [
       [`Roster Agency ${suffix}`],
     );
     const classRecord = await pool.query<{ id: string }>(
-      "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'in_person', 'open', $4) returning id",
+      "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'classroom', 'open', $4) returning id",
       [
         course.rows[0]?.id,
         site.rows[0]?.id,
