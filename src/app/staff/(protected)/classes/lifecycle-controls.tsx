@@ -37,7 +37,7 @@ export function LifecycleControls({
             <input type="hidden" name="classId" value={classId} />
             <input type="hidden" name="status" value="completed" />
             <Button type="submit" disabled={pending}>
-              Complete class
+              Finish attendance and review
             </Button>
           </form>
         ) : null}

@@ -63,6 +63,10 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
   await expect(page.getByText("open", { exact: true })).toBeVisible();
   await expect(page.getByText(/Student PIN: \d{4}/)).toBeVisible();
   await expect(page.getByAltText("Class sign-in QR code")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Live class" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Finish attendance and review" }),
+  ).toBeVisible();
 });
 
 test("staff workspace exposes the primary class creation path", async ({

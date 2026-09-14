@@ -17,11 +17,14 @@ import {
   classComponents,
   classGuests,
   classInstructors,
+  roles,
   studentAgencies,
   students,
   trainingClasses,
+  userRoles,
   users,
 } from "@/server/db/schema";
+import { ROLE_CODES } from "../staff-auth/permissions";
 import {
   ATTENDANCE_ATTESTATION_VERSION,
   renderAttendanceAttestation,
@@ -39,6 +42,13 @@ import {
 export interface RosterActor {
   id: string;
   username: string;
+}
+
+export function hasElevatedRosterAccess(roleCodes: string[]): boolean {
+  return roleCodes.some(
+    (code) =>
+      code === ROLE_CODES.ADMINISTRATOR || code === ROLE_CODES.TRAINING_MAJOR,
+  );
 }
 
 const rosterInput = z.object({
@@ -91,6 +101,26 @@ async function requireAssignedInstructor(
   classId: string,
   lock = true,
 ) {
+  const elevated = await transaction
+    .select({ code: roles.code })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(
+      and(
+        eq(userRoles.userId, actor.id),
+        eq(roles.isActive, true),
+        sql`${roles.code} in (${ROLE_CODES.ADMINISTRATOR}, ${ROLE_CODES.TRAINING_MAJOR})`,
+      ),
+    )
+    .limit(1);
+  if (hasElevatedRosterAccess(elevated.map((role) => role.code))) {
+    const [classRecord] = await transaction
+      .select()
+      .from(trainingClasses)
+      .where(eq(trainingClasses.id, classId))
+      .limit(1);
+    if (classRecord) return classRecord;
+  }
   const query = transaction
     .select()
     .from(trainingClasses)

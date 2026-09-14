@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateCreditedHours } from "./services";
+import { hasElevatedRosterAccess, validateCreditedHours } from "./services";
 
 describe("instructor roster policy", () => {
   it("allows scheduled credit and requires a reason for an adjustment", () => {
@@ -16,5 +16,11 @@ describe("instructor roster policy", () => {
     expect(() => validateCreditedHours(4.01, 4, "Incorrect")).toThrow(
       /between zero/i,
     );
+  });
+
+  it("grants department roster access only to elevated roles", () => {
+    expect(hasElevatedRosterAccess(["administrator"])).toBe(true);
+    expect(hasElevatedRosterAccess(["training-major"])).toBe(true);
+    expect(hasElevatedRosterAccess(["instructor"])).toBe(false);
   });
 });

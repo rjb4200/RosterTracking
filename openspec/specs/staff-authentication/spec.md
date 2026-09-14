@@ -7,11 +7,11 @@ Allow department staff to use simple persistent username/password accounts while
 ## Requirements
 
 ### Requirement: Staff username and password login
-The system SHALL authenticate staff using an administrator-created username and password and SHALL not provide public staff registration.
+The system SHALL authenticate staff using an administrator-created username and password and SHALL not provide public staff registration. After successful authentication, the system SHALL redirect the user through `/staff` to the workspace determined from the account's active role.
 
 #### Scenario: Valid credentials are submitted
-- **WHEN** an active staff user submits the correct normalized username and password
-- **THEN** the system creates a staff session and redirects the user to the protected staff area
+- **WHEN** an active staff user submits the correct normalized username and password from any staff login surface
+- **THEN** the system creates a staff session and directs the user through `/staff` to the workspace determined from the account's active role
 
 #### Scenario: Invalid credentials are submitted
 - **WHEN** a username is unknown or a password is incorrect

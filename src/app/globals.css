@@ -1195,6 +1195,44 @@ h1 {
   font-weight: 700;
 }
 
+.class-command-screen {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.command-roster {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.8fr);
+}
+
+.command-roster .roster-forms {
+  grid-template-columns: 1fr;
+}
+
+.roster-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.roster-row div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.roster-row span {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 900px) {
+  .command-roster {
+    grid-template-columns: 1fr;
+  }
+}
+
 .public-sign-in-shell {
   grid-template-columns: minmax(0, 720px);
   justify-content: center;

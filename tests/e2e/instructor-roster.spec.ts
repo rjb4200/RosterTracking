@@ -66,9 +66,15 @@ for (const viewport of [
     await page.getByLabel("Username").fill(username);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await page.goto(`/staff/classes/${classId}/roster`);
+    await page.goto(`/staff/classes/${classId}`);
     await expect(
-      page.getByRole("heading", { name: "Live attendance" }),
+      page.getByRole("heading", { name: "Live class" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Copy sign-in link" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Full-screen QR" }),
     ).toBeVisible();
     await page
       .getByRole("heading", { name: "Add class guest" })

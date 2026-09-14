@@ -7,22 +7,50 @@ Allow authorized staff to create, schedule, open, complete, and cancel reusable 
 ## Requirements
 
 ### Requirement: Class records use reference data
-The system SHALL let authorized staff create a draft class with a required course, delivery method, training site when applicable, and selected reporting systems. A class SHALL retain references to its selected catalog records rather than copied free-text values.
+The system SHALL let authorized staff create a draft class with a required course, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. A class SHALL retain references to its selected catalog records rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
 
-#### Scenario: Create an in-person draft
-- **WHEN** authorized staff select a course, an in-person delivery method, a training site, and reporting systems
+#### Scenario: Create a classroom draft
+- **WHEN** authorized staff select a course, Classroom delivery, a training site, a scheduled session, a lead instructor, and reporting systems
 - **THEN** the system creates a draft class with those selections
 
-#### Scenario: Require a site for an in-person class
-- **WHEN** staff attempt to save an in-person class without a training site
+#### Scenario: Require a site for site-based delivery
+- **WHEN** staff attempt to save a Classroom, Hands-On, or Hybrid class without a training site
 - **THEN** the system rejects the draft with a site-required validation error
 
+#### Scenario: Create an online draft without a site
+- **WHEN** authorized staff select Online delivery without a training site
+- **THEN** the system permits the draft to be created
+
+#### Scenario: Migrate historical delivery values
+- **WHEN** the delivery-method migration runs against existing classes
+- **THEN** it converts `in_person` to `classroom`, `virtual` to `online`, and retains `hybrid` as `hybrid`
+
 ### Requirement: Class components retain scheduled sessions
-The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store its scheduled start and end times and its credited hours.
+The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time selected in 15-minute increments, a scheduled end time derived from the selected start time and credited hours, and its credited hours. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class course name when no title is provided for official roster output.
 
 #### Scenario: Add multiple sessions
 - **WHEN** staff add separate morning and afternoon components to a draft class
 - **THEN** both components are retained in their scheduled order
+
+#### Scenario: Default a new session duration
+- **WHEN** staff add a new class component
+- **THEN** the component starts with two credited hours and its end time is calculated from its selected start time plus those hours
+
+#### Scenario: Calculate the end time from credited hours
+- **WHEN** staff select a component start time and change its credited hours
+- **THEN** the system recalculates and stores the end time as the start time plus the credited-hour duration
+
+#### Scenario: Restrict session start times
+- **WHEN** staff select a component start time
+- **THEN** the system permits only times at :00, :15, :30, or :45 past the hour
+
+#### Scenario: Use a session title in official output
+- **WHEN** staff provide a session title and finalize a class
+- **THEN** official roster output uses that title for the session-specific field
+
+#### Scenario: Fall back when a session title is omitted
+- **WHEN** staff leave a session title blank and finalize a class
+- **THEN** official roster output uses the class course name for the session-specific field
 
 #### Scenario: Reject invalid component time range
 - **WHEN** staff enter a component whose end time is not after its start time
@@ -40,7 +68,7 @@ The system SHALL let authorized staff assign active staff users as instructors a
 - **THEN** the newly selected instructor becomes the only lead assignment
 
 ### Requirement: Class lifecycle is controlled
-The system SHALL represent draft, open, completed, finalized, and cancelled class states. It SHALL allow authorized staff to open only a complete draft, complete an open class only when its roster passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class.
+The system SHALL represent draft, open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, allow authorized staff to open only a complete draft, complete an open class only when its roster passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class.
 
 #### Scenario: Open a complete draft
 - **WHEN** staff open a draft with a course, required site, at least one component, and a lead instructor
@@ -78,8 +106,45 @@ The system SHALL record audit events for class creation, component and instructo
 - **THEN** an audit event records the actor, class, prior state, new state, and server timestamp
 
 ### Requirement: Class creation is a stepped staff workflow
-The system SHALL provide authorized staff a stepped class-creation workflow that saves drafts between steps and exposes validation before a class is opened.
+The system SHALL provide authorized staff a visibly stepped class-creation workflow that validates each stage before advancing, preserves entered values while navigating, and creates a complete scheduled draft only at final submission.
+
+#### Scenario: Review before creation
+- **WHEN** staff finish the reporting step
+- **THEN** the workflow presents a review of their selections before creating the draft
 
 #### Scenario: Resume a draft
 - **WHEN** staff leave a partially configured class draft and return later
 - **THEN** the workflow restores the saved selections and components
+
+### Requirement: Class sessions share a roster day
+The system SHALL require every scheduled component of a class to occur on the same department-calendar day so one class has one roster for one day while retaining multiple subject sessions.
+
+#### Scenario: Add subjects on one day
+- **WHEN** staff add multiple subject sessions on the same department-calendar day
+- **THEN** the class retains the sessions under one class roster
+
+#### Scenario: Reject a session on another day
+- **WHEN** staff add or update a session whose department-calendar date differs from the class's existing sessions
+- **THEN** the system rejects the session with a single-day roster validation error
+
+### Requirement: Staff configure optional student access PINs
+The class creation and editing workflow SHALL let authorized staff enable or disable a student access PIN before a class is opened. PIN protection SHALL default to disabled. When enabled, the system SHALL generate a four-digit numeric PIN; staff SHALL NOT choose the value manually.
+
+#### Scenario: Create a class without a PIN
+- **WHEN** authorized staff create a class without enabling PIN protection
+- **THEN** the class opens without requiring students to enter a PIN
+
+#### Scenario: Enable PIN protection before opening
+- **WHEN** authorized staff enable PIN protection for a draft class
+- **THEN** the system generates a four-digit numeric PIN and requires it for public student access after the class opens
+
+### Requirement: Authorized instructors can view enabled class PINs
+The system SHALL display the current four-digit student access PIN only to authorized instructors for the associated open class. The system SHALL stop displaying the PIN when the class leaves the open state.
+
+#### Scenario: View an enabled PIN during an open class
+- **WHEN** an authorized instructor views an open class with PIN protection enabled
+- **THEN** the instructor can view the current four-digit numeric PIN
+
+#### Scenario: Hide PIN after class closure
+- **WHEN** a class leaves the open state
+- **THEN** the student access PIN is not displayed to staff or public visitors
