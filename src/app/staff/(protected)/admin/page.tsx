@@ -1,6 +1,7 @@
 import Link from "next/link";
-
 import { redirect } from "next/navigation";
+
+import { buttonVariants } from "@/components/ui/button";
 import { listOperationalClasses } from "@/modules/classes/services";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { resolveStaffWorkspace } from "@/modules/staff-auth/workspaces";
@@ -25,7 +26,10 @@ export default async function AdminWorkspacePage() {
           <p className="eyebrow">Training administration</p>
           <h1 className="staff-title">Command center</h1>
         </div>
-        <Link href="/staff/classes/new" className="button">
+        <Link
+          href="/staff/classes/new"
+          className={buttonVariants({ size: "lg" })}
+        >
           Create class
         </Link>
       </div>

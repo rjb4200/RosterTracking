@@ -1,6 +1,7 @@
 import Link from "next/link";
-
 import { redirect } from "next/navigation";
+
+import { buttonVariants } from "@/components/ui/button";
 import { listOperationalClasses } from "@/modules/classes/services";
 import { getDepartmentCalendarDate } from "@/modules/classes/time";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
@@ -41,7 +42,10 @@ export default async function InstructorWorkspacePage() {
           <p className="eyebrow">Instructor workspace</p>
           <h1 className="staff-title">Class operations</h1>
         </div>
-        <Link href="/staff/classes/new" className="button">
+        <Link
+          href="/staff/classes/new"
+          className={buttonVariants({ size: "lg" })}
+        >
           Create class
         </Link>
       </div>
