@@ -76,6 +76,7 @@ async function requireFinalizationAccess(
     .limit(1)
     .for("update");
   if (!classRecord) throw new Error("Class not found.");
+  if (classRecord.createdByUserId === actor.id) return classRecord;
   if (await hasElevatedRole(transaction, actor.id)) return classRecord;
   const assigned = await transaction
     .select({ classId: classInstructors.classId })
