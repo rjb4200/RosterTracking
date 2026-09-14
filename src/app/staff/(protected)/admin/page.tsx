@@ -1,42 +1,49 @@
 import Link from "next/link";
 
 import { redirect } from "next/navigation";
-
+import { listOperationalClasses } from "@/modules/classes/services";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { resolveStaffWorkspace } from "@/modules/staff-auth/workspaces";
+import { getDatabase } from "@/server/db/client";
+
+import { OperationalClassSection } from "../operational-class-dashboard";
 
 export default async function AdminWorkspacePage() {
   const staff = await getCurrentStaff();
   if (!staff || resolveStaffWorkspace(staff.roleCodes) !== "admin") {
     redirect("/staff");
   }
+  const now = new Date();
+  const [teaching, department] = await Promise.all([
+    listOperationalClasses(getDatabase(), staff, "assigned", now),
+    listOperationalClasses(getDatabase(), staff, "department", now),
+  ]);
   return (
-    <main className="staff-content">
-      <p className="eyebrow">Training administration</p>
-      <h1 className="staff-title">Command center</h1>
-      <p className="staff-intro">
-        Manage classes, reporting, finalized records, and department reference
-        data.
-      </p>
-      <section className="foundation-grid">
-        <article>
-          <h2>Reporting</h2>
-          <p>Review finalized classes and reporting work.</p>
-          <Link href="/staff/reporting">Open reporting</Link>
-        </article>
-        <article>
-          <h2>Classes</h2>
-          <p>Manage active and historical class operations.</p>
-          <Link href="/staff/classes">View classes</Link>
-        </article>
-        {staff.roleCodes.has("administrator") ? (
-          <article>
-            <h2>Staff accounts</h2>
-            <p>Create and manage staff access.</p>
-            <Link href="/staff/accounts">Manage accounts</Link>
-          </article>
-        ) : null}
-      </section>
+    <main className="admin-content">
+      <div className="admin-heading">
+        <div>
+          <p className="eyebrow">Training administration</p>
+          <h1 className="staff-title">Command center</h1>
+        </div>
+        <Link href="/staff/classes/new" className="button">
+          Create class
+        </Link>
+      </div>
+      <OperationalClassSection
+        title="My teaching"
+        classes={teaching}
+        empty="No assigned teaching work."
+      />
+      <OperationalClassSection
+        title="Department overdue rosters"
+        classes={department.filter((classRecord) => classRecord.isOverdue)}
+        empty="No department rosters are overdue."
+      />
+      <OperationalClassSection
+        title="Department oversight"
+        classes={department.filter((classRecord) => !classRecord.isOverdue)}
+        empty="No department classes need attention."
+      />
     </main>
   );
 }

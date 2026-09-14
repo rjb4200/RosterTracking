@@ -7,6 +7,7 @@ import { CLASS_STATUSES } from "../../src/modules/classes/constants";
 import {
   assignClassInstructor,
   createClassDraft,
+  listOperationalClasses,
   resolveOpenClassPublicCode,
   resolveOpenClassToken,
   rotateClassSignInToken,
@@ -38,6 +39,7 @@ import {
   roles,
   trainingClasses,
   trainingSites,
+  userRoles,
   users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
@@ -257,6 +259,14 @@ describeDatabase("database foundation", () => {
         position: 0,
       },
     );
+    await expect(
+      saveClassComponent(database, actor, created.classRecord.id, {
+        title: "Different roster day",
+        startsAt: "2026-09-11T13:00:00Z",
+        creditedHours: 4,
+        position: 1,
+      }),
+    ).rejects.toThrow(/one roster day/i);
     await saveClassComponent(database, actor, created.classRecord.id, {
       id: component.id,
       title: "Updated session",
@@ -375,6 +385,116 @@ describeDatabase("database foundation", () => {
         "class.sign_in.rotated",
       ]),
     );
+  });
+
+  it("limits teaching dashboards to assignments while elevated staff see department work", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const database = drizzle(pool, { schema });
+    await database.transaction(seedFoundation);
+    await database.transaction(seedReferenceData);
+    const suffix = crypto.randomUUID();
+    const [instructor, colleague, elevated] = await database
+      .insert(users)
+      .values([
+        {
+          username: `dashboard-instructor-${suffix}`,
+          displayName: "Dashboard Instructor",
+          passwordHash: "not-a-real-hash",
+        },
+        {
+          username: `dashboard-colleague-${suffix}`,
+          displayName: "Dashboard Colleague",
+          passwordHash: "not-a-real-hash",
+        },
+        {
+          username: `dashboard-major-${suffix}`,
+          displayName: "Dashboard Major",
+          passwordHash: "not-a-real-hash",
+        },
+      ])
+      .returning({ id: users.id, username: users.username });
+    const [course] = await database
+      .insert(courses)
+      .values({ name: `Dashboard Course ${suffix}` })
+      .returning({ id: courses.id });
+    const [site] = await database
+      .insert(trainingSites)
+      .values({ name: `Dashboard Site ${suffix}` })
+      .returning({ id: trainingSites.id });
+    const [system] = await database.select().from(reportingSystems).limit(1);
+    const [trainingMajor] = await database
+      .select({ id: roles.id })
+      .from(roles)
+      .where(eq(roles.code, "training-major"))
+      .limit(1);
+    if (
+      !instructor ||
+      !colleague ||
+      !elevated ||
+      !course ||
+      !site ||
+      !system ||
+      !trainingMajor
+    ) {
+      throw new Error("Dashboard integration fixtures were not created.");
+    }
+    await database
+      .insert(userRoles)
+      .values({ userId: elevated.id, roleId: trainingMajor.id });
+    const created = await createClassDraft(database, instructor, {
+      courseId: course.id,
+      trainingSiteId: site.id,
+      deliveryMethod: "in_person",
+      reportingSystemIds: [system.id],
+    });
+    await assignClassInstructor(
+      database,
+      instructor,
+      created.classRecord.id,
+      colleague.id,
+      false,
+    );
+    await saveClassComponent(database, instructor, created.classRecord.id, {
+      startsAt: "2026-09-10T08:00:00Z",
+      creditedHours: 4,
+      position: 0,
+    });
+    await transitionClass(
+      database,
+      instructor,
+      created.classRecord.id,
+      CLASS_STATUSES.OPEN,
+    );
+
+    const now = new Date("2026-09-12T12:00:01Z");
+    const colleagueClasses = await listOperationalClasses(
+      database,
+      colleague,
+      "assigned",
+      now,
+    );
+    const instructorClasses = await listOperationalClasses(
+      database,
+      instructor,
+      "assigned",
+      now,
+    );
+    const elevatedClasses = await listOperationalClasses(
+      database,
+      elevated,
+      "department",
+      now,
+    );
+
+    expect(colleagueClasses).toMatchObject([
+      { id: created.classRecord.id, isOverdue: true, action: "roster" },
+    ]);
+    expect(instructorClasses).toMatchObject([{ id: created.classRecord.id }]);
+    expect(
+      elevatedClasses.find(
+        (classRecord) => classRecord.id === created.classRecord.id,
+      ),
+    ).toMatchObject({ reportingDestinations: [system.name] });
   });
 
   it("rolls back a failed transaction", async () => {

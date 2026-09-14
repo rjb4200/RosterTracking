@@ -12,7 +12,7 @@ export function TokenPanel({
   accessPin: string | null;
 }) {
   return (
-    <div className="token-panel">
+    <div id="student-access" className="token-panel">
       <p>Display this stable link or QR code for student sign-in.</p>
       <a href={signInUrl}>{signInUrl}</a>
       {accessPin ? <p>Student PIN: {accessPin}</p> : null}

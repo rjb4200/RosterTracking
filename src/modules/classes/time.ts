@@ -107,6 +107,10 @@ export function formatDepartmentDateTimeInput(date: Date): string {
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
 }
 
+export function getDepartmentCalendarDate(date: Date): string {
+  return formatDepartmentDateTimeInput(date).slice(0, 10);
+}
+
 export function roundDepartmentDateTimeToQuarterHour(date: Date): string {
   const rounded = new Date(date);
   rounded.setSeconds(0, 0);

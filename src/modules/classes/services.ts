@@ -7,11 +7,13 @@ import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
+  attendance,
   classComponents,
   classInstructors,
   classReportingSystems,
   courseReportingDefaults,
   courses,
+  finalizationRevisions,
   reportingSystems,
   roles,
   trainingClasses,
@@ -32,7 +34,7 @@ import {
   validateComponentRange,
   validateDeliverySite,
 } from "./policy";
-import { parseDepartmentDateTime } from "./time";
+import { getDepartmentCalendarDate, parseDepartmentDateTime } from "./time";
 import {
   decryptClassAccessPin,
   encryptClassAccessPin,
@@ -46,6 +48,37 @@ import {
 export interface ClassActor {
   id: string;
   username: string;
+}
+
+export type OperationalClassAction = "setup" | "roster" | "finalize" | "view";
+
+export function getOperationalClassAction(
+  status: string,
+): OperationalClassAction {
+  if (status === CLASS_STATUSES.DRAFT) return "setup";
+  if (status === CLASS_STATUSES.OPEN) return "roster";
+  if (status === CLASS_STATUSES.COMPLETED) return "finalize";
+  return "view";
+}
+
+export function isOverdueRoster(
+  status: string,
+  finalSessionEndsAt: Date | null,
+  now = new Date(),
+): boolean {
+  return (
+    (status === CLASS_STATUSES.OPEN || status === CLASS_STATUSES.COMPLETED) &&
+    finalSessionEndsAt !== null &&
+    now.getTime() > finalSessionEndsAt.getTime() + 24 * 60 * 60 * 1000
+  );
+}
+
+function asDate(value: Date | string | null): Date | null {
+  return value === null
+    ? null
+    : value instanceof Date
+      ? value
+      : new Date(value);
 }
 
 const draftInput = z.object({
@@ -348,6 +381,24 @@ export async function saveClassComponent(
     const classRecord = await requireClassAccess(transaction, actor, classId);
     if (classRecord.status !== CLASS_STATUSES.DRAFT) {
       throw new Error("Components can only be changed on draft classes.");
+    }
+    const existingComponents = await transaction
+      .select({ startsAt: classComponents.startsAt })
+      .from(classComponents)
+      .where(
+        and(
+          eq(classComponents.classId, classId),
+          parsed.id ? sql`${classComponents.id} <> ${parsed.id}` : undefined,
+        ),
+      )
+      .limit(1);
+    const existing = existingComponents[0];
+    if (
+      existing &&
+      getDepartmentCalendarDate(existing.startsAt) !==
+        getDepartmentCalendarDate(parsed.startsAt)
+    ) {
+      throw new Error("All class sessions must occur on one roster day.");
     }
     const values = {
       classId,
@@ -752,6 +803,107 @@ export async function listClasses(
     )
     .orderBy(sql`${trainingClasses.updatedAt} desc`)
     .limit(100);
+}
+
+export async function listOperationalClasses(
+  db: Database,
+  actor: ClassActor,
+  scope: "assigned" | "department",
+  now = new Date(),
+) {
+  const elevated = await db.transaction((transaction) =>
+    canManageAllClasses(transaction, actor.id),
+  );
+  if (scope === "department" && !elevated) return [];
+
+  const assigned = sql`exists (
+    select 1 from ${classInstructors}
+    where ${classInstructors.classId} = ${trainingClasses.id}
+      and ${classInstructors.userId} = ${actor.id}
+  )`;
+  const records = await db
+    .select({
+      id: trainingClasses.id,
+      status: trainingClasses.status,
+      courseName: courses.name,
+      siteName: trainingSites.name,
+      deliveryMethod: trainingClasses.deliveryMethod,
+      firstSessionStartsAt: sql<Date | null>`(
+        select min(${classComponents.startsAt}) from ${classComponents}
+        where ${classComponents.classId} = ${trainingClasses.id}
+      )`,
+      finalSessionEndsAt: sql<Date | null>`(
+        select max(${classComponents.endsAt}) from ${classComponents}
+        where ${classComponents.classId} = ${trainingClasses.id}
+      )`,
+      attendanceCount: sql<number>`(
+        select count(*)::int from ${attendance}
+        where ${attendance.classId} = ${trainingClasses.id}
+          and ${attendance.removedAt} is null
+      )`,
+      finalizedAt: sql<Date | null>`(
+        select max(${finalizationRevisions.finalizedAt}) from ${finalizationRevisions}
+        where ${finalizationRevisions.classId} = ${trainingClasses.id}
+      )`,
+    })
+    .from(trainingClasses)
+    .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
+    .leftJoin(
+      trainingSites,
+      eq(trainingSites.id, trainingClasses.trainingSiteId),
+    )
+    .where(
+      and(
+        inArray(trainingClasses.status, [
+          CLASS_STATUSES.DRAFT,
+          CLASS_STATUSES.OPEN,
+          CLASS_STATUSES.COMPLETED,
+        ]),
+        scope === "assigned" ? assigned : undefined,
+      ),
+    )
+    .orderBy(sql`(
+      select min(${classComponents.startsAt}) from ${classComponents}
+      where ${classComponents.classId} = ${trainingClasses.id}
+    ) asc nulls last`)
+    .limit(100);
+  const destinations = await db
+    .select({
+      classId: classReportingSystems.classId,
+      name: reportingSystems.name,
+    })
+    .from(classReportingSystems)
+    .innerJoin(
+      reportingSystems,
+      eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+    )
+    .where(
+      inArray(
+        classReportingSystems.classId,
+        records.map(({ id }) => id),
+      ),
+    )
+    .orderBy(reportingSystems.name);
+
+  return records.map((record) => {
+    const firstSessionStartsAt = asDate(
+      record.firstSessionStartsAt as Date | string | null,
+    );
+    const finalSessionEndsAt = asDate(
+      record.finalSessionEndsAt as Date | string | null,
+    );
+    return {
+      ...record,
+      firstSessionStartsAt,
+      finalSessionEndsAt,
+      finalizedAt: asDate(record.finalizedAt as Date | string | null),
+      reportingDestinations: destinations
+        .filter((destination) => destination.classId === record.id)
+        .map((destination) => destination.name),
+      action: getOperationalClassAction(record.status),
+      isOverdue: isOverdueRoster(record.status, finalSessionEndsAt, now),
+    };
+  });
 }
 
 export async function getClassDetail(
