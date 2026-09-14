@@ -103,6 +103,16 @@ async function requireAssignedInstructor(
   classId: string,
   lock = true,
 ) {
+  const classQuery = transaction
+    .select()
+    .from(trainingClasses)
+    .where(eq(trainingClasses.id, classId))
+    .limit(1);
+  const [classRecord] = lock
+    ? await classQuery.for("update")
+    : await classQuery;
+  if (!classRecord) throw new Error("Roster unavailable.");
+
   const elevated = await transaction
     .select({ code: roles.code })
     .from(userRoles)
@@ -116,13 +126,9 @@ async function requireAssignedInstructor(
     )
     .limit(1);
   if (hasElevatedRosterAccess(elevated.map((role) => role.code))) {
-    const [classRecord] = await transaction
-      .select()
-      .from(trainingClasses)
-      .where(eq(trainingClasses.id, classId))
-      .limit(1);
-    if (classRecord) return classRecord;
+    return classRecord;
   }
+  if (classRecord.createdByUserId === actor.id) return classRecord;
   const query = transaction
     .select()
     .from(trainingClasses)
