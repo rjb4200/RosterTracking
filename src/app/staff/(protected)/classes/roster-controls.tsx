@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { CREDIT_ADJUSTMENT_REASONS } from "@/modules/instructor-roster/constants";
 
 import { type RosterActionState, rosterAction } from "./roster-actions";
 
@@ -136,6 +137,7 @@ export function AttendanceControls({
 }) {
   const [state, action, pending] = useActionState(rosterAction, undefined);
   const [confirming, setConfirming] = useState(false);
+  const [reasonPreset, setReasonPreset] = useState("");
   return (
     <div className="roster-entry-controls">
       <Status state={state} />
@@ -157,8 +159,26 @@ export function AttendanceControls({
           />
         </label>
         <label>
-          Reason <input className="search-input" name="reason" />
+          Adjustment reason
+          <select
+            className="select-input"
+            name="reasonPreset"
+            onChange={(event) => setReasonPreset(event.target.value)}
+          >
+            <option value="">Select when credit is adjusted</option>
+            {CREDIT_ADJUSTMENT_REASONS.map((reason) => (
+              <option key={reason} value={reason}>
+                {reason}
+              </option>
+            ))}
+          </select>
         </label>
+        {reasonPreset === "Other" ? (
+          <label>
+            Other explanation
+            <input className="search-input" name="otherReason" required />
+          </label>
+        ) : null}
         <Button type="submit" variant="secondary" disabled={pending}>
           Update credit
         </Button>

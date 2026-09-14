@@ -87,9 +87,9 @@ export default async function ClassRosterPage({
           {roster.active.map((entry) => renderEntry(entry))}
         </ul>
       </section>
-      {roster.classRecord.status === "open" ? (
+      {["open", "completed"].includes(roster.classRecord.status) ? (
         <section className="admin-section">
-          <h2>Manual attendance</h2>
+          <h2>Manual attendance correction</h2>
           <AddAttendanceForms
             classId={id}
             students={options.students}

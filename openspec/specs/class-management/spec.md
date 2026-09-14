@@ -68,7 +68,7 @@ The system SHALL let authorized staff assign active staff users as instructors a
 - **THEN** the newly selected instructor becomes the only lead assignment
 
 ### Requirement: Class lifecycle is controlled
-The system SHALL represent draft, open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, allow authorized staff to open only a complete draft, complete an open class only when its roster passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class.
+The system SHALL represent draft, open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, allow authorized staff to open only a complete draft, close public sign-in and enter completed roster review only when an open class passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. Normal class and roster edits SHALL be rejected only after finalization, except where a lifecycle restriction expressly applies.
 
 #### Scenario: Open a complete draft
 - **WHEN** staff open a draft with a course, required site, at least one component, and a lead instructor
@@ -78,9 +78,9 @@ The system SHALL represent draft, open, completed, finalized, and cancelled clas
 - **WHEN** staff attempt to open a draft missing a required class detail
 - **THEN** the system keeps the class in draft and reports the missing detail
 
-#### Scenario: Complete a roster-ready class
+#### Scenario: Enter completed roster review
 - **WHEN** authorized staff complete an open class with at least one active attendance record and no active attendance missing required reporting context or valid credited hours
-- **THEN** the class state changes to completed
+- **THEN** public sign-in closes and the class state changes to completed for roster review
 
 #### Scenario: Block completion with roster errors
 - **WHEN** authorized staff attempt to complete an open class whose roster has no active attendance, missing required reporting context, or credited hours outside the class scheduled total

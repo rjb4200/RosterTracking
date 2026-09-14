@@ -6,6 +6,7 @@ import {
   addManualGuestAttendance,
   addManualRegularAttendance,
   adjustCreditedHours,
+  CREDIT_ADJUSTMENT_REASONS,
   removeAttendance,
 } from "@/modules/instructor-roster/services";
 import { requireActor } from "@/modules/staff-auth/guards";
@@ -27,6 +28,23 @@ function record(formData: FormData, prefix: string) {
       .filter(([key]) => key.startsWith(prefix))
       .map(([key, value]) => [key.slice(prefix.length), value.toString()]),
   );
+}
+
+function creditReason(formData: FormData) {
+  const preset = read(formData, "reasonPreset");
+  if (!preset) return read(formData, "reason");
+  if (
+    !CREDIT_ADJUSTMENT_REASONS.includes(
+      preset as (typeof CREDIT_ADJUSTMENT_REASONS)[number],
+    )
+  )
+    throw new Error("Select a valid adjustment reason.");
+  if (preset === "Other") {
+    const explanation = read(formData, "otherReason").trim();
+    if (!explanation) throw new Error("Explain the Other credit adjustment.");
+    return explanation;
+  }
+  return preset;
 }
 
 export async function rosterAction(
@@ -60,7 +78,7 @@ export async function rosterAction(
         actor,
         read(formData, "attendanceId"),
         Number(read(formData, "creditedHours")),
-        read(formData, "reason"),
+        creditReason(formData),
       );
     } else if (operation === "remove") {
       await removeAttendance(
@@ -73,6 +91,7 @@ export async function rosterAction(
       return { error: "Invalid roster action." };
     }
     revalidatePath(`/staff/classes/${classId}/roster`);
+    revalidatePath(`/staff/classes/${classId}/review`);
     revalidatePath(`/staff/classes/${classId}`);
     return { success: "Roster updated." };
   } catch (error) {

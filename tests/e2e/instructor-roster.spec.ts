@@ -3,13 +3,15 @@ import { Pool } from "pg";
 
 const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
+const elevatedUsername = process.env.E2E_ELEVATED_STAFF_USERNAME;
+const elevatedPassword = process.env.E2E_ELEVATED_STAFF_PASSWORD;
 const connectionString = process.env.TEST_DATABASE_URL;
 
 for (const viewport of [
   { name: "desktop", width: 1280, height: 900 },
   { name: "tablet", width: 768, height: 1024 },
 ]) {
-  test(`${viewport.name} instructor roster supports manual attendance and removal`, async ({
+  test(`${viewport.name} completed review supports roster correction and finalization`, async ({
     page,
   }) => {
     test.skip(
@@ -93,12 +95,82 @@ for (const viewport of [
       .selectOption(agency.rows[0].id);
     await page.getByRole("button", { name: "Add guest attendance" }).click();
     await expect(page.getByText("Tablet Guest")).toBeVisible();
-    await page.getByRole("button", { name: "Remove attendance" }).click();
-    await page
-      .getByLabel("Confirm attendance removal")
-      .getByLabel("Removal reason")
-      .fill("E2E correction");
-    await page.getByRole("button", { name: "Confirm removal" }).click();
-    await expect(page.getByText("E2E correction")).toBeVisible();
+    const reviewPool = new Pool({ connectionString, max: 1 });
+    await reviewPool.query(
+      "update classes set status = 'completed', completed_at = now() where id = $1",
+      [classId],
+    );
+    await reviewPool.end();
+    await page.goto(`/staff/classes/${classId}/review`);
+    await expect(
+      page.getByRole("heading", { name: "Completed class review" }),
+    ).toBeVisible();
+    await page.getByLabel("Credit").fill("3.5");
+    await page.getByLabel("Adjustment reason").selectOption("Left Early");
+    await page.getByRole("button", { name: "Update credit" }).click();
+    await expect(page.getByText("Roster updated.")).toBeVisible();
+    await page.getByRole("button", { name: "Finalize roster" }).click();
+    await expect
+      .poll(async () => {
+        const finalizedPool = new Pool({ connectionString, max: 1 });
+        const result = await finalizedPool.query<{ status: string }>(
+          "select status from classes where id = $1",
+          [classId],
+        );
+        await finalizedPool.end();
+        return result.rows[0]?.status;
+      })
+      .toBe("finalized");
   });
 }
+
+test("elevated staff can open an unassigned completed-class review", async ({
+  page,
+}) => {
+  test.skip(
+    !elevatedUsername || !elevatedPassword || !connectionString,
+    "Set elevated E2E staff credentials and TEST_DATABASE_URL.",
+  );
+  if (!elevatedUsername || !elevatedPassword || !connectionString) return;
+  const pool = new Pool({ connectionString, max: 1 });
+  const suffix = crypto.randomUUID();
+  const elevated = await pool.query<{ id: string }>(
+    "select u.id from users u join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id where u.username = $1 and r.code in ('administrator', 'training-major') and r.is_active = true limit 1",
+    [elevatedUsername],
+  );
+  if (!elevated.rows[0])
+    throw new Error("Elevated E2E user needs an active elevated role.");
+  const course = await pool.query<{ id: string }>(
+    "insert into courses (name) values ($1) returning id",
+    [`Elevated Review Course ${suffix}`],
+  );
+  const site = await pool.query<{ id: string }>(
+    "insert into training_sites (name) values ($1) returning id",
+    [`Elevated Review Site ${suffix}`],
+  );
+  const classRecord = await pool.query<{ id: string }>(
+    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, completed_at) values ($1, $2, $3, 'classroom', 'completed', $4, now()) returning id",
+    [
+      course.rows[0]?.id,
+      site.rows[0]?.id,
+      elevated.rows[0].id,
+      crypto.randomUUID(),
+    ],
+  );
+  const classId = classRecord.rows[0]?.id;
+  if (!classId) throw new Error("Completed review fixture was not created.");
+  await pool.query(
+    "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, 4)",
+    [classId, "2026-09-10T13:00:00Z", "2026-09-10T17:00:00Z"],
+  );
+  await pool.end();
+
+  await page.goto("/staff/login");
+  await page.getByLabel("Username").fill(elevatedUsername);
+  await page.getByLabel("Password").fill(elevatedPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.goto(`/staff/classes/${classId}/review`);
+  await expect(
+    page.getByRole("heading", { name: "Completed class review" }),
+  ).toBeVisible();
+});

@@ -4,9 +4,11 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   addManualGuestAttendance,
   adjustCreditedHours,
+  getRosterReadiness,
   removeAttendance,
 } from "../../src/modules/instructor-roster/services";
 import * as schema from "../../src/server/db/schema";
@@ -16,6 +18,7 @@ import {
   classComponents,
   classInstructors,
   courses,
+  finalizationRevisions,
   trainingClasses,
   trainingSites,
   users,
@@ -42,7 +45,7 @@ afterAll(async () => {
 });
 
 describeDatabase("instructor roster transactions", () => {
-  it("records a manual guest, retains removal, and allows bounded credit", async () => {
+  it("supports completed review corrections and retains finalized snapshots", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
@@ -100,6 +103,10 @@ describeDatabase("instructor roster transactions", () => {
     await expect(
       adjustCreditedHours(db, actor, attendanceId, 4.1, "Too high"),
     ).rejects.toThrow(/between zero/i);
+    await db
+      .update(trainingClasses)
+      .set({ status: "completed" })
+      .where(eq(trainingClasses.id, classRecord.id));
     await adjustCreditedHours(db, actor, attendanceId, 3.5, "Left early");
     await removeAttendance(db, actor, attendanceId, "Entered in error");
     const [stored] = await db
@@ -112,5 +119,31 @@ describeDatabase("instructor roster transactions", () => {
       isManual: true,
       manualRecordedByUserId: actor.id,
     });
+    const finalAttendanceId = await addManualGuestAttendance(db, actor, {
+      classId: classRecord.id,
+      agencyId: agency.id,
+      firstName: "Final",
+      lastName: "Roster",
+      fields: {},
+      credentials: {},
+    });
+    await expect(
+      getRosterReadiness(db, actor, classRecord.id),
+    ).resolves.toMatchObject({
+      ready: true,
+      issues: [],
+    });
+    await finalizeClass(db, actor, classRecord.id);
+    const [revision] = await db
+      .select({
+        id: finalizationRevisions.id,
+        summary: finalizationRevisions.summary,
+      })
+      .from(finalizationRevisions)
+      .where(eq(finalizationRevisions.classId, classRecord.id));
+    expect(revision?.summary).toMatchObject({ attendanceCount: 1 });
+    await expect(
+      adjustCreditedHours(db, actor, finalAttendanceId, 3, "Left Early"),
+    ).rejects.toThrow(/open or under completed review/i);
   });
 });

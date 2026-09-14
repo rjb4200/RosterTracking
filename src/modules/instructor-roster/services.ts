@@ -44,6 +44,8 @@ export interface RosterActor {
   username: string;
 }
 
+export { CREDIT_ADJUSTMENT_REASONS } from "./constants";
+
 export function hasElevatedRosterAccess(roleCodes: string[]): boolean {
   return roleCodes.some(
     (code) =>
@@ -138,9 +140,15 @@ async function requireAssignedInstructor(
   return row.classes;
 }
 
-function requireOpenClass(classRecord: { status: string }) {
-  if (classRecord.status !== CLASS_STATUSES.OPEN) {
-    throw new Error("Attendance can only be changed while the class is open.");
+function requireMutableRosterClass(classRecord: { status: string }) {
+  if (
+    ![CLASS_STATUSES.OPEN, CLASS_STATUSES.COMPLETED].includes(
+      classRecord.status as typeof CLASS_STATUSES.OPEN,
+    )
+  ) {
+    throw new Error(
+      "Attendance can only be changed while the class is open or under completed review.",
+    );
   }
 }
 
@@ -317,7 +325,7 @@ export async function addManualRegularAttendance(
       actor,
       parsed.classId,
     );
-    requireOpenClass(classRecord);
+    requireMutableRosterClass(classRecord);
     await requireRegularAgency(transaction, parsed.studentId, parsed.agencyId);
     const [duplicate] = await transaction
       .select({ id: attendance.id })
@@ -398,7 +406,7 @@ export async function addManualGuestAttendance(
       actor,
       parsed.classId,
     );
-    requireOpenClass(classRecord);
+    requireMutableRosterClass(classRecord);
     await requireGuestAgency(transaction, parsed.agencyId);
     const requirements = await resolveClassRequirements(
       transaction,
@@ -462,7 +470,7 @@ export async function removeAttendance(
       .limit(1)
       .for("update");
     if (!entry) throw new Error("Active attendance was not found.");
-    requireOpenClass(
+    requireMutableRosterClass(
       await requireAssignedInstructor(transaction, actor, entry.classId),
     );
     await transaction
@@ -500,7 +508,7 @@ export async function adjustCreditedHours(
       .limit(1)
       .for("update");
     if (!entry) throw new Error("Active attendance was not found.");
-    requireOpenClass(
+    requireMutableRosterClass(
       await requireAssignedInstructor(transaction, actor, entry.classId),
     );
     const scheduledHours = await getScheduledClassHours(
@@ -564,6 +572,56 @@ export async function validateRosterCompletion(
         "Active attendance is missing required reporting context.",
       );
   }
+}
+
+export async function getRosterReadiness(
+  db: Database,
+  actor: RosterActor,
+  classId: string,
+) {
+  return db.transaction(async (transaction) => {
+    const classRecord = await requireAssignedInstructor(
+      transaction,
+      actor,
+      classId,
+      false,
+    );
+    if (
+      ![CLASS_STATUSES.OPEN, CLASS_STATUSES.COMPLETED].includes(
+        classRecord.status as typeof CLASS_STATUSES.OPEN,
+      )
+    )
+      throw new Error("Roster unavailable.");
+
+    const scheduledHours = await getScheduledClassHours(transaction, classId);
+    const requirements = await resolveClassRequirements(transaction, classId);
+    const active = await transaction
+      .select({ id: attendance.id, creditedHours: attendance.creditedHours })
+      .from(attendance)
+      .where(
+        and(eq(attendance.classId, classId), isNull(attendance.removedAt)),
+      );
+    const issues: string[] = [];
+    if (!active.length)
+      issues.push("Add at least one active attendance record.");
+    for (const entry of active) {
+      const credit =
+        entry.creditedHours === null ? Number.NaN : Number(entry.creditedHours);
+      if (!Number.isFinite(credit) || credit < 0 || credit > scheduledHours)
+        issues.push(`Attendance ${entry.id} has invalid credited hours.`);
+      const contexts = await transaction
+        .select({
+          requirementSetId: attendanceReportingContexts.requirementSetId,
+        })
+        .from(attendanceReportingContexts)
+        .where(eq(attendanceReportingContexts.attendanceId, entry.id));
+      if (contexts.length !== requirements.sets.length)
+        issues.push(
+          `Attendance ${entry.id} is missing required reporting context.`,
+        );
+    }
+    return { ready: issues.length === 0, issues, scheduledHours };
+  });
 }
 
 export async function getClassRoster(

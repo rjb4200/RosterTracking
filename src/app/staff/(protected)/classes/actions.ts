@@ -278,6 +278,7 @@ export async function finalizeClassAction(
   try {
     await finalizeClass(getDatabase(), actor, classId);
     revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
     revalidatePath("/staff/reporting");
     return { classId };
   } catch (error) {
@@ -302,6 +303,7 @@ export async function reopenClassAction(
       read(formData, "reason"),
     );
     revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
     revalidatePath("/staff/reporting");
     return { classId };
   } catch (error) {

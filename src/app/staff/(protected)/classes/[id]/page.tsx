@@ -101,12 +101,20 @@ export default async function ClassDetailPage({
           >
             Back
           </Link>
-          {["open", "completed"].includes(classRecord.status) ? (
+          {classRecord.status === "open" ? (
             <Link
               href={`/staff/classes/${classRecord.id}/roster`}
               className={buttonVariants({ variant: "secondary" })}
             >
               Instructor roster
+            </Link>
+          ) : null}
+          {classRecord.status === "completed" ? (
+            <Link
+              href={`/staff/classes/${classRecord.id}/review`}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              Review roster and finalize
             </Link>
           ) : null}
         </div>
