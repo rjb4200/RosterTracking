@@ -64,8 +64,12 @@ export default async function ClassDetailPage({
   const [options, revisionHistory, staff, roster, rosterOptions, requirements] =
     await Promise.all([
       listClassFormOptions(db),
-      getFinalizationHistory(db, actor, id),
-      getCurrentStaff(),
+      classRecord.status === "draft"
+        ? Promise.resolve([])
+        : getFinalizationHistory(db, actor, id),
+      classRecord.status === "draft"
+        ? Promise.resolve(null)
+        : getCurrentStaff(),
       classRecord.status === "open" ? getClassRoster(db, actor, id) : null,
       classRecord.status === "open" ? listRosterFormOptions(db) : null,
       classRecord.status === "open" ? resolveClassRequirements(db, id) : null,
