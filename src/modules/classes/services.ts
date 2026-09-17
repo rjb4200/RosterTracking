@@ -5,9 +5,13 @@ import {
   asc,
   desc,
   eq,
+  gt,
+  gte,
   ilike,
   inArray,
   isNotNull,
+  isNull,
+  lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -844,29 +848,107 @@ export async function getClassPublicAccess(
   });
 }
 
+export const CLASS_LIST_DEFAULT_LOOKBACK_DAYS = 30;
+export const CLASS_LIST_DRAFT_MAX_AGE_DAYS = 7;
+export const CLASS_LIST_FINALIZED_GRACE_DAYS = 7;
+export const CLASS_LIST_LIMIT = 200;
+
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+export interface ClassListFilters {
+  query?: string;
+  status?: ClassStatus;
+  from?: Date;
+  to?: Date;
+  includeFinalized?: boolean;
+  includeCancelled?: boolean;
+}
+
 export async function listClasses(
   db: Database,
   actor: ClassActor,
-  query: string,
+  filters: ClassListFilters = {},
 ) {
   const elevated = await db.transaction((transaction) =>
     canManageAllClasses(transaction, actor.id),
   );
-  const term = `%${query.trim()}%`;
+  const term = `%${(filters.query ?? "").trim()}%`;
+  const now = new Date();
+  const draftCutoff = new Date(
+    now.getTime() - CLASS_LIST_DRAFT_MAX_AGE_DAYS * DAY_IN_MILLISECONDS,
+  );
+  const finalizedCutoff = new Date(
+    now.getTime() - CLASS_LIST_FINALIZED_GRACE_DAYS * DAY_IN_MILLISECONDS,
+  );
+  const windowStart =
+    filters.from ??
+    new Date(
+      now.getTime() - CLASS_LIST_DEFAULT_LOOKBACK_DAYS * DAY_IN_MILLISECONDS,
+    );
   const access = elevated
     ? undefined
     : or(
         eq(trainingClasses.createdByUserId, actor.id),
         sql`exists (select 1 from ${classInstructors} where ${classInstructors.classId} = ${trainingClasses.id} and ${classInstructors.userId} = ${actor.id})`,
       );
-  return db
+
+  const firstSessionStartsAt = sql<Date | null>`(
+    select min(${classComponents.startsAt}) from ${classComponents}
+    where ${classComponents.classId} = ${trainingClasses.id}
+  )`;
+  const finalSessionEndsAt = sql<Date | null>`(
+    select max(${classComponents.endsAt}) from ${classComponents}
+    where ${classComponents.classId} = ${trainingClasses.id}
+  )`;
+  const finalizedAt = sql<Date | null>`(
+    select max(${finalizationRevisions.finalizedAt}) from ${finalizationRevisions}
+    where ${finalizationRevisions.classId} = ${trainingClasses.id}
+  )`;
+  const attendanceCount = sql<number>`(
+    select count(*)::int from ${attendance}
+    where ${attendance.classId} = ${trainingClasses.id}
+      and ${attendance.removedAt} is null
+  )`;
+
+  const defaultScope = or(
+    and(
+      eq(trainingClasses.status, CLASS_STATUSES.DRAFT),
+      gte(trainingClasses.createdAt, draftCutoff),
+    ),
+    eq(trainingClasses.status, CLASS_STATUSES.OPEN),
+    eq(trainingClasses.status, CLASS_STATUSES.COMPLETED),
+    filters.includeFinalized
+      ? eq(trainingClasses.status, CLASS_STATUSES.FINALIZED)
+      : and(
+          eq(trainingClasses.status, CLASS_STATUSES.FINALIZED),
+          gte(finalizedAt, finalizedCutoff),
+        ),
+    filters.includeCancelled
+      ? eq(trainingClasses.status, CLASS_STATUSES.CANCELLED)
+      : undefined,
+  );
+
+  const workInFlight = and(
+    or(
+      eq(trainingClasses.status, CLASS_STATUSES.OPEN),
+      eq(trainingClasses.status, CLASS_STATUSES.COMPLETED),
+    ),
+    gt(attendanceCount, 0),
+  );
+
+  const rows = await db
     .select({
       id: trainingClasses.id,
       status: trainingClasses.status,
       deliveryMethod: trainingClasses.deliveryMethod,
       courseName: courses.name,
       siteName: trainingSites.name,
+      createdAt: trainingClasses.createdAt,
       updatedAt: trainingClasses.updatedAt,
+      firstSessionStartsAt,
+      finalSessionEndsAt,
+      finalizedAt,
+      attendanceCount,
     })
     .from(trainingClasses)
     .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
@@ -878,10 +960,41 @@ export async function listClasses(
       and(
         or(ilike(courses.name, term), ilike(trainingSites.name, term)),
         access,
+        filters.status
+          ? eq(trainingClasses.status, filters.status)
+          : defaultScope,
+        or(
+          isNull(firstSessionStartsAt),
+          and(
+            gte(firstSessionStartsAt, windowStart),
+            filters.to ? lte(firstSessionStartsAt, filters.to) : undefined,
+          ),
+          workInFlight,
+        ),
       ),
     )
-    .orderBy(sql`${trainingClasses.updatedAt} desc`)
-    .limit(100);
+    .orderBy(
+      desc(
+        sql`coalesce(${firstSessionStartsAt}, ${trainingClasses.createdAt})`,
+      ),
+    )
+    .limit(CLASS_LIST_LIMIT);
+
+  return rows.map((row) => {
+    const normalizedFinalSessionEndsAt = asDate(
+      row.finalSessionEndsAt as Date | string | null,
+    );
+    return {
+      ...row,
+      createdAt: asDate(row.createdAt as Date | string | null),
+      firstSessionStartsAt: asDate(
+        row.firstSessionStartsAt as Date | string | null,
+      ),
+      finalSessionEndsAt: normalizedFinalSessionEndsAt,
+      finalizedAt: asDate(row.finalizedAt as Date | string | null),
+      isOverdue: isOverdueRoster(row.status, normalizedFinalSessionEndsAt, now),
+    };
+  });
 }
 
 export async function listOperationalClasses(

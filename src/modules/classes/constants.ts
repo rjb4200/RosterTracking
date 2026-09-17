@@ -17,3 +17,25 @@ export const CLASS_STATUSES = {
 } as const;
 
 export type ClassStatus = (typeof CLASS_STATUSES)[keyof typeof CLASS_STATUSES];
+
+export type ClassStatusTone =
+  | "neutral"
+  | "info"
+  | "warning"
+  | "success"
+  | "muted";
+
+export function getClassStatusTone(status: string): ClassStatusTone {
+  switch (status) {
+    case CLASS_STATUSES.OPEN:
+      return "info";
+    case CLASS_STATUSES.COMPLETED:
+      return "warning";
+    case CLASS_STATUSES.FINALIZED:
+      return "success";
+    case CLASS_STATUSES.CANCELLED:
+      return "muted";
+    default:
+      return "neutral";
+  }
+}
