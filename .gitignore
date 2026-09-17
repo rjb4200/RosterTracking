@@ -26,3 +26,10 @@ drizzle/meta/_journal.json.tmp
 Thumbs.db
 .idea/
 .vscode/
+
+# Local agent instruction files
+/AGENTS.md
+/CLAUDE.md
+
+# Reference source PDFs (application forms live in src/modules/official-roster-pdfs)
+/*.pdf
