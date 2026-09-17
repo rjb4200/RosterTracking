@@ -256,7 +256,7 @@ export const finalizationReportingStatuses = pgTable(
     ),
     check(
       "finalization_reporting_status_valid",
-      sql`${table.status} in ('pending', 'reported', 'needs_correction')`,
+      sql`${table.status} in ('pending', 'entered', 'needs_correction', 'not_required')`,
     ),
   ],
 );

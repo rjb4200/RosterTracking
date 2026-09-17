@@ -90,12 +90,14 @@ export function validateReportingStatusTransition(
   next: string,
   notes?: string,
 ): void {
-  if (!["pending", "reported", "needs_correction"].includes(next)) {
+  if (
+    !["pending", "entered", "needs_correction", "not_required"].includes(next)
+  ) {
     throw new Error("Invalid reporting status.");
   }
-  if (current === "reported" && next === "pending") {
+  if (["entered", "not_required"].includes(current) && next === "pending") {
     throw new Error(
-      "Reported destinations must be corrected rather than reset.",
+      "Completed destinations must be corrected rather than reset.",
     );
   }
   if (next === "needs_correction" && !notes?.trim()) {

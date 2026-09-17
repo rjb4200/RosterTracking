@@ -1,6 +1,17 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { encryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
@@ -481,19 +492,71 @@ export async function getFinalizationHistory(
 export async function listReportingQueue(
   db: Database,
   actor: FinalizationActor,
-  status: "pending" | "needs_correction",
+  filters: {
+    reportingSystemId?: string;
+    status?: string;
+    from?: Date;
+    to?: Date;
+  } = {},
 ) {
   return db.transaction(async (transaction) => {
     await requireReportingAccess(transaction, actor);
-    return transaction
+    const classDate = sql<Date | null>`(
+      select min(${classComponents.startsAt})
+      from ${classComponents}
+      where ${classComponents.classId} = ${trainingClasses.id}
+    )`;
+    const leadInstructor = sql<string | null>`(
+      select ${users.displayName}
+      from ${classInstructors}
+      inner join ${users} on ${users.id} = ${classInstructors.userId}
+      where ${classInstructors.classId} = ${trainingClasses.id}
+        and ${classInstructors.isLead}
+      limit 1
+    )`;
+    const attendanceCount = sql<number>`(
+      select count(*)::int
+      from ${attendance}
+      where ${attendance.classId} = ${trainingClasses.id}
+        and ${attendance.removedAt} is null
+    )`;
+    const baseFilters: SQL[] = [];
+    if (filters.reportingSystemId) {
+      baseFilters.push(
+        eq(
+          finalizationReportingStatuses.reportingSystemId,
+          filters.reportingSystemId,
+        ),
+      );
+    }
+    if (filters.from) baseFilters.push(gte(classDate, filters.from));
+    if (filters.to) baseFilters.push(lte(classDate, filters.to));
+    const rowFilters = [...baseFilters];
+    if (filters.status) {
+      rowFilters.push(eq(finalizationReportingStatuses.status, filters.status));
+    } else {
+      rowFilters.push(
+        inArray(finalizationReportingStatuses.status, [
+          "pending",
+          "needs_correction",
+        ]),
+      );
+    }
+
+    const rows = await transaction
       .select({
         revisionId: finalizationRevisions.id,
         revisionNumber: finalizationRevisions.revisionNumber,
         classId: trainingClasses.id,
+        classDate,
         courseName: courses.name,
+        leadInstructor,
+        attendanceCount,
         systemId: reportingSystems.id,
+        systemCode: reportingSystems.code,
         systemName: reportingSystems.name,
         status: finalizationReportingStatuses.status,
+        referenceNumber: finalizationReportingStatuses.referenceNumber,
         notes: finalizationReportingStatuses.notes,
         updatedAt: finalizationReportingStatuses.updatedAt,
       })
@@ -514,7 +577,43 @@ export async function listReportingQueue(
           finalizationReportingStatuses.reportingSystemId,
         ),
       )
-      .where(eq(finalizationReportingStatuses.status, status))
+      .where(and(...rowFilters))
       .orderBy(asc(finalizationReportingStatuses.updatedAt));
+    const summaries = await transaction
+      .select({
+        systemId: reportingSystems.id,
+        systemCode: reportingSystems.code,
+        systemName: reportingSystems.name,
+        status: finalizationReportingStatuses.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(finalizationReportingStatuses)
+      .innerJoin(
+        finalizationRevisions,
+        eq(finalizationRevisions.id, finalizationReportingStatuses.revisionId),
+      )
+      .innerJoin(
+        trainingClasses,
+        eq(trainingClasses.id, finalizationRevisions.classId),
+      )
+      .innerJoin(
+        reportingSystems,
+        eq(
+          reportingSystems.id,
+          finalizationReportingStatuses.reportingSystemId,
+        ),
+      )
+      .where(and(...baseFilters))
+      .groupBy(
+        reportingSystems.id,
+        reportingSystems.code,
+        reportingSystems.name,
+        finalizationReportingStatuses.status,
+      )
+      .orderBy(
+        asc(reportingSystems.name),
+        asc(finalizationReportingStatuses.status),
+      );
+    return { rows, summaries };
   });
 }

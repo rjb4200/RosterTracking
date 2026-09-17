@@ -9,12 +9,12 @@ import type { ReportingActionState } from "./actions";
 export function ReportingDestinationControl({
   revisionId,
   reportingSystemId,
-  status,
+  referenceNumber,
   action,
 }: {
   revisionId: string;
   reportingSystemId: string;
-  status: string;
+  referenceNumber: string | null;
   action: (
     previous: ReportingActionState | undefined,
     formData: FormData,
@@ -25,31 +25,37 @@ export function ReportingDestinationControl({
     <form action={formAction} className="inline-form">
       <input type="hidden" name="revisionId" value={revisionId} />
       <input type="hidden" name="reportingSystemId" value={reportingSystemId} />
-      <label className="sr-only" htmlFor={`status-${reportingSystemId}`}>
-        Reporting status
-      </label>
-      <select
-        id={`status-${reportingSystemId}`}
-        name="status"
-        className="select-input"
-        defaultValue={status}
-      >
-        <option value="pending">Pending</option>
-        <option value="reported">Reported</option>
-        <option value="needs_correction">Needs correction</option>
-      </select>
       <input
         name="referenceNumber"
         className="search-input"
         placeholder="Reference number"
+        defaultValue={referenceNumber ?? ""}
       />
       <input
         name="notes"
         className="search-input"
-        placeholder="Notes (required for correction)"
+        placeholder="Notes required for correction"
       />
-      <Button type="submit" variant="secondary" disabled={pending}>
-        Update
+      <Button name="status" value="entered" type="submit" disabled={pending}>
+        Mark entered
+      </Button>
+      <Button
+        name="status"
+        value="not_required"
+        type="submit"
+        variant="secondary"
+        disabled={pending}
+      >
+        Not required
+      </Button>
+      <Button
+        name="status"
+        value="needs_correction"
+        type="submit"
+        variant="destructive"
+        disabled={pending}
+      >
+        Needs correction
       </Button>
       {state?.error ? (
         <p className="form-error" aria-live="polite">

@@ -90,6 +90,7 @@ export async function resolveRequiredRequirements(
 export async function listReportingRequirements(db: Database) {
   return db
     .select({
+      systemId: reportingSystems.id,
       systemCode: reportingSystems.code,
       systemName: reportingSystems.name,
       kind: reportingRequirements.kind,

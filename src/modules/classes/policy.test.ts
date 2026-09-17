@@ -89,10 +89,13 @@ describe("class policy", () => {
       validateReportingStatusTransition("pending", "needs_correction"),
     ).toThrow(/notes/i);
     expect(() =>
-      validateReportingStatusTransition("reported", "pending"),
+      validateReportingStatusTransition("entered", "pending"),
     ).toThrow(/corrected/i);
     expect(() =>
-      validateReportingStatusTransition("pending", "reported", "submitted"),
+      validateReportingStatusTransition("pending", "entered", "submitted"),
+    ).not.toThrow();
+    expect(() =>
+      validateReportingStatusTransition("pending", "not_required"),
     ).not.toThrow();
   });
 });
