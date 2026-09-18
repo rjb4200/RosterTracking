@@ -265,6 +265,69 @@ export async function confirmProfile() {
   redirect(destination);
 }
 
+export async function confirmRecognizedSignIn(formData: FormData) {
+  let destination = GENERIC_ERROR;
+  let db: ReturnType<typeof getDatabase> | undefined;
+  let leases: PublicRateLimitLease[] = [];
+  try {
+    const context = await requestContext();
+    db = context.db;
+    const participant = context.loaded.state.participant;
+    if (participant?.kind !== "regular")
+      throw new Error("Participant unavailable.");
+    const limit = await acquireLimits(context, [
+      { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
+      {
+        operation: PUBLIC_RATE_LIMIT_OPERATIONS.REGULAR_CONFIRMATION,
+        identifier: participant.studentId,
+      },
+    ]);
+    leases = limit.leases;
+    if (!limit.allowed) {
+      destination = LIMITED_ERROR;
+    } else {
+      const staged = await stageRegularRequirements(
+        context.db,
+        context.signedContext,
+        {
+          fields: collectPrefixed(formData, "field:"),
+          credentials: credentialsFromForm(formData),
+          agencyId: text(formData, "agencyId"),
+        },
+      );
+      if (staged.participant?.kind !== "regular")
+        throw new Error("Participant unavailable.");
+      await updateSignInWorkflow(context.db, context.signedContext, {
+        ...staged,
+        participant: { ...staged.participant, profileConfirmed: true },
+      });
+      const result = await confirmAttendance(
+        context.db,
+        context.signedContext,
+        {
+          attestationConfirmed: true,
+          rememberDevice: true,
+          request: context.metadata,
+        },
+      );
+      if (result.rememberedDevice?.token) {
+        context.cookieStore.set(
+          REMEMBERED_DEVICE_COOKIE_NAME,
+          result.rememberedDevice.token,
+          rememberedDeviceCookieOptions(),
+        );
+      }
+      context.cookieStore.set(SIGN_IN_CONTEXT_COOKIE_NAME, "", {
+        ...signInCookieOptions(0),
+      });
+      destination = confirmationDestination(result.status);
+    }
+  } catch {
+    if (db) await recordFailures(db, leases);
+  }
+  redirect(destination);
+}
+
 export async function notMe() {
   let destination = GENERIC_ERROR;
   let db: ReturnType<typeof getDatabase> | undefined;
@@ -365,7 +428,7 @@ export async function saveGuestDetails(formData: FormData) {
   redirect(destination);
 }
 
-export async function confirmSignIn(formData: FormData) {
+export async function confirmSignIn() {
   let destination = GENERIC_ERROR;
   let result: AttendanceConfirmationResult | undefined;
   let db: ReturnType<typeof getDatabase> | undefined;
@@ -390,9 +453,7 @@ export async function confirmSignIn(formData: FormData) {
     } else {
       result = await confirmAttendance(context.db, context.signedContext, {
         attestationConfirmed: true,
-        rememberDevice:
-          participant.kind === "regular" &&
-          text(formData, "remember") === "yes",
+        rememberDevice: participant.kind === "regular",
         request: context.metadata,
       });
       if (result.rememberedDevice?.token) {

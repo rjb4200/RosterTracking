@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { expect, type Page, test } from "@playwright/test";
 import { Pool } from "pg";
 
 import { e2eDatabaseUrl } from "./support/database";
@@ -7,6 +8,7 @@ const token = process.env.E2E_CLASS_SIGN_IN_TOKEN;
 const publicCode = process.env.E2E_CLASS_PUBLIC_CODE;
 const accessPin = process.env.E2E_CLASS_ACCESS_PIN;
 
+const REMEMBERED_COOKIE = "roster_remembered_student";
 const PUBLIC_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function generatePublicCode(): string {
@@ -15,6 +17,90 @@ function generatePublicCode(): string {
     bytes,
     (byte) => PUBLIC_CODE_ALPHABET[byte % PUBLIC_CODE_ALPHABET.length],
   ).join("");
+}
+
+async function createRememberedFixture(
+  connectionString: string,
+  options: { requireFfn?: boolean } = {},
+) {
+  const pool = new Pool({ connectionString, max: 1 });
+  const suffix = crypto.randomUUID();
+  const phone = `+1859${Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, "0")}`;
+  const code = generatePublicCode();
+  const firstName = "Remembered";
+  const lastName = `Student ${suffix.slice(0, 8)}`;
+  const agencyName = `Remembered Agency ${suffix}`;
+  const token = `${crypto.randomUUID()}${crypto.randomUUID()}`;
+  const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+
+  const course = await pool.query<{ id: string }>(
+    "insert into courses (name) values ($1) returning id",
+    [`Remembered Course ${suffix}`],
+  );
+  const site = await pool.query<{ id: string }>(
+    "insert into training_sites (name) values ($1) returning id",
+    [`Remembered Site ${suffix}`],
+  );
+  const agency = await pool.query<{ id: string }>(
+    "insert into agencies (name) values ($1) returning id",
+    [agencyName],
+  );
+  const owner = await pool.query<{ id: string }>(
+    "insert into users (username, display_name, password_hash) values ($1, 'Remembered Owner', 'fixture') returning id",
+    [`remembered-owner-${suffix}`],
+  );
+  const classRecord = await pool.query<{ id: string }>(
+    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
+    [
+      course.rows[0]?.id,
+      site.rows[0]?.id,
+      owner.rows[0]?.id,
+      crypto.randomUUID(),
+      code,
+      agency.rows[0]?.id,
+    ],
+  );
+  const student = await pool.query<{ id: string }>(
+    "insert into students (first_name, last_name, phone) values ($1, $2, $3) returning id",
+    [firstName, lastName, phone],
+  );
+  await pool.query(
+    "insert into class_components (class_id, starts_at, ends_at, credited_hours, position) values ($1, now(), now() + interval '4 hours', 4, 0)",
+    [classRecord.rows[0]?.id],
+  );
+  await pool.query(
+    "insert into remembered_devices (student_id, token_hash, expires_at, created_at) values ($1, $2, now() + interval '30 days', now() - interval '5 minutes')",
+    [student.rows[0]?.id, tokenHash],
+  );
+  if (options.requireFfn) {
+    const system = await pool.query<{ id: string }>(
+      "select rs.id from reporting_systems rs join reporting_requirement_sets rrs on rrs.reporting_system_id = rs.id and rrs.is_active = true where rs.is_active = true and rs.code = 'fire' limit 1",
+    );
+    await pool.query(
+      "insert into class_reporting_systems (class_id, reporting_system_id) values ($1, $2)",
+      [classRecord.rows[0]?.id, system.rows[0]?.id],
+    );
+  }
+  await pool.end();
+  return {
+    code,
+    firstName,
+    lastName,
+    agencyName,
+    classId: classRecord.rows[0]?.id,
+    studentId: student.rows[0]?.id,
+    token,
+  };
+}
+
+async function addRememberedCookie(page: Page, value: string) {
+  await page
+    .context()
+    .addCookies([
+      { name: REMEMBERED_COOKIE, value, domain: "localhost", path: "/" },
+    ]);
 }
 
 test("regular student without agency memberships can complete sign-in", async ({
@@ -94,6 +180,100 @@ test("regular student without agency memberships can complete sign-in", async ({
   );
   await verify.end();
   expect(attendance.rows[0]?.count).toBe(1);
+});
+
+test("remembered device confirms attendance in one action", async ({
+  page,
+}) => {
+  test.skip(
+    test.info().project.name !== "chromium",
+    "Mutating sign-in coverage runs once on chromium.",
+  );
+  const connectionString = e2eDatabaseUrl();
+  test.skip(!connectionString, "Set E2E_DATABASE_URL.");
+  if (!connectionString) return;
+
+  const fixture = await createRememberedFixture(connectionString);
+  await addRememberedCookie(page, fixture.token);
+  await page.goto(`/${fixture.code}`);
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByText("Is this you?")).toBeVisible();
+  await expect(
+    page.getByText(`${fixture.firstName} ${fixture.lastName}`, { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Confirm & Sign In" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You're signed in" }),
+  ).toBeVisible();
+
+  const verify = new Pool({ connectionString, max: 1 });
+  const attendance = await verify.query<{ count: number }>(
+    "select count(*)::int as count from attendance where class_id = $1 and student_id = $2 and removed_at is null",
+    [fixture.classId, fixture.studentId],
+  );
+  await verify.end();
+  expect(attendance.rows[0]?.count).toBe(1);
+});
+
+test("not me revokes the remembered device and returns to phone entry", async ({
+  page,
+}) => {
+  test.skip(
+    test.info().project.name !== "chromium",
+    "Mutating sign-in coverage runs once on chromium.",
+  );
+  const connectionString = e2eDatabaseUrl();
+  test.skip(!connectionString, "Set E2E_DATABASE_URL.");
+  if (!connectionString) return;
+
+  const fixture = await createRememberedFixture(connectionString);
+  await addRememberedCookie(page, fixture.token);
+  await page.goto(`/${fixture.code}`);
+  await expect(page.getByText("Is this you?")).toBeVisible();
+  await page.getByRole("button", { name: "Not me" }).click();
+  await expect(page.getByLabel("Current phone number")).toBeVisible();
+
+  const verify = new Pool({ connectionString, max: 1 });
+  const revoked = await verify.query<{ count: number }>(
+    "select count(*)::int as count from remembered_devices where student_id = $1 and revoked_at is not null",
+    [fixture.studentId],
+  );
+  await verify.end();
+  expect(revoked.rows[0]?.count).toBe(1);
+});
+
+test("update my information collects a missing credential before confirmation", async ({
+  page,
+}) => {
+  test.skip(
+    test.info().project.name !== "chromium",
+    "Mutating sign-in coverage runs once on chromium.",
+  );
+  const connectionString = e2eDatabaseUrl();
+  test.skip(!connectionString, "Set E2E_DATABASE_URL.");
+  if (!connectionString) return;
+
+  const fixture = await createRememberedFixture(connectionString, {
+    requireFfn: true,
+  });
+  await addRememberedCookie(page, fixture.token);
+  await page.goto(`/${fixture.code}`);
+  await expect(page.getByText("Is this you?")).toBeVisible();
+  await expect(page.getByText("Update my information")).toBeVisible();
+  const ffn = String(Math.floor(Math.random() * 900_000) + 100_000);
+  await page.getByLabel("FFN").fill(ffn);
+  await page.getByRole("button", { name: "Confirm & Sign In" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You're signed in" }),
+  ).toBeVisible();
+
+  const verify = new Pool({ connectionString, max: 1 });
+  const credential = await verify.query<{ count: number }>(
+    "select count(*)::int as count from student_credentials where student_id = $1",
+    [fixture.studentId],
+  );
+  await verify.end();
+  expect(credential.rows[0]?.count).toBe(1);
 });
 
 test("public class links require the configured numeric PIN", async ({

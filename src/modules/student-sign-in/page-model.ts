@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import type { Database } from "@/server/db/client";
 import {
+  credentialTypes,
   studentCredentials,
   students,
   trainingClasses,
@@ -31,6 +32,16 @@ export type SignInPageModel =
       participantName: string;
       recovered: boolean;
       maskedCredentials: { code: string; maskedSuffix: string }[];
+    }
+  | {
+      step: "recognized";
+      participantName: string;
+      maskedCredentials: { code: string; maskedSuffix: string }[];
+      fields: { key: string; label: string }[];
+      credentials: { id: string; code: string }[];
+      agencies: { id: string; name: string }[];
+      preselectedAgencyId: string | null;
+      attestation: string;
     }
   | {
       step: "regular-details";
@@ -65,6 +76,85 @@ function fieldsForForm(fields: string[]) {
     key,
     label: PUBLIC_FIELD_LABELS[key] ?? key,
   }));
+}
+
+interface PublicStudentFields {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string | null;
+  studentNumber: string | null;
+}
+
+async function resolveRegularDetails(
+  db: Database,
+  classId: string,
+  studentId: string,
+  student: PublicStudentFields,
+) {
+  const requirements = await resolveClassRequirements(db, classId);
+  const existingCredentials =
+    requirements.credentials.length === 0
+      ? []
+      : await db
+          .select({ credentialTypeId: studentCredentials.credentialTypeId })
+          .from(studentCredentials)
+          .where(
+            and(
+              eq(studentCredentials.studentId, studentId),
+              inArray(
+                studentCredentials.credentialTypeId,
+                requirements.credentials.map(({ id }) => id),
+              ),
+            ),
+          );
+  const existingCredentialIds = new Set(
+    existingCredentials.map(({ credentialTypeId }) => credentialTypeId),
+  );
+  const [classRecord] = await db
+    .select({ hostAgencyId: trainingClasses.hostAgencyId })
+    .from(trainingClasses)
+    .where(eq(trainingClasses.id, classId))
+    .limit(1);
+  const agencyResolution = await resolveRegularAttendanceAgencies(
+    db,
+    studentId,
+    classRecord?.hostAgencyId ?? null,
+  );
+  return {
+    fields: fieldsForForm(
+      requirements.studentFields.filter(
+        (field) => !studentFieldValue(student, field),
+      ),
+    ),
+    credentials: requirements.credentials.filter(
+      ({ id }) => !existingCredentialIds.has(id),
+    ),
+    agencies: agencyResolution.agencies,
+    preselectedAgencyId: agencyResolution.preselectedAgencyId,
+  };
+}
+
+async function listMaskedCredentials(
+  db: Database,
+  studentId: string,
+): Promise<{ code: string; maskedSuffix: string }[]> {
+  return db
+    .select({
+      code: credentialTypes.code,
+      maskedSuffix: studentCredentials.maskedSuffix,
+    })
+    .from(studentCredentials)
+    .innerJoin(
+      credentialTypes,
+      eq(credentialTypes.id, studentCredentials.credentialTypeId),
+    )
+    .where(
+      and(
+        eq(studentCredentials.studentId, studentId),
+        inArray(credentialTypes.code, ["ffn", "kemsis"]),
+      ),
+    );
 }
 
 export async function buildSignInPageModel(
@@ -120,68 +210,51 @@ export async function buildSignInPageModel(
   });
   if (!student) throw new Error("Sign-in is unavailable.");
   const participantName = `${student.firstName} ${student.lastName}`;
-  if (!participant.profileConfirmed) {
+  if (participant.profileConfirmed) {
+    if (state.selectedAgencyId) {
+      return {
+        step: "review",
+        participantName,
+        regular: true,
+        attestation: renderAttendanceAttestation(participantName),
+      };
+    }
     return {
-      step: "confirm-profile",
+      step: "regular-details",
       participantName,
-      recovered: participant.signInMethod === "recovery",
-      maskedCredentials: participant.maskedCredentials ?? [],
+      ...(await resolveRegularDetails(
+        db,
+        loaded.context.classId,
+        participant.studentId,
+        student,
+      )),
     };
   }
-  if (state.selectedAgencyId) {
+
+  if (participant.signInMethod === "remembered_device") {
+    const [details, maskedCredentials] = await Promise.all([
+      resolveRegularDetails(
+        db,
+        loaded.context.classId,
+        participant.studentId,
+        student,
+      ),
+      listMaskedCredentials(db, participant.studentId),
+    ]);
     return {
-      step: "review",
+      step: "recognized",
       participantName,
-      regular: true,
+      maskedCredentials,
+      ...details,
       attestation: renderAttendanceAttestation(participantName),
     };
   }
 
-  const requirements = await resolveClassRequirements(
-    db,
-    loaded.context.classId,
-  );
-  const existingCredentials =
-    requirements.credentials.length === 0
-      ? []
-      : await db
-          .select({ credentialTypeId: studentCredentials.credentialTypeId })
-          .from(studentCredentials)
-          .where(
-            and(
-              eq(studentCredentials.studentId, participant.studentId),
-              inArray(
-                studentCredentials.credentialTypeId,
-                requirements.credentials.map(({ id }) => id),
-              ),
-            ),
-          );
-  const existingCredentialIds = new Set(
-    existingCredentials.map(({ credentialTypeId }) => credentialTypeId),
-  );
-  const [classRecord] = await db
-    .select({ hostAgencyId: trainingClasses.hostAgencyId })
-    .from(trainingClasses)
-    .where(eq(trainingClasses.id, loaded.context.classId))
-    .limit(1);
-  const agencyResolution = await resolveRegularAttendanceAgencies(
-    db,
-    participant.studentId,
-    classRecord?.hostAgencyId ?? null,
-  );
   return {
-    step: "regular-details",
+    step: "confirm-profile",
     participantName,
-    fields: fieldsForForm(
-      requirements.studentFields.filter(
-        (field) => !studentFieldValue(student, field),
-      ),
-    ),
-    credentials: requirements.credentials.filter(
-      ({ id }) => !existingCredentialIds.has(id),
-    ),
-    agencies: agencyResolution.agencies,
-    preselectedAgencyId: agencyResolution.preselectedAgencyId,
+    recovered: participant.signInMethod === "recovery",
+    maskedCredentials: participant.maskedCredentials ?? [],
   };
 }
 

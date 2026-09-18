@@ -19,12 +19,12 @@ describe("remembered device tokens", () => {
     expect(hashRememberedDeviceToken(first)).not.toContain(first);
   });
 
-  it("uses an HTTP-only sign-in-scoped cookie secure in production", () => {
+  it("uses a site-root, HTTP-only cookie secure in production", () => {
     expect(rememberedDeviceCookieOptions(3600, true)).toEqual({
       httpOnly: true,
       sameSite: "lax",
       secure: true,
-      path: "/sign-in",
+      path: "/",
       maxAge: 3600,
     });
     expect(rememberedDeviceCookieOptions(3600, false).secure).toBe(false);

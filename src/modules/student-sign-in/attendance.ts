@@ -17,6 +17,7 @@ import {
   classGuests,
   rememberedDevices,
   signInWorkflowStaging,
+  studentAgencies,
   studentCredentials,
   students,
   trainingClasses,
@@ -156,6 +157,44 @@ async function requireGuestAgency(
     .limit(1)
     .for("share");
   if (!agency) throw new AttendanceConfirmationError("Attendance unavailable.");
+}
+
+async function ensureAgencyMembership(
+  transaction: DatabaseTransaction,
+  studentId: string,
+  agencyId: string,
+  now: Date,
+): Promise<boolean> {
+  const [existing] = await transaction
+    .select({ isActive: studentAgencies.isActive })
+    .from(studentAgencies)
+    .where(
+      and(
+        eq(studentAgencies.studentId, studentId),
+        eq(studentAgencies.agencyId, agencyId),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    if (existing.isActive) return false;
+    await transaction
+      .update(studentAgencies)
+      .set({ isActive: true, updatedAt: now })
+      .where(
+        and(
+          eq(studentAgencies.studentId, studentId),
+          eq(studentAgencies.agencyId, agencyId),
+        ),
+      );
+    return true;
+  }
+  await transaction.insert(studentAgencies).values({
+    studentId,
+    agencyId,
+    isPrimary: false,
+    isActive: true,
+  });
+  return true;
 }
 
 function stagedCredentialMap(
@@ -624,6 +663,24 @@ export async function confirmAttendance(
         fields,
         credentialValues,
       );
+      if (participant.kind === "regular") {
+        const membershipChanged = await ensureAgencyMembership(
+          transaction,
+          participant.studentId,
+          agencyId,
+          now,
+        );
+        if (membershipChanged) {
+          await writeAuditLog(transaction, {
+            actorType: "system",
+            action: "student.membership.added_from_sign_in",
+            entityType: "student",
+            entityId: participant.studentId,
+            ipAddress: input.request.ipAddress,
+            details: { agencyId },
+          });
+        }
+      }
       await transaction
         .update(signInWorkflowStaging)
         .set({ consumedAt: now, updatedAt: now })

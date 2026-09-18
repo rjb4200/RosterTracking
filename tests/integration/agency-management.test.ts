@@ -144,7 +144,7 @@ describeDatabase("agency management and host agency", () => {
     ).rejects.toThrow(/host agency/i);
   });
 
-  it("offers the catalog and preselects the host agency for members", async () => {
+  it("offers the catalog and preselects a default agency", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const actor = await createActor(db);
@@ -175,9 +175,9 @@ describeDatabase("agency management and host agency", () => {
     expect(
       withoutMembership.agencies.some((agency) => agency.id === other.id),
     ).toBe(true);
-    expect(withoutMembership.preselectedAgencyId).toBeNull();
+    expect(withoutMembership.preselectedAgencyId).toBe(host.id);
 
-    await setStudentMembership(db, actor, student.id, host.id, {
+    await setStudentMembership(db, actor, student.id, other.id, {
       isPrimary: true,
       isActive: true,
     });
@@ -186,7 +186,6 @@ describeDatabase("agency management and host agency", () => {
       student.id,
       host.id,
     );
-    expect(withMembership.preselectedAgencyId).toBe(host.id);
-    expect(withMembership.agencies[0]?.id).toBe(host.id);
+    expect(withMembership.preselectedAgencyId).toBe(other.id);
   });
 });

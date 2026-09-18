@@ -6,9 +6,8 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import { rememberedDevices, students } from "@/server/db/schema";
 
-import { SIGN_IN_COOKIE_PATH } from "./context";
-
 export const REMEMBERED_DEVICE_COOKIE_NAME = "roster_remembered_student";
+export const REMEMBERED_DEVICE_COOKIE_PATH = "/";
 export const REMEMBERED_DEVICE_TTL_SECONDS = 180 * 24 * 60 * 60;
 
 export function generateRememberedDeviceToken(): string {
@@ -27,7 +26,7 @@ export function rememberedDeviceCookieOptions(
     httpOnly: true as const,
     sameSite: "lax" as const,
     secure: production,
-    path: SIGN_IN_COOKIE_PATH,
+    path: REMEMBERED_DEVICE_COOKIE_PATH,
     maxAge,
   };
 }

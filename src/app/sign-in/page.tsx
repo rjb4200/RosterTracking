@@ -11,6 +11,7 @@ import { getDatabase } from "@/server/db/client";
 
 import {
   confirmProfile,
+  confirmRecognizedSignIn,
   confirmSignIn,
   lookupCurrentPhone,
   notMe,
@@ -116,10 +117,12 @@ function AgencyField({
 function RequirementFields({
   model,
 }: {
-  model: Extract<
-    SignInPageModel,
-    { step: "regular-details" | "guest-details" }
-  >;
+  model: {
+    fields: { key: string; label: string }[];
+    credentials: { id: string; code: string }[];
+    agencies: { id: string; name: string }[];
+    preselectedAgencyId?: string | null;
+  };
 }) {
   return (
     <>
@@ -151,9 +154,7 @@ function RequirementFields({
       ))}
       <AgencyField
         agencies={model.agencies}
-        preselectedAgencyId={
-          "preselectedAgencyId" in model ? model.preselectedAgencyId : null
-        }
+        preselectedAgencyId={model.preselectedAgencyId ?? null}
       />
     </>
   );
@@ -294,6 +295,48 @@ function Wizard({
     );
   }
 
+  if (model.step === "recognized") {
+    return (
+      <>
+        <p className="sign-in-kicker">Is this you?</p>
+        <p className="recognized-name">{model.participantName}</p>
+        {model.maskedCredentials.length > 0 ? (
+          <ul
+            className="recovered-credentials"
+            aria-label="Credentials on file"
+          >
+            {model.maskedCredentials.map((credential) => (
+              <li key={credential.code}>
+                {credential.code.toUpperCase()} ending {credential.maskedSuffix}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <Notice notice={notice} />
+        <form action={confirmRecognizedSignIn} className="sign-in-form">
+          {model.fields.length > 0 || model.credentials.length > 0 ? (
+            <details className="sign-in-update" open>
+              <summary>Update my information</summary>
+              <RequirementFields model={model} />
+            </details>
+          ) : (
+            <AgencyField
+              agencies={model.agencies}
+              preselectedAgencyId={model.preselectedAgencyId}
+            />
+          )}
+          <blockquote className="attestation">{model.attestation}</blockquote>
+          <SubmitButton pendingLabel="Signing in...">
+            Confirm &amp; Sign In
+          </SubmitButton>
+        </form>
+        <form action={notMe}>
+          <SubmitButton secondary>Not me</SubmitButton>
+        </form>
+      </>
+    );
+  }
+
   if (model.step === "regular-details") {
     return (
       <>
@@ -366,12 +409,6 @@ function Wizard({
       </p>
       <Notice notice={notice} />
       <form action={confirmSignIn} className="sign-in-form">
-        {model.regular ? (
-          <label className="remember-choice">
-            <input name="remember" type="checkbox" value="yes" />
-            Remember me on this device
-          </label>
-        ) : null}
         <SubmitButton pendingLabel="Signing in...">
           Confirm &amp; Sign In
         </SubmitButton>

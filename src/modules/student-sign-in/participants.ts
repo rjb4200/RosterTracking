@@ -89,11 +89,13 @@ export async function resolveRegularAttendanceAgencies(
     if (!merged.has(agency.id)) merged.set(agency.id, agency);
   }
   const primary = memberships.find((agency) => agency.isPrimary);
+  const membershipDefault =
+    primary?.id ??
+    (memberships.length === 1 ? (memberships[0]?.id ?? null) : null);
   return {
     agencies: [...merged.values()],
     preselectedAgencyId:
-      primary?.id ??
-      (memberships.length === 1 ? (memberships[0]?.id ?? null) : null),
+      memberships.length === 0 ? (host?.id ?? null) : membershipDefault,
   };
 }
 

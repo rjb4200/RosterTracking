@@ -6,7 +6,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { hashClassSignInToken } from "../../src/modules/classes/token";
 import { confirmAttendance } from "../../src/modules/student-sign-in/attendance";
-import { stageGuestParticipant } from "../../src/modules/student-sign-in/participants";
+import {
+  stageGuestParticipant,
+  stageRegularRequirements,
+} from "../../src/modules/student-sign-in/participants";
 import { createWorkflowFromClassToken } from "../../src/modules/student-sign-in/workflow";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
@@ -257,12 +260,24 @@ describeDatabase("student sign-in transaction", () => {
           fields: {},
           credentials: [],
         },
-        selectedAgencyId: fixture.agency.id,
+        selectedAgencyId: null,
         pendingNewPhone: null,
         requirementSets: [],
       },
     );
     if (!workflow) throw new Error("Workflow was not created.");
+
+    await stageRegularRequirements(fixture.db, workflow.token, {
+      fields: {},
+      credentials: [],
+      agencyId: fixture.agency.id,
+    });
+    expect(
+      await fixture.db
+        .select()
+        .from(studentAgencies)
+        .where(eq(studentAgencies.studentId, student.id)),
+    ).toHaveLength(0);
 
     const result = await confirmAttendance(fixture.db, workflow.token, {
       attestationConfirmed: true,
@@ -270,5 +285,11 @@ describeDatabase("student sign-in transaction", () => {
       request,
     });
     expect(result.status).toBe("created");
+    const memberships = await fixture.db
+      .select()
+      .from(studentAgencies)
+      .where(eq(studentAgencies.studentId, student.id));
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0]?.agencyId).toBe(fixture.agency.id);
   });
 });
