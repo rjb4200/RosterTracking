@@ -12,6 +12,7 @@ import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
+  agencies,
   auditLogs,
   classComponents,
   classInstructors,
@@ -83,19 +84,24 @@ describeDatabase("finalization reporting queue", () => {
       .insert(trainingSites)
       .values({ name: `Reporting Site ${suffix}` })
       .returning({ id: trainingSites.id });
+    const [agency] = await db
+      .insert(agencies)
+      .values({ name: `Reporting Agency ${suffix}` })
+      .returning({ id: agencies.id });
     const systems = await db
       .select({ id: reportingSystems.id, code: reportingSystems.code })
       .from(reportingSystems)
       .where(eq(reportingSystems.isActive, true));
     const fire = systems.find((system) => system.code === "fire");
     const kbems = systems.find((system) => system.code === "kbems");
-    if (!course || !site || !fire || !kbems)
+    if (!course || !site || !agency || !fire || !kbems)
       throw new Error("Reporting fixture reference creation failed.");
     const [classRecord] = await db
       .insert(trainingClasses)
       .values({
         courseId: course.id,
         trainingSiteId: site.id,
+        hostAgencyId: agency.id,
         createdByUserId: instructor.id,
         deliveryMethod: "classroom",
         status: "finalized",

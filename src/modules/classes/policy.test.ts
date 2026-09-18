@@ -63,6 +63,7 @@ describe("class policy", () => {
         componentCount: 1,
         leadCount: 0,
         reportingCount: 1,
+        hostAgencyActive: true,
       }),
     ).toThrow(/one lead instructor/i);
     expect(() =>
@@ -70,8 +71,20 @@ describe("class policy", () => {
         componentCount: 1,
         leadCount: 1,
         reportingCount: 1,
+        hostAgencyActive: true,
       }),
     ).not.toThrow();
+  });
+
+  it("requires an active host agency before opening", () => {
+    expect(() =>
+      validateClassReadiness({
+        componentCount: 1,
+        leadCount: 1,
+        reportingCount: 1,
+        hostAgencyActive: false,
+      }),
+    ).toThrow(/host agency/i);
   });
 
   it("allows finalization only after completion and requires reopen reasons", () => {

@@ -86,13 +86,20 @@ function Notice({ notice }: { notice?: string }) {
 
 function AgencyField({
   agencies,
+  preselectedAgencyId,
 }: {
   agencies: { id: string; name: string }[];
+  preselectedAgencyId?: string | null;
 }) {
   return (
     <div className="sign-in-field">
       <label htmlFor="agencyId">Agency represented today</label>
-      <select id="agencyId" name="agencyId" required defaultValue="">
+      <select
+        id="agencyId"
+        name="agencyId"
+        required
+        defaultValue={preselectedAgencyId ?? ""}
+      >
         <option value="" disabled>
           Select an agency
         </option>
@@ -142,7 +149,12 @@ function RequirementFields({
           />
         </div>
       ))}
-      <AgencyField agencies={model.agencies} />
+      <AgencyField
+        agencies={model.agencies}
+        preselectedAgencyId={
+          "preselectedAgencyId" in model ? model.preselectedAgencyId : null
+        }
+      />
     </>
   );
 }

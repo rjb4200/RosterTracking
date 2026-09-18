@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signIn } from "./support/auth";
 
 const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
@@ -22,10 +23,7 @@ test("authorized staff can download an on-demand official roster", async ({
     "Set E2E staff credentials and E2E_OFFICIAL_ROSTER_CLASS_ID.",
   );
   if (!username || !password || !classId) return;
-  await page.goto("/staff/login");
-  await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}`);
   const controls = page.getByLabel("Official roster downloads").first();
   await expect(controls).toBeVisible();

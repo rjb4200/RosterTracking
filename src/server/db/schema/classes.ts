@@ -15,7 +15,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
-import { courses, reportingSystems, trainingSites } from "./reference";
+import {
+  agencies,
+  courses,
+  reportingSystems,
+  trainingSites,
+} from "./reference";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -37,6 +42,11 @@ export const trainingClasses = pgTable(
       () => trainingSites.id,
       { onDelete: "restrict" },
     ),
+    hostAgencyId: uuid("host_agency_id")
+      .notNull()
+      .references(() => agencies.id, {
+        onDelete: "restrict",
+      }),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -56,6 +66,7 @@ export const trainingClasses = pgTable(
   (table) => [
     index("classes_course_idx").on(table.courseId),
     index("classes_site_idx").on(table.trainingSiteId),
+    index("classes_host_agency_idx").on(table.hostAgencyId),
     index("classes_creator_status_idx").on(table.createdByUserId, table.status),
     index("classes_status_idx").on(table.status),
     uniqueIndex("classes_sign_in_token_hash_unique").on(table.signInTokenHash),

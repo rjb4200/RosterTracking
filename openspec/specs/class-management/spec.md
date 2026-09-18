@@ -25,6 +25,21 @@ The system SHALL let authorized staff create a draft class with a required cours
 - **WHEN** the delivery-method migration runs against existing classes
 - **THEN** it converts `in_person` to `classroom`, `virtual` to `online`, and retains `hybrid` as `hybrid`
 
+### Requirement: Classes require a host agency
+The system SHALL require every class to reference one active host agency from the agency catalog. The host agency SHALL be selectable during class creation and editing, SHALL be required before a class can be opened for every delivery method including Online, and SHALL be retained with the class for reporting.
+
+#### Scenario: Create a class with a host agency
+- **WHEN** authorized staff create a class and select an active host agency
+- **THEN** the draft class stores that host agency
+
+#### Scenario: Block opening without a host agency
+- **WHEN** staff attempt to open a class with no host agency
+- **THEN** the system keeps the class in draft and reports the missing host agency
+
+#### Scenario: Online classes also require a host agency
+- **WHEN** staff create an Online class
+- **THEN** the system still requires a host agency
+
 ### Requirement: Class components retain scheduled sessions
 The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time selected in 15-minute increments, a scheduled end time derived from the selected start time and credited hours, and its credited hours. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class course name when no title is provided for official roster output.
 

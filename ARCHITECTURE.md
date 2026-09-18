@@ -58,6 +58,14 @@ Remembered-device cookies contain a random token. Only a cryptographic hash of t
 
 Lookup and recovery responses must not expose lists of students or full credential values. The changed-number challenge always offers FFN and KEMSIS choices, without disclosing which credentials a matched record has. Guest sign-in is visually secondary, stores class-specific participant data rather than creating or updating a permanent student, and requires roster information again for each class.
 
+## Agencies
+
+Agencies form one department catalog shared by class reporting and student membership; there is no separate class-agency list or student-agency list to maintain.
+
+Every class records one required host agency from that catalog, selected during class creation for every delivery method including online. The host agency is the agency the class is reported under, including when a student is a guest at another agency's training. A class cannot open without an active host agency.
+
+A student may belong to multiple agencies. Memberships are the student's preferred agencies rather than a restriction: regular sign-in defaults to the class host agency when the student belongs to it and otherwise offers the student's active memberships together with the active agency catalog. Instructors with class-management access may create and edit agencies, including inline during class setup; agencies are never deleted, only deactivated.
+
 ## Attendance Attestation
 
 Attestations are class-specific and intentionally short. The initial text is:

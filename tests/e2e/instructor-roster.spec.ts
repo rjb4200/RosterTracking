@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { Pool } from "pg";
+import { signIn } from "./support/auth";
+import { e2eDatabaseUrl } from "./support/database";
 
 const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
 const elevatedUsername = process.env.E2E_ELEVATED_STAFF_USERNAME;
 const elevatedPassword = process.env.E2E_ELEVATED_STAFF_PASSWORD;
-const connectionString = process.env.TEST_DATABASE_URL;
+const connectionString = e2eDatabaseUrl();
 
 for (const viewport of [
   { name: "desktop", width: 1280, height: 900 },
@@ -15,8 +17,12 @@ for (const viewport of [
     page,
   }) => {
     test.skip(
+      test.info().project.name !== "chromium",
+      "Mutating roster coverage runs once on chromium.",
+    );
+    test.skip(
       !username || !password || !connectionString,
-      "Set E2E staff credentials and TEST_DATABASE_URL.",
+      "Set E2E staff credentials and E2E_DATABASE_URL.",
     );
     if (!username || !password || !connectionString) return;
     await page.setViewportSize({
@@ -43,12 +49,13 @@ for (const viewport of [
       [`Roster Agency ${suffix}`],
     );
     const classRecord = await pool.query<{ id: string }>(
-      "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash) values ($1, $2, $3, 'classroom', 'open', $4) returning id",
+      "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
       [
         course.rows[0]?.id,
         site.rows[0]?.id,
         actor.rows[0].id,
         crypto.randomUUID(),
+        agency.rows[0]?.id,
       ],
     );
     const classId = classRecord.rows[0]?.id;
@@ -64,14 +71,9 @@ for (const viewport of [
     );
     await pool.end();
 
-    await page.goto("/staff/login");
-    await page.getByLabel("Username").fill(username);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await signIn(page, username, password);
     await page.goto(`/staff/classes/${classId}`);
-    await expect(
-      page.getByRole("heading", { name: "Live class" }),
-    ).toBeVisible();
+    await expect(page.getByText("Live class")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Copy sign-in link" }),
     ).toBeVisible();
@@ -102,10 +104,8 @@ for (const viewport of [
     );
     await reviewPool.end();
     await page.goto(`/staff/classes/${classId}/review`);
-    await expect(
-      page.getByRole("heading", { name: "Completed class review" }),
-    ).toBeVisible();
-    await page.getByLabel("Credit").fill("3.5");
+    await expect(page.getByText("Completed class review")).toBeVisible();
+    await page.getByLabel("Credit", { exact: true }).fill("3.5");
     await page.getByLabel("Adjustment reason").selectOption("Left Early");
     await page.getByRole("button", { name: "Update credit" }).click();
     await expect(page.getByText("Roster updated.")).toBeVisible();
@@ -128,8 +128,12 @@ test("elevated staff can open an unassigned completed-class review", async ({
   page,
 }) => {
   test.skip(
+    test.info().project.name !== "chromium",
+    "Mutating roster coverage runs once on chromium.",
+  );
+  test.skip(
     !elevatedUsername || !elevatedPassword || !connectionString,
-    "Set elevated E2E staff credentials and TEST_DATABASE_URL.",
+    "Set elevated E2E staff credentials and E2E_DATABASE_URL.",
   );
   if (!elevatedUsername || !elevatedPassword || !connectionString) return;
   const pool = new Pool({ connectionString, max: 1 });
@@ -148,13 +152,18 @@ test("elevated staff can open an unassigned completed-class review", async ({
     "insert into training_sites (name) values ($1) returning id",
     [`Elevated Review Site ${suffix}`],
   );
+  const agency = await pool.query<{ id: string }>(
+    "insert into agencies (name) values ($1) returning id",
+    [`Elevated Review Agency ${suffix}`],
+  );
   const classRecord = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, completed_at) values ($1, $2, $3, 'classroom', 'completed', $4, now()) returning id",
+    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, completed_at, host_agency_id) values ($1, $2, $3, 'classroom', 'completed', $4, now(), $5) returning id",
     [
       course.rows[0]?.id,
       site.rows[0]?.id,
       elevated.rows[0].id,
       crypto.randomUUID(),
+      agency.rows[0]?.id,
     ],
   );
   const classId = classRecord.rows[0]?.id;
@@ -165,12 +174,7 @@ test("elevated staff can open an unassigned completed-class review", async ({
   );
   await pool.end();
 
-  await page.goto("/staff/login");
-  await page.getByLabel("Username").fill(elevatedUsername);
-  await page.getByLabel("Password").fill(elevatedPassword);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signIn(page, elevatedUsername, elevatedPassword);
   await page.goto(`/staff/classes/${classId}/review`);
-  await expect(
-    page.getByRole("heading", { name: "Completed class review" }),
-  ).toBeVisible();
+  await expect(page.getByText("Completed class review")).toBeVisible();
 });

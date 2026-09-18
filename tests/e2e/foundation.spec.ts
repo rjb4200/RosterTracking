@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { signIn } from "./support/auth";
+import { e2eDatabaseUrl } from "./support/database";
 
 test("public landing page distinguishes staff entry paths", async ({
   page,
@@ -57,15 +59,12 @@ test("configured staff user can log in and log out", async ({ page }) => {
   const username = process.env.E2E_STAFF_USERNAME;
   const password = process.env.E2E_STAFF_PASSWORD;
   test.skip(
-    !username || !password || !process.env.TEST_DATABASE_URL,
-    "Set E2E_STAFF_USERNAME, E2E_STAFF_PASSWORD, and TEST_DATABASE_URL after bootstrapping an E2E staff user.",
+    !username || !password || !e2eDatabaseUrl(),
+    "Set E2E_STAFF_USERNAME, E2E_STAFF_PASSWORD, and E2E_DATABASE_URL after bootstrapping an E2E staff user.",
   );
   if (!username || !password) return;
 
-  await page.goto("/staff/login");
-  await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signIn(page, username, password);
   await expect(page).toHaveURL(/\/staff\/(instructor|admin)$/);
 
   await page.getByRole("link", { name: "Students" }).click();

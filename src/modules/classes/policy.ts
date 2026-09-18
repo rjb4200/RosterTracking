@@ -43,6 +43,7 @@ export function validateClassReadiness(input: {
   componentCount: number;
   leadCount: number;
   reportingCount: number;
+  hostAgencyActive: boolean;
 }): void {
   if (input.componentCount < 1) {
     throw new Error("Add at least one class component before opening.");
@@ -52,6 +53,9 @@ export function validateClassReadiness(input: {
   }
   if (input.reportingCount < 1) {
     throw new Error("Select at least one reporting system before opening.");
+  }
+  if (!input.hostAgencyActive) {
+    throw new Error("Assign an active host agency before opening.");
   }
 }
 

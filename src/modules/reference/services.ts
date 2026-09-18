@@ -31,13 +31,22 @@ export function shouldClearExistingPrimary(input: {
   return input.isPrimary && input.isActive;
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
+function postgresErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  if (
     "code" in error &&
-    (error as { code: string }).code === "23505"
-  );
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as { code: string }).code;
+  }
+  if ("cause" in error) {
+    return postgresErrorCode((error as { cause?: unknown }).cause);
+  }
+  return undefined;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return postgresErrorCode(error) === "23505";
 }
 
 const studentInput = z.object({
@@ -55,6 +64,9 @@ const agencyInput = z.object({
   city: z.string().trim().max(100).optional().or(z.literal("")),
   state: z.string().trim().max(50).optional().or(z.literal("")),
   zip: z.string().trim().max(20).optional().or(z.literal("")),
+  contactName: z.string().trim().max(200).optional().or(z.literal("")),
+  phone: z.string().trim().max(32).optional().or(z.literal("")),
+  email: z.string().trim().email().max(254).optional().or(z.literal("")),
 });
 
 const credentialInput = z.object({
@@ -367,27 +379,37 @@ export async function createAgency(
 ) {
   const parsed = agencyInput.parse(input);
   return db.transaction(async (transaction) => {
-    const [agency] = await transaction
-      .insert(agencies)
-      .values({
-        name: parsed.name,
-        type: nullable(parsed.type ?? ""),
-        address: nullable(parsed.address ?? ""),
-        city: nullable(parsed.city ?? ""),
-        state: nullable(parsed.state ?? ""),
-        zip: nullable(parsed.zip ?? ""),
-      })
-      .returning();
-    if (!agency) throw new Error("Agency was not created.");
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "agency.created",
-      entityType: "agency",
-      entityId: agency.id,
-      details: { name: agency.name },
-    });
-    return agency;
+    try {
+      const [agency] = await transaction
+        .insert(agencies)
+        .values({
+          name: parsed.name,
+          type: nullable(parsed.type ?? ""),
+          address: nullable(parsed.address ?? ""),
+          city: nullable(parsed.city ?? ""),
+          state: nullable(parsed.state ?? ""),
+          zip: nullable(parsed.zip ?? ""),
+          contactName: nullable(parsed.contactName ?? ""),
+          phone: nullable(parsed.phone ?? ""),
+          email: nullable(parsed.email ?? ""),
+        })
+        .returning();
+      if (!agency) throw new Error("Agency was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "agency.created",
+        entityType: "agency",
+        entityId: agency.id,
+        details: { name: agency.name },
+      });
+      return agency;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error("An agency with that name already exists.");
+      }
+      throw error;
+    }
   });
 }
 
@@ -408,6 +430,9 @@ export async function updateAgency(
         city: nullable(parsed.city ?? ""),
         state: nullable(parsed.state ?? ""),
         zip: nullable(parsed.zip ?? ""),
+        contactName: nullable(parsed.contactName ?? ""),
+        phone: nullable(parsed.phone ?? ""),
+        email: nullable(parsed.email ?? ""),
         updatedAt: new Date(),
       })
       .where(eq(agencies.id, id))

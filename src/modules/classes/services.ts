@@ -21,6 +21,7 @@ import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
+  agencies,
   attendance,
   classComponents,
   classInstructors,
@@ -102,6 +103,7 @@ function asDate(value: Date | string | null): Date | null {
 const draftInput = z.object({
   courseId: z.string().uuid(),
   trainingSiteId: z.string().uuid().nullable().optional(),
+  hostAgencyId: z.string().uuid(),
   deliveryMethod: z.enum(CLASS_DELIVERY_METHODS),
   reportingSystemIds: z.array(z.string().uuid()).optional(),
   accessPinEnabled: z.boolean().default(false),
@@ -185,6 +187,15 @@ async function validateReferences(
     .where(and(eq(courses.id, input.courseId), eq(courses.isActive, true)))
     .limit(1);
   if (!course) throw new Error("Select an active course.");
+
+  const [hostAgency] = await transaction
+    .select({ id: agencies.id })
+    .from(agencies)
+    .where(
+      and(eq(agencies.id, input.hostAgencyId), eq(agencies.isActive, true)),
+    )
+    .limit(1);
+  if (!hostAgency) throw new Error("Select an active host agency.");
 
   if (input.trainingSiteId) {
     const [site] = await transaction
@@ -301,6 +312,7 @@ export async function createClassDraft(
       .values({
         courseId: parsed.courseId,
         trainingSiteId: parsed.trainingSiteId ?? null,
+        hostAgencyId: parsed.hostAgencyId,
         createdByUserId: actor.id,
         deliveryMethod: parsed.deliveryMethod,
         signInTokenHash: hashClassSignInToken(rawToken),
@@ -415,6 +427,7 @@ export async function updateClassDraft(
       .set({
         courseId: parsed.courseId,
         trainingSiteId: parsed.trainingSiteId ?? null,
+        hostAgencyId: parsed.hostAgencyId,
         deliveryMethod: parsed.deliveryMethod,
         accessPinEnabled: parsed.accessPinEnabled,
         accessPinEncrypted: accessPin,
@@ -574,29 +587,41 @@ export async function transitionClass(
       cancellationReason,
     );
     if (nextStatus === CLASS_STATUSES.OPEN) {
-      const [componentCount, leadCount, reportingCount] = await Promise.all([
-        transaction
-          .select({ count: sql<number>`count(*)::int` })
-          .from(classComponents)
-          .where(eq(classComponents.classId, classId)),
-        transaction
-          .select({ count: sql<number>`count(*)::int` })
-          .from(classInstructors)
-          .where(
-            and(
-              eq(classInstructors.classId, classId),
-              eq(classInstructors.isLead, true),
+      const [componentCount, leadCount, reportingCount, hostAgency] =
+        await Promise.all([
+          transaction
+            .select({ count: sql<number>`count(*)::int` })
+            .from(classComponents)
+            .where(eq(classComponents.classId, classId)),
+          transaction
+            .select({ count: sql<number>`count(*)::int` })
+            .from(classInstructors)
+            .where(
+              and(
+                eq(classInstructors.classId, classId),
+                eq(classInstructors.isLead, true),
+              ),
             ),
-          ),
-        transaction
-          .select({ count: sql<number>`count(*)::int` })
-          .from(classReportingSystems)
-          .where(eq(classReportingSystems.classId, classId)),
-      ]);
+          transaction
+            .select({ count: sql<number>`count(*)::int` })
+            .from(classReportingSystems)
+            .where(eq(classReportingSystems.classId, classId)),
+          transaction
+            .select({ id: agencies.id })
+            .from(agencies)
+            .where(
+              and(
+                eq(agencies.id, current.hostAgencyId),
+                eq(agencies.isActive, true),
+              ),
+            )
+            .limit(1),
+        ]);
       validateClassReadiness({
         componentCount: componentCount[0]?.count ?? 0,
         leadCount: leadCount[0]?.count ?? 0,
         reportingCount: reportingCount[0]?.count ?? 0,
+        hostAgencyActive: hostAgency.length > 0,
       });
     }
     if (nextStatus === CLASS_STATUSES.COMPLETED) {
@@ -1110,48 +1135,58 @@ export async function getClassDetail(
       classId,
       false,
     );
-    const [course, site, components, instructors, systems] = await Promise.all([
-      transaction
-        .select({ id: courses.id, name: courses.name })
-        .from(courses)
-        .where(eq(courses.id, classRecord.courseId))
-        .limit(1),
-      classRecord.trainingSiteId
-        ? transaction
-            .select({ id: trainingSites.id, name: trainingSites.name })
-            .from(trainingSites)
-            .where(eq(trainingSites.id, classRecord.trainingSiteId))
-            .limit(1)
-        : Promise.resolve([]),
-      transaction
-        .select()
-        .from(classComponents)
-        .where(eq(classComponents.classId, classId))
-        .orderBy(asc(classComponents.startsAt), asc(classComponents.position)),
-      transaction
-        .select({
-          userId: users.id,
-          displayName: users.displayName,
-          isLead: classInstructors.isLead,
-        })
-        .from(classInstructors)
-        .innerJoin(users, eq(users.id, classInstructors.userId))
-        .where(eq(classInstructors.classId, classId))
-        .orderBy(sql`${classInstructors.isLead} desc`, users.displayName),
-      transaction
-        .select({ id: reportingSystems.id, name: reportingSystems.name })
-        .from(classReportingSystems)
-        .innerJoin(
-          reportingSystems,
-          eq(reportingSystems.id, classReportingSystems.reportingSystemId),
-        )
-        .where(eq(classReportingSystems.classId, classId))
-        .orderBy(reportingSystems.name),
-    ]);
+    const [course, site, hostAgency, components, instructors, systems] =
+      await Promise.all([
+        transaction
+          .select({ id: courses.id, name: courses.name })
+          .from(courses)
+          .where(eq(courses.id, classRecord.courseId))
+          .limit(1),
+        classRecord.trainingSiteId
+          ? transaction
+              .select({ id: trainingSites.id, name: trainingSites.name })
+              .from(trainingSites)
+              .where(eq(trainingSites.id, classRecord.trainingSiteId))
+              .limit(1)
+          : Promise.resolve([]),
+        transaction
+          .select({ id: agencies.id, name: agencies.name })
+          .from(agencies)
+          .where(eq(agencies.id, classRecord.hostAgencyId))
+          .limit(1),
+        transaction
+          .select()
+          .from(classComponents)
+          .where(eq(classComponents.classId, classId))
+          .orderBy(
+            asc(classComponents.startsAt),
+            asc(classComponents.position),
+          ),
+        transaction
+          .select({
+            userId: users.id,
+            displayName: users.displayName,
+            isLead: classInstructors.isLead,
+          })
+          .from(classInstructors)
+          .innerJoin(users, eq(users.id, classInstructors.userId))
+          .where(eq(classInstructors.classId, classId))
+          .orderBy(sql`${classInstructors.isLead} desc`, users.displayName),
+        transaction
+          .select({ id: reportingSystems.id, name: reportingSystems.name })
+          .from(classReportingSystems)
+          .innerJoin(
+            reportingSystems,
+            eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+          )
+          .where(eq(classReportingSystems.classId, classId))
+          .orderBy(reportingSystems.name),
+      ]);
     return {
       ...classRecord,
       course: course[0] ?? null,
       site: site[0] ?? null,
+      hostAgency: hostAgency[0] ?? null,
       components,
       instructors,
       reportingSystems: systems,
@@ -1163,6 +1198,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
   const [
     courseRows,
     siteRows,
+    agencyRows,
     systemRows,
     staffRows,
     defaultRows,
@@ -1184,6 +1220,11 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       .from(trainingSites)
       .where(eq(trainingSites.isActive, true))
       .orderBy(trainingSites.name),
+    db
+      .select({ id: agencies.id, name: agencies.name })
+      .from(agencies)
+      .where(eq(agencies.isActive, true))
+      .orderBy(agencies.name),
     db
       .select({ id: reportingSystems.id, name: reportingSystems.name })
       .from(reportingSystems)
@@ -1238,6 +1279,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
   return {
     courses: courseRows,
     sites: siteRows,
+    agencies: agencyRows,
     reportingSystems: systemRows,
     staff: staffRows,
     courseReportingDefaults: defaultRows,

@@ -29,14 +29,22 @@ The system SHALL provide a secondary guest workflow that collects the participan
 - **THEN** the system does not issue a regular-student remembered-device token or create a reusable student profile
 
 ### Requirement: Attendance records the represented agency
-The system SHALL require one active agency for each attendance. Regular students SHALL select from their active agency memberships; guests MAY select any active agency in the department catalog.
+The system SHALL require one active agency for each attendance. A regular student SHALL default to the class host agency when they belong to it, SHALL otherwise select from their active memberships or from the active agency catalog, and a guest SHALL select any active agency.
 
-#### Scenario: Select a regular membership
-- **WHEN** a regular student belongs to multiple active agencies
-- **THEN** the workflow requires the student to select which agency they represent for this class
+#### Scenario: Default to the class host agency
+- **WHEN** a regular student belongs to the class host agency
+- **THEN** the workflow preselects that agency as the represented agency
+
+#### Scenario: Select from memberships or the catalog
+- **WHEN** a regular student does not belong to the class host agency
+- **THEN** the workflow offers their active memberships and the active agency catalog and requires one selection
+
+#### Scenario: Guest selects any active agency
+- **WHEN** a guest signs in
+- **THEN** the workflow offers every active agency in the catalog
 
 #### Scenario: Reject an inactive agency
-- **WHEN** a participant submits an inactive agency or a regular student submits an agency outside their active memberships
+- **WHEN** a participant submits an inactive agency
 - **THEN** the system rejects attendance without creating a record
 
 ### Requirement: Attendance includes a class-specific attestation

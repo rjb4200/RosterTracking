@@ -4,12 +4,11 @@ import { config as loadDotenv } from "dotenv";
 loadDotenv({ path: ".env" });
 
 const e2ePort = 3100;
-const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
+const e2eBaseUrl = `http://localhost:${e2ePort}`;
+// The browser suite only ever talks to the dedicated end-to-end database.
+// Run `npm run db:reset:e2e` to prepare it (see docs/verification.md).
 const e2eDatabaseUrl =
   process.env.E2E_DATABASE_URL ??
-  (process.env.E2E_USE_APPLICATION_DATABASE === "true"
-    ? process.env.DATABASE_URL
-    : process.env.TEST_DATABASE_URL) ??
   "postgresql://unused:unused@127.0.0.1:5432/unused";
 
 export default defineConfig({

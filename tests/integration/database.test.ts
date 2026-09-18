@@ -27,6 +27,7 @@ import {
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
+  agencies,
   auditLogs,
   classComponents,
   classInstructors,
@@ -118,7 +119,7 @@ describeDatabase("database foundation", () => {
 
     expect((await database.select().from(roles)).length).toBe(3);
     expect((await database.select().from(permissions)).length).toBe(10);
-    expect((await database.select().from(rolePermissions)).length).toBe(22);
+    expect((await database.select().from(rolePermissions)).length).toBe(23);
   });
 
   it("seeds reference data idempotently and supports reference CRUD", async () => {
@@ -206,8 +207,12 @@ describeDatabase("database foundation", () => {
       .insert(trainingSites)
       .values({ name: `Class Site ${suffix}` })
       .returning();
+    const [agency] = await database
+      .insert(agencies)
+      .values({ name: `Class Agency ${suffix}` })
+      .returning({ id: agencies.id });
     const [system] = await database.select().from(reportingSystems).limit(1);
-    if (!actor || !course || !site || !system) {
+    if (!actor || !course || !site || !agency || !system) {
       throw new Error("Class integration fixtures were not created.");
     }
 
@@ -218,6 +223,7 @@ describeDatabase("database foundation", () => {
     const created = await createClassDraft(database, actor, {
       courseId: course.id,
       trainingSiteId: site.id,
+      hostAgencyId: agency.id,
       deliveryMethod: "classroom",
     });
     await expect(
@@ -231,6 +237,7 @@ describeDatabase("database foundation", () => {
     await updateClassDraft(database, actor, created.classRecord.id, {
       courseId: course.id,
       trainingSiteId: site.id,
+      hostAgencyId: agency.id,
       deliveryMethod: "hybrid",
       reportingSystemIds: [system.id],
     });
@@ -410,12 +417,17 @@ describeDatabase("database foundation", () => {
       .insert(trainingSites)
       .values({ name: `Scheduled Class Site ${suffix}` })
       .returning({ id: trainingSites.id });
-    if (!actor || !course || !site)
+    const [agency] = await database
+      .insert(agencies)
+      .values({ name: `Scheduled Class Agency ${suffix}` })
+      .returning({ id: agencies.id });
+    if (!actor || !course || !site || !agency)
       throw new Error("Scheduled fixtures missing.");
 
     const created = await createScheduledClassDraft(database, actor, {
       courseId: course.id,
       trainingSiteId: site.id,
+      hostAgencyId: agency.id,
       deliveryMethod: "classroom",
       startsAt: "2026-09-10T09:00:00Z",
       creditedHours: 4,
@@ -447,6 +459,7 @@ describeDatabase("database foundation", () => {
       createScheduledClassDraft(database, actor, {
         courseId: course.id,
         trainingSiteId: site.id,
+        hostAgencyId: agency.id,
         deliveryMethod: "classroom",
         startsAt: "2026-09-10T09:00:00Z",
         creditedHours: 4,
@@ -493,6 +506,10 @@ describeDatabase("database foundation", () => {
       .insert(trainingSites)
       .values({ name: `Dashboard Site ${suffix}` })
       .returning({ id: trainingSites.id });
+    const [agency] = await database
+      .insert(agencies)
+      .values({ name: `Dashboard Agency ${suffix}` })
+      .returning({ id: agencies.id });
     const [system] = await database.select().from(reportingSystems).limit(1);
     const [trainingMajor] = await database
       .select({ id: roles.id })
@@ -505,6 +522,7 @@ describeDatabase("database foundation", () => {
       !elevated ||
       !course ||
       !site ||
+      !agency ||
       !system ||
       !trainingMajor
     ) {
@@ -516,6 +534,7 @@ describeDatabase("database foundation", () => {
     const created = await createClassDraft(database, instructor, {
       courseId: course.id,
       trainingSiteId: site.id,
+      hostAgencyId: agency.id,
       deliveryMethod: "classroom",
       reportingSystemIds: [system.id],
     });

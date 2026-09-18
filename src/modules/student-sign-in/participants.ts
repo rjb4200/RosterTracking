@@ -62,6 +62,41 @@ export async function listGuestAttendanceAgencies(
     .orderBy(agencies.name);
 }
 
+export async function resolveRegularAttendanceAgencies(
+  db: Database,
+  studentId: string,
+  hostAgencyId: string | null,
+): Promise<{ agencies: AgencyOption[]; preselectedAgencyId: string | null }> {
+  const [memberships, catalog] = await Promise.all([
+    listRegularAttendanceAgencies(db, studentId),
+    listGuestAttendanceAgencies(db),
+  ]);
+  const host = hostAgencyId
+    ? catalog.find((agency) => agency.id === hostAgencyId)
+    : undefined;
+  if (host && memberships.some((agency) => agency.id === host.id)) {
+    return {
+      agencies: [
+        host,
+        ...memberships.filter((agency) => agency.id !== host.id),
+      ],
+      preselectedAgencyId: host.id,
+    };
+  }
+  const merged = new Map<string, AgencyOption>();
+  for (const agency of memberships) merged.set(agency.id, agency);
+  for (const agency of catalog) {
+    if (!merged.has(agency.id)) merged.set(agency.id, agency);
+  }
+  const primary = memberships.find((agency) => agency.isPrimary);
+  return {
+    agencies: [...merged.values()],
+    preselectedAgencyId:
+      primary?.id ??
+      (memberships.length === 1 ? (memberships[0]?.id ?? null) : null),
+  };
+}
+
 function requiredCredentialMap(
   credentials: { credentialTypeId: string; value: string }[],
   required: { id: string; code: string }[],
@@ -120,7 +155,7 @@ export async function stageRegularRequirements(
       .select({ credentialTypeId: studentCredentials.credentialTypeId })
       .from(studentCredentials)
       .where(eq(studentCredentials.studentId, participant.studentId)),
-    listRegularAttendanceAgencies(db, participant.studentId),
+    listGuestAttendanceAgencies(db),
   ]);
   if (!studentRows || !agencyRows.some(({ id }) => id === input.agencyId)) {
     throw new Error("The selected student or agency is unavailable.");

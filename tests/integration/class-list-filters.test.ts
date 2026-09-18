@@ -118,6 +118,7 @@ describeDatabase("class list filters", () => {
         .values({
           courseId: course.id,
           trainingSiteId: site.id,
+          hostAgencyId: agency.id,
           createdByUserId: manager.id,
           deliveryMethod: "classroom",
           status: options.status,

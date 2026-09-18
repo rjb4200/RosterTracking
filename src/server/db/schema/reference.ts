@@ -54,10 +54,16 @@ export const agencies = pgTable(
     city: text("city"),
     state: text("state"),
     zip: text("zip"),
+    contactName: text("contact_name"),
+    phone: text("phone"),
+    email: text("email"),
     isActive: boolean("is_active").default(true).notNull(),
     ...timestamps,
   },
-  (table) => [index("agencies_name_idx").on(table.name)],
+  (table) => [
+    index("agencies_name_idx").on(table.name),
+    uniqueIndex("agencies_name_unique").on(sql`lower(btrim(${table.name}))`),
+  ],
 );
 
 export const studentAgencies = pgTable(

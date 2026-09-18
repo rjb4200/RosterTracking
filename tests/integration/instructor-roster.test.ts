@@ -76,6 +76,7 @@ describeDatabase("instructor roster transactions", () => {
       .values({
         courseId: course.id,
         trainingSiteId: site.id,
+        hostAgencyId: agency.id,
         createdByUserId: actor.id,
         deliveryMethod: "classroom",
         status: "open",

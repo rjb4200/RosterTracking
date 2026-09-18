@@ -80,6 +80,7 @@ async function createOpenClassFixture() {
     .values({
       courseId: course.id,
       trainingSiteId: site.id,
+      hostAgencyId: agency.id,
       createdByUserId: actor.id,
       deliveryMethod: "classroom",
       status: "open",
@@ -228,5 +229,46 @@ describeDatabase("student sign-in transaction", () => {
         .from(rememberedDevices)
         .where(eq(rememberedDevices.studentId, student.id)),
     ).toHaveLength(2);
+  });
+
+  it("accepts a regular student whose agency is outside their memberships", async () => {
+    const fixture = await createOpenClassFixture();
+    const [student] = await fixture.db
+      .insert(students)
+      .values({
+        firstName: "Outside",
+        lastName: "Agency",
+        phone: `+1859${Math.floor(Math.random() * 10_000_000)
+          .toString()
+          .padStart(7, "0")}`,
+      })
+      .returning({ id: students.id });
+    if (!student) throw new Error("Student fixture was not created.");
+
+    const workflow = await createWorkflowFromClassToken(
+      fixture.db,
+      fixture.rawToken,
+      {
+        participant: {
+          kind: "regular",
+          studentId: student.id,
+          signInMethod: "current_phone",
+          profileConfirmed: true,
+          fields: {},
+          credentials: [],
+        },
+        selectedAgencyId: fixture.agency.id,
+        pendingNewPhone: null,
+        requirementSets: [],
+      },
+    );
+    if (!workflow) throw new Error("Workflow was not created.");
+
+    const result = await confirmAttendance(fixture.db, workflow.token, {
+      attestationConfirmed: true,
+      rememberDevice: false,
+      request,
+    });
+    expect(result.status).toBe("created");
   });
 });

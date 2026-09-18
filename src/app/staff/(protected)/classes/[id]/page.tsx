@@ -137,6 +137,7 @@ export default async function ClassDetailPage({
                 {classRecord.site?.name ?? "Online"} |{" "}
                 {classRecord.deliveryMethod.replace("_", " ")}
               </p>
+              <p>Host agency: {classRecord.hostAgency?.name ?? "Not set"}</p>
             </div>
             <Link
               href={`/staff/classes/${id}/roster`}
@@ -200,6 +201,7 @@ export default async function ClassDetailPage({
               id: classRecord.id,
               courseId: classRecord.courseId,
               trainingSiteId: classRecord.trainingSiteId,
+              hostAgencyId: classRecord.hostAgencyId,
               deliveryMethod: classRecord.deliveryMethod,
               accessPinEnabled: classRecord.accessPinEnabled,
               reportingSystemIds: classRecord.reportingSystems.map(
@@ -284,6 +286,8 @@ export default async function ClassDetailPage({
               .map((system) => system.name)
               .join(", ") || "None selected"}
           </p>
+          <h2>Host agency</h2>
+          <p>{classRecord.hostAgency?.name ?? "Not set"}</p>
         </section>
       ) : null}
 

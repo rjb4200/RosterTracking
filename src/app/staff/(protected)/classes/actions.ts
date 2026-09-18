@@ -24,7 +24,7 @@ import {
 } from "@/modules/classes/services";
 import { getTemplateMapping } from "@/modules/official-roster-pdfs/mappings";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
-import { createSite } from "@/modules/reference/services";
+import { createAgency, createSite } from "@/modules/reference/services";
 import { requireStaff } from "@/modules/staff-auth/authorization";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -41,6 +41,11 @@ export interface ActionState {
 export interface CreateSiteActionState {
   error?: string;
   site?: { id: string; name: string };
+}
+
+export interface CreateAgencyActionState {
+  error?: string;
+  agency?: { id: string; name: string };
 }
 
 export interface OfficialRosterEmailActionState {
@@ -60,6 +65,7 @@ function draftValues(formData: FormData) {
   return {
     courseId: read(formData, "courseId"),
     trainingSiteId: site || null,
+    hostAgencyId: read(formData, "hostAgencyId"),
     deliveryMethod: read(formData, "deliveryMethod") as
       | "classroom"
       | "hands_on"
@@ -147,6 +153,33 @@ export async function createInlineSiteAction(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not create site.",
+    };
+  }
+}
+
+export async function createInlineAgencyAction(
+  _prev: CreateAgencyActionState | undefined,
+  formData: FormData,
+): Promise<CreateAgencyActionState> {
+  const actor = await requireActor(PERMISSIONS.AGENCIES_MANAGE);
+  try {
+    const agency = await createAgency(getDatabase(), actor, {
+      name: read(formData, "name"),
+      type: read(formData, "type"),
+      address: read(formData, "address"),
+      city: read(formData, "city"),
+      state: read(formData, "state"),
+      zip: read(formData, "zip"),
+      contactName: read(formData, "contactName"),
+      phone: read(formData, "phone"),
+      email: read(formData, "email"),
+    });
+    revalidatePath("/staff/classes/new");
+    return { agency: { id: agency.id, name: agency.name } };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not create agency.",
     };
   }
 }

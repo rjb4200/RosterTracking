@@ -11,6 +11,7 @@ There is no single command a developer can run to know whether a change broke so
 - Repair the end-to-end harness so every spec resolves one database and waits for the authenticated session before navigating.
 - Tag a read-only critical-journey smoke subset that can run without mutating application data.
 - Record the verification commands where future changes will find them.
+- Fix the class creation wizard defect the repaired end-to-end suite exposed: advancing from the reporting step silently submits the form, so the review step is never shown.
 
 ## Capabilities
 
@@ -22,9 +23,12 @@ None.
 
 - `application-foundation`: the "Automated quality checks" requirement expands to cover a combined verification command, isolated and resettable mutable test databases, and end-to-end journey coverage that does not require production credentials.
 
+The class wizard repair restores behavior the `class-management` capability already specifies and therefore adds no requirement delta: its "Class creation is a stepped staff workflow" scenario "Review before creation" already requires that a review is presented before the draft is created.
+
 ## Impact
 
 - Affected code: package scripts, Playwright configuration and specs, the Vitest integration setup, a new database reset script, and environment keys for the dedicated end-to-end database.
 - Provisioning: one additional empty database on the existing Neon test branch. Migrations and seeds are applied from the committed `drizzle/` artifacts at reset time, so no reliance is placed on Neon branch synchronization.
 - Behavior risk: the reset step must never target the production database, and no verification command may require production credentials.
+- Defect found while repairing the browser suite: the class wizard's step-advance and submit controls occupy the same position in the React tree, so advancing from the reporting step mutates one DOM button into a submit button and submits the form before the review step renders. The fix is included here because the repaired suite is what exposed it.
 - Out of scope: CI pipelines, git hooks, and converting the read-only smoke subset into a mutating suite.

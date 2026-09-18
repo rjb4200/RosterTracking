@@ -24,6 +24,9 @@ export function AgencyForm({
     city: string | null;
     state: string | null;
     zip: string | null;
+    contactName?: string | null;
+    phone?: string | null;
+    email?: string | null;
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -64,6 +67,32 @@ export function AgencyForm({
         <div className="field">
           <Label htmlFor="zip">ZIP</Label>
           <Input id="zip" name="zip" defaultValue={values?.zip ?? ""} />
+        </div>
+        <div className="field">
+          <Label htmlFor="contactName">Contact name</Label>
+          <Input
+            id="contactName"
+            name="contactName"
+            defaultValue={values?.contactName ?? ""}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            defaultValue={values?.phone ?? ""}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            defaultValue={values?.email ?? ""}
+          />
         </div>
       </div>
       {state?.error ? (

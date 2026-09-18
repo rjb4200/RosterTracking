@@ -6,7 +6,11 @@ import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
-import { createInlineSiteAction, createScheduledClassAction } from "../actions";
+import {
+  createInlineAgencyAction,
+  createInlineSiteAction,
+  createScheduledClassAction,
+} from "../actions";
 import { ClassCreationWizard } from "../class-creation-wizard";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +31,13 @@ export default async function NewClassPage() {
       <ClassCreationWizard
         action={createScheduledClassAction}
         createSiteAction={createInlineSiteAction}
+        createAgencyAction={createInlineAgencyAction}
         defaultLeadInstructorId={actor.id}
         canCreateSite={Boolean(
           staff?.permissions.has(PERMISSIONS.SITES_CREATE),
+        )}
+        canCreateAgency={Boolean(
+          staff?.permissions.has(PERMISSIONS.AGENCIES_MANAGE),
         )}
         {...options}
       />

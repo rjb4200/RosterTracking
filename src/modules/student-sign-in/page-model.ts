@@ -3,12 +3,16 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { Database } from "@/server/db/client";
-import { studentCredentials, students } from "@/server/db/schema";
+import {
+  studentCredentials,
+  students,
+  trainingClasses,
+} from "@/server/db/schema";
 
 import { renderAttendanceAttestation } from "./attendance";
 import {
   listGuestAttendanceAgencies,
-  listRegularAttendanceAgencies,
+  resolveRegularAttendanceAgencies,
   studentFieldValue,
 } from "./participants";
 import { resolveClassRequirements } from "./requirements";
@@ -34,6 +38,7 @@ export type SignInPageModel =
       fields: { key: string; label: string }[];
       credentials: { id: string; code: string }[];
       agencies: { id: string; name: string }[];
+      preselectedAgencyId: string | null;
     }
   | {
       step: "guest-details";
@@ -154,6 +159,16 @@ export async function buildSignInPageModel(
   const existingCredentialIds = new Set(
     existingCredentials.map(({ credentialTypeId }) => credentialTypeId),
   );
+  const [classRecord] = await db
+    .select({ hostAgencyId: trainingClasses.hostAgencyId })
+    .from(trainingClasses)
+    .where(eq(trainingClasses.id, loaded.context.classId))
+    .limit(1);
+  const agencyResolution = await resolveRegularAttendanceAgencies(
+    db,
+    participant.studentId,
+    classRecord?.hostAgencyId ?? null,
+  );
   return {
     step: "regular-details",
     participantName,
@@ -165,7 +180,8 @@ export async function buildSignInPageModel(
     credentials: requirements.credentials.filter(
       ({ id }) => !existingCredentialIds.has(id),
     ),
-    agencies: await listRegularAttendanceAgencies(db, participant.studentId),
+    agencies: agencyResolution.agencies,
+    preselectedAgencyId: agencyResolution.preselectedAgencyId,
   };
 }
 

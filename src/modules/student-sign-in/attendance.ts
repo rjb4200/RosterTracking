@@ -17,7 +17,6 @@ import {
   classGuests,
   rememberedDevices,
   signInWorkflowStaging,
-  studentAgencies,
   studentCredentials,
   students,
   trainingClasses,
@@ -106,39 +105,44 @@ export function renderAttendanceAttestation(name: string): string {
   return `I confirm that I am ${normalized} and attended this class.`;
 }
 
+function postgresError(error: unknown): { code?: string; constraint?: string } {
+  if (typeof error !== "object" || error === null) return {};
+  const candidate = error as {
+    code?: unknown;
+    constraint?: unknown;
+    cause?: unknown;
+  };
+  if (typeof candidate.code === "string") {
+    return {
+      code: candidate.code,
+      constraint:
+        typeof candidate.constraint === "string"
+          ? candidate.constraint
+          : undefined,
+    };
+  }
+  if ("cause" in candidate) return postgresError(candidate.cause);
+  return {};
+}
+
 function isUniqueViolation(error: unknown, constraint?: string): boolean {
+  const parsed = postgresError(error);
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505" &&
-    (!constraint ||
-      !("constraint" in error) ||
-      (error as { constraint?: string }).constraint === constraint)
+    parsed.code === "23505" && (!constraint || parsed.constraint === constraint)
   );
 }
 
 async function requireRegularAgency(
   transaction: DatabaseTransaction,
-  studentId: string,
   agencyId: string,
 ) {
-  const [membership] = await transaction
+  const [agency] = await transaction
     .select({ id: agencies.id })
-    .from(studentAgencies)
-    .innerJoin(agencies, eq(agencies.id, studentAgencies.agencyId))
-    .where(
-      and(
-        eq(studentAgencies.studentId, studentId),
-        eq(studentAgencies.agencyId, agencyId),
-        eq(studentAgencies.isActive, true),
-        eq(agencies.isActive, true),
-      ),
-    )
+    .from(agencies)
+    .where(and(eq(agencies.id, agencyId), eq(agencies.isActive, true)))
     .limit(1)
     .for("share");
-  if (!membership)
-    throw new AttendanceConfirmationError("Attendance unavailable.");
+  if (!agency) throw new AttendanceConfirmationError("Attendance unavailable.");
 }
 
 async function requireGuestAgency(
@@ -484,11 +488,7 @@ export async function confirmAttendance(
       let credentialValues: Map<string, string>;
 
       if (participant.kind === "regular") {
-        await requireRegularAgency(
-          transaction,
-          participant.studentId,
-          agencyId,
-        );
+        await requireRegularAgency(transaction, agencyId);
         const [activeAttendance] = await transaction
           .select({ id: attendance.id })
           .from(attendance)

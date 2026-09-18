@@ -28,6 +28,9 @@ export async function createAgencyAction(
       city: read(formData, "city"),
       state: read(formData, "state"),
       zip: read(formData, "zip"),
+      contactName: read(formData, "contactName"),
+      phone: read(formData, "phone"),
+      email: read(formData, "email"),
     });
     revalidatePath("/staff/agencies");
     return {};
@@ -53,6 +56,9 @@ export async function updateAgencyAction(
       city: read(formData, "city"),
       state: read(formData, "state"),
       zip: read(formData, "zip"),
+      contactName: read(formData, "contactName"),
+      phone: read(formData, "phone"),
+      email: read(formData, "email"),
     });
     revalidatePath(`/staff/agencies/${id}`);
     revalidatePath("/staff/agencies");

@@ -9,7 +9,7 @@ The current implementation provides staff authentication, reference data, class 
 - Node.js 24 or later
 - npm 11 or later
 - A Neon PostgreSQL database for development
-- A separate PostgreSQL database for integration and end-to-end tests when those tests are enabled
+- Two separate PostgreSQL databases for tests when those tests are enabled: `TEST_DATABASE_URL` for integration tests and `E2E_DATABASE_URL` for the browser suite
 
 ## Local Setup
 
@@ -86,18 +86,19 @@ These operations are audited. Passwords and password hashes are excluded from au
 ## Verification
 
 ```text
-npm run lint
-npm run typecheck
-npm test
-npm run test:integration
-npm run test:e2e
-npm run build
-openspec validate establish-application-foundation --strict
+npm run check        # lint + static types (fast inner loop)
+npm run verify       # check + unit + integration + build
+npm run verify:full  # verify + smoke + browser suite
+npm run smoke        # read-only critical pages
 ```
 
-Unit tests do not require production credentials. Database integration tests skip clearly when `TEST_DATABASE_URL` is absent. The authenticated Playwright scenario also requires `E2E_STAFF_USERNAME` and `E2E_STAFF_PASSWORD` for a staff account bootstrapped in that test database.
+Unit tests do not require production credentials. The integration and browser suites each use their own database and are reset from committed migrations and seeds before a run; `verify` and `verify:full` do this for you. Run `npm run db:reset:integration` or `npm run db:reset:e2e` to prepare a database by hand.
+
+Integration tests skip clearly when `TEST_DATABASE_URL` is absent, and the browser suite skips when `E2E_DATABASE_URL` is absent. Authenticated browser scenarios also require `E2E_STAFF_USERNAME` and `E2E_STAFF_PASSWORD` for a staff account bootstrapped in the end-to-end database.
 
 Install the Playwright Chromium browser once with `npx playwright install chromium`.
+
+See `docs/verification.md` for the tiers, the reset behavior, and the production guard.
 
 ## Deployment
 

@@ -8,7 +8,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import type { ActionState, CreateSiteActionState } from "./actions";
+import type {
+  ActionState,
+  CreateAgencyActionState,
+  CreateSiteActionState,
+} from "./actions";
 
 type Option = { id: string; name: string };
 type CourseOption = Option & {
@@ -20,6 +24,7 @@ const steps = [
   "Course",
   "Training Site",
   "Class Details",
+  "Host Agency",
   "Reporting",
   "Review",
 ];
@@ -27,8 +32,10 @@ const steps = [
 export function ClassCreationWizard({
   action,
   createSiteAction,
+  createAgencyAction,
   courses,
   sites,
+  agencies,
   staff,
   reportingSystems,
   courseReportingDefaults,
@@ -37,6 +44,7 @@ export function ClassCreationWizard({
   recentSiteIds,
   defaultLeadInstructorId,
   canCreateSite,
+  canCreateAgency,
 }: {
   action: (
     prev: ActionState | undefined,
@@ -46,8 +54,13 @@ export function ClassCreationWizard({
     prev: CreateSiteActionState | undefined,
     formData: FormData,
   ) => Promise<CreateSiteActionState>;
+  createAgencyAction: (
+    prev: CreateAgencyActionState | undefined,
+    formData: FormData,
+  ) => Promise<CreateAgencyActionState>;
   courses: CourseOption[];
   sites: Option[];
+  agencies: Option[];
   staff: Option[];
   reportingSystems: Option[];
   courseReportingDefaults: Array<{
@@ -65,6 +78,7 @@ export function ClassCreationWizard({
   recentSiteIds: string[];
   defaultLeadInstructorId: string;
   canCreateSite: boolean;
+  canCreateAgency: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [step, setStep] = useState(0);
@@ -74,9 +88,14 @@ export function ClassCreationWizard({
   const [siteOptions, setSiteOptions] = useState(sites);
   const [siteError, setSiteError] = useState<string>();
   const [creatingSite, setCreatingSite] = useState(false);
+  const [newAgencyName, setNewAgencyName] = useState("");
+  const [agencyOptions, setAgencyOptions] = useState(agencies);
+  const [agencyError, setAgencyError] = useState<string>();
+  const [creatingAgency, setCreatingAgency] = useState(false);
   const [values, setValues] = useState({
     courseId: "",
     trainingSiteId: "",
+    hostAgencyId: "",
     deliveryMethod: "classroom",
     startsAt: "",
     creditedHours: "",
@@ -90,6 +109,9 @@ export function ClassCreationWizard({
   );
   const selectedSite = siteOptions.find(
     (site) => site.id === values.trainingSiteId,
+  );
+  const selectedAgency = agencyOptions.find(
+    (agency) => agency.id === values.hostAgencyId,
   );
   const selectedInstructor = staff.find(
     (instructor) => instructor.id === values.leadInstructorId,
@@ -152,6 +174,7 @@ export function ClassCreationWizard({
         values.startsAt && values.creditedHours && values.leadInstructorId,
       );
     }
+    if (step === 3) return Boolean(values.hostAgencyId);
     return true;
   }
 
@@ -179,6 +202,28 @@ export function ClassCreationWizard({
         setNewSiteName("");
       } else {
         setSiteError(result.error);
+      }
+    });
+  }
+
+  function createAgency() {
+    if (!newAgencyName.trim()) return;
+    setCreatingAgency(true);
+    setAgencyError(undefined);
+    const formData = new FormData();
+    formData.set("name", newAgencyName);
+    startTransition(async () => {
+      const result = await createAgencyAction(undefined, formData);
+      setCreatingAgency(false);
+      if (result.agency) {
+        const agency = result.agency;
+        setAgencyOptions((current) =>
+          [...current, agency].sort((a, b) => a.name.localeCompare(b.name)),
+        );
+        update("hostAgencyId", agency.id);
+        setNewAgencyName("");
+      } else {
+        setAgencyError(result.error);
       }
     });
   }
@@ -408,6 +453,51 @@ export function ClassCreationWizard({
 
       {step === 3 ? (
         <section className="stack-form">
+          <div className="field">
+            <Label htmlFor="hostAgencyId">Host agency</Label>
+            <select
+              id="hostAgencyId"
+              className="select-input"
+              value={values.hostAgencyId}
+              onChange={(event) => update("hostAgencyId", event.target.value)}
+              required
+            >
+              <option value="">Select the reporting host agency</option>
+              {agencyOptions.map((agency) => (
+                <option key={agency.id} value={agency.id}>
+                  {agency.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {canCreateAgency ? (
+            <div className="inline-form">
+              <Label htmlFor="newAgencyName">Add a new agency</Label>
+              <Input
+                id="newAgencyName"
+                value={newAgencyName}
+                onChange={(event) => setNewAgencyName(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={createAgency}
+                disabled={creatingAgency || !newAgencyName.trim()}
+              >
+                {creatingAgency ? "Creating agency..." : "Add agency"}
+              </Button>
+            </div>
+          ) : null}
+          {agencyError ? (
+            <p className="form-error" role="alert">
+              {agencyError}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {step === 4 ? (
+        <section className="stack-form">
           <fieldset className="field">
             <legend>Reporting systems</legend>
             <div className="checkbox-list">
@@ -452,7 +542,7 @@ export function ClassCreationWizard({
         </section>
       ) : null}
 
-      {step === 4 ? (
+      {step === 5 ? (
         <section className="wizard-review">
           <h2>Review class</h2>
           <dl>
@@ -466,6 +556,8 @@ export function ClassCreationWizard({
             </dd>
             <dt>Delivery</dt>
             <dd>{values.deliveryMethod.replace("_", " ")}</dd>
+            <dt>Host agency</dt>
+            <dd>{selectedAgency?.name ?? "Not selected"}</dd>
             <dt>Lead instructor</dt>
             <dd>{selectedInstructor?.name}</dd>
             <dt>Reporting</dt>
@@ -483,6 +575,7 @@ export function ClassCreationWizard({
         name="trainingSiteId"
         value={values.trainingSiteId}
       />
+      <input type="hidden" name="hostAgencyId" value={values.hostAgencyId} />
       <input
         type="hidden"
         name="deliveryMethod"
@@ -517,11 +610,16 @@ export function ClassCreationWizard({
           </Button>
         ) : null}
         {step < steps.length - 1 ? (
-          <Button type="button" onClick={next} disabled={!validateStep()}>
+          <Button
+            key="wizard-next"
+            type="button"
+            onClick={next}
+            disabled={!validateStep()}
+          >
             Next
           </Button>
         ) : (
-          <Button type="submit" disabled={pending}>
+          <Button key="wizard-submit" type="submit" disabled={pending}>
             {pending ? "Creating class..." : "Create class"}
           </Button>
         )}

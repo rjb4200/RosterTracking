@@ -19,6 +19,7 @@ export function ClassForm({
   action,
   courses,
   sites,
+  agencies,
   reportingSystems,
   courseReportingDefaults,
   values,
@@ -29,6 +30,7 @@ export function ClassForm({
   ) => Promise<ActionState>;
   courses: Option[];
   sites: Option[];
+  agencies: Option[];
   reportingSystems: Option[];
   courseReportingDefaults: Array<{
     courseId: string;
@@ -38,6 +40,7 @@ export function ClassForm({
     id: string;
     courseId: string;
     trainingSiteId: string | null;
+    hostAgencyId: string | null;
     deliveryMethod: string;
     reportingSystemIds: string[];
     accessPinEnabled: boolean;
@@ -107,6 +110,25 @@ export function ClassForm({
             {sites.map((site) => (
               <option key={site.id} value={site.id}>
                 {site.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <Label htmlFor="hostAgencyId">Host agency</Label>
+          <select
+            id="hostAgencyId"
+            name="hostAgencyId"
+            className="select-input"
+            defaultValue={values?.hostAgencyId ?? ""}
+            required
+          >
+            <option value="" disabled>
+              Select the reporting host agency
+            </option>
+            {agencies.map((agency) => (
+              <option key={agency.id} value={agency.id}>
+                {agency.name}
               </option>
             ))}
           </select>

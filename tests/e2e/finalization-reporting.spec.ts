@@ -1,31 +1,18 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { Pool } from "pg";
+import { signIn } from "./support/auth";
+import { e2eDatabaseUrl } from "./support/database";
 
 const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
 const instructorUsername = process.env.E2E_INSTRUCTOR_USERNAME;
 const instructorPassword = process.env.E2E_INSTRUCTOR_PASSWORD;
-
-const databaseUrl =
-  process.env.E2E_DATABASE_URL ??
-  (process.env.E2E_USE_APPLICATION_DATABASE === "true"
-    ? process.env.DATABASE_URL
-    : process.env.TEST_DATABASE_URL);
+const databaseUrl = e2eDatabaseUrl();
 
 const FIXTURE_COURSE = "E2E Reporting Fixture Course";
 const FIXTURE_SITE = "E2E Reporting Fixture Site";
+const FIXTURE_AGENCY = "E2E Reporting Fixture Agency";
 const FIXTURE_USERNAME = "e2e-reporting-fixture";
-
-async function signIn(page: Page, username: string, password: string) {
-  await page.goto("/staff/login");
-  await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(
-    (url) =>
-      url.pathname.startsWith("/staff/") && url.pathname !== "/staff/login",
-  );
-}
 
 interface ReportingFixture {
   courseName: string;
@@ -74,6 +61,13 @@ async function seedReportingFixture(pool: Pool): Promise<ReportingFixture> {
     "insert into training_sites (name) values ($1) returning id",
     [FIXTURE_SITE],
   );
+  const agencyId = await ensureId(
+    pool,
+    "select id from agencies where name = $1 limit 1",
+    [FIXTURE_AGENCY],
+    "insert into agencies (name) values ($1) returning id",
+    [FIXTURE_AGENCY],
+  );
   const userId = await ensureId(
     pool,
     "select id from users where username = $1 limit 1",
@@ -85,9 +79,9 @@ async function seedReportingFixture(pool: Pool): Promise<ReportingFixture> {
     pool,
     "select id from classes where course_id = $1 order by created_at limit 1",
     [courseId],
-    `insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash)
-     values ($1, $2, $3, 'classroom', 'finalized', $4) returning id`,
-    [courseId, siteId, userId, FIXTURE_USERNAME],
+    `insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id)
+     values ($1, $2, $3, 'classroom', 'finalized', $4, $5) returning id`,
+    [courseId, siteId, userId, FIXTURE_USERNAME, agencyId],
   );
 
   const component = await pool.query<{ id: string }>(
@@ -195,17 +189,13 @@ test("reporting staff complete, defer, filter, and download destination work", a
     test.info().project.name !== "chromium",
     "Mutating reporting coverage runs once on chromium.",
   );
-  const usableDatabaseUrl =
-    databaseUrl && !databaseUrl.startsWith("postgresql://unused")
-      ? databaseUrl
-      : undefined;
   test.skip(
-    !username || !password || !usableDatabaseUrl,
-    "Set E2E staff credentials and an E2E database URL.",
+    !username || !password || !databaseUrl,
+    "Set E2E staff credentials and E2E_DATABASE_URL.",
   );
-  if (!username || !password || !usableDatabaseUrl) return;
+  if (!username || !password || !databaseUrl) return;
 
-  const pool = new Pool({ connectionString: usableDatabaseUrl, max: 1 });
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   let fixture: ReportingFixture | undefined;
   try {
     fixture = await seedReportingFixture(pool);

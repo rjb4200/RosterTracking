@@ -39,8 +39,12 @@ export function extractTrustedRequestMetadata(
   headers: Headers,
   correlationId: string = randomUUID(),
 ): TrustedRequestMetadata {
+  // `ipAddress` treats any input with a `headers` property as a request-like and
+  // reads through it. Next's `headers()` returns an adapter that exposes its own
+  // `headers` property, so pass an explicit request-like wrapper that always
+  // resolves to the headers object we were given.
   const trustedIpAddress =
-    ipAddress(headers) ??
+    ipAddress({ headers } as unknown as Headers) ??
     firstHeaderValue(headers.get("x-forwarded-for")) ??
     "unknown";
   return {

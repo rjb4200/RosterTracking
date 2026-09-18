@@ -50,9 +50,15 @@ Every spec signs in through one helper that waits until the navigation leaves th
 - A fast check for lint and static types, used after each edit; no database, no browser.
 - A combined `verify` covering lint, static types, unit tests, integration tests, and the production build. This is the per-change gate and stays free of browsers.
 - A `verify:full` that adds the browser suites.
-- A read-only browser check that walks critical pages and asserts they render without errors. It is a tagged subset of the browser suite, runs first in `verify:full`, and can also run alone against a database that is not reset because it never writes.
+- A browser check that walks critical pages and asserts they render without errors. It is a tagged subset of the browser suite, runs first in `verify:full`, and can also run alone against a database that is not reset because it creates no domain records. Signing in does record the usual staff login audit event and update the account's last-login timestamp; that authentication bookkeeping is expected and is not a domain write.
 
 Keeping the browser tiers out of `verify` was chosen over a single monolithic command so the common case stays fast and deterministic.
+
+### Give the wizard's step-advance and submit controls distinct identities
+
+The class wizard renders its action row as a single conditional: a `Next` button while steps remain, otherwise the `Create class` submit button. Both branches produce a `<button>` at the same position, so React reconciles onto one DOM node and only rewrites its `type` attribute. Advancing from the reporting step into the review step therefore turns the button the user just clicked from `type="button"` into `type="submit"` before the browser runs the click's default action, which submits the form and skips the review entirely.
+
+Give each button its own React identity so the node is replaced rather than mutated, and confirm with the end-to-end assertion that the review step appears before creation. Neutralizing the default action on the advance handler was considered as an alternative but treats the symptom: the DOM node would still be rewritten mid-click. The repaired browser suite is the regression guard, which is why this repair lives in this change.
 
 ### Warm up the compute before a suite
 
@@ -64,6 +70,7 @@ The reset step retries its initial connection once, because the suspended test c
 - [Test data drifts from production data] → Seeds are the intended baseline for test suites; if production-only data shapes behavior, that is a migration or seed gap to close in the repository.
 - [Integration and browser suites contend on the shared branch compute] → The combined commands run suites sequentially rather than concurrently.
 - [A read-only smoke check silently becomes mutating] → Keep mutating specs out of the smoke tag and review the tag when specs are added.
+- [The wizard fix is verified only by a browser test that a future refactor could delete] → Keep the review-step assertion in the creation spec so the regression stays covered.
 - [An extra database on one branch means a parent reset wipes both] → Documented; per-run resets make this recoverable.
 
 ## Migration Plan
