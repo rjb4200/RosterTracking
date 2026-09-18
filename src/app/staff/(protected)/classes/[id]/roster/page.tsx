@@ -71,12 +71,20 @@ export default async function ClassRosterPage({
           <p className="eyebrow">Instructor roster</p>
           <h1 className="staff-title">Live attendance</h1>
         </div>
-        <Link
-          href={`/staff/classes/${id}`}
-          className={buttonVariants({ variant: "outline" })}
-        >
-          Back to class
-        </Link>
+        <div className="admin-actions">
+          <Link
+            href={`/staff/classes/${id}/sign-in-record`}
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            Sign-in record
+          </Link>
+          <Link
+            href={`/staff/classes/${id}`}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Back to class
+          </Link>
+        </div>
       </div>
       <section className="admin-section">
         <h2>Active attendance ({roster.active.length})</h2>

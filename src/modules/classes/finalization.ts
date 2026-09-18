@@ -12,6 +12,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
+import { buildClassSignInRecord } from "@/modules/class-sign-in-record/service";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { encryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
@@ -267,13 +268,55 @@ export async function finalizeClass(
       .where(eq(finalizationRevisions.classId, classId));
     const next = nextRevision?.next ?? 1;
     const snapshot = await buildSnapshot(transaction, classId);
+    const revisionRows = await transaction
+      .select({
+        attendanceId: attendance.id,
+        studentId: attendance.studentId,
+        firstName: students.firstName,
+        lastName: students.lastName,
+        guestFirstName: classGuests.firstName,
+        guestLastName: classGuests.lastName,
+        agencyName: agencies.name,
+        creditedHours: attendance.creditedHours,
+        signedInAt: attendance.signedInAt,
+        removedAt: attendance.removedAt,
+        removalReason: attendance.removalReason,
+        removedBy: users.displayName,
+        signInMethod: attendanceAttestations.signInMethod,
+        renderedText: attendanceAttestations.renderedText,
+        textVersion: attendanceAttestations.textVersion,
+        confirmedAt: attendanceAttestations.confirmedAt,
+        originatingIp: attendanceAttestations.originatingIp,
+        rememberedDeviceId: attendanceAttestations.rememberedDeviceId,
+      })
+      .from(attendance)
+      .innerJoin(agencies, eq(agencies.id, attendance.agencyId))
+      .leftJoin(students, eq(students.id, attendance.studentId))
+      .leftJoin(classGuests, eq(classGuests.id, attendance.guestId))
+      .leftJoin(
+        attendanceAttestations,
+        eq(attendanceAttestations.attendanceId, attendance.id),
+      )
+      .leftJoin(users, eq(users.id, attendance.removedByUserId))
+      .where(eq(attendance.classId, classId))
+      .orderBy(asc(attendance.signedInAt));
+    const signInRecord = buildClassSignInRecord(revisionRows, {
+      classId,
+      courseName: snapshot.class.courseName,
+      siteName: snapshot.class.siteName,
+      hostAgencyName: snapshot.attendance[0]?.agencyName ?? "",
+      deliveryMethod: snapshot.class.deliveryMethod,
+      generatedAt: new Date(),
+    });
     const [revision] = await transaction
       .insert(finalizationRevisions)
       .values({
         classId,
         revisionNumber: next,
         finalizedByUserId: actor.id,
-        encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+        encryptedSnapshot: encryptCredential(
+          JSON.stringify({ ...snapshot, signInRecord }),
+        ),
         summary: {
           courseName: snapshot.class.courseName,
           completedAt: snapshot.class.completedAt,
