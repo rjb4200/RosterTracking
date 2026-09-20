@@ -13,6 +13,14 @@ export interface SignInFailureDiagnostics {
   hasCookieHeader?: boolean;
   cookieCount?: number;
   contextCookieCount?: number;
+  /** Cookie names present on the request. Names only, never values. */
+  cookieNames?: string[];
+  /** How the browser classified the request: same-origin, same-site, cross-site, or none. */
+  secFetchSite?: string;
+  secFetchMode?: string;
+  /** Origin and referrer hosts, which reveal where the request came from. */
+  originHost?: string;
+  refererHost?: string;
 }
 
 /**

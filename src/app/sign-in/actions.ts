@@ -111,7 +111,15 @@ async function missingContextDiagnostics(): Promise<SignInFailureDiagnostics> {
   const names = raw
     .split(";")
     .map((part) => part.split("=")[0]?.trim())
-    .filter(Boolean);
+    .filter((name): name is string => Boolean(name));
+  const hostOf = (value: string | null): string | undefined => {
+    if (!value) return undefined;
+    try {
+      return new URL(value).host;
+    } catch {
+      return undefined;
+    }
+  };
   return {
     host: requestHeaders.get("host") ?? undefined,
     hasCookieHeader: raw.length > 0,
@@ -119,6 +127,13 @@ async function missingContextDiagnostics(): Promise<SignInFailureDiagnostics> {
     contextCookieCount: names.filter(
       (name) => name === SIGN_IN_CONTEXT_COOKIE_NAME,
     ).length,
+    // The following fields diagnose why a browser did not send the context
+    // cookie. Names only: no cookie value, phone number, or personal value.
+    cookieNames: names,
+    secFetchSite: requestHeaders.get("sec-fetch-site") ?? undefined,
+    secFetchMode: requestHeaders.get("sec-fetch-mode") ?? undefined,
+    originHost: hostOf(requestHeaders.get("origin")),
+    refererHost: hostOf(requestHeaders.get("referer")),
   };
 }
 
