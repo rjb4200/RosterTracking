@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { normalizeCredentialValue } from "@/modules/reference/crypto";
 import { normalizePhone } from "@/modules/reference/masking";
@@ -15,6 +15,7 @@ import {
 import {
   MissingSignInContextError,
   OriginRejectedError,
+  type SignInFailureDiagnostics,
 } from "@/modules/student-sign-in/errors";
 import {
   classifyFailure,
@@ -88,13 +89,37 @@ async function requestContext() {
   }
   const cookieStore = await cookies();
   const signedContext = cookieStore.get(SIGN_IN_CONTEXT_COOKIE_NAME)?.value;
-  if (!signedContext) throw new MissingSignInContextError();
+  if (!signedContext) {
+    throw new MissingSignInContextError(await missingContextDiagnostics());
+  }
   const db = getDatabase();
   const [loaded, metadata] = await Promise.all([
     loadSignInWorkflow(db, signedContext),
     getTrustedRequestMetadata(),
   ]);
   return { cookieStore, db, loaded, metadata, signedContext };
+}
+
+/**
+ * Value-free description of the request when the sign-in context cookie is
+ * absent, so an operator can tell a browser that sent no cookies at all from
+ * one that sent cookies but not this one. Records no cookie values.
+ */
+async function missingContextDiagnostics(): Promise<SignInFailureDiagnostics> {
+  const requestHeaders = await headers();
+  const raw = requestHeaders.get("cookie") ?? "";
+  const names = raw
+    .split(";")
+    .map((part) => part.split("=")[0]?.trim())
+    .filter(Boolean);
+  return {
+    host: requestHeaders.get("host") ?? undefined,
+    hasCookieHeader: raw.length > 0,
+    cookieCount: names.length,
+    contextCookieCount: names.filter(
+      (name) => name === SIGN_IN_CONTEXT_COOKIE_NAME,
+    ).length,
+  };
 }
 
 async function acquireLimits(
@@ -142,6 +167,10 @@ function logActionFailure(input: {
     failureKind: classifyFailure(input.error),
     route: input.route,
     classId: input.classId ?? null,
+    diagnostics:
+      input.error instanceof MissingSignInContextError
+        ? input.error.diagnostics
+        : undefined,
   });
 }
 

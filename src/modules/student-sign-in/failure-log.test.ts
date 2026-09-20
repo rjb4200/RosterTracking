@@ -43,4 +43,45 @@ describe("sign-in failure logging", () => {
     expect(origin).not.toBe("UnhandledError");
     expect(context).not.toBe("UnhandledError");
   });
+
+  it("includes value-free diagnostics when supplied", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logSignInFailure({
+      correlationId: "corr-2",
+      failureKind: "MissingSignInContextError",
+      route: "/sign-in lookupCurrentPhone",
+      diagnostics: {
+        host: "rosters.winchesterfireems.com",
+        hasCookieHeader: true,
+        cookieCount: 2,
+        contextCookieCount: 0,
+      },
+    });
+    const payload = JSON.parse(spy.mock.calls[0]?.[0] as string);
+    expect(payload.diagnostics).toEqual({
+      host: "rosters.winchesterfireems.com",
+      hasCookieHeader: true,
+      cookieCount: 2,
+      contextCookieCount: 0,
+    });
+    spy.mockRestore();
+  });
+
+  it("omits diagnostics when absent", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logSignInFailure({
+      correlationId: "corr-3",
+      failureKind: "UnhandledError",
+      route: "/sign-in",
+    });
+    const payload = JSON.parse(spy.mock.calls[0]?.[0] as string);
+    expect(payload).not.toHaveProperty("diagnostics");
+    spy.mockRestore();
+  });
+
+  it("carries diagnostics on the missing-context error", () => {
+    const error = new MissingSignInContextError({ cookieCount: 0 });
+    expect(error.diagnostics).toEqual({ cookieCount: 0 });
+    expect(new MissingSignInContextError().diagnostics).toBeUndefined();
+  });
 });

@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SignInFailureDiagnostics } from "./errors";
+
 /**
  * Structured, sanitized failure logging for the public sign-in surface.
  *
@@ -12,6 +14,7 @@ export interface SignInFailureInput {
   failureKind: string;
   route: string;
   classId?: string | null;
+  diagnostics?: SignInFailureDiagnostics;
 }
 
 export function logSignInFailure(input: SignInFailureInput): void {
@@ -21,6 +24,7 @@ export function logSignInFailure(input: SignInFailureInput): void {
     failureKind: input.failureKind,
     route: input.route,
     classId: input.classId ?? null,
+    ...(input.diagnostics ? { diagnostics: input.diagnostics } : {}),
   };
   console.error(JSON.stringify(entry));
 }
