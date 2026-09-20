@@ -13,6 +13,10 @@ import {
   signInCookieOptions,
 } from "@/modules/student-sign-in/context";
 import {
+  classifyFailure,
+  logSignInFailure,
+} from "@/modules/student-sign-in/failure-log";
+import {
   clearRecoveryForNotMe,
   confirmRecognizedStudent,
   recognizeStudent,
@@ -118,13 +122,36 @@ async function recordFailures(
   );
 }
 
+/**
+ * Records a sanitized, correlation-identified log entry for a public action
+ * failure. Only a correlation id, a coarse failure kind, the route, and the
+ * class id are logged; never phones, tokens, or credential values.
+ */
+function logActionFailure(input: {
+  correlationId: string;
+  route: string;
+  error: unknown;
+  classId?: string | null;
+}) {
+  logSignInFailure({
+    correlationId: input.correlationId,
+    failureKind: classifyFailure(input.error),
+    route: input.route,
+    classId: input.classId ?? null,
+  });
+}
+
 export async function lookupCurrentPhone(formData: FormData) {
   let destination = GENERIC_ERROR;
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const submittedPhone = text(formData, "phone");
     const limit = await acquireLimits(context, [
       { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
@@ -159,7 +186,13 @@ export async function lookupCurrentPhone(formData: FormData) {
         destination = "/sign-in?notice=not-found";
       }
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in lookupCurrentPhone",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -169,9 +202,13 @@ export async function recoverChangedPhone(formData: FormData) {
   let destination = "/sign-in?step=recovery&notice=recovery";
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const newPhone = context.loaded.state.pendingNewPhone;
     const submittedPriorPhone = text(formData, "priorPhone");
     const credentialType = text(formData, "credentialType");
@@ -222,7 +259,13 @@ export async function recoverChangedPhone(formData: FormData) {
         destination = "/sign-in";
       }
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in recoverChangedPhone",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -232,9 +275,13 @@ export async function confirmProfile() {
   let destination = GENERIC_ERROR;
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const participant = context.loaded.state.participant;
     if (participant?.kind !== "regular")
       throw new Error("Profile unavailable.");
@@ -259,7 +306,13 @@ export async function confirmProfile() {
       );
       destination = "/sign-in";
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in confirmProfile",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -269,9 +322,13 @@ export async function confirmRecognizedSignIn(formData: FormData) {
   let destination = GENERIC_ERROR;
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const participant = context.loaded.state.participant;
     if (participant?.kind !== "regular")
       throw new Error("Participant unavailable.");
@@ -322,7 +379,13 @@ export async function confirmRecognizedSignIn(formData: FormData) {
       });
       destination = confirmationDestination(result.status);
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in confirmRecognizedSignIn",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -332,9 +395,13 @@ export async function notMe() {
   let destination = GENERIC_ERROR;
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const limit = await acquireLimits(context, [
       { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
     ]);
@@ -360,7 +427,13 @@ export async function notMe() {
       );
       destination = "/sign-in";
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in notMe",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -376,9 +449,13 @@ export async function saveRegularDetails(formData: FormData) {
   let destination = REQUIRED_ERROR;
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const limit = await acquireLimits(context, [
       { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
     ]);
@@ -393,7 +470,13 @@ export async function saveRegularDetails(formData: FormData) {
       });
       destination = "/sign-in";
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in saveRegularDetails",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -403,9 +486,13 @@ export async function saveGuestDetails(formData: FormData) {
   let destination = "/sign-in?step=guest&notice=required";
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const limit = await acquireLimits(context, [
       { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
     ]);
@@ -422,7 +509,13 @@ export async function saveGuestDetails(formData: FormData) {
       });
       destination = "/sign-in";
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in saveGuestDetails",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);
@@ -433,9 +526,13 @@ export async function confirmSignIn() {
   let result: AttendanceConfirmationResult | undefined;
   let db: ReturnType<typeof getDatabase> | undefined;
   let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
   try {
     const context = await requestContext();
     db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
     const participant = context.loaded.state.participant;
     if (!participant) throw new Error("Participant unavailable.");
     const operation =
@@ -468,7 +565,13 @@ export async function confirmSignIn() {
       });
       destination = confirmationDestination(result.status);
     }
-  } catch {
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in confirmSignIn",
+      error,
+      classId,
+    });
     if (db) await recordFailures(db, leases);
   }
   redirect(destination);

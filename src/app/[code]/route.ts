@@ -9,6 +9,10 @@ import {
   TOKENLESS_SIGN_IN_PATH,
 } from "@/modules/student-sign-in/context";
 import {
+  classifyFailure,
+  logSignInFailure,
+} from "@/modules/student-sign-in/failure-log";
+import {
   recognizeStudent,
   stagePendingRecognizedStudent,
 } from "@/modules/student-sign-in/identification";
@@ -41,78 +45,99 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ code: string }> },
 ) {
-  const { code } = await params;
-  if (!isClassPublicCode(code)) return unavailable(request);
-
-  const db = getDatabase();
-  const resolved = await resolveOpenClassPublicCode(db, code);
-  if (!resolved) return unavailable(request);
-  if (resolved.accessPinEnabled) {
-    const response = NextResponse.redirect(
-      new URL(`/sign-in/pin/${code}`, request.url),
-    );
-    response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
-    return response;
-  }
-
   const metadata = await getTrustedRequestMetadata(request);
-  const [lease, stagingLease] = await Promise.all([
-    acquirePublicRateLimit(db, {
-      classId: resolved.id,
-      operation: PUBLIC_RATE_LIMIT_OPERATIONS.WORKFLOW_CREATION,
-      requestSourceFingerprint: metadata.requestSourceFingerprint,
-    }),
-    acquirePublicRateLimit(db, {
-      classId: resolved.id,
-      operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE,
-      requestSourceFingerprint: metadata.requestSourceFingerprint,
-    }),
-  ]);
-  if (!lease.allowed || !stagingLease.allowed) return unavailable(request);
-
-  const rememberedToken = request.cookies.get(
-    REMEMBERED_DEVICE_COOKIE_NAME,
-  )?.value;
-  let recognition: Awaited<ReturnType<typeof recognizeStudent>> = {
-    status: "recovery_or_guest",
-  };
+  let classId: string | null = null;
   try {
-    recognition = rememberedToken
-      ? await recognizeStudent(db, { rememberedToken })
-      : recognition;
-    const initialState =
-      recognition.status === "identified"
-        ? stagePendingRecognizedStudent(emptySignInWorkflowState(), recognition)
-        : emptySignInWorkflowState();
-    const workflow = await createWorkflowFromOpenClass(
-      db,
-      resolved.id,
-      resolved.signInTokenVersion,
-      initialState,
-    );
-    if (!workflow) throw new Error("Workflow unavailable.");
-    const response = NextResponse.redirect(
-      new URL(TOKENLESS_SIGN_IN_PATH, request.url),
-    );
-    response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
-    response.cookies.set(
-      SIGN_IN_CONTEXT_COOKIE_NAME,
-      workflow.token,
-      signInCookieOptions(),
-    );
-    if (rememberedToken && recognition.status !== "identified") {
-      response.cookies.set(
-        REMEMBERED_DEVICE_COOKIE_NAME,
-        "",
-        rememberedDeviceCookieOptions(0),
+    const { code } = await params;
+    if (!isClassPublicCode(code)) return unavailable(request);
+
+    const db = getDatabase();
+    const resolved = await resolveOpenClassPublicCode(db, code);
+    if (!resolved) return unavailable(request);
+    classId = resolved.id;
+    if (resolved.accessPinEnabled) {
+      const response = NextResponse.redirect(
+        new URL(`/sign-in/pin/${code}`, request.url),
       );
+      response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
+      return response;
     }
-    return response;
-  } catch {
-    await Promise.all([
-      recordPublicRateLimitFailure(db, lease),
-      recordPublicRateLimitFailure(db, stagingLease),
+
+    const [lease, stagingLease] = await Promise.all([
+      acquirePublicRateLimit(db, {
+        classId: resolved.id,
+        operation: PUBLIC_RATE_LIMIT_OPERATIONS.WORKFLOW_CREATION,
+        requestSourceFingerprint: metadata.requestSourceFingerprint,
+      }),
+      acquirePublicRateLimit(db, {
+        classId: resolved.id,
+        operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE,
+        requestSourceFingerprint: metadata.requestSourceFingerprint,
+      }),
     ]);
+    if (!lease.allowed || !stagingLease.allowed) return unavailable(request);
+
+    const rememberedToken = request.cookies.get(
+      REMEMBERED_DEVICE_COOKIE_NAME,
+    )?.value;
+    let recognition: Awaited<ReturnType<typeof recognizeStudent>> = {
+      status: "recovery_or_guest",
+    };
+    try {
+      recognition = rememberedToken
+        ? await recognizeStudent(db, { rememberedToken })
+        : recognition;
+      const initialState =
+        recognition.status === "identified"
+          ? stagePendingRecognizedStudent(
+              emptySignInWorkflowState(),
+              recognition,
+            )
+          : emptySignInWorkflowState();
+      const workflow = await createWorkflowFromOpenClass(
+        db,
+        resolved.id,
+        resolved.signInTokenVersion,
+        initialState,
+      );
+      if (!workflow) throw new Error("Workflow unavailable.");
+      const response = NextResponse.redirect(
+        new URL(TOKENLESS_SIGN_IN_PATH, request.url),
+      );
+      response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
+      response.cookies.set(
+        SIGN_IN_CONTEXT_COOKIE_NAME,
+        workflow.token,
+        signInCookieOptions(),
+      );
+      if (rememberedToken && recognition.status !== "identified") {
+        response.cookies.set(
+          REMEMBERED_DEVICE_COOKIE_NAME,
+          "",
+          rememberedDeviceCookieOptions(0),
+        );
+      }
+      return response;
+    } catch (error) {
+      logSignInFailure({
+        correlationId: metadata.requestCorrelationId,
+        failureKind: classifyFailure(error),
+        route: "/[code]",
+        classId,
+      });
+      await Promise.all([
+        recordPublicRateLimitFailure(db, lease),
+        recordPublicRateLimitFailure(db, stagingLease),
+      ]);
+      return unavailable(request);
+    }
+  } catch (error) {
+    logSignInFailure({
+      correlationId: metadata.requestCorrelationId,
+      failureKind: classifyFailure(error),
+      route: "/[code]",
+      classId,
+    });
     return unavailable(request);
   }
 }

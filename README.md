@@ -107,6 +107,7 @@ See `docs/verification.md` for the tiers, the reset behavior, and the production
 - Set these in the Vercel project dashboard:
   - `DATABASE_URL` — Neon connection string for the running application.
   - `AUTH_SECRET` — cookie encryption secret for staff login.
+  - `CREDENTIAL_ENCRYPTION_KEY` — **required**; encrypts stored FFN/KEMSIS credentials, staged sign-in state, and class access PINs. It must match the key the data was written with. Back it up: losing it makes stored credentials and PINs unreadable, and no code change can recover them.
   - `NEXTAUTH_URL` — optional; set to the production URL if NextAuth logs origin warnings.
   - `RESEND_API_KEY` — server-only Resend key after verifying `noreply@winchesterfireems.com`.
 - Do **not** add `DATABASE_URL_DIRECT`, `TEST_DATABASE_URL`, or the `ADMIN_*` variables to Vercel; those are local/CI only.
@@ -114,5 +115,26 @@ See `docs/verification.md` for the tiers, the reset behavior, and the production
 - Apply reviewed migrations through CI or an explicit release step before deploying schema-dependent code.
 - Keep the runtime pool small and monitor aggregate Neon connections.
 - Do not run migrations automatically from a Vercel Function.
+
+### Credential key health
+
+`CREDENTIAL_ENCRYPTION_KEY` is the single most dangerous value to get wrong. If it is missing, malformed, or replaced with a different key, class access PINs and stored credentials silently stop decrypting, and students see "sign-in unavailable" with no explanation.
+
+Check it at any time as an authenticated staff member:
+
+```text
+GET /api/staff/key-health
+200 { "healthy": true,  "probeOk": true,  "openClassPinOk": true,  "message": "Credential key is healthy." }
+503 { "healthy": false, "probeOk": true,  "openClassPinOk": false, "message": "Stored credentials and PINs cannot be read. Verify CREDENTIAL_ENCRYPTION_KEY matches the key used when the data was written." }
+```
+
+`probeOk` false means the key itself is unusable (missing or not 32 base64-encoded bytes). `openClassPinOk` false while `probeOk` is true means the key works but does not match the key that wrote the stored data — the classic rotated-key fault.
+
+**Operator response when key health fails:**
+
+1. A `probeOk: false` result is a deployment fault. Restore the correct `CREDENTIAL_ENCRYPTION_KEY` value from the backup and redeploy.
+2. An `openClassPinOk: false` result means the running key differs from the historical key. **Do not** simply accept it: stored credentials and finalized attendance snapshots encrypted with the old key remain unreadable.
+3. Recovering rotated-key data requires the original key. Per `ARCHITECTURE.md`, rotating the credential key needs a planned, versioned migration that re-encrypts existing values while the old key is still available. Replacing the environment value alone is not a rotation.
+4. Until it is resolved, read-only probes and the startup warning will keep reporting the fault, and PIN-gated classes cannot be entered. Classes without a PIN still work, but credential recovery and official roster PDFs that read encrypted snapshots will not.
 
 Production launch also requires Neon point-in-time recovery, scheduled snapshots, separate logical exports, backup alerts, and a tested restoration procedure. See `ARCHITECTURE.md` and `ROADMAP.md` for durable design decisions and phased work.

@@ -28,6 +28,39 @@ test.describe("@smoke critical pages render", () => {
     await expectNoRenderError(page);
   });
 
+  test("no framework error text appears on public entry paths", async ({
+    page,
+  }) => {
+    for (const path of [
+      "/sign-in",
+      "/sign-in?status=unavailable",
+      "/sign-in?step=guest",
+      "/sign-in/not-a-real-token",
+      "/ZZZZ",
+    ]) {
+      const response = await page.goto(path);
+      expect(response?.status() ?? 200).toBeLessThan(500);
+      await expect(
+        page.getByText(
+          /application error|server-side exception|unhandled runtime error|internal server error|this page couldn't load/i,
+        ),
+      ).toHaveCount(0);
+    }
+  });
+
+  test("credential key health is reported to staff", async ({ page }) => {
+    test.skip(!username || !password, "Set E2E staff credentials.");
+    if (!username || !password) return;
+
+    await signIn(page, username, password);
+    const response = await page.request.get("/api/staff/key-health");
+    expect([200, 503]).toContain(response.status());
+    const report = await response.json();
+    expect(report).toHaveProperty("probeOk");
+    expect(report).toHaveProperty("healthy");
+    expect(report).toHaveProperty("message");
+  });
+
   test("staff workspace and class list render", async ({ page }) => {
     test.skip(!username || !password, "Set E2E staff credentials.");
     if (!username || !password) return;
