@@ -37,6 +37,8 @@ export interface EstablishSignInContextInput {
   publicCode?: string;
   /** The requested raw sign-in token, when the visitor came through a token link. */
   rawToken?: string;
+  /** Server-only proof returned by verifyOpenClassAccessPin, never request data. */
+  verifiedPinAccess?: { id: string; signInTokenVersion: number };
   metadata: Awaited<ReturnType<typeof getTrustedRequestMetadata>>;
 }
 
@@ -45,13 +47,8 @@ export type EstablishSignInContextResult =
   | { status: "unavailable" };
 
 /**
- * Establishes the student sign-in context for a first-party sign-in page load.
- *
- * The entry routes hand the class reference to this route rather than setting
- * the context cookie themselves: a cookie set on a response to a cross-site
- * navigation is a third-party cookie, and `SameSite=Lax` is not accepted in that
- * context, so the browser discards it. Establishing it here, on a first-party
- * page response, survives a cross-site arrival.
+ * Establishes the student sign-in context for an intentional class entry.
+ * Call only from a route handler or server action that can write cookies.
  *
  * Minting is idempotent: a valid existing context for the same class is reused so
  * a reload does not discard the visitor's progress.
@@ -168,12 +165,21 @@ async function resolveRequestedClass(
 ): Promise<{ classId: string; tokenVersion: number } | null> {
   if (input.publicCode && isClassPublicCode(input.publicCode)) {
     const resolved = await resolveOpenClassPublicCode(db, input.publicCode);
+    if (
+      resolved?.accessPinEnabled &&
+      (input.verifiedPinAccess?.id !== resolved.id ||
+        input.verifiedPinAccess.signInTokenVersion !==
+          resolved.signInTokenVersion)
+    ) {
+      return null;
+    }
     return resolved
       ? { classId: resolved.id, tokenVersion: resolved.signInTokenVersion }
       : null;
   }
   if (input.rawToken) {
     const resolved = await resolveOpenClassToken(db, input.rawToken);
+    if (resolved?.accessPinEnabled) return null;
     return resolved
       ? { classId: resolved.id, tokenVersion: resolved.signInTokenVersion }
       : null;

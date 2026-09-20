@@ -2,9 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { resolveOpenClassToken } from "@/modules/classes/services";
 import {
-  SIGN_IN_CONTEXT_COOKIE_NAME,
   SIGN_IN_REFERRER_POLICY,
-  signInCookieOptions,
   TOKENLESS_SIGN_IN_PATH,
 } from "@/modules/student-sign-in/context";
 import {
@@ -19,10 +17,7 @@ export const dynamic = "force-dynamic";
 function redirect(request: NextRequest, path: string) {
   const response = NextResponse.redirect(new URL(path, request.url));
   response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
-  // Clear any sign-in context a browser stored during a previous release. The
-  // context is now established on the first-party sign-in page, and a stale
-  // value must not shadow the freshly minted one.
-  response.cookies.set(SIGN_IN_CONTEXT_COOKIE_NAME, "", signInCookieOptions(0));
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
 

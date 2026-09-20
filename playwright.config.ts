@@ -5,6 +5,7 @@ loadDotenv({ path: ".env" });
 
 const e2ePort = 3100;
 const e2eBaseUrl = `http://localhost:${e2ePort}`;
+const production = process.env.E2E_PRODUCTION === "1";
 // The browser suite only ever talks to the dedicated end-to-end database.
 // Run `npm run db:reset:e2e` to prepare it (see docs/verification.md).
 const e2eDatabaseUrl =
@@ -26,7 +27,10 @@ export default defineConfig({
     { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: `npm run dev -- --port ${e2ePort}`,
+    command: production
+      ? `npm run build && npm run start -- --port ${e2ePort}`
+      : `npm run dev -- --port ${e2ePort}`,
+    timeout: production ? 180_000 : 60_000,
     url: e2eBaseUrl,
     reuseExistingServer: false,
     env: {
@@ -39,6 +43,7 @@ export default defineConfig({
       DATABASE_URL: e2eDatabaseUrl,
       DATABASE_URL_DIRECT: e2eDatabaseUrl,
       NEXTAUTH_URL: e2eBaseUrl,
+      VERCEL_PROJECT_PRODUCTION_URL: `localhost:${e2ePort}`,
       CREDENTIAL_ENCRYPTION_KEY:
         process.env.CREDENTIAL_ENCRYPTION_KEY ??
         "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",

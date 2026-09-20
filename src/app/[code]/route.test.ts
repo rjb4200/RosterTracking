@@ -46,7 +46,7 @@ describe("class entry route", () => {
     expect(location).toContain("class=H4CX");
   });
 
-  it("does not set a usable sign-in context cookie", async () => {
+  it("does not write a sign-in context cookie on entry", async () => {
     resolveOpenClassPublicCode.mockResolvedValue({
       id: "class-1",
       signInTokenVersion: 1,
@@ -61,13 +61,10 @@ describe("class entry route", () => {
     const contextCookie = response.headers
       .getSetCookie()
       .find((c) => c.startsWith(`${CONTEXT}=`));
-    // Any context cookie must carry an empty value, never a signed token.
-    expect(contextCookie).toBeDefined();
-    const value = contextCookie?.split(";")[0]?.slice(CONTEXT.length + 1);
-    expect(value).toBe("");
+    expect(contextCookie).toBeUndefined();
   });
 
-  it("clears any legacy context cookie", async () => {
+  it("does not clear an existing session during a speculative entry request", async () => {
     resolveOpenClassPublicCode.mockResolvedValue({
       id: "class-1",
       signInTokenVersion: 1,
@@ -75,15 +72,20 @@ describe("class entry route", () => {
     });
 
     const response = await GET(
-      request("https://example.test/H4CX"),
+      new Request("https://example.test/H4CX", {
+        headers: {
+          cookie: `${CONTEXT}=existing-session`,
+          "next-router-prefetch": "1",
+        },
+      }) as never,
       params("H4CX"),
     );
 
     const contextCookie = response.headers
       .getSetCookie()
       .find((c) => c.startsWith(`${CONTEXT}=`));
-    expect(contextCookie).toBeDefined();
-    expect(contextCookie).toMatch(/Max-Age=0/i);
+    expect(contextCookie).toBeUndefined();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
   it("sends an inactive or unknown code to the generic unavailable response", async () => {

@@ -7,6 +7,7 @@ import {
   verifyOpenClassAccessPin,
 } from "@/modules/classes/services";
 import { isClassAccessPin, isClassPublicCode } from "@/modules/classes/token";
+import { establishSignInContext } from "@/modules/student-sign-in/establish-context";
 import {
   classifyFailure,
   logSignInFailure,
@@ -65,10 +66,14 @@ export async function submitAccessPin(formData: FormData) {
       await recordPublicRateLimitFailure(db, lease);
       redirect(INVALID(code));
     }
-    // Hand the class reference to the first-party context route, which
-    // establishes the sign-in context on its own response and then redirects
-    // to the clean sign-in page.
-    destination = `/sign-in/establish?class=${encodeURIComponent(code)}`;
+    // Establish here so proof of PIN verification stays on the server. The
+    // public GET endpoint cannot grant access to a PIN-protected class.
+    const established = await establishSignInContext(db, {
+      publicCode: code,
+      verifiedPinAccess: verified,
+      metadata,
+    });
+    if (established.status === "established") destination = "/sign-in";
   } catch (error) {
     // redirect() throws a control-flow signal; let it propagate untouched.
     if (isRedirect(error)) throw error;

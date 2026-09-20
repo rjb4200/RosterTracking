@@ -14,14 +14,20 @@ export const dynamic = "force-dynamic";
  * Establishes the student sign-in context and redirects to the clean sign-in
  * page.
  *
- * This is a route handler rather than page logic because a cookie can only be
- * set on a response, and setting it during a Server Component render is not
- * supported. The entry routes hand the class reference here instead of setting
- * the cookie themselves: a cookie set on a response to a cross-site navigation
- * is a third-party cookie, and `SameSite=Lax` is not accepted in that context,
- * so the browser discards it. This response is first-party, so it is stored.
+ * Cookies must be written in a route handler or action, not during page render.
+ * Speculative prefetches must never create or replace a student's session.
  */
 export async function GET(request: NextRequest) {
+  if (
+    request.headers.has("next-router-prefetch") ||
+    request.headers.get("purpose")?.toLowerCase().includes("prefetch") ||
+    request.headers.get("sec-purpose")?.toLowerCase().includes("prefetch")
+  ) {
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
   const publicCode = request.nextUrl.searchParams.get("class") ?? undefined;
   const rawToken = request.nextUrl.searchParams.get("token") ?? undefined;
 
@@ -37,5 +43,6 @@ export async function GET(request: NextRequest) {
       : `${TOKENLESS_SIGN_IN_PATH}?status=unavailable`;
   const response = NextResponse.redirect(new URL(destination, request.url));
   response.headers.set("Referrer-Policy", SIGN_IN_REFERRER_POLICY);
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

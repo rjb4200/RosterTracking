@@ -84,6 +84,10 @@ any spec navigates.
 Specs that mutate shared data run once on the `chromium` project; the rest run on
 both `chromium` and `mobile-chrome`.
 
+By default the suite runs against `next dev`. Set `E2E_PRODUCTION=1` to build and
+serve a production bundle instead, which is required to reproduce behavior that
+only appears with production cookie, prefetch, and caching semantics.
+
 ## Known issues
 
 - The class creation wizard's action row overlaps the step content on a narrow

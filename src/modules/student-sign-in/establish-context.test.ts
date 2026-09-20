@@ -89,6 +89,47 @@ beforeEach(() => {
 });
 
 describe("establishSignInContext", () => {
+  it("rejects direct public-code access to a PIN-protected class", async () => {
+    resolveOpenClassPublicCode.mockResolvedValue({
+      id: "class-1",
+      signInTokenVersion: 1,
+      accessPinEnabled: true,
+    });
+    expect(
+      await establishSignInContext(db, { publicCode: "H4CX", metadata }),
+    ).toEqual({ status: "unavailable" });
+    expect(cookieSet).not.toHaveBeenCalled();
+  });
+
+  it("rejects direct token access to a PIN-protected class", async () => {
+    resolveOpenClassToken.mockResolvedValue({
+      id: "class-1",
+      signInTokenVersion: 1,
+      accessPinEnabled: true,
+    });
+    expect(
+      await establishSignInContext(db, { rawToken: "raw-token", metadata }),
+    ).toEqual({ status: "unavailable" });
+    expect(cookieSet).not.toHaveBeenCalled();
+  });
+
+  it("establishes a PIN-protected context after server-side verification", async () => {
+    resolveOpenClassPublicCode.mockResolvedValue({
+      id: "class-1",
+      signInTokenVersion: 1,
+      accessPinEnabled: true,
+    });
+    createWorkflowFromOpenClass.mockResolvedValue({ token: "verified.token" });
+    expect(
+      await establishSignInContext(db, {
+        publicCode: "H4CX",
+        verifiedPinAccess: { id: "class-1", signInTokenVersion: 1 },
+        metadata,
+      }),
+    ).toEqual({ status: "established", classId: "class-1" });
+    expect(cookieStore.get("roster_sign_in_context")).toBe("verified.token");
+  });
+
   it("mints a context on a first-party load and sets the cookie", async () => {
     resolveOpenClassPublicCode.mockResolvedValue({
       id: "class-1",

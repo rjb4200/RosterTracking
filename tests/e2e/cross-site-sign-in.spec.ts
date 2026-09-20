@@ -66,19 +66,19 @@ test("a cross-site arrival still receives a usable sign-in context", async ({
   context,
   baseURL,
 }) => {
-  test.skip(
-    test.info().project.name !== "chromium",
-    "Cross-site arrival coverage runs once on chromium.",
-  );
   const connectionString = e2eDatabaseUrl();
   test.skip(!connectionString, "Set E2E_DATABASE_URL.");
   if (!connectionString || !baseURL) return;
 
   const fixture = await createOpenClassFixture(connectionString);
 
-  // Arrive the way a real student does: navigate from another origin, then
-  // follow the class link. A cookie set on a cross-site redirect is a
-  // third-party cookie and is discarded, which is the regression this covers.
+  // Arrive from an external page as a student following a shared link would.
+  await page.route("https://example.com/", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<html><body></body></html>",
+    }),
+  );
   await page.goto("https://example.com", { waitUntil: "domcontentloaded" });
   await page.evaluate((href) => {
     const anchor = document.createElement("a");
@@ -88,7 +88,7 @@ test("a cross-site arrival still receives a usable sign-in context", async ({
     anchor.click();
   }, new URL(`/${fixture.publicCode}`, baseURL).toString());
 
-  await expect(page).toHaveURL(/\/sign-in/);
+  await expect(page).toHaveURL(/\/sign-in$/);
 
   // The context must be established on the first-party page response.
   const contextCookie = (await context.cookies()).find(
@@ -129,11 +129,7 @@ test("the entry redirect does not issue a usable sign-in context", async ({
   });
 
   const setCookie = response.headers()["set-cookie"] ?? "";
-  if (setCookie.includes(`${CONTEXT_COOKIE}=`)) {
-    // Any context cookie on the entry redirect must be a clearing one.
-    expect(setCookie).toMatch(new RegExp(`${CONTEXT_COOKIE}=;`));
-    expect(setCookie).toMatch(/Max-Age=0/i);
-  }
+  expect(setCookie).not.toContain(`${CONTEXT_COOKIE}=`);
   // The entry redirect must lead to the first-party context route.
   expect(response.headers().location ?? "").toContain("/sign-in/establish");
 });

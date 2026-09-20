@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { Pool } from "pg";
 
+import { encryptClassAccessPin } from "../../src/modules/classes/token";
 import { e2eDatabaseUrl } from "./support/database";
 
 const token = process.env.E2E_CLASS_SIGN_IN_TOKEN;
@@ -21,7 +22,7 @@ function generatePublicCode(): string {
 
 async function createRememberedFixture(
   connectionString: string,
-  options: { requireFfn?: boolean } = {},
+  options: { requireFfn?: boolean; pin?: string } = {},
 ) {
   const pool = new Pool({ connectionString, max: 1 });
   const suffix = crypto.randomUUID();
@@ -34,6 +35,7 @@ async function createRememberedFixture(
   const agencyName = `Remembered Agency ${suffix}`;
   const token = `${crypto.randomUUID()}${crypto.randomUUID()}`;
   const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+  const classToken = `${crypto.randomUUID()}${crypto.randomUUID()}`;
 
   const course = await pool.query<{ id: string }>(
     "insert into courses (name) values ($1) returning id",
@@ -57,7 +59,7 @@ async function createRememberedFixture(
       course.rows[0]?.id,
       site.rows[0]?.id,
       owner.rows[0]?.id,
-      crypto.randomUUID(),
+      createHash("sha256").update(classToken).digest("hex"),
       code,
       agency.rows[0]?.id,
     ],
@@ -74,6 +76,12 @@ async function createRememberedFixture(
     "insert into remembered_devices (student_id, token_hash, expires_at, created_at) values ($1, $2, now() + interval '30 days', now() - interval '5 minutes')",
     [student.rows[0]?.id, tokenHash],
   );
+  if (options.pin) {
+    await pool.query(
+      "update classes set access_pin_enabled = true, access_pin_encrypted = $2 where id = $1",
+      [classRecord.rows[0]?.id, encryptClassAccessPin(options.pin)],
+    );
+  }
   if (options.requireFfn) {
     const system = await pool.query<{ id: string }>(
       "select rs.id from reporting_systems rs join reporting_requirement_sets rrs on rrs.reporting_system_id = rs.id and rrs.is_active = true where rs.is_active = true and rs.code = 'fire' limit 1",
@@ -92,6 +100,8 @@ async function createRememberedFixture(
     classId: classRecord.rows[0]?.id,
     studentId: student.rows[0]?.id,
     token,
+    classToken,
+    phone,
   };
 }
 
@@ -106,10 +116,6 @@ async function addRememberedCookie(page: Page, value: string) {
 test("regular student without agency memberships can complete sign-in", async ({
   page,
 }) => {
-  test.skip(
-    test.info().project.name !== "chromium",
-    "Mutating sign-in coverage runs once on chromium.",
-  );
   const connectionString = e2eDatabaseUrl();
   test.skip(!connectionString, "Set E2E_DATABASE_URL.");
   if (!connectionString) return;
@@ -158,8 +164,33 @@ test("regular student without agency memberships can complete sign-in", async ({
   );
   await pool.end();
 
-  await page.goto(`/${code}`);
+  const backgroundEntries: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (/^\/[A-Z2-9]{4}(\.rsc)?$/.test(path) || path === "/sign-in/establish") {
+      backgroundEntries.push(path);
+    }
+  });
+  await page.goto("/");
+  // Give production Link prefetching a chance to run before choosing a class.
+  await page.waitForTimeout(1500);
+  expect(backgroundEntries).toEqual([]);
+  await page
+    .getByRole("listitem")
+    .filter({
+      has: page.getByRole("heading", { name: `Sign-in Course ${suffix}` }),
+    })
+    .getByRole("link", { name: "Student sign-in" })
+    .click();
   await expect(page).toHaveURL(/\/sign-in$/);
+  const session = (await page.context().cookies()).find(
+    (cookie) => cookie.name === "roster_sign_in_context",
+  );
+  expect(session).toBeDefined();
+  const payload = JSON.parse(
+    Buffer.from(session?.value.split(".")[0] ?? "", "base64url").toString(),
+  );
+  expect(payload.classId).toBe(classRecord.rows[0]?.id);
   await page.getByLabel("Current phone number").fill(phone);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Is this you?")).toBeVisible();
@@ -185,10 +216,6 @@ test("regular student without agency memberships can complete sign-in", async ({
 test("remembered device confirms attendance in one action", async ({
   page,
 }) => {
-  test.skip(
-    test.info().project.name !== "chromium",
-    "Mutating sign-in coverage runs once on chromium.",
-  );
   const connectionString = e2eDatabaseUrl();
   test.skip(!connectionString, "Set E2E_DATABASE_URL.");
   if (!connectionString) return;
@@ -218,10 +245,6 @@ test("remembered device confirms attendance in one action", async ({
 test("not me revokes the remembered device and returns to phone entry", async ({
   page,
 }) => {
-  test.skip(
-    test.info().project.name !== "chromium",
-    "Mutating sign-in coverage runs once on chromium.",
-  );
   const connectionString = e2eDatabaseUrl();
   test.skip(!connectionString, "Set E2E_DATABASE_URL.");
   if (!connectionString) return;
@@ -245,10 +268,6 @@ test("not me revokes the remembered device and returns to phone entry", async ({
 test("update my information collects a missing credential before confirmation", async ({
   page,
 }) => {
-  test.skip(
-    test.info().project.name !== "chromium",
-    "Mutating sign-in coverage runs once on chromium.",
-  );
   const connectionString = e2eDatabaseUrl();
   test.skip(!connectionString, "Set E2E_DATABASE_URL.");
   if (!connectionString) return;
@@ -274,6 +293,81 @@ test("update my information collects a missing credential before confirmation", 
   );
   await verify.end();
   expect(credential.rows[0]?.count).toBe(1);
+});
+
+test("guest completes attendance without creating a remembered student", async ({
+  page,
+}) => {
+  const connectionString = e2eDatabaseUrl();
+  test.skip(!connectionString, "Set E2E_DATABASE_URL.");
+  if (!connectionString) return;
+  const fixture = await createRememberedFixture(connectionString);
+  await page.goto(`/${fixture.code}`);
+  await page.getByRole("link", { name: "Sign in as a guest" }).click();
+  await page.getByLabel("First name").fill("Guest");
+  await page.getByLabel("Last name").fill("Attendee");
+  await page
+    .getByLabel("Agency represented today")
+    .selectOption({ label: fixture.agencyName });
+  await page.getByRole("button", { name: "Review guest sign-in" }).click();
+  await page.getByRole("button", { name: "Confirm & Sign In" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You're signed in" }),
+  ).toBeVisible();
+  expect(
+    (await page.context().cookies()).some(
+      (cookie) => cookie.name === REMEMBERED_COOKIE,
+    ),
+  ).toBe(false);
+  const verify = new Pool({ connectionString, max: 1 });
+  try {
+    const result = await verify.query<{ count: number }>(
+      "select count(*)::int as count from attendance where class_id = $1 and guest_id is not null and student_id is null",
+      [fixture.classId],
+    );
+    expect(result.rows[0]?.count).toBe(1);
+  } finally {
+    await verify.end();
+  }
+});
+
+test("PIN-protected class grants a usable session only after the correct PIN", async ({
+  page,
+  request,
+}) => {
+  const connectionString = e2eDatabaseUrl();
+  test.skip(!connectionString, "Set E2E_DATABASE_URL.");
+  if (!connectionString) return;
+  const fixture = await createRememberedFixture(connectionString, {
+    pin: "4826",
+  });
+  for (const query of [
+    `class=${fixture.code}`,
+    `token=${fixture.classToken}`,
+  ]) {
+    const response = await request.get(`/sign-in/establish?${query}`, {
+      maxRedirects: 0,
+    });
+    expect(response.headers().location).toContain("status=unavailable");
+    expect(response.headers()["set-cookie"] ?? "").not.toContain(
+      "roster_sign_in_context=",
+    );
+  }
+  await page.goto(`/${fixture.code}`);
+  await expect(
+    page.getByRole("heading", { name: "Enter class PIN" }),
+  ).toBeVisible();
+  await page.getByLabel("Class PIN").fill("4826");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await page.getByLabel("Current phone number").fill(fixture.phone);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Yes, continue" }).click();
+  await page.getByRole("button", { name: "Review sign-in" }).click();
+  await page.getByRole("button", { name: "Confirm & Sign In" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You're signed in" }),
+  ).toBeVisible();
 });
 
 test("public class links require the configured numeric PIN", async ({

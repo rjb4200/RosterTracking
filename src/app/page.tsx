@@ -63,12 +63,13 @@ export default async function HomePage() {
                         {classRecord.instructors.join(", ") ||
                           "Instructor assigned"}
                       </p>
-                      <Link
+                      {/* Class entry creates a browser session. Never prefetch it. */}
+                      <a
                         className="button button-primary"
                         href={`/${classRecord.publicCode}`}
                       >
                         Student sign-in
-                      </Link>
+                      </a>
                       <details>
                         <summary>Show QR code</summary>
                         <Image
