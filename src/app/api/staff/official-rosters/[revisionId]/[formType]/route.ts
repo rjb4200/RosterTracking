@@ -1,4 +1,7 @@
-import { generateOfficialRoster } from "@/modules/official-roster-pdfs/service";
+import {
+  generateOfficialRoster,
+  UnreadableRevisionSnapshotError,
+} from "@/modules/official-roster-pdfs/service";
 import { requireStaff } from "@/modules/staff-auth/authorization";
 import { getDatabase } from "@/server/db/client";
 
@@ -40,6 +43,15 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof UnreadableRevisionSnapshotError) {
+      // Authorized staff need a specific, actionable message; the snapshot is
+      // unreadable rather than the revision being missing.
+      console.error("Official roster snapshot unreadable.", error);
+      return new Response(error.message, {
+        status: 422,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
     // Do not reveal revision existence or snapshot content to unauthorized users.
     console.error("Official roster request failed.", error);
     return new Response("Not found.", { status: 404 });

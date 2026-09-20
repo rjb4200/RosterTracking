@@ -176,6 +176,21 @@ async function assertRosterAuthority(
   if (!assigned.length) throw new Error("Official roster access denied.");
 }
 
+/**
+ * Thrown when a finalized revision's encrypted snapshot cannot be decrypted or
+ * parsed. This is a controlled, user-visible condition: an unreadable revision
+ * (for example fixture data written without a valid payload) must surface as a
+ * clear message rather than an unhandled failure.
+ */
+export class UnreadableRevisionSnapshotError extends Error {
+  constructor() {
+    super(
+      "This finalized revision's snapshot cannot be read, so no official roster can be generated. The revision may have been written with a different credential key.",
+    );
+    this.name = "UnreadableRevisionSnapshotError";
+  }
+}
+
 async function readSnapshot(
   db: Database,
   actor: OfficialRosterActor,
@@ -196,7 +211,7 @@ async function readSnapshot(
       decryptCredential(revision.encryptedSnapshot),
     ) as FinalizationSnapshot;
   } catch {
-    throw new Error("Finalization revision snapshot could not be read.");
+    throw new UnreadableRevisionSnapshotError();
   }
 }
 

@@ -15,6 +15,7 @@ import {
   hasOfficialRosterAuthority,
   renderOfficialRoster,
   snapshotIdentifier,
+  UnreadableRevisionSnapshotError,
   validateOfficialRosterRecipient,
 } from "./service";
 
@@ -241,6 +242,45 @@ describe("official roster PDF templates", () => {
         "kfs-1a",
       ),
     ).resolves.toMatchObject({ filename: expect.stringMatching(/^kfs-1a-/) });
+  });
+
+  it("reports an unreadable revision snapshot as a controlled error", async () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    const revisionQuery = {
+      from: () => ({
+        where: () => ({
+          // A fixture revision stores a payload that is not valid AES-GCM.
+          limit: async () => [
+            { classId: "class-id", encryptedSnapshot: "fixture" },
+          ],
+        }),
+      }),
+    };
+    const authorityQuery = {
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({ limit: async () => [{ code: "administrator" }] }),
+        }),
+      }),
+    };
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(revisionQuery)
+        .mockReturnValueOnce(authorityQuery),
+    } as unknown as Database;
+
+    await expect(
+      generateOfficialRoster(
+        db,
+        { id: "staff-id", username: "major" },
+        "revision-id",
+        "kfs-1a",
+      ),
+    ).rejects.toBeInstanceOf(UnreadableRevisionSnapshotError);
   });
 
   it("validates recipients and audits a successful Resend delivery", async () => {

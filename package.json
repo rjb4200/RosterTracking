@@ -25,6 +25,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:reset:integration": "tsx scripts/reset-test-db.ts --database=integration",
     "db:reset:e2e": "tsx scripts/reset-test-db.ts --database=e2e",
+    "db:clean-class-data": "tsx --tsconfig scripts/tsconfig.json scripts/clean-class-data.ts",
     "import:training-codes": "tsx scripts/import-training-codes.ts",
     "admin": "tsx scripts/admin.ts"
   },
