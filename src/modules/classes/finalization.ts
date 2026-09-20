@@ -135,96 +135,83 @@ async function buildSnapshot(
     )
     .where(eq(trainingClasses.id, classId))
     .limit(1);
-  const [
-    instructors,
-    roster,
-    destinations,
-    requirements,
-    fieldSnapshots,
-    credentialSnapshots,
-  ] = await Promise.all([
-    transaction
-      .select({ name: users.displayName, isLead: classInstructors.isLead })
-      .from(classInstructors)
-      .innerJoin(users, eq(users.id, classInstructors.userId))
-      .where(eq(classInstructors.classId, classId))
-      .orderBy(asc(users.displayName)),
-    transaction
-      .select({
-        attendanceId: attendance.id,
-        studentId: attendance.studentId,
-        guestId: attendance.guestId,
-        agencyName: agencies.name,
-        signedInAt: attendance.signedInAt,
-        creditedHours: attendance.creditedHours,
-        attestedAt: attendanceAttestations.confirmedAt,
-        signInMethod: attendanceAttestations.signInMethod,
-        firstName: students.firstName,
-        lastName: students.lastName,
-        guestFirstName: classGuests.firstName,
-        guestLastName: classGuests.lastName,
-      })
-      .from(attendance)
-      .innerJoin(agencies, eq(agencies.id, attendance.agencyId))
-      .leftJoin(
-        attendanceAttestations,
-        eq(attendanceAttestations.attendanceId, attendance.id),
-      )
-      .leftJoin(students, eq(students.id, attendance.studentId))
-      .leftJoin(classGuests, eq(classGuests.id, attendance.guestId))
-      .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)))
-      .orderBy(asc(attendance.signedInAt)),
-    transaction
-      .select({
-        reportingSystemId: reportingSystems.id,
-        code: reportingSystems.code,
-        name: reportingSystems.name,
-      })
-      .from(classReportingSystems)
-      .innerJoin(
-        reportingSystems,
-        eq(reportingSystems.id, classReportingSystems.reportingSystemId),
-      )
-      .where(eq(classReportingSystems.classId, classId))
-      .orderBy(asc(reportingSystems.code)),
-    resolveClassRequirements(transaction, classId),
-    transaction
-      .select({
-        attendanceId: attendanceRequiredFieldSnapshots.attendanceId,
-        requirementSetId: attendanceRequiredFieldSnapshots.requirementSetId,
-        studentField: attendanceRequiredFieldSnapshots.studentField,
-        encryptedValue: attendanceRequiredFieldSnapshots.encryptedValue,
-      })
-      .from(attendanceRequiredFieldSnapshots)
-      .innerJoin(
-        attendance,
-        eq(attendance.id, attendanceRequiredFieldSnapshots.attendanceId),
-      )
-      .where(
-        and(eq(attendance.classId, classId), isNull(attendance.removedAt)),
-      ),
-    transaction
-      .select({
-        attendanceId: attendanceCredentialSnapshots.attendanceId,
-        requirementSetId: attendanceCredentialSnapshots.requirementSetId,
-        credentialTypeId: attendanceCredentialSnapshots.credentialTypeId,
-        credentialTypeCode: credentialTypes.code,
-        encryptedValue: attendanceCredentialSnapshots.encryptedValue,
-        maskedSuffix: attendanceCredentialSnapshots.maskedSuffix,
-      })
-      .from(attendanceCredentialSnapshots)
-      .innerJoin(
-        credentialTypes,
-        eq(credentialTypes.id, attendanceCredentialSnapshots.credentialTypeId),
-      )
-      .innerJoin(
-        attendance,
-        eq(attendance.id, attendanceCredentialSnapshots.attendanceId),
-      )
-      .where(
-        and(eq(attendance.classId, classId), isNull(attendance.removedAt)),
-      ),
-  ]);
+  const instructors = await transaction
+    .select({ name: users.displayName, isLead: classInstructors.isLead })
+    .from(classInstructors)
+    .innerJoin(users, eq(users.id, classInstructors.userId))
+    .where(eq(classInstructors.classId, classId))
+    .orderBy(asc(users.displayName));
+  const roster = await transaction
+    .select({
+      attendanceId: attendance.id,
+      studentId: attendance.studentId,
+      guestId: attendance.guestId,
+      agencyName: agencies.name,
+      signedInAt: attendance.signedInAt,
+      creditedHours: attendance.creditedHours,
+      attestedAt: attendanceAttestations.confirmedAt,
+      signInMethod: attendanceAttestations.signInMethod,
+      firstName: students.firstName,
+      lastName: students.lastName,
+      guestFirstName: classGuests.firstName,
+      guestLastName: classGuests.lastName,
+    })
+    .from(attendance)
+    .innerJoin(agencies, eq(agencies.id, attendance.agencyId))
+    .leftJoin(
+      attendanceAttestations,
+      eq(attendanceAttestations.attendanceId, attendance.id),
+    )
+    .leftJoin(students, eq(students.id, attendance.studentId))
+    .leftJoin(classGuests, eq(classGuests.id, attendance.guestId))
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)))
+    .orderBy(asc(attendance.signedInAt));
+  const destinations = await transaction
+    .select({
+      reportingSystemId: reportingSystems.id,
+      code: reportingSystems.code,
+      name: reportingSystems.name,
+    })
+    .from(classReportingSystems)
+    .innerJoin(
+      reportingSystems,
+      eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+    )
+    .where(eq(classReportingSystems.classId, classId))
+    .orderBy(asc(reportingSystems.code));
+  const requirements = await resolveClassRequirements(transaction, classId);
+  const fieldSnapshots = await transaction
+    .select({
+      attendanceId: attendanceRequiredFieldSnapshots.attendanceId,
+      requirementSetId: attendanceRequiredFieldSnapshots.requirementSetId,
+      studentField: attendanceRequiredFieldSnapshots.studentField,
+      encryptedValue: attendanceRequiredFieldSnapshots.encryptedValue,
+    })
+    .from(attendanceRequiredFieldSnapshots)
+    .innerJoin(
+      attendance,
+      eq(attendance.id, attendanceRequiredFieldSnapshots.attendanceId),
+    )
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const credentialSnapshots = await transaction
+    .select({
+      attendanceId: attendanceCredentialSnapshots.attendanceId,
+      requirementSetId: attendanceCredentialSnapshots.requirementSetId,
+      credentialTypeId: attendanceCredentialSnapshots.credentialTypeId,
+      credentialTypeCode: credentialTypes.code,
+      encryptedValue: attendanceCredentialSnapshots.encryptedValue,
+      maskedSuffix: attendanceCredentialSnapshots.maskedSuffix,
+    })
+    .from(attendanceCredentialSnapshots)
+    .innerJoin(
+      credentialTypes,
+      eq(credentialTypes.id, attendanceCredentialSnapshots.credentialTypeId),
+    )
+    .innerJoin(
+      attendance,
+      eq(attendance.id, attendanceCredentialSnapshots.attendanceId),
+    )
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
   if (!classRow) throw new Error("Class not found.");
   return {
     class: classRow,

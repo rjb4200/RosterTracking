@@ -587,36 +587,33 @@ export async function transitionClass(
       cancellationReason,
     );
     if (nextStatus === CLASS_STATUSES.OPEN) {
-      const [componentCount, leadCount, reportingCount, hostAgency] =
-        await Promise.all([
-          transaction
-            .select({ count: sql<number>`count(*)::int` })
-            .from(classComponents)
-            .where(eq(classComponents.classId, classId)),
-          transaction
-            .select({ count: sql<number>`count(*)::int` })
-            .from(classInstructors)
-            .where(
-              and(
-                eq(classInstructors.classId, classId),
-                eq(classInstructors.isLead, true),
-              ),
-            ),
-          transaction
-            .select({ count: sql<number>`count(*)::int` })
-            .from(classReportingSystems)
-            .where(eq(classReportingSystems.classId, classId)),
-          transaction
-            .select({ id: agencies.id })
-            .from(agencies)
-            .where(
-              and(
-                eq(agencies.id, current.hostAgencyId),
-                eq(agencies.isActive, true),
-              ),
-            )
-            .limit(1),
-        ]);
+      const componentCount = await transaction
+        .select({ count: sql<number>`count(*)::int` })
+        .from(classComponents)
+        .where(eq(classComponents.classId, classId));
+      const leadCount = await transaction
+        .select({ count: sql<number>`count(*)::int` })
+        .from(classInstructors)
+        .where(
+          and(
+            eq(classInstructors.classId, classId),
+            eq(classInstructors.isLead, true),
+          ),
+        );
+      const reportingCount = await transaction
+        .select({ count: sql<number>`count(*)::int` })
+        .from(classReportingSystems)
+        .where(eq(classReportingSystems.classId, classId));
+      const hostAgency = await transaction
+        .select({ id: agencies.id })
+        .from(agencies)
+        .where(
+          and(
+            eq(agencies.id, current.hostAgencyId),
+            eq(agencies.isActive, true),
+          ),
+        )
+        .limit(1);
       validateClassReadiness({
         componentCount: componentCount[0]?.count ?? 0,
         leadCount: leadCount[0]?.count ?? 0,
@@ -777,9 +774,17 @@ export async function verifyOpenClassAccessPin(
   };
 }
 
+function formatPublicInstructorName(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/);
+  return parts.length > 1
+    ? `${parts[0]?.[0] ?? ""}. ${parts.at(-1) ?? ""}`
+    : displayName;
+}
+
 export async function listPublicOpenClasses(db: Database) {
   const records = await db
     .select({
+      id: trainingClasses.id,
       publicCode: trainingClasses.publicCode,
       courseName: courses.name,
       deliveryMethod: trainingClasses.deliveryMethod,
@@ -800,47 +805,60 @@ export async function listPublicOpenClasses(db: Database) {
     .orderBy(courses.name)
     .limit(100);
 
-  return Promise.all(
-    records.map(async (record) => {
-      const publicCode = record.publicCode;
-      if (!publicCode) throw new Error("Open class is missing public access.");
-      const [nextComponent] = await db
-        .select({ startsAt: classComponents.startsAt })
-        .from(classComponents)
-        .innerJoin(
-          trainingClasses,
-          eq(trainingClasses.id, classComponents.classId),
-        )
-        .where(eq(trainingClasses.publicCode, publicCode))
-        .orderBy(asc(classComponents.startsAt))
-        .limit(1);
-      const instructorRows = await db
-        .select({ displayName: users.displayName })
-        .from(classInstructors)
-        .innerJoin(users, eq(users.id, classInstructors.userId))
-        .innerJoin(
-          trainingClasses,
-          eq(trainingClasses.id, classInstructors.classId),
-        )
-        .where(eq(trainingClasses.publicCode, publicCode))
-        .orderBy(sql`${classInstructors.isLead} desc`, users.displayName);
-      return {
-        publicCode,
-        courseName: record.courseName,
-        location:
-          record.deliveryMethod === "online"
-            ? "Virtual"
-            : (record.siteName ?? ""),
-        nextSession: nextComponent?.startsAt ?? null,
-        instructors: instructorRows.map(({ displayName }) => {
-          const parts = displayName.trim().split(/\s+/);
-          return parts.length > 1
-            ? `${parts[0]?.[0] ?? ""}. ${parts.at(-1) ?? ""}`
-            : displayName;
-        }),
-      };
-    }),
-  );
+  const classIds = records.map((record) => record.id);
+  if (classIds.length === 0) return [];
+
+  const [componentRows, instructorRows] = await Promise.all([
+    db
+      .select({
+        classId: classComponents.classId,
+        startsAt: classComponents.startsAt,
+      })
+      .from(classComponents)
+      .where(inArray(classComponents.classId, classIds))
+      .orderBy(asc(classComponents.startsAt)),
+    db
+      .select({
+        classId: classInstructors.classId,
+        displayName: users.displayName,
+      })
+      .from(classInstructors)
+      .innerJoin(users, eq(users.id, classInstructors.userId))
+      .where(inArray(classInstructors.classId, classIds))
+      .orderBy(
+        asc(classInstructors.classId),
+        sql`${classInstructors.isLead} desc`,
+        asc(users.displayName),
+      ),
+  ]);
+
+  const nextSessionByClass = new Map<string, Date>();
+  for (const row of componentRows) {
+    if (!nextSessionByClass.has(row.classId)) {
+      nextSessionByClass.set(row.classId, row.startsAt);
+    }
+  }
+  const instructorsByClass = new Map<string, string[]>();
+  for (const row of instructorRows) {
+    const names = instructorsByClass.get(row.classId) ?? [];
+    names.push(formatPublicInstructorName(row.displayName));
+    instructorsByClass.set(row.classId, names);
+  }
+
+  return records.map((record) => {
+    const publicCode = record.publicCode;
+    if (!publicCode) throw new Error("Open class is missing public access.");
+    return {
+      publicCode,
+      courseName: record.courseName,
+      location:
+        record.deliveryMethod === "online"
+          ? "Virtual"
+          : (record.siteName ?? ""),
+      nextSession: nextSessionByClass.get(record.id) ?? null,
+      instructors: instructorsByClass.get(record.id) ?? [],
+    };
+  });
 }
 
 export async function getClassPublicAccess(
@@ -1135,53 +1153,47 @@ export async function getClassDetail(
       classId,
       false,
     );
-    const [course, site, hostAgency, components, instructors, systems] =
-      await Promise.all([
-        transaction
-          .select({ id: courses.id, name: courses.name })
-          .from(courses)
-          .where(eq(courses.id, classRecord.courseId))
-          .limit(1),
-        classRecord.trainingSiteId
-          ? transaction
-              .select({ id: trainingSites.id, name: trainingSites.name })
-              .from(trainingSites)
-              .where(eq(trainingSites.id, classRecord.trainingSiteId))
-              .limit(1)
-          : Promise.resolve([]),
-        transaction
-          .select({ id: agencies.id, name: agencies.name })
-          .from(agencies)
-          .where(eq(agencies.id, classRecord.hostAgencyId))
-          .limit(1),
-        transaction
-          .select()
-          .from(classComponents)
-          .where(eq(classComponents.classId, classId))
-          .orderBy(
-            asc(classComponents.startsAt),
-            asc(classComponents.position),
-          ),
-        transaction
-          .select({
-            userId: users.id,
-            displayName: users.displayName,
-            isLead: classInstructors.isLead,
-          })
-          .from(classInstructors)
-          .innerJoin(users, eq(users.id, classInstructors.userId))
-          .where(eq(classInstructors.classId, classId))
-          .orderBy(sql`${classInstructors.isLead} desc`, users.displayName),
-        transaction
-          .select({ id: reportingSystems.id, name: reportingSystems.name })
-          .from(classReportingSystems)
-          .innerJoin(
-            reportingSystems,
-            eq(reportingSystems.id, classReportingSystems.reportingSystemId),
-          )
-          .where(eq(classReportingSystems.classId, classId))
-          .orderBy(reportingSystems.name),
-      ]);
+    const course = await transaction
+      .select({ id: courses.id, name: courses.name })
+      .from(courses)
+      .where(eq(courses.id, classRecord.courseId))
+      .limit(1);
+    const site = classRecord.trainingSiteId
+      ? await transaction
+          .select({ id: trainingSites.id, name: trainingSites.name })
+          .from(trainingSites)
+          .where(eq(trainingSites.id, classRecord.trainingSiteId))
+          .limit(1)
+      : [];
+    const hostAgency = await transaction
+      .select({ id: agencies.id, name: agencies.name })
+      .from(agencies)
+      .where(eq(agencies.id, classRecord.hostAgencyId))
+      .limit(1);
+    const components = await transaction
+      .select()
+      .from(classComponents)
+      .where(eq(classComponents.classId, classId))
+      .orderBy(asc(classComponents.startsAt), asc(classComponents.position));
+    const instructors = await transaction
+      .select({
+        userId: users.id,
+        displayName: users.displayName,
+        isLead: classInstructors.isLead,
+      })
+      .from(classInstructors)
+      .innerJoin(users, eq(users.id, classInstructors.userId))
+      .where(eq(classInstructors.classId, classId))
+      .orderBy(sql`${classInstructors.isLead} desc`, users.displayName);
+    const systems = await transaction
+      .select({ id: reportingSystems.id, name: reportingSystems.name })
+      .from(classReportingSystems)
+      .innerJoin(
+        reportingSystems,
+        eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+      )
+      .where(eq(classReportingSystems.classId, classId))
+      .orderBy(reportingSystems.name);
     return {
       ...classRecord,
       course: course[0] ?? null,
