@@ -1,15 +1,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Open classes have stable public short access
-The system SHALL assign each class a globally unique, human-readable four-character public code and a corresponding short URL. The short URL SHALL resolve only while the class is open and SHALL lead the visitor to the class-specific student sign-in workflow. The entry route SHALL NOT establish the sign-in context as part of its redirect response, because a cross-site navigation discards a `SameSite=Lax` cookie set on that response. The sign-in context SHALL instead be established on the first-party sign-in page response, so a visitor arriving from an external application still receives a usable session.
+The system SHALL assign each class a globally unique, human-readable four-character public code and a corresponding short URL. The short URL SHALL resolve only while the class is open and SHALL lead the visitor to the class-specific student sign-in workflow. The entry route SHALL NOT establish the sign-in context as part of its redirect response, because a cross-site navigation discards a `SameSite=Lax` cookie set on that response. The sign-in context SHALL instead be established on the first-party response on the sign-in route, so a visitor arriving from an external application still receives a usable session.
 
 #### Scenario: Resolve a short class URL
 - **WHEN** a visitor requests the short URL for an open class
-- **THEN** the system redirects to the student sign-in page for that class without exposing internal identifiers
+- **THEN** the system leads the visitor to the student sign-in workflow for that class without exposing internal identifiers
 
 #### Scenario: Arrive from an external application
 - **WHEN** a visitor reaches an open class through a cross-site navigation such as scanning the QR code from a camera or messaging application
-- **THEN** the sign-in page issues the sign-in context on its own first-party response and the visitor can begin sign-in
+- **THEN** the sign-in route issues the sign-in context on its own first-party response and the visitor can begin sign-in
 
 #### Scenario: Type a public class code
 - **WHEN** a visitor supplies a valid public code for an open class through public class access
