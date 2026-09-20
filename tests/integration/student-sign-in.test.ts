@@ -9,6 +9,7 @@ import { confirmAttendance } from "../../src/modules/student-sign-in/attendance"
 import { establishSignInContext } from "../../src/modules/student-sign-in/establish-context";
 import {
   stageGuestParticipant,
+  stageNewStudentParticipant,
   stageRegularRequirements,
 } from "../../src/modules/student-sign-in/participants";
 import {
@@ -355,5 +356,111 @@ describeDatabase("sign-in context hand-off", () => {
       metadata,
     });
     expect(result).toEqual({ status: "unavailable" });
+  });
+
+  it("creates a student, credentials, and membership from registration", async () => {
+    const fixture = await createOpenClassFixture();
+    const phone = `+1859${Math.floor(Math.random() * 10_000_000)
+      .toString()
+      .padStart(7, "0")}`;
+    const workflow = await createWorkflowFromClassToken(
+      fixture.db,
+      fixture.rawToken,
+    );
+    if (!workflow) throw new Error("Workflow was not created.");
+    await stageNewStudentParticipant(fixture.db, workflow.token, {
+      firstName: "New",
+      lastName: "Student",
+      phone,
+      agencyId: fixture.agency.id,
+      fields: { email: "new.student@example.com" },
+      credentials: [],
+    });
+
+    const created = await confirmAttendance(fixture.db, workflow.token, {
+      attestationConfirmed: true,
+      rememberDevice: true,
+      request,
+    });
+    const retried = await confirmAttendance(fixture.db, workflow.token, {
+      attestationConfirmed: true,
+      rememberDevice: true,
+      request,
+    });
+    const [student] = await fixture.db
+      .select()
+      .from(students)
+      .where(eq(students.phone, phone));
+    if (!student) throw new Error("Registered student was not created.");
+
+    expect(created.status).toBe("created");
+    expect(created.rememberedDevice?.token).toBeTruthy();
+    expect(retried).toMatchObject({
+      attendanceId: created.attendanceId,
+      status: "idempotent",
+    });
+    expect(student.firstName).toBe("New");
+    expect(student.email).toBe("new.student@example.com");
+    expect(
+      await fixture.db
+        .select()
+        .from(attendance)
+        .where(eq(attendance.id, created.attendanceId)),
+    ).toHaveLength(1);
+    expect(
+      await fixture.db
+        .select()
+        .from(studentAgencies)
+        .where(eq(studentAgencies.studentId, student.id)),
+    ).toHaveLength(1);
+    expect(
+      await fixture.db
+        .select()
+        .from(rememberedDevices)
+        .where(eq(rememberedDevices.studentId, student.id)),
+    ).toHaveLength(1);
+  });
+
+  it("rolls back registration when the phone is already registered", async () => {
+    const fixture = await createOpenClassFixture();
+    const phone = `+1859${Math.floor(Math.random() * 10_000_000)
+      .toString()
+      .padStart(7, "0")}`;
+    await fixture.db
+      .insert(students)
+      .values({ firstName: "Existing", lastName: "Student", phone });
+    const workflow = await createWorkflowFromClassToken(
+      fixture.db,
+      fixture.rawToken,
+    );
+    if (!workflow) throw new Error("Workflow was not created.");
+    await stageNewStudentParticipant(fixture.db, workflow.token, {
+      firstName: "Duplicate",
+      lastName: "Attempt",
+      phone,
+      agencyId: fixture.agency.id,
+      fields: { email: "duplicate@example.com" },
+      credentials: [],
+    });
+
+    await expect(
+      confirmAttendance(fixture.db, workflow.token, {
+        attestationConfirmed: true,
+        rememberDevice: true,
+        request,
+      }),
+    ).rejects.toThrow();
+    expect(
+      await fixture.db
+        .select()
+        .from(attendance)
+        .where(eq(attendance.classId, fixture.classRecord.id)),
+    ).toHaveLength(0);
+    expect(
+      await fixture.db
+        .select()
+        .from(students)
+        .where(eq(students.firstName, "Duplicate")),
+    ).toHaveLength(0);
   });
 });

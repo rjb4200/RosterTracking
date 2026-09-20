@@ -30,6 +30,7 @@ import {
 import { confirmationDestination } from "@/modules/student-sign-in/page-model";
 import {
   stageGuestParticipant,
+  stageNewStudentParticipant,
   stageRegularRequirements,
 } from "@/modules/student-sign-in/participants";
 import {
@@ -58,6 +59,8 @@ import { getDatabase } from "@/server/db/client";
 const GENERIC_ERROR = "/sign-in?notice=unable";
 const REQUIRED_ERROR = "/sign-in?notice=required";
 const LIMITED_ERROR = "/sign-in?notice=limited";
+const REGISTER_REQUIRED_ERROR = "/sign-in?step=register&notice=required";
+const REGISTER_LIMITED_ERROR = "/sign-in?step=register&notice=limited";
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -231,7 +234,7 @@ export async function lookupCurrentPhone(formData: FormData) {
           pendingNewPhone: phone,
         });
         await recordFailures(context.db, leases);
-        destination = "/sign-in?notice=not-found";
+        destination = "/sign-in?step=register";
       }
     }
   } catch (error) {
@@ -569,6 +572,46 @@ export async function saveGuestDetails(formData: FormData) {
   redirect(destination);
 }
 
+export async function saveNewStudentDetails(formData: FormData) {
+  let destination = REGISTER_REQUIRED_ERROR;
+  let db: ReturnType<typeof getDatabase> | undefined;
+  let leases: PublicRateLimitLease[] = [];
+  let correlationId = "unknown";
+  let classId: string | null = null;
+  try {
+    const context = await requestContext();
+    db = context.db;
+    correlationId = context.metadata.requestCorrelationId;
+    classId = context.loaded.context.classId;
+    const limit = await acquireLimits(context, [
+      { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
+    ]);
+    leases = limit.leases;
+    if (!limit.allowed) {
+      destination = REGISTER_LIMITED_ERROR;
+    } else {
+      await stageNewStudentParticipant(context.db, context.signedContext, {
+        firstName: text(formData, "firstName"),
+        lastName: text(formData, "lastName"),
+        phone: text(formData, "phone"),
+        fields: collectPrefixed(formData, "field:"),
+        credentials: credentialsFromForm(formData),
+        agencyId: text(formData, "agencyId"),
+      });
+      destination = "/sign-in";
+    }
+  } catch (error) {
+    logActionFailure({
+      correlationId,
+      route: "/sign-in saveNewStudentDetails",
+      error,
+      classId,
+    });
+    if (db) await recordFailures(db, leases);
+  }
+  redirect(destination);
+}
+
 export async function confirmSignIn() {
   let destination = GENERIC_ERROR;
   let result: AttendanceConfirmationResult | undefined;
@@ -590,7 +633,9 @@ export async function confirmSignIn() {
     const identifier =
       participant.kind === "guest"
         ? `${participant.firstName}\u0000${participant.lastName}`
-        : participant.studentId;
+        : participant.kind === "new_student"
+          ? participant.phone
+          : participant.studentId;
     const limit = await acquireLimits(context, [{ operation, identifier }]);
     leases = limit.leases;
     if (!limit.allowed) {
@@ -598,7 +643,7 @@ export async function confirmSignIn() {
     } else {
       result = await confirmAttendance(context.db, context.signedContext, {
         attestationConfirmed: true,
-        rememberDevice: participant.kind === "regular",
+        rememberDevice: participant.kind !== "guest",
         request: context.metadata,
       });
       if (result.rememberedDevice?.token) {

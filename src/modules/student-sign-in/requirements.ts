@@ -95,6 +95,18 @@ export function reduceClassRequirements(
   };
 }
 
+/**
+ * The student fields a new registration must collect: every class-required
+ * field plus an email address, which is always required to create a profile.
+ */
+export function requiredRegistrationFields(
+  requirements: ClassRequirements,
+): string[] {
+  return requirements.studentFields.includes("email")
+    ? requirements.studentFields
+    : ["email", ...requirements.studentFields];
+}
+
 export async function resolveClassRequirements(
   db: Database | DatabaseTransaction,
   classId: string,

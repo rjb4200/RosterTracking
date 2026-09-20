@@ -6,6 +6,7 @@ describe("public sign-in view logic", () => {
   it("allows only known entry screens", () => {
     expect(requestedEntryStep("recovery")).toBe("recovery");
     expect(requestedEntryStep("guest")).toBe("guest");
+    expect(requestedEntryStep("register")).toBe("register");
     expect(requestedEntryStep("review")).toBe("phone");
   });
 

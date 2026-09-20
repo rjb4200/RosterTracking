@@ -17,6 +17,7 @@ import {
   notMe,
   recoverChangedPhone,
   saveGuestDetails,
+  saveNewStudentDetails,
   saveRegularDetails,
 } from "./actions";
 import { SubmitButton } from "./submit-button";
@@ -354,6 +355,62 @@ function Wizard({
         <form action={notMe}>
           <SubmitButton secondary>Not me</SubmitButton>
         </form>
+      </>
+    );
+  }
+
+  if (model.step === "new-student-details") {
+    return (
+      <>
+        <p className="sign-in-copy">
+          We could not find that phone number. Create your profile to sign in.
+          It takes a few seconds and is saved for next time.
+        </p>
+        <Notice notice={notice} />
+        <form action={saveNewStudentDetails} className="sign-in-form">
+          <div className="sign-in-name-grid">
+            <div className="sign-in-field">
+              <label htmlFor="firstName">First name</label>
+              <input
+                autoComplete="given-name"
+                id="firstName"
+                name="firstName"
+                required
+              />
+            </div>
+            <div className="sign-in-field">
+              <label htmlFor="lastName">Last name</label>
+              <input
+                autoComplete="family-name"
+                id="lastName"
+                name="lastName"
+                required
+              />
+            </div>
+          </div>
+          <div className="sign-in-field">
+            <label htmlFor="phone">Mobile phone number</label>
+            <input
+              autoComplete="tel"
+              defaultValue={model.phone}
+              id="phone"
+              inputMode="tel"
+              name="phone"
+              required
+              type="tel"
+            />
+          </div>
+          <RequirementFields model={model} />
+          <SubmitButton pendingLabel="Saving...">
+            Create account &amp; continue
+          </SubmitButton>
+        </form>
+        <nav className="sign-in-options" aria-label="Other sign-in options">
+          <Link href="/sign-in?step=recovery">My phone number changed</Link>
+          <Link className="guest-link" href="/sign-in?step=guest">
+            Sign in as a guest
+          </Link>
+        </nav>
       </>
     );
   }

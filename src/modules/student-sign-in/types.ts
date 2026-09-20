@@ -46,11 +46,21 @@ const guestParticipantSchema = z.object({
   credentials: z.array(stagedCredentialSchema).default([]),
 });
 
+const newStudentParticipantSchema = z.object({
+  kind: z.literal("new_student"),
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  phone: z.string().regex(/^\+1\d{10}$/),
+  fields: stagedFieldsSchema.default({}),
+  credentials: z.array(stagedCredentialSchema).default([]),
+});
+
 export const signInWorkflowStateSchema = z.object({
   participant: z
     .discriminatedUnion("kind", [
       regularParticipantSchema,
       guestParticipantSchema,
+      newStudentParticipantSchema,
     ])
     .nullable()
     .default(null),
@@ -75,6 +85,9 @@ export type RegularWorkflowParticipant = z.infer<
   typeof regularParticipantSchema
 >;
 export type GuestWorkflowParticipant = z.infer<typeof guestParticipantSchema>;
+export type NewStudentWorkflowParticipant = z.infer<
+  typeof newStudentParticipantSchema
+>;
 export type StagedCredential = z.infer<typeof stagedCredentialSchema>;
 
 export function emptySignInWorkflowState(): SignInWorkflowState {

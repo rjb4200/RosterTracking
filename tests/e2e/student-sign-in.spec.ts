@@ -331,6 +331,57 @@ test("guest completes attendance without creating a remembered student", async (
   }
 });
 
+test("an unknown phone registers a new student and signs in", async ({
+  page,
+}) => {
+  const connectionString = e2eDatabaseUrl();
+  test.skip(!connectionString, "Set E2E_DATABASE_URL.");
+  if (!connectionString) return;
+  const fixture = await createRememberedFixture(connectionString, {
+    requireFfn: true,
+  });
+  const phone = `+1859${Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, "0")}`;
+  const ffn = String(Math.floor(Math.random() * 900_000) + 100_000);
+
+  await page.goto(`/${fixture.code}`);
+  await page.getByLabel("Current phone number").fill(phone);
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(
+    page.getByRole("button", { name: "Create account & continue" }),
+  ).toBeVisible();
+  await page.getByLabel("First name").fill("Brand");
+  await page.getByLabel("Last name").fill("New");
+  await page.getByLabel("Email address").fill("brand.new@example.com");
+  await page.getByLabel("FFN").fill(ffn);
+  await page
+    .getByLabel("Agency represented today")
+    .selectOption({ label: fixture.agencyName });
+  await page.getByRole("button", { name: "Create account & continue" }).click();
+  await page.getByRole("button", { name: "Confirm & Sign In" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You're signed in" }),
+  ).toBeVisible();
+
+  const verify = new Pool({ connectionString, max: 1 });
+  try {
+    const student = await verify.query<{ id: string; email: string | null }>(
+      "select id, email from students where phone = $1",
+      [phone],
+    );
+    expect(student.rows[0]?.email).toBe("brand.new@example.com");
+    const attendance = await verify.query<{ count: number }>(
+      "select count(*)::int as count from attendance where class_id = $1 and student_id = $2 and removed_at is null",
+      [fixture.classId, student.rows[0]?.id],
+    );
+    expect(attendance.rows[0]?.count).toBe(1);
+  } finally {
+    await verify.end();
+  }
+});
+
 test("PIN-protected class grants a usable session only after the correct PIN", async ({
   page,
   request,

@@ -35,11 +35,7 @@ import {
   getRegularRequirementValues,
   resolveClassRequirements,
 } from "./requirements";
-import type {
-  GuestWorkflowParticipant,
-  RegularWorkflowParticipant,
-  SignInWorkflowState,
-} from "./types";
+import type { RegularWorkflowParticipant, SignInWorkflowState } from "./types";
 import {
   decodeSignInWorkflowState,
   InvalidSignInWorkflowError,
@@ -197,9 +193,9 @@ async function ensureAgencyMembership(
   return true;
 }
 
-function stagedCredentialMap(
-  participant: RegularWorkflowParticipant | GuestWorkflowParticipant,
-) {
+function stagedCredentialMap(participant: {
+  credentials: { credentialTypeId: string; code: string; value: string }[];
+}) {
   return new Map(
     participant.credentials.map((credential) => [
       credential.credentialTypeId,
@@ -281,7 +277,10 @@ async function prepareRegularFacts(
 }
 
 function prepareGuestFacts(
-  participant: GuestWorkflowParticipant,
+  participant: {
+    fields: Record<string, string>;
+    credentials: { credentialTypeId: string; code: string; value: string }[];
+  },
   requirements: ClassRequirements,
 ) {
   const fields: Record<string, string> = {};
@@ -605,7 +604,7 @@ export async function confirmAttendance(
             },
           });
         }
-      } else {
+      } else if (participant.kind === "guest") {
         await requireGuestAgency(transaction, agencyId);
         const facts = prepareGuestFacts(participant, requirements);
         participantName = `${participant.firstName} ${participant.lastName}`;
@@ -622,6 +621,62 @@ export async function confirmAttendance(
         if (!guest)
           throw new AttendanceConfirmationError("Attendance unavailable.");
         guestId = guest.id;
+      } else {
+        await requireGuestAgency(transaction, agencyId);
+        const facts = prepareGuestFacts(participant, requirements);
+        participantName = `${participant.firstName} ${participant.lastName}`;
+        const [phoneOwner] = await transaction
+          .select({ id: students.id })
+          .from(students)
+          .where(eq(students.phone, participant.phone))
+          .limit(1)
+          .for("share");
+        if (phoneOwner) {
+          throw new AttendanceConfirmationError(
+            "A student with that phone already exists.",
+          );
+        }
+        const [createdStudent] = await transaction
+          .insert(students)
+          .values({
+            firstName: participant.firstName,
+            lastName: participant.lastName,
+            phone: participant.phone,
+            email: participant.fields.email ?? null,
+            studentNumber: participant.fields.studentNumber ?? null,
+          })
+          .returning({ id: students.id });
+        if (!createdStudent)
+          throw new AttendanceConfirmationError("Attendance unavailable.");
+        studentId = createdStudent.id;
+        fields = facts.fields;
+        credentialValues = facts.credentialValues;
+        for (const credential of participant.credentials) {
+          const protectedValue = protectedCredentialValue(credential.value);
+          await transaction.insert(studentCredentials).values({
+            studentId,
+            credentialTypeId: credential.credentialTypeId,
+            value: protectedValue.encryptedValue,
+            valueHash: protectedValue.valueHash,
+            maskedSuffix: protectedValue.maskedSuffix,
+          });
+          await writeAuditLog(transaction, {
+            actorType: "system",
+            action: "student.credential.added_from_sign_in",
+            entityType: "student",
+            entityId: studentId,
+            ipAddress: input.request.ipAddress,
+            details: { credentialTypeId: credential.credentialTypeId },
+          });
+        }
+        await writeAuditLog(transaction, {
+          actorType: "system",
+          action: "student.created_from_sign_in",
+          entityType: "student",
+          entityId: studentId,
+          ipAddress: input.request.ipAddress,
+          details: { classId: context.classId },
+        });
       }
 
       const [created] = await transaction
@@ -641,16 +696,28 @@ export async function confirmAttendance(
         throw new AttendanceConfirmationError("Attendance unavailable.");
 
       const rememberedDevice =
-        participant.kind === "regular" && input.rememberDevice
+        input.rememberDevice && participant.kind === "regular"
           ? await rememberRegularStudent(transaction, participant, now)
-          : undefined;
+          : input.rememberDevice &&
+              participant.kind === "new_student" &&
+              studentId
+            ? await createRememberedDeviceInTransaction(
+                transaction,
+                studentId,
+                now,
+              )
+            : undefined;
       await transaction.insert(attendanceAttestations).values({
         attendanceId: created.id,
         renderedText: renderAttendanceAttestation(participantName),
         textVersion: ATTENDANCE_ATTESTATION_VERSION,
         confirmedAt: now,
         signInMethod:
-          participant.kind === "regular" ? participant.signInMethod : "guest",
+          participant.kind === "regular"
+            ? participant.signInMethod
+            : participant.kind === "new_student"
+              ? "new_student"
+              : "guest",
         originatingIp: input.request.ipAddress,
         requestSourceFingerprint: input.request.requestSourceFingerprint,
         requestCorrelationId: input.request.requestCorrelationId,
@@ -663,10 +730,10 @@ export async function confirmAttendance(
         fields,
         credentialValues,
       );
-      if (participant.kind === "regular") {
+      if (studentId) {
         const membershipChanged = await ensureAgencyMembership(
           transaction,
-          participant.studentId,
+          studentId,
           agencyId,
           now,
         );
@@ -675,7 +742,7 @@ export async function confirmAttendance(
             actorType: "system",
             action: "student.membership.added_from_sign_in",
             entityType: "student",
-            entityId: participant.studentId,
+            entityId: studentId,
             ipAddress: input.request.ipAddress,
             details: { agencyId },
           });
@@ -695,7 +762,11 @@ export async function confirmAttendance(
           classId: context.classId,
           participantKind: participant.kind,
           signInMethod:
-            participant.kind === "regular" ? participant.signInMethod : "guest",
+            participant.kind === "regular"
+              ? participant.signInMethod
+              : participant.kind === "new_student"
+                ? "new_student"
+                : "guest",
           requestCorrelationId: input.request.requestCorrelationId,
           requirementSetIds: requirements.sets.map(({ id }) => id),
         },

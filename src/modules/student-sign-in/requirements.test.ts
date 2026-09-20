@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { reduceClassRequirements } from "./requirements";
+import {
+  reduceClassRequirements,
+  requiredRegistrationFields,
+} from "./requirements";
 
 describe("class reporting requirement resolution", () => {
   it("retains each set version and computes a deduplicated union", () => {
@@ -45,5 +48,29 @@ describe("class reporting requirement resolution", () => {
       { id: "credential-ffn", code: "ffn" },
     ]);
     expect(resolved.studentFields).toEqual(["email"]);
+  });
+
+  it("always collects an email for a new registration", () => {
+    expect(
+      requiredRegistrationFields({
+        sets: [],
+        studentFields: [],
+        credentials: [],
+      }),
+    ).toEqual(["email"]);
+    expect(
+      requiredRegistrationFields({
+        sets: [],
+        studentFields: ["studentNumber"],
+        credentials: [],
+      }),
+    ).toEqual(["email", "studentNumber"]);
+    expect(
+      requiredRegistrationFields({
+        sets: [],
+        studentFields: ["email", "studentNumber"],
+        credentials: [],
+      }),
+    ).toEqual(["email", "studentNumber"]);
   });
 });

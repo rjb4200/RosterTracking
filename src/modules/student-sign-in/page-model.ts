@@ -16,7 +16,10 @@ import {
   resolveRegularAttendanceAgencies,
   studentFieldValue,
 } from "./participants";
-import { resolveClassRequirements } from "./requirements";
+import {
+  requiredRegistrationFields,
+  resolveClassRequirements,
+} from "./requirements";
 import { loadSignInWorkflow } from "./workflow";
 
 export const PUBLIC_FIELD_LABELS: Record<string, string> = {
@@ -58,6 +61,14 @@ export type SignInPageModel =
       agencies: { id: string; name: string }[];
     }
   | {
+      step: "new-student-details";
+      phone: string;
+      fields: { key: string; label: string }[];
+      credentials: { id: string; code: string }[];
+      agencies: { id: string; name: string }[];
+      preselectedAgencyId: string | null;
+    }
+  | {
       step: "review";
       participantName: string;
       regular: boolean;
@@ -66,8 +77,9 @@ export type SignInPageModel =
 
 export function requestedEntryStep(
   value: string | undefined,
-): "phone" | "recovery" | "guest" {
-  if (value === "recovery" || value === "guest") return value;
+): "phone" | "recovery" | "guest" | "register" {
+  if (value === "recovery" || value === "guest" || value === "register")
+    return value;
   return "phone";
 }
 
@@ -170,6 +182,29 @@ export async function buildSignInPageModel(
     const entry = requestedEntryStep(requestedStep);
     if (entry === "recovery" && state.pendingNewPhone)
       return { step: "recovery" };
+    if (entry === "register") {
+      const [requirements, agencies, classRows] = await Promise.all([
+        resolveClassRequirements(db, loaded.context.classId),
+        listGuestAttendanceAgencies(db),
+        db
+          .select({ hostAgencyId: trainingClasses.hostAgencyId })
+          .from(trainingClasses)
+          .where(eq(trainingClasses.id, loaded.context.classId))
+          .limit(1),
+      ]);
+      const hostAgencyId = classRows[0]?.hostAgencyId ?? null;
+      return {
+        step: "new-student-details",
+        phone: state.pendingNewPhone ?? "",
+        fields: fieldsForForm(requiredRegistrationFields(requirements)),
+        credentials: requirements.credentials,
+        agencies,
+        preselectedAgencyId:
+          hostAgencyId && agencies.some(({ id }) => id === hostAgencyId)
+            ? hostAgencyId
+            : null,
+      };
+    }
     if (entry !== "guest") return { step: "phone" };
     const [requirements, agencies] = await Promise.all([
       resolveClassRequirements(db, loaded.context.classId),
@@ -191,6 +226,16 @@ export async function buildSignInPageModel(
       attestation: renderAttendanceAttestation(
         `${participant.firstName} ${participant.lastName}`,
       ),
+    };
+  }
+
+  if (participant.kind === "new_student") {
+    const participantName = `${participant.firstName} ${participant.lastName}`;
+    return {
+      step: "review",
+      participantName,
+      regular: true,
+      attestation: renderAttendanceAttestation(participantName),
     };
   }
 

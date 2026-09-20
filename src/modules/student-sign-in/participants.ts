@@ -1,23 +1,30 @@
 import "server-only";
 
 import { and, asc, desc, eq } from "drizzle-orm";
+import { z } from "zod";
 
 import {
   credentialLookupHash,
   encryptCredential,
   normalizeCredentialValue,
 } from "@/modules/reference/crypto";
-import { credentialMaskedSuffix } from "@/modules/reference/masking";
+import {
+  credentialMaskedSuffix,
+  normalizePhone,
+} from "@/modules/reference/masking";
 import type { Database } from "@/server/db/client";
 import {
   agencies,
   studentAgencies,
   studentCredentials,
 } from "@/server/db/schema";
-
-import { resolveClassRequirements } from "./requirements";
+import {
+  requiredRegistrationFields,
+  resolveClassRequirements,
+} from "./requirements";
 import type {
   GuestWorkflowParticipant,
+  NewStudentWorkflowParticipant,
   RegularWorkflowParticipant,
   SignInWorkflowState,
   StagedCredential,
@@ -257,6 +264,80 @@ export async function stageGuestParticipant(
     kind: "guest",
     firstName,
     lastName,
+    fields,
+    credentials: requiredCredentialMap(
+      input.credentials,
+      requirements.credentials,
+    ),
+  };
+  const state = {
+    participant,
+    selectedAgencyId: input.agencyId,
+    pendingNewPhone: null,
+    requirementSets: requirements.sets.map(({ id, version }) => ({
+      id,
+      version,
+    })),
+  };
+  await updateSignInWorkflow(db, signedContext, state, now);
+  return state;
+}
+
+const emailSchema = z.string().trim().email().max(254);
+
+export async function stageNewStudentParticipant(
+  db: Database,
+  signedContext: string,
+  input: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    fields: Record<string, string>;
+    credentials: { credentialTypeId: string; value: string }[];
+    agencyId: string;
+  },
+  now = new Date(),
+): Promise<SignInWorkflowState> {
+  const loaded = await loadSignInWorkflow(db, signedContext, now);
+  const requirements = await resolveClassRequirements(
+    db,
+    loaded.context.classId,
+    now,
+  );
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  if (
+    !firstName ||
+    !lastName ||
+    firstName.length > 100 ||
+    lastName.length > 100
+  ) {
+    throw new Error("First and last name are required.");
+  }
+  let phone: string;
+  try {
+    phone = normalizePhone(input.phone);
+  } catch {
+    throw new Error("Enter a valid 10-digit US phone number.");
+  }
+  const agencyOptions = await listGuestAttendanceAgencies(db);
+  if (!agencyOptions.some(({ id }) => id === input.agencyId)) {
+    throw new Error("The selected agency is unavailable.");
+  }
+  const fields: Record<string, string> = {};
+  for (const field of requiredRegistrationFields(requirements)) {
+    const value = input.fields[field]?.trim();
+    if (!value) throw new Error("All required student fields are required.");
+    if (field === "email" && !emailSchema.safeParse(value).success) {
+      throw new Error("Enter a valid email address.");
+    }
+    fields[field] = value;
+  }
+  const participant: NewStudentWorkflowParticipant = {
+    kind: "new_student",
+    firstName,
+    lastName,
+    phone,
     fields,
     credentials: requiredCredentialMap(
       input.credentials,
