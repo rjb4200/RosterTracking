@@ -1,6 +1,5 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -8,10 +7,6 @@ import {
   verifyOpenClassAccessPin,
 } from "@/modules/classes/services";
 import { isClassAccessPin, isClassPublicCode } from "@/modules/classes/token";
-import {
-  SIGN_IN_CONTEXT_COOKIE_NAME,
-  signInCookieOptions,
-} from "@/modules/student-sign-in/context";
 import {
   classifyFailure,
   logSignInFailure,
@@ -26,7 +21,6 @@ import {
   getTrustedRequestMetadata,
   validateSameOriginRequest,
 } from "@/modules/student-sign-in/request-security";
-import { createWorkflowFromOpenClass } from "@/modules/student-sign-in/workflow";
 import { getDatabase } from "@/server/db/client";
 
 const UNAVAILABLE = "/sign-in?status=unavailable";
@@ -71,18 +65,10 @@ export async function submitAccessPin(formData: FormData) {
       await recordPublicRateLimitFailure(db, lease);
       redirect(INVALID(code));
     }
-    const workflow = await createWorkflowFromOpenClass(
-      db,
-      verified.id,
-      verified.signInTokenVersion,
-    );
-    if (!workflow) redirect(UNAVAILABLE);
-    (await cookies()).set(
-      SIGN_IN_CONTEXT_COOKIE_NAME,
-      workflow.token,
-      signInCookieOptions(),
-    );
-    destination = "/sign-in";
+    // Hand the class reference to the first-party context route, which
+    // establishes the sign-in context on its own response and then redirects
+    // to the clean sign-in page.
+    destination = `/sign-in/establish?class=${encodeURIComponent(code)}`;
   } catch (error) {
     // redirect() throws a control-flow signal; let it propagate untouched.
     if (isRedirect(error)) throw error;

@@ -6,11 +6,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { hashClassSignInToken } from "../../src/modules/classes/token";
 import { confirmAttendance } from "../../src/modules/student-sign-in/attendance";
+import { establishSignInContext } from "../../src/modules/student-sign-in/establish-context";
 import {
   stageGuestParticipant,
   stageRegularRequirements,
 } from "../../src/modules/student-sign-in/participants";
-import { createWorkflowFromClassToken } from "../../src/modules/student-sign-in/workflow";
+import {
+  createWorkflowFromClassToken,
+  loadSignInWorkflow,
+} from "../../src/modules/student-sign-in/workflow";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
@@ -111,6 +115,11 @@ const request = {
   requestSourceFingerprint: "test-source-fingerprint",
   requestCorrelationId: "test-correlation-id",
 };
+
+const metadata = request;
+
+const cookiesMock = vi.hoisted(() => vi.fn());
+vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 
 describeDatabase("student sign-in transaction", () => {
   it("creates an idempotent class guest without a permanent student", async () => {
@@ -291,5 +300,60 @@ describeDatabase("student sign-in transaction", () => {
       .where(eq(studentAgencies.studentId, student.id));
     expect(memberships).toHaveLength(1);
     expect(memberships[0]?.agencyId).toBe(fixture.agency.id);
+  });
+});
+
+describeDatabase("sign-in context hand-off", () => {
+  it("establishes a usable context from an entry hand-off and reuses it", async () => {
+    const fixture = await createOpenClassFixture();
+    const [openClass] = await fixture.db
+      .select({ id: trainingClasses.id })
+      .from(trainingClasses)
+      .where(eq(trainingClasses.id, fixture.classRecord.id));
+    if (!openClass) throw new Error("Open class fixture was not created.");
+
+    const cookieStore = new Map<string, string>();
+    const setSpy = vi.fn((name: string, value: string) => {
+      cookieStore.set(name, value);
+    });
+    cookiesMock.mockImplementation(async () => ({
+      get: (name: string) => {
+        const value = cookieStore.get(name);
+        return value === undefined ? undefined : { name, value };
+      },
+      set: setSpy,
+    }));
+
+    // First load: no cookie, so a workflow is minted.
+    const first = await establishSignInContext(fixture.db, {
+      rawToken: fixture.rawToken,
+      metadata,
+    });
+    expect(first.status).toBe("established");
+    const signed = cookieStore.get("roster_sign_in_context");
+    expect(signed).toBeTruthy();
+    expect(setSpy).toHaveBeenCalledTimes(1);
+
+    // The signed context loads, which is what the phone lookup depends on.
+    const loaded = await loadSignInWorkflow(fixture.db, signed as string);
+    expect(loaded.context.classId).toBe(openClass.id);
+
+    // A reload reuses the context instead of resetting progress.
+    const second = await establishSignInContext(fixture.db, {
+      rawToken: fixture.rawToken,
+      metadata,
+    });
+    expect(second.status).toBe("established");
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(cookieStore.get("roster_sign_in_context")).toBe(signed);
+  });
+
+  it("refuses an entry hand-off for a class that is not open", async () => {
+    const fixture = await createOpenClassFixture();
+    const result = await establishSignInContext(fixture.db, {
+      rawToken: "not-a-real-token",
+      metadata,
+    });
+    expect(result).toEqual({ status: "unavailable" });
   });
 });

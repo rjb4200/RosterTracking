@@ -420,7 +420,11 @@ function Wizard({
 export default async function PublicSignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; step?: string; notice?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    step?: string;
+    notice?: string;
+  }>;
 }) {
   const query = await searchParams;
   if (query.status === "success" || query.status === "already-signed-in") {
