@@ -13,6 +13,10 @@ import {
   signInCookieOptions,
 } from "@/modules/student-sign-in/context";
 import {
+  MissingSignInContextError,
+  OriginRejectedError,
+} from "@/modules/student-sign-in/errors";
+import {
   classifyFailure,
   logSignInFailure,
 } from "@/modules/student-sign-in/failure-log";
@@ -80,11 +84,11 @@ function phoneFingerprintInput(value: string) {
 
 async function requestContext() {
   if (!(await validateSameOriginRequest())) {
-    throw new Error("Mutation request origin is unavailable.");
+    throw new OriginRejectedError();
   }
   const cookieStore = await cookies();
   const signedContext = cookieStore.get(SIGN_IN_CONTEXT_COOKIE_NAME)?.value;
-  if (!signedContext) throw new Error("Sign-in context is unavailable.");
+  if (!signedContext) throw new MissingSignInContextError();
   const db = getDatabase();
   const [loaded, metadata] = await Promise.all([
     loadSignInWorkflow(db, signedContext),

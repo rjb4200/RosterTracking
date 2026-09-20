@@ -5,6 +5,7 @@ import {
   getTrustedRequestMetadata,
   isSameOriginRequest,
   requestSourceFingerprint,
+  trustedSignInOrigins,
   validateSameOriginRequest,
 } from "./request-security";
 
@@ -82,5 +83,65 @@ describe("public request security", () => {
       ipAddress: "198.51.100.8",
     });
     expect(await validateSameOriginRequest(request)).toBe(true);
+  });
+
+  it("trusts the configured origin and the project production domain", () => {
+    const origins = trustedSignInOrigins(
+      "https://rosters.winchesterfireems.com",
+      "roster-tracking.vercel.app",
+    );
+    expect(origins.has("https://rosters.winchesterfireems.com")).toBe(true);
+    expect(origins.has("https://roster-tracking.vercel.app")).toBe(true);
+    expect(origins.size).toBe(2);
+  });
+
+  it("accepts either trusted host for a public mutation", () => {
+    const configured = "https://rosters.winchesterfireems.com";
+    const project = "roster-tracking.vercel.app";
+    const previous = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", project);
+    try {
+      expect(
+        isSameOriginRequest(
+          new Headers({ origin: configured }),
+          "https://internal.invalid/sign-in",
+          configured,
+        ),
+      ).toBe(true);
+      // The project domain must be accepted, not rejected as an unknown host.
+      expect(
+        isSameOriginRequest(
+          new Headers({ origin: `https://${project}` }),
+          "https://internal.invalid/sign-in",
+          configured,
+        ),
+      ).toBe(true);
+    } finally {
+      vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", previous ?? "");
+    }
+  });
+
+  it("rejects an absent origin, an untrusted origin, and a lookalike host", () => {
+    const configured = "https://rosters.winchesterfireems.com";
+    expect(
+      isSameOriginRequest(new Headers(), "https://internal.invalid/sign-in"),
+    ).toBe(false);
+    expect(
+      isSameOriginRequest(
+        new Headers({ origin: "https://evil.example.com" }),
+        "https://internal.invalid/sign-in",
+        configured,
+      ),
+    ).toBe(false);
+    // A suffix that merely contains the trusted host is not the trusted host.
+    expect(
+      isSameOriginRequest(
+        new Headers({
+          origin: "https://rosters.winchesterfireems.com.evil.com",
+        }),
+        "https://internal.invalid/sign-in",
+        configured,
+      ),
+    ).toBe(false);
   });
 });

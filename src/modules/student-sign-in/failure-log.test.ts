@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { MissingSignInContextError, OriginRejectedError } from "./errors";
 import { classifyFailure, logSignInFailure } from "./failure-log";
 
 describe("sign-in failure logging", () => {
@@ -27,5 +28,19 @@ describe("sign-in failure logging", () => {
     const error = new TypeError("+18595551234 is not a valid phone");
     expect(classifyFailure(error)).toBe("TypeError");
     expect(classifyFailure("raw string failure")).toBe("UnknownFailure");
+  });
+
+  it("classifies a plain Error as the generic unhandled kind", () => {
+    expect(classifyFailure(new Error("anything"))).toBe("UnhandledError");
+  });
+
+  it("distinguishes a rejected origin from a missing context", () => {
+    const origin = classifyFailure(new OriginRejectedError());
+    const context = classifyFailure(new MissingSignInContextError());
+    expect(origin).toBe("OriginRejectedError");
+    expect(context).toBe("MissingSignInContextError");
+    expect(origin).not.toBe(context);
+    expect(origin).not.toBe("UnhandledError");
+    expect(context).not.toBe("UnhandledError");
   });
 });

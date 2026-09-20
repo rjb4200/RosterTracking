@@ -22,17 +22,37 @@ function firstHeaderValue(value: string | null): string | null {
   return first || null;
 }
 
-function isLocalOrigin(value: string | undefined): boolean {
-  if (!value) return false;
+function originOf(value: string | undefined): string | null {
+  if (!value) return null;
   try {
-    return ["localhost", "127.0.0.1", "::1"].includes(new URL(value).hostname);
+    return new URL(value).origin;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export function requestSourceFingerprint(ipAddress: string): string {
   return keyedHash("sign-in-request-source", ipAddress.trim().toLowerCase());
+}
+
+/**
+ * The bounded set of origins a public sign-in mutation may come from:
+ * the configured canonical origin, and the deployment's project production
+ * domain. Compared by full origin (scheme, host, and port) so no wildcard,
+ * suffix, or lookalike host is ever accepted.
+ */
+export function trustedSignInOrigins(
+  configuredOrigin = process.env.NEXTAUTH_URL,
+  projectProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL,
+): Set<string> {
+  const origins = new Set<string>();
+  const configured = originOf(configuredOrigin);
+  if (configured) origins.add(configured);
+  const project = originOf(
+    projectProductionUrl ? `https://${projectProductionUrl}` : undefined,
+  );
+  if (project) origins.add(project);
+  return origins;
 }
 
 export function extractTrustedRequestMetadata(
@@ -66,18 +86,14 @@ export function isSameOriginRequest(
   requestUrl?: string,
   configuredOrigin = process.env.NEXTAUTH_URL,
 ): boolean {
-  const supplied = headers.get("origin");
+  const supplied = originOf(headers.get("origin") ?? undefined);
   if (!supplied) return false;
-  try {
-    const expected = new URL(
-      process.env.NODE_ENV === "production" && isLocalOrigin(configuredOrigin)
-        ? (requestUrl ?? "")
-        : (configuredOrigin ?? requestUrl ?? ""),
-    ).origin;
-    return new URL(supplied).origin === expected;
-  } catch {
-    return false;
-  }
+  // The request's own origin is trusted so a deployment served on a legitimate
+  // alternate host still works. It is added per request and never derived from
+  // caller-controlled input beyond that single header equality.
+  const requestOrigin = originOf(requestUrl);
+  if (requestOrigin && supplied === requestOrigin) return true;
+  return trustedSignInOrigins(configuredOrigin).has(supplied);
 }
 
 export async function validateSameOriginRequest(
