@@ -2,6 +2,11 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { z } from "zod";
 
+import {
+  classifyServerFailure,
+  logServerFailure,
+} from "@/server/server-failure-log";
+
 import { authenticateStaff } from "./authentication";
 
 export const STAFF_SESSION_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
@@ -47,7 +52,10 @@ export const authOptions: NextAuthOptions = {
             ipAddress,
           );
         } catch (error) {
-          console.error("[auth] staff authentication failed", error);
+          logServerFailure({
+            failureKind: classifyServerFailure(error),
+            route: "POST /api/auth/callback/credentials",
+          });
           throw new Error("server_error");
         }
       },

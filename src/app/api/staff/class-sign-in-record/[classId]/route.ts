@@ -2,6 +2,11 @@ import { renderClassSignInRecordPdf } from "@/modules/class-sign-in-record/pdf";
 import { getClassSignInRecord } from "@/modules/class-sign-in-record/service";
 import { requireStaff } from "@/modules/staff-auth/authorization";
 import { getDatabase } from "@/server/db/client";
+import {
+  classifyServerFailure,
+  correlationIdFromHeaders,
+  logServerFailure,
+} from "@/server/server-failure-log";
 
 export const runtime = "nodejs";
 
@@ -31,7 +36,11 @@ export async function GET(
     });
   } catch (error) {
     // Do not reveal class or attendance existence to unauthorized users.
-    console.error("Class sign-in record request failed.", error);
+    logServerFailure({
+      failureKind: classifyServerFailure(error),
+      route: "/api/staff/class-sign-in-record/[classId]",
+      correlationId: correlationIdFromHeaders(request.headers),
+    });
     return new Response("Not found.", { status: 404 });
   }
 }

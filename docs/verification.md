@@ -88,6 +88,37 @@ By default the suite runs against `next dev`. Set `E2E_PRODUCTION=1` to build an
 serve a production bundle instead, which is required to reproduce behavior that
 only appears with production cookie, prefetch, and caching semantics.
 
+## Official roster verification
+
+Verified as part of the Phase 9 hardening review (issue #2).
+
+**The approved templates are the ones used.** `service.test.ts` hashes each
+template asset against the `sourceChecksum` recorded in `mappings.ts`, so a
+substituted or edited template fails the suite:
+
+- `kfs-1a-october-2023.pdf`
+- `kbems-e16-september-2012.pdf`
+
+**Every mapped field exists in the approved template.** The same test loads each
+template's AcroForm and asserts that every field name referenced in the mapping
+and every intentionally blank field is present. A mapping typo therefore fails
+rather than silently leaving a box empty.
+
+**Signature and initial fields are never populated electronically.** The mapping
+lists them as `blankFields`, and the rendered output is asserted to carry no
+AcroForm field values.
+
+**Output is generated from real data end to end.** With a finalized class in the
+end-to-end database, authorized staff downloaded a real `kfs-1a-*.pdf` through
+the application, and the download action was asserted for both forms.
+
+**No discrepancies were found.**
+
+**Sign-off.** Approved by the Administrator on 2026-09-21. Approval authority is
+an Administrator or a Training Major; an instructor verifies their own class.
+The sign-off covers the field mapping and layout above. It is not a legal
+review of the agency forms themselves.
+
 ## Known issues
 
 - The class creation wizard's action row overlaps the step content on a narrow

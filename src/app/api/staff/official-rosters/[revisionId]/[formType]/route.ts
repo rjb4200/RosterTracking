@@ -4,6 +4,11 @@ import {
 } from "@/modules/official-roster-pdfs/service";
 import { requireStaff } from "@/modules/staff-auth/authorization";
 import { getDatabase } from "@/server/db/client";
+import {
+  classifyServerFailure,
+  correlationIdFromHeaders,
+  logServerFailure,
+} from "@/server/server-failure-log";
 
 export const runtime = "nodejs";
 
@@ -43,17 +48,26 @@ export async function GET(
       },
     });
   } catch (error) {
+    const correlationId = correlationIdFromHeaders(request.headers);
     if (error instanceof UnreadableRevisionSnapshotError) {
       // Authorized staff need a specific, actionable message; the snapshot is
       // unreadable rather than the revision being missing.
-      console.error("Official roster snapshot unreadable.", error);
+      logServerFailure({
+        failureKind: "UnreadableRevisionSnapshotError",
+        route: "/api/staff/official-rosters/[revisionId]/[formType]",
+        correlationId,
+      });
       return new Response(error.message, {
         status: 422,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
     // Do not reveal revision existence or snapshot content to unauthorized users.
-    console.error("Official roster request failed.", error);
+    logServerFailure({
+      failureKind: classifyServerFailure(error),
+      route: "/api/staff/official-rosters/[revisionId]/[formType]",
+      correlationId,
+    });
     return new Response("Not found.", { status: 404 });
   }
 }
