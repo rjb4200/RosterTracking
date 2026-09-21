@@ -89,6 +89,41 @@ test("authorized staff can create and open a class in one pass", async ({
   ).toBeVisible();
 });
 
+test("class wizard stays within a narrow viewport", async ({ page }) => {
+  test.skip(!username || !password, "Set E2E staff credentials.");
+  if (!username || !password) return;
+
+  await signIn(page, username, password);
+  // Narrow phone width: the wizard must not widen the page, and the action row
+  // must win the hit test at the Next control (issue #13). This journey is
+  // read-only, so it also runs on the mobile-chrome project.
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/staff/classes/new");
+
+  const next = page.getByRole("button", { name: "Next", exact: true });
+  await next.scrollIntoViewIfNeeded();
+
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  // Issue #13: the step section must not cover the action row's controls. This
+  // is scoped to the section rather than requiring the button to win the hit
+  // test, because the Next.js dev overlay also floats over the page in dev.
+  const coveredByStep = await next.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const topElement = document.elementFromPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+    return Boolean(topElement?.closest("section.stack-form"));
+  });
+  expect(coveredByStep).toBe(false);
+});
+
 test("staff workspace exposes the primary class creation path", async ({
   page,
 }) => {

@@ -82,7 +82,8 @@ under test always agree on the database and the session is established before
 any spec navigates.
 
 Specs that mutate shared data run once on the `chromium` project; the rest run on
-both `chromium` and `mobile-chrome`.
+both `chromium` and `mobile-chrome`. The class creation and roster finalization
+narrow-viewport reachability checks are read-only, so they run on every project.
 
 By default the suite runs against `next dev`. Set `E2E_PRODUCTION=1` to build and
 serve a production bundle instead, which is required to reproduce behavior that
@@ -121,8 +122,8 @@ review of the agency forms themselves.
 
 ## Known issues
 
-- The class creation wizard's action row overlaps the step content on a narrow
-  mobile viewport, so a pointer click on `Next` from the Training Site step is
-  intercepted by the step section. Class creation and roster finalization
-  therefore run on the `chromium` project only. This is a layout defect in the
-  wizard, not a test-harness problem, and needs its own fix (issue #13).
+None currently. The class creation wizard's action row no longer overlaps the
+step content on narrow mobile viewports — the wizard and the class command
+screen now keep their controls within the viewport, and both are covered by
+read-only narrow-viewport reachability checks on every project, including
+`mobile-chrome`.

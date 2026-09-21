@@ -91,6 +91,48 @@ test("finishing attendance lands on the review screen", async ({ page }) => {
   await expect(page.getByText("Completed class review")).toBeVisible();
 });
 
+test("class command controls stay reachable on a narrow viewport", async ({
+  page,
+}) => {
+  test.skip(
+    !username || !password || !connectionString,
+    "Set E2E staff credentials and E2E_DATABASE_URL.",
+  );
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass();
+
+  await signIn(page, username, password);
+  // Same narrow-viewport reachability contract as the class wizard (issue #13):
+  // the page must not overflow and the primary control must win its own hit
+  // test. Read-only, so it runs on every browser project.
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto(`/staff/classes/${classId}`);
+
+  const finish = page.getByRole("button", {
+    name: "Finish attendance and review",
+  });
+  await finish.scrollIntoViewIfNeeded();
+
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  const reachable = await finish.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const topElement = document.elementFromPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+    return Boolean(
+      topElement && (topElement === button || button.contains(topElement)),
+    );
+  });
+  expect(reachable).toBe(true);
+});
+
 test("cancelling a class keeps the operator on the class page", async ({
   page,
 }) => {
