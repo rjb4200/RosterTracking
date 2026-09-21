@@ -81,19 +81,23 @@ The system SHALL let authorized staff assign active staff users as instructors a
 - **THEN** the newly selected instructor becomes the only lead assignment
 
 ### Requirement: Class lifecycle is controlled
-The system SHALL represent open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, close public sign-in and enter completed roster review only when an open class passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable until it is finalized, except where a lifecycle restriction expressly applies.
+The system SHALL represent open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, close public sign-in and enter completed roster review when an open class finishes attendance, finalize a completed class only once its roster is ready, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable while it is open or completed, except where a lifecycle restriction expressly applies.
 
 #### Scenario: Complete an open class
-- **WHEN** authorized staff finish attendance for an open class with at least one active attendance record and no active attendance missing required reporting context or valid credited hours
-- **THEN** public sign-in closes and the class state changes to completed for roster review
+- **WHEN** authorized staff finish attendance for an open class
+- **THEN** public sign-in closes and the class state changes to completed for roster review, whether or not the roster still needs correction
 
-#### Scenario: Block completion with roster errors
-- **WHEN** authorized staff attempt to complete an open class whose roster has no active attendance, missing required reporting context, or credited hours outside the class scheduled total
-- **THEN** the system keeps the class open and reports the roster validation errors
+#### Scenario: Block finalization with roster errors
+- **WHEN** authorized staff attempt to finalize a completed class whose roster has no active attendance, missing required reporting context, or credited hours outside the class scheduled total
+- **THEN** the system keeps the class completed and reports the roster validation errors
 
 #### Scenario: Edit an open class
 - **WHEN** authorized staff change the course, site, host agency, reporting systems, sessions, or lead instructor of an open class
 - **THEN** the system saves the change and the class remains open
+
+#### Scenario: Edit a completed class
+- **WHEN** authorized staff change the course, site, host agency, reporting systems, sessions, or lead instructor of a completed class that is under roster review
+- **THEN** the system saves the change and the class remains completed
 
 #### Scenario: Lock finalized class editing
 - **WHEN** a class is finalized

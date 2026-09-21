@@ -589,6 +589,25 @@ export async function listReportingQueue(
         referenceNumber: finalizationReportingStatuses.referenceNumber,
         notes: finalizationReportingStatuses.notes,
         updatedAt: finalizationReportingStatuses.updatedAt,
+        // The immediately preceding revision of the same class, and its status
+        // for the same destination. Null for a first-time finalization.
+        supersededRevisionNumber: sql<number | null>`(
+          select max(previous_revision.revision_number)
+          from finalization_revisions previous_revision
+          where previous_revision.class_id = ${trainingClasses.id}
+            and previous_revision.revision_number < ${finalizationRevisions.revisionNumber}
+        )`,
+        supersededStatus: sql<string | null>`(
+          select previous_status.status
+          from finalization_reporting_statuses previous_status
+          inner join finalization_revisions previous_revision
+            on previous_revision.id = previous_status.revision_id
+          where previous_revision.class_id = ${trainingClasses.id}
+            and previous_revision.revision_number < ${finalizationRevisions.revisionNumber}
+            and previous_status.reporting_system_id = ${finalizationReportingStatuses.reportingSystemId}
+          order by previous_revision.revision_number desc
+          limit 1
+        )`,
       })
       .from(finalizationReportingStatuses)
       .innerJoin(

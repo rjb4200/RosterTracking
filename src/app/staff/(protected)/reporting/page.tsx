@@ -177,6 +177,18 @@ function ReportingQueue({
           >
             {row.systemName}: {row.status.replaceAll("_", " ")}
           </Badge>
+          {row.supersededRevisionNumber ? (
+            <span className="text-muted-foreground">
+              <Badge variant="secondary">Revised work</Badge> supersedes
+              revision {row.supersededRevisionNumber}
+              {row.supersededStatus
+                ? ` — ${row.systemName}: ${row.supersededStatus.replaceAll("_", " ")}`
+                : ""}{" "}
+              <Link href={`/staff/classes/${row.classId}`}>
+                View revision {row.supersededRevisionNumber}
+              </Link>
+            </span>
+          ) : null}
           {row.systemCode in rosterFormBySystem ? (
             <Link
               href={`/api/staff/official-rosters/${row.revisionId}/${rosterFormBySystem[row.systemCode as keyof typeof rosterFormBySystem]}`}

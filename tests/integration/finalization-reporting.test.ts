@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
@@ -55,6 +55,106 @@ async function createUser(
     throw new Error("Reporting fixture user creation failed.");
   await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
   return user;
+}
+
+async function createReportingClassFixture(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  suffix: string,
+) {
+  const instructor = await createUser(
+    db,
+    `${suffix}-instructor`,
+    ROLE_CODES.INSTRUCTOR,
+  );
+  const [course] = await db
+    .insert(courses)
+    .values({ name: `Supersede Course ${suffix}` })
+    .returning({ id: courses.id });
+  const [site] = await db
+    .insert(trainingSites)
+    .values({ name: `Supersede Site ${suffix}` })
+    .returning({ id: trainingSites.id });
+  const [agency] = await db
+    .insert(agencies)
+    .values({ name: `Supersede Agency ${suffix}` })
+    .returning({ id: agencies.id });
+  const [fire] = await db
+    .select({ id: reportingSystems.id })
+    .from(reportingSystems)
+    .where(eq(reportingSystems.code, "fire"));
+  if (!course || !site || !agency || !fire)
+    throw new Error("Supersession fixture creation failed.");
+  const [classRecord] = await db
+    .insert(trainingClasses)
+    .values({
+      courseId: course.id,
+      trainingSiteId: site.id,
+      hostAgencyId: agency.id,
+      createdByUserId: instructor.id,
+      deliveryMethod: "classroom",
+      status: "finalized",
+      signInTokenHash: crypto.randomUUID(),
+    })
+    .returning({ id: trainingClasses.id });
+  if (!classRecord) throw new Error("Supersession fixture class failed.");
+  await db.insert(classComponents).values({
+    classId: classRecord.id,
+    startsAt: new Date("2026-09-14T13:00:00Z"),
+    endsAt: new Date("2026-09-14T17:00:00Z"),
+    creditedHours: "4",
+  });
+  await db.insert(classInstructors).values({
+    classId: classRecord.id,
+    userId: instructor.id,
+    isLead: true,
+  });
+  return {
+    classId: classRecord.id,
+    instructorId: instructor.id,
+    fireId: fire.id,
+  };
+}
+
+async function addRevision(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  input: {
+    classId: string;
+    instructorId: string;
+    revisionNumber: number;
+    fireId: string;
+    fireStatus: string;
+  },
+) {
+  const [revision] = await db
+    .insert(finalizationRevisions)
+    .values({
+      classId: input.classId,
+      revisionNumber: input.revisionNumber,
+      finalizedByUserId: input.instructorId,
+      encryptedSnapshot: "fixture",
+      summary: {},
+    })
+    .returning({ id: finalizationRevisions.id });
+  if (!revision) throw new Error("Supersession fixture revision failed.");
+  await db.insert(finalizationReportingStatuses).values({
+    revisionId: revision.id,
+    reportingSystemId: input.fireId,
+    status: input.fireStatus,
+  });
+  return revision.id;
+}
+
+// The queue is shared, so fixture destinations are retired after each test to
+// keep unrelated pending work out of other assertions.
+async function retireRevisions(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  revisionIds: string[],
+) {
+  if (!revisionIds.length) return;
+  await db
+    .update(finalizationReportingStatuses)
+    .set({ status: "not_required", updatedAt: new Date() })
+    .where(inArray(finalizationReportingStatuses.revisionId, revisionIds));
 }
 
 beforeAll(async () => {
@@ -226,5 +326,72 @@ describeDatabase("finalization reporting queue", () => {
         expect.objectContaining({ action: "reporting.destination.updated" }),
       ]),
     );
+  });
+
+  it("marks a re-finalized class's destination work as revised and names the prior status", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const reporter = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
+    const fixture = await createReportingClassFixture(db, suffix);
+    const revisionIds: string[] = [];
+    try {
+      revisionIds.push(
+        await addRevision(db, {
+          ...fixture,
+          revisionNumber: 1,
+          fireStatus: "entered",
+        }),
+      );
+      const secondRevisionId = await addRevision(db, {
+        ...fixture,
+        revisionNumber: 2,
+        fireStatus: "pending",
+      });
+      revisionIds.push(secondRevisionId);
+
+      const queue = await listReportingQueue(db, reporter);
+      const revised = queue.rows.find(
+        (row) =>
+          row.revisionId === secondRevisionId &&
+          row.systemId === fixture.fireId,
+      );
+      // The prior status ("entered") is outside the default filter, yet it is
+      // still carried on the revised item.
+      expect(revised).toMatchObject({
+        supersededRevisionNumber: 1,
+        supersededStatus: "entered",
+      });
+    } finally {
+      await retireRevisions(db, revisionIds);
+    }
+  });
+
+  it("does not mark a first-time finalization as revised", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const reporter = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
+    const fixture = await createReportingClassFixture(db, suffix);
+    const revisionIds: string[] = [];
+    try {
+      const revisionId = await addRevision(db, {
+        ...fixture,
+        revisionNumber: 1,
+        fireStatus: "pending",
+      });
+      revisionIds.push(revisionId);
+
+      const queue = await listReportingQueue(db, reporter);
+      const firstTime = queue.rows.find(
+        (row) =>
+          row.revisionId === revisionId && row.systemId === fixture.fireId,
+      );
+      expect(firstTime).toBeDefined();
+      expect(firstTime?.supersededRevisionNumber).toBeNull();
+      expect(firstTime?.supersededStatus).toBeNull();
+    } finally {
+      await retireRevisions(db, revisionIds);
+    }
   });
 });
