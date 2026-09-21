@@ -153,6 +153,11 @@ export function ClassForm({
               </Label>
             ))}
           </div>
+          <p className="text-muted-foreground">
+            Changing reporting systems can invalidate attendance already
+            recorded under the previous selection. Correct those records before
+            finalizing.
+          </p>
         </fieldset>
         <Label className="checkbox-field field-wide">
           <Input

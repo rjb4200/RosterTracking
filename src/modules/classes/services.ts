@@ -16,7 +16,6 @@ import {
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
-import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -570,9 +569,9 @@ export async function transitionClass(
       nextStatus,
       cancellationReason,
     );
-    if (nextStatus === CLASS_STATUSES.COMPLETED) {
-      await validateRosterCompletion(transaction, classId);
-    }
+    // Completing closes public sign-in and enters roster review. Roster
+    // readiness is enforced once, at finalization, so an operator can complete
+    // a class and then correct it on the review screen.
     const publicCode = current.publicCode;
     const now = new Date();
     const [updated] = await transaction

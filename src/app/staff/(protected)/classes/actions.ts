@@ -233,9 +233,6 @@ export async function transitionClassAction(
       status,
       read(formData, "cancellationReason"),
     );
-    revalidatePath(`/staff/classes/${classId}`);
-    revalidatePath("/staff/classes");
-    return { classId };
   } catch (error) {
     return {
       error:
@@ -244,6 +241,15 @@ export async function transitionClassAction(
           : "Could not update class status.",
     };
   }
+  revalidatePath(`/staff/classes/${classId}`);
+  revalidatePath("/staff/classes");
+  // Finishing attendance hands the operator to the review step, which is where
+  // the class and its roster are confirmed and corrected. The redirect is
+  // raised outside the try/catch because it works by throwing.
+  if (status === CLASS_STATUSES.COMPLETED) {
+    redirect(`/staff/classes/${classId}/review`);
+  }
+  return { classId };
 }
 
 export async function rotateTokenAction(

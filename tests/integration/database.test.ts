@@ -4,6 +4,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 import { CLASS_STATUSES } from "../../src/modules/classes/constants";
+import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   assignClassInstructor,
   createOpenClass,
@@ -310,14 +311,6 @@ describeDatabase("database foundation", () => {
         CLASS_STATUSES.FINALIZED,
       ),
     ).rejects.toThrow(/cannot transition/i);
-    await expect(
-      transitionClass(
-        database,
-        actor,
-        created.classRecord.id,
-        CLASS_STATUSES.COMPLETED,
-      ),
-    ).rejects.toThrow(/active attendance/i);
     expect(await resolveOpenClassToken(database, rotated)).toMatchObject({
       id: created.classRecord.id,
     });
@@ -366,6 +359,68 @@ describeDatabase("database foundation", () => {
           .where(eq(trainingClasses.id, created.classRecord.id))
       )[0]?.status,
     ).toBe(CLASS_STATUSES.OPEN);
+
+    // Completing no longer depends on roster readiness. It closes public
+    // sign-in and enters roster review, where corrections are made.
+    await transitionClass(
+      database,
+      actor,
+      created.classRecord.id,
+      CLASS_STATUSES.COMPLETED,
+    );
+    expect(await resolveOpenClassToken(database, rotated)).toBeNull();
+    expect(
+      await resolveOpenClassPublicCode(
+        database,
+        created.classRecord.publicCode ?? "",
+      ),
+    ).toBeNull();
+    expect(
+      (
+        await database
+          .select()
+          .from(trainingClasses)
+          .where(eq(trainingClasses.id, created.classRecord.id))
+      )[0]?.status,
+    ).toBe(CLASS_STATUSES.COMPLETED);
+
+    // Readiness still gates the irreversible step.
+    await expect(
+      finalizeClass(database, actor, created.classRecord.id),
+    ).rejects.toThrow(/active attendance/i);
+
+    // Class details, sessions, and instructors stay editable while the class
+    // is under completed review.
+    await updateClass(database, actor, created.classRecord.id, {
+      courseId: course.id,
+      trainingSiteId: site.id,
+      hostAgencyId: agency.id,
+      deliveryMethod: "hybrid",
+      reportingSystemIds: [system.id],
+    });
+    await saveClassComponent(database, actor, created.classRecord.id, {
+      id: component.id,
+      title: "Corrected session",
+      startsAt: "2026-09-10T13:00:00Z",
+      creditedHours: 3,
+      position: 0,
+    });
+    expect(
+      (
+        await database
+          .select()
+          .from(classComponents)
+          .where(eq(classComponents.id, component.id))
+      )[0]?.creditedHours,
+    ).toBe("3.00");
+    await assignClassInstructor(
+      database,
+      actor,
+      created.classRecord.id,
+      replacementLead.id,
+      true,
+    );
+
     const classAuditActions = (
       await database
         .select({ action: auditLogs.action })

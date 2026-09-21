@@ -200,16 +200,18 @@ export default async function ClassDetailPage({
                 href={`/staff/classes/${id}/review`}
                 className={buttonVariants({ variant: "secondary" })}
               >
-                Review &amp; finalize
+                Review and finalize
               </Link>
             ) : null}
           </div>
-          <FinalizationControls
-            classId={classRecord.id}
-            status={classRecord.status}
-            finalizeAction={finalizeClassAction}
-            reopenAction={reopenClassAction}
-          />
+          {isFinalized ? (
+            <FinalizationControls
+              classId={classRecord.id}
+              status={classRecord.status}
+              finalizeAction={finalizeClassAction}
+              reopenAction={reopenClassAction}
+            />
+          ) : null}
           {revisionHistory.length ? (
             <ul className="member-list">
               {revisionHistory.map((revision) => (

@@ -11,6 +11,7 @@ export function FinalizationControls({
   status,
   finalizeAction,
   reopenAction,
+  canFinalize = true,
 }: {
   classId: string;
   status: string;
@@ -22,6 +23,7 @@ export function FinalizationControls({
     prev: ActionState | undefined,
     formData: FormData,
   ) => Promise<ActionState>;
+  canFinalize?: boolean;
 }) {
   const [finalizeState, finalizeFormAction, finalizing] = useActionState(
     finalizeAction,
@@ -42,7 +44,7 @@ export function FinalizationControls({
       {status === "completed" ? (
         <form action={finalizeFormAction}>
           <input type="hidden" name="classId" value={classId} />
-          <Button type="submit" disabled={finalizing}>
+          <Button type="submit" disabled={finalizing || !canFinalize}>
             Finalize roster
           </Button>
         </form>

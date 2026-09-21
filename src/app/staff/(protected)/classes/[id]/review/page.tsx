@@ -2,9 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
-import { getClassDetail } from "@/modules/classes/services";
+import {
+  getClassDetail,
+  listClassFormOptions,
+} from "@/modules/classes/services";
+import {
+  formatDepartmentDateTime,
+  formatDepartmentDateTimeInput,
+  roundDepartmentDateTimeToQuarterHour,
+} from "@/modules/classes/time";
 import {
   getClassRoster,
   getRosterReadiness,
@@ -17,10 +25,15 @@ import { resolveClassRequirements } from "@/modules/student-sign-in/requirements
 import { getDatabase } from "@/server/db/client";
 
 import {
+  assignInstructorAction,
   finalizeClassAction,
   reopenClassAction,
+  saveComponentAction,
   sendOfficialRosterEmailAction,
+  updateClassAction,
 } from "../../actions";
+import { ClassForm } from "../../class-form";
+import { ComponentForm } from "../../component-form";
 import { FinalizationControls } from "../../finalization-controls";
 import { OfficialRosterControls } from "../../official-roster-controls";
 import { AddAttendanceForms, AttendanceControls } from "../../roster-controls";
@@ -49,7 +62,7 @@ export default async function CompletedClassReviewPage({
   const isFinalized = classRecord.status === "finalized";
   if (!isCompleted && !isFinalized) notFound();
 
-  const [reviewData, revisionHistory] = await Promise.all([
+  const [reviewData, classOptions, revisionHistory] = await Promise.all([
     isCompleted
       ? Promise.all([
           listRosterFormOptions(db),
@@ -61,6 +74,7 @@ export default async function CompletedClassReviewPage({
           readiness,
         }))
       : Promise.resolve(null),
+    isCompleted ? listClassFormOptions(db, actor) : Promise.resolve(null),
     isFinalized ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
   ]);
   const canManageOfficialRosters = isFinalized
@@ -157,6 +171,7 @@ export default async function CompletedClassReviewPage({
           status={classRecord.status}
           finalizeAction={finalizeClassAction}
           reopenAction={reopenClassAction}
+          canFinalize={reviewData?.readiness.ready ?? false}
         />
         {isFinalized && revisionHistory.length ? (
           <ul className="member-list">
@@ -190,6 +205,91 @@ export default async function CompletedClassReviewPage({
           </ul>
         ) : null}
       </section>
+
+      {isCompleted && classOptions ? (
+        <details className="admin-section">
+          <summary>Correct class details, sessions, and instructors</summary>
+          <section className="admin-section">
+            <h2>Class details</h2>
+            <ClassForm
+              action={updateClassAction}
+              {...classOptions}
+              values={{
+                id: classRecord.id,
+                courseId: classRecord.courseId,
+                trainingSiteId: classRecord.trainingSiteId,
+                hostAgencyId: classRecord.hostAgencyId,
+                deliveryMethod: classRecord.deliveryMethod,
+                accessPinEnabled: classRecord.accessPinEnabled,
+                reportingSystemIds: classRecord.reportingSystems.map(
+                  (system) => system.id,
+                ),
+              }}
+            />
+          </section>
+
+          <section className="admin-section">
+            <h2>Sessions</h2>
+            <ul className="member-list">
+              {classRecord.components.map((component) => (
+                <li key={component.id} className="member-row">
+                  <span>{component.title ?? "Training session"}</span>
+                  <span>
+                    {formatDepartmentDateTime(component.startsAt)} to{" "}
+                    {formatDepartmentDateTime(component.endsAt)}
+                  </span>
+                  <Badge variant="outline">
+                    {component.creditedHours} hours
+                  </Badge>
+                  <ComponentForm
+                    classId={classRecord.id}
+                    action={saveComponentAction}
+                    component={{
+                      id: component.id,
+                      title: component.title,
+                      creditedHours: component.creditedHours,
+                      startsAt: formatDepartmentDateTimeInput(
+                        component.startsAt,
+                      ),
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+            <ComponentForm
+              classId={classRecord.id}
+              action={saveComponentAction}
+              defaultStartsAt={roundDepartmentDateTimeToQuarterHour(new Date())}
+            />
+          </section>
+
+          <section className="admin-section">
+            <h2>Instructors</h2>
+            <ul className="member-list">
+              {classRecord.instructors.map((instructor) => (
+                <li key={instructor.userId} className="member-row">
+                  <span>{instructor.displayName}</span>
+                  {instructor.isLead ? <Badge>Lead</Badge> : null}
+                </li>
+              ))}
+            </ul>
+            <form action={assignInstructorAction} className="inline-form">
+              <input type="hidden" name="classId" value={classRecord.id} />
+              <input type="hidden" name="isLead" value="true" />
+              <select name="userId" className="select-input" required>
+                {classOptions.staff.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" variant="secondary">
+                Set lead instructor
+              </Button>
+            </form>
+          </section>
+        </details>
+      ) : null}
 
       <section className="admin-section">
         <h2>Active attendance ({roster.active.length})</h2>
