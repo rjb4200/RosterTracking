@@ -16,8 +16,8 @@
 ## 3. Explicit TLS mode
 
 - [x] 3.1 Update `.env.example` to use `sslmode=verify-full` and note why
-- [ ] 3.2 Update `DATABASE_URL` on Vercel to `sslmode=verify-full` (operator action)
-- [ ] 3.3 Verify a preview deployment connects cleanly with no SSL-mode warning on cold start; fall back to `uselibpqcompat=true&sslmode=require` only if the certificate cannot be validated
+- [x] 3.2 Update `DATABASE_URL` on Vercel to `sslmode=verify-full` (operator action)
+- [x] 3.3 Verify a preview deployment connects cleanly with no SSL-mode warning on cold start; fall back to `uselibpqcompat=true&sslmode=require` only if the certificate cannot be validated
 
 ## 4. Verification
 
@@ -27,4 +27,4 @@
 - [x] 4.4 Run `npm run build`
 - [x] 4.5 Run the browser suite in production mode, or at minimum the specs that touch the landing page and class pages
 - [x] 4.6 Confirm the public directory still lists the same open classes with the same sessions and instructor names
-- [ ] 4.7 Confirm preview/production logs show neither the `client.query()` deprecation nor the SSL-mode warning on the affected routes
+- [x] 4.7 Confirm preview/production logs show neither the `client.query()` deprecation nor the SSL-mode warning on the affected routes
