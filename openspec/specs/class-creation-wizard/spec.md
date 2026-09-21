@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Give authorized instructors a fast, reviewable guided path to create a scheduled class draft without exposing all setup choices at once.
+Give authorized instructors a fast, reviewable guided path to create a scheduled class that is open for sign-in as soon as it is created, without exposing all setup choices at once.
 
 ## Requirements
 
 ### Requirement: Guided class creation
-The system SHALL present class creation as Course, Training Site, Class Details, Host Agency, and Reporting steps followed by a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs.
+The system SHALL present class creation as a Class step, a Reporting step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Class step SHALL collect the course, delivery method, training site when required, scheduled start and duration, lead instructor, and optional student access PIN. The Reporting step SHALL collect the host agency and reporting systems and SHALL show the student information those systems require.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -18,15 +18,15 @@ The system SHALL present class creation as Course, Training Site, Class Details,
 - **THEN** the system restores their entered values and permits them to change those values before continuing
 
 #### Scenario: Select the host agency
-- **WHEN** staff reach the Host Agency step
+- **WHEN** staff reach the Reporting step
 - **THEN** they can select an active agency or add a new one inline before continuing
 
-### Requirement: Final review creates a scheduled draft
-The system SHALL show a concise summary of the selected course, site, scheduled details, delivery method, host agency, instructor, and reporting destinations before submission. A successful Create Class action SHALL create one draft class with its initial scheduled session, host agency, and assigned lead instructor.
+### Requirement: Final review creates an open class
+The system SHALL show a concise summary of the selected course, site, scheduled details, delivery method, host agency, instructor, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, and assigned lead instructor, ready to accept student sign-in.
 
-#### Scenario: Create a class from the review step
+#### Scenario: Create and open from the review step
 - **WHEN** authorized staff submit a valid reviewed wizard
-- **THEN** the system creates the draft class, its initial scheduled session, host agency, reporting selections, and lead-instructor assignment together
+- **THEN** the system creates the class already open, with its session, host agency, reporting selections, and lead instructor
 
 #### Scenario: Reject incomplete review submission
 - **WHEN** staff submit the review step with invalid or missing required information

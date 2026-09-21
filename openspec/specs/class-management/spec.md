@@ -5,19 +5,19 @@
 Allow authorized staff to create, schedule, open, complete, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
 ## Requirements
 ### Requirement: Class records use reference data
-The system SHALL let authorized staff create a draft class with a required course, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. A class SHALL retain references to its selected catalog records rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
+The system SHALL let authorized staff create an open class with a required course, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. A class SHALL retain references to its selected catalog records rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
 
-#### Scenario: Create a classroom draft
+#### Scenario: Create a classroom class
 - **WHEN** authorized staff select a course, Classroom delivery, a training site, a scheduled session, a lead instructor, and reporting systems
-- **THEN** the system creates a draft class with those selections
+- **THEN** the system creates an open class with those selections
 
 #### Scenario: Require a site for site-based delivery
-- **WHEN** staff attempt to save a Classroom, Hands-On, or Hybrid class without a training site
-- **THEN** the system rejects the draft with a site-required validation error
+- **WHEN** staff attempt to create or save a Classroom, Hands-On, or Hybrid class without a training site
+- **THEN** the system rejects the change with a site-required validation error
 
-#### Scenario: Create an online draft without a site
+#### Scenario: Create an online class without a site
 - **WHEN** authorized staff select Online delivery without a training site
-- **THEN** the system permits the draft to be created
+- **THEN** the system permits the class to be created
 
 #### Scenario: Migrate historical delivery values
 - **WHEN** the delivery-method migration runs against existing classes
@@ -81,23 +81,19 @@ The system SHALL let authorized staff assign active staff users as instructors a
 - **THEN** the newly selected instructor becomes the only lead assignment
 
 ### Requirement: Class lifecycle is controlled
-The system SHALL represent draft, open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, allow authorized staff to open only a complete draft, close public sign-in and enter completed roster review only when an open class passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. Normal class and roster edits SHALL be rejected only after finalization, except where a lifecycle restriction expressly applies.
+The system SHALL represent open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, close public sign-in and enter completed roster review only when an open class passes completion validation, finalize a completed class through the finalization workflow, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable until it is finalized, except where a lifecycle restriction expressly applies.
 
-#### Scenario: Open a complete draft
-- **WHEN** staff open a draft with a course, required site, at least one component, and a lead instructor
-- **THEN** the class state changes to open
-
-#### Scenario: Block opening an incomplete draft
-- **WHEN** staff attempt to open a draft missing a required class detail
-- **THEN** the system keeps the class in draft and reports the missing detail
-
-#### Scenario: Enter completed roster review
-- **WHEN** authorized staff complete an open class with at least one active attendance record and no active attendance missing required reporting context or valid credited hours
+#### Scenario: Complete an open class
+- **WHEN** authorized staff finish attendance for an open class with at least one active attendance record and no active attendance missing required reporting context or valid credited hours
 - **THEN** public sign-in closes and the class state changes to completed for roster review
 
 #### Scenario: Block completion with roster errors
 - **WHEN** authorized staff attempt to complete an open class whose roster has no active attendance, missing required reporting context, or credited hours outside the class scheduled total
 - **THEN** the system keeps the class open and reports the roster validation errors
+
+#### Scenario: Edit an open class
+- **WHEN** authorized staff change the course, site, host agency, reporting systems, sessions, or lead instructor of an open class
+- **THEN** the system saves the change and the class remains open
 
 #### Scenario: Lock finalized class editing
 - **WHEN** a class is finalized
@@ -108,7 +104,7 @@ The system SHALL represent draft, open, completed, finalized, and cancelled clas
 - **THEN** the class leaves finalized state and retains the reason and prior finalization history
 
 #### Scenario: Cancel a class
-- **WHEN** authorized staff cancel a draft, open, or completed class with a reason
+- **WHEN** authorized staff cancel an open or completed class with a reason
 - **THEN** the class state changes to cancelled and the reason is retained
 
 ### Requirement: Class changes are audited
@@ -119,15 +115,15 @@ The system SHALL record audit events for class creation, component and instructo
 - **THEN** an audit event records the actor, class, prior state, new state, and server timestamp
 
 ### Requirement: Class creation is a stepped staff workflow
-The system SHALL provide authorized staff a visibly stepped class-creation workflow that validates each stage before advancing, preserves entered values while navigating, and creates a complete scheduled draft only at final submission.
+The system SHALL provide authorized staff a visibly stepped class-creation workflow that validates each stage before advancing, preserves entered values while navigating, and creates an open class only at final submission.
 
 #### Scenario: Review before creation
 - **WHEN** staff finish the reporting step
-- **THEN** the workflow presents a review of their selections before creating the draft
+- **THEN** the workflow presents a review of their selections before creating the class
 
-#### Scenario: Resume a draft
-- **WHEN** staff leave a partially configured class draft and return later
-- **THEN** the workflow restores the saved selections and components
+#### Scenario: Create and open in one submission
+- **WHEN** staff submit the reviewed workflow
+- **THEN** the system creates the class already open and ready to accept student sign-in
 
 ### Requirement: Class sessions share a roster day
 The system SHALL require every scheduled component of a class to occur on the same department-calendar day so one class has one roster for one day while retaining multiple subject sessions.
