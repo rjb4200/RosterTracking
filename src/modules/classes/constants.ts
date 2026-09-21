@@ -17,6 +17,13 @@ export const CLASS_STATUSES = {
 
 export type ClassStatus = (typeof CLASS_STATUSES)[keyof typeof CLASS_STATUSES];
 
+/**
+ * How long the class page keeps refreshing its roster after the last scheduled
+ * session ends. Bounds the polling so an unattended page cannot hold the
+ * database compute awake indefinitely.
+ */
+export const ROSTER_REFRESH_GRACE_HOURS = 4;
+
 export type ClassStatusTone =
   | "neutral"
   | "info"

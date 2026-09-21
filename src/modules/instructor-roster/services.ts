@@ -4,6 +4,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
+import { formatDepartmentDateTime } from "@/modules/classes/time";
 import { encryptCredential } from "@/modules/reference/crypto";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -38,6 +39,10 @@ import {
   getRegularRequirementValues,
   resolveClassRequirements,
 } from "../student-sign-in/requirements";
+import {
+  computeRosterRefreshDeadline,
+  type RosterRefreshPayload,
+} from "./refresh";
 
 export interface RosterActor {
   id: string;
@@ -642,10 +647,14 @@ export async function getClassRoster(
       classId,
       false,
     );
+    // Finalized rosters are readable so the review screen can present the
+    // locked roster; mutations stay blocked by requireMutableRosterClass.
     if (
-      ![CLASS_STATUSES.OPEN, CLASS_STATUSES.COMPLETED].includes(
-        classRecord.status as typeof CLASS_STATUSES.OPEN,
-      )
+      ![
+        CLASS_STATUSES.OPEN,
+        CLASS_STATUSES.COMPLETED,
+        CLASS_STATUSES.FINALIZED,
+      ].includes(classRecord.status as typeof CLASS_STATUSES.OPEN)
     )
       throw new Error("Roster unavailable.");
     const rows = await transaction
@@ -691,6 +700,48 @@ export async function getClassRoster(
       removed: rows.filter((row) => row.removedAt).map(map),
     };
   });
+}
+
+/**
+ * The payload the class page polls while a class is open. Built on
+ * `getClassRoster`, so the same assignment/elevation rule applies, and the
+ * returned `status` lets the page stop refreshing once the class leaves `open`.
+ */
+export async function getClassRosterRefresh(
+  db: Database,
+  actor: RosterActor,
+  classId: string,
+): Promise<RosterRefreshPayload> {
+  const roster = await getClassRoster(db, actor, classId);
+  // The live refresh endpoint serves only classes still in progress. A
+  // finalized roster is readable through the review path, but it is terminal
+  // and is not polled here.
+  if (
+    ![CLASS_STATUSES.OPEN, CLASS_STATUSES.COMPLETED].includes(
+      roster.classRecord.status as typeof CLASS_STATUSES.OPEN,
+    )
+  )
+    throw new Error("Roster unavailable.");
+  const sessions = await db
+    .select({ endsAt: classComponents.endsAt })
+    .from(classComponents)
+    .where(eq(classComponents.classId, classId));
+  const refreshDeadline = computeRosterRefreshDeadline(
+    sessions.map((session) => session.endsAt),
+  );
+  return {
+    status: roster.classRecord.status,
+    scheduledHours: roster.scheduledHours,
+    refreshDeadline: refreshDeadline?.toISOString() ?? null,
+    active: roster.active.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      agencyName: entry.agencyName,
+      signedInAt: entry.signedInAt.toISOString(),
+      signedInAtLabel: formatDepartmentDateTime(entry.signedInAt),
+      creditedHours: entry.creditedHours,
+    })),
+  };
 }
 
 export async function listRosterFormOptions(db: Database) {

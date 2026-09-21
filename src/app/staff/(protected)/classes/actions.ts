@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { CLASS_STATUSES, type ClassStatus } from "@/modules/classes/constants";
 import {
@@ -303,15 +304,17 @@ export async function reopenClassAction(
       classId,
       read(formData, "reason"),
     );
-    revalidatePath(`/staff/classes/${classId}`);
-    revalidatePath(`/staff/classes/${classId}/review`);
-    revalidatePath("/staff/reporting");
-    return { classId };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not reopen class.",
     };
   }
+  revalidatePath(`/staff/classes/${classId}`);
+  revalidatePath(`/staff/classes/${classId}/review`);
+  revalidatePath("/staff/reporting");
+  // Reopening returns the class to its editable open state, which the review
+  // route does not render, so send the operator to the class detail route.
+  redirect(`/staff/classes/${classId}`);
 }
 
 export async function sendOfficialRosterEmailAction(

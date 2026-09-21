@@ -3,19 +3,26 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { getFinalizationHistory } from "@/modules/classes/finalization";
 import { getClassDetail } from "@/modules/classes/services";
 import {
   getClassRoster,
   getRosterReadiness,
   listRosterFormOptions,
 } from "@/modules/instructor-roster/services";
+import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { resolveClassRequirements } from "@/modules/student-sign-in/requirements";
 import { getDatabase } from "@/server/db/client";
 
-import { finalizeClassAction, reopenClassAction } from "../../actions";
+import {
+  finalizeClassAction,
+  reopenClassAction,
+  sendOfficialRosterEmailAction,
+} from "../../actions";
 import { FinalizationControls } from "../../finalization-controls";
+import { OfficialRosterControls } from "../../official-roster-controls";
 import { AddAttendanceForms, AttendanceControls } from "../../roster-controls";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +45,28 @@ export default async function CompletedClassReviewPage({
   } catch {
     notFound();
   }
-  if (classRecord.status !== "completed") notFound();
-  const [options, requirements, readiness] = await Promise.all([
-    listRosterFormOptions(db),
-    resolveClassRequirements(db, id),
-    getRosterReadiness(db, actor, id),
+  const isCompleted = classRecord.status === "completed";
+  const isFinalized = classRecord.status === "finalized";
+  if (!isCompleted && !isFinalized) notFound();
+
+  const [reviewData, revisionHistory] = await Promise.all([
+    isCompleted
+      ? Promise.all([
+          listRosterFormOptions(db),
+          resolveClassRequirements(db, id),
+          getRosterReadiness(db, actor, id),
+        ]).then(([options, requirements, readiness]) => ({
+          options,
+          requirements,
+          readiness,
+        }))
+      : Promise.resolve(null),
+    isFinalized ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
   ]);
+  const canManageOfficialRosters = isFinalized
+    ? Boolean(await getCurrentStaff())
+    : false;
+
   const renderEntry = (
     entry: (typeof roster.active)[number],
     removed = false,
@@ -63,6 +86,8 @@ export default async function CompletedClassReviewPage({
           <span>
             Removed by {entry.removedBy ?? "staff"}: {entry.removalReason}
           </span>
+        ) : isFinalized ? (
+          <span className="text-muted-foreground">Locked</span>
         ) : (
           <AttendanceControls
             classId={id}
@@ -74,11 +99,14 @@ export default async function CompletedClassReviewPage({
       </div>
     </li>
   );
+
   return (
     <main className="admin-content">
       <div className="admin-heading">
         <div>
-          <p className="eyebrow">Completed class review</p>
+          <p className="eyebrow">
+            {isFinalized ? "Finalized class review" : "Completed class review"}
+          </p>
           <h1 className="staff-title">
             {classRecord.course?.name ?? "Class roster"}
           </h1>
@@ -87,29 +115,42 @@ export default async function CompletedClassReviewPage({
             {roster.scheduledHours} hours
           </p>
         </div>
-        <Link
-          href={`/staff/classes/${id}`}
-          className={buttonVariants({ variant: "outline" })}
-        >
-          Back to class
-        </Link>
+        <div className="admin-actions">
+          <Badge variant={isFinalized ? "default" : "secondary"}>
+            {classRecord.status}
+          </Badge>
+          <Link
+            href={`/staff/classes/${id}`}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Back to class
+          </Link>
+        </div>
       </div>
 
       <section className="admin-section">
-        <p className="eyebrow">Finalization readiness</p>
+        <p className="eyebrow">Finalization</p>
         <h2>
-          {readiness.ready ? "Roster ready to finalize" : "Corrections needed"}
+          {isFinalized
+            ? "Roster finalized"
+            : reviewData?.readiness.ready
+              ? "Roster ready to finalize"
+              : "Corrections needed"}
         </h2>
-        {readiness.ready ? (
-          <p>All active attendance has valid credit and reporting context.</p>
-        ) : (
+        {isFinalized ? (
+          <p>
+            This roster is locked. Reopen it with a reason to make corrections.
+          </p>
+        ) : reviewData && !reviewData.readiness.ready ? (
           <ul className="member-list">
-            {readiness.issues.map((issue) => (
+            {reviewData.readiness.issues.map((issue) => (
               <li className="member-row" key={issue}>
                 {issue}
               </li>
             ))}
           </ul>
+        ) : (
+          <p>All active attendance has valid credit and reporting context.</p>
         )}
         <FinalizationControls
           classId={id}
@@ -117,6 +158,37 @@ export default async function CompletedClassReviewPage({
           finalizeAction={finalizeClassAction}
           reopenAction={reopenClassAction}
         />
+        {isFinalized && revisionHistory.length ? (
+          <ul className="member-list">
+            {revisionHistory.map((revision) => (
+              <li key={revision.id} className="member-row">
+                <span>
+                  Revision {revision.revisionNumber} finalized by{" "}
+                  {revision.finalizedBy}
+                </span>
+                <span className="text-muted-foreground">
+                  {revision.reopenReason
+                    ? `Reopened: ${revision.reopenReason}`
+                    : "Current or retained revision"}
+                </span>
+                <span>
+                  {revision.destinations
+                    .map(
+                      (destination) =>
+                        `${destination.systemName}: ${destination.status}`,
+                    )
+                    .join(", ")}
+                </span>
+                {canManageOfficialRosters ? (
+                  <OfficialRosterControls
+                    revisionId={revision.id}
+                    emailAction={sendOfficialRosterEmailAction}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
       <section className="admin-section">
@@ -125,15 +197,19 @@ export default async function CompletedClassReviewPage({
           {roster.active.map((entry) => renderEntry(entry))}
         </ul>
       </section>
-      <section className="admin-section">
-        <h2>Manual attendance correction</h2>
-        <AddAttendanceForms
-          classId={id}
-          students={options.students}
-          agencies={options.agencies}
-          requirements={requirements}
-        />
-      </section>
+
+      {isCompleted && reviewData ? (
+        <section className="admin-section">
+          <h2>Manual attendance correction</h2>
+          <AddAttendanceForms
+            classId={id}
+            students={reviewData.options.students}
+            agencies={reviewData.options.agencies}
+            requirements={reviewData.requirements}
+          />
+        </section>
+      ) : null}
+
       <section className="admin-section">
         <h2>Removed attendance ({roster.removed.length})</h2>
         <ul className="roster-list">

@@ -110,6 +110,13 @@ for (const viewport of [
     await page.getByRole("button", { name: "Update credit" }).click();
     await expect(page.getByText("Roster updated.")).toBeVisible();
     await page.getByRole("button", { name: "Finalize roster" }).click();
+    // Regression: finalizing from the review route must render the finalized
+    // review instead of a 404.
+    await expect(page.getByText("Finalized class review")).toBeVisible();
+    await expect(page.getByText("Roster finalized")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Update credit" }),
+    ).toHaveCount(0);
     await expect
       .poll(async () => {
         const finalizedPool = new Pool({ connectionString, max: 1 });
@@ -121,6 +128,12 @@ for (const viewport of [
         return result.rows[0]?.status;
       })
       .toBe("finalized");
+
+    // Reopening from the review screen returns to the editable class detail.
+    await page.getByLabel("Reopen reason").fill("Corrected after review");
+    await page.getByRole("button", { name: "Reopen for correction" }).click();
+    await expect(page).toHaveURL(new RegExp(`/staff/classes/${classId}$`));
+    await expect(page.getByText("Live class")).toBeVisible();
   });
 }
 

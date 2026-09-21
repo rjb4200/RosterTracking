@@ -8,6 +8,7 @@ import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   addManualGuestAttendance,
   adjustCreditedHours,
+  getClassRoster,
   getRosterReadiness,
   removeAttendance,
 } from "../../src/modules/instructor-roster/services";
@@ -135,6 +136,9 @@ describeDatabase("instructor roster transactions", () => {
       issues: [],
     });
     await finalizeClass(db, actor, classRecord.id);
+    const finalizedRoster = await getClassRoster(db, actor, classRecord.id);
+    expect(finalizedRoster.classRecord.status).toBe("finalized");
+    expect(finalizedRoster.active).toHaveLength(1);
     const [revision] = await db
       .select({
         id: finalizationRevisions.id,

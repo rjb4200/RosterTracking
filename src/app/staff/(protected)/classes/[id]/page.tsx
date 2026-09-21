@@ -14,7 +14,7 @@ import {
 } from "@/modules/classes/services";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
 import {
-  getClassRoster,
+  getClassRosterRefresh,
   listRosterFormOptions,
 } from "@/modules/instructor-roster/services";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
@@ -31,6 +31,7 @@ import {
 } from "../actions";
 import { FinalizationControls } from "../finalization-controls";
 import { LifecycleControls } from "../lifecycle-controls";
+import { LiveRoster } from "../live-roster";
 import { OfficialRosterControls } from "../official-roster-controls";
 import { AddAttendanceForms } from "../roster-controls";
 import { TokenPanel } from "../token-panel";
@@ -59,14 +60,19 @@ export default async function ClassDetailPage({
   const editable = !isFinalized && !isCancelled;
   const showReview = isCompleted || isFinalized;
 
-  const [revisionHistory, roster, rosterOptions, requirements, publicAccess] =
-    await Promise.all([
-      showReview ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
-      isOpen ? getClassRoster(db, actor, id) : null,
-      isOpen ? listRosterFormOptions(db) : null,
-      isOpen ? resolveClassRequirements(db, id) : null,
-      isOpen ? getClassPublicAccess(db, actor, id) : null,
-    ]);
+  const [
+    revisionHistory,
+    rosterRefresh,
+    rosterOptions,
+    requirements,
+    publicAccess,
+  ] = await Promise.all([
+    showReview ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
+    isOpen ? getClassRosterRefresh(db, actor, id) : null,
+    isOpen ? listRosterFormOptions(db) : null,
+    isOpen ? resolveClassRequirements(db, id) : null,
+    isOpen ? getClassPublicAccess(db, actor, id) : null,
+  ]);
   const canManageOfficialRosters = Boolean(await getCurrentStaff());
   const signInUrl = publicAccess
     ? buildClassSignInUrl(publicAccess.publicCode)
@@ -108,48 +114,22 @@ export default async function ClassDetailPage({
         />
       </section>
 
-      {isOpen && roster && rosterOptions && requirements ? (
+      {isOpen && rosterRefresh && rosterOptions && requirements ? (
         <section className="admin-section class-command-screen">
-          <div className="admin-heading">
-            <div>
-              <p className="eyebrow">Live class</p>
-              <h2>{roster.active.length} signed-in students</h2>
-              <p>Host agency: {classRecord.hostAgency?.name ?? "Not set"}</p>
-            </div>
-            <Link
-              href={`/staff/classes/${id}/sign-in-record`}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Sign-in record
-            </Link>
-          </div>
-          {publicAccess && signInUrl && qrDataUrl ? (
-            <TokenPanel
-              accessPin={publicAccess.accessPin}
-              qrDataUrl={qrDataUrl}
-              signInUrl={signInUrl}
-            />
-          ) : null}
-          <div className="command-roster">
-            <div>
-              <h3>Roster</h3>
-              <ul className="roster-list">
-                {roster.active.map((entry) => (
-                  <li key={entry.id} className="roster-row">
-                    <div>
-                      <strong>{entry.name}</strong>
-                      <span>
-                        {entry.agencyName ?? "No agency"} |{" "}
-                        {formatDepartmentDateTime(entry.signedInAt)}
-                      </span>
-                    </div>
-                    <Badge variant="outline">
-                      {entry.creditedHours ?? roster.scheduledHours} hours
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <LiveRoster
+            classId={id}
+            hostAgencyName={classRecord.hostAgency?.name ?? "Not set"}
+            initialRoster={rosterRefresh}
+            tokenPanel={
+              publicAccess && signInUrl && qrDataUrl ? (
+                <TokenPanel
+                  accessPin={publicAccess.accessPin}
+                  qrDataUrl={qrDataUrl}
+                  signInUrl={signInUrl}
+                />
+              ) : null
+            }
+          >
             <div>
               <h3>Add attendance</h3>
               <AddAttendanceForms
@@ -159,7 +139,7 @@ export default async function ClassDetailPage({
                 requirements={requirements}
               />
             </div>
-          </div>
+          </LiveRoster>
         </section>
       ) : null}
 
