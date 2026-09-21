@@ -20,14 +20,7 @@ type CourseOption = Option & {
   trainingCode: string | null;
 };
 
-const steps = [
-  "Course",
-  "Training Site",
-  "Class Details",
-  "Host Agency",
-  "Reporting",
-  "Review",
-];
+const steps = ["Class", "Reporting", "Review"];
 
 export function ClassCreationWizard({
   action,
@@ -167,14 +160,20 @@ export function ClassCreationWizard({
   }
 
   function validateStep() {
-    if (step === 0) return Boolean(values.courseId);
-    if (step === 1) return !needsSite || Boolean(values.trainingSiteId);
-    if (step === 2) {
+    if (step === 0) {
       return Boolean(
-        values.startsAt && values.creditedHours && values.leadInstructorId,
+        values.courseId &&
+          (!needsSite || values.trainingSiteId) &&
+          values.startsAt &&
+          values.creditedHours &&
+          values.leadInstructorId,
       );
     }
-    if (step === 3) return Boolean(values.hostAgencyId);
+    if (step === 1) {
+      return Boolean(
+        values.hostAgencyId && values.reportingSystemIds.length > 0,
+      );
+    }
     return true;
   }
 
@@ -231,8 +230,10 @@ export function ClassCreationWizard({
   if (state?.classId && state.signInUrl && state.qrDataUrl) {
     return (
       <section className="token-panel" aria-live="polite">
-        <h2>Student access</h2>
-        <p>Share this short link or QR code when the class is open.</p>
+        <h2>Class is open</h2>
+        <p>
+          Share this short link or QR code with students when you are ready.
+        </p>
         <a href={state.signInUrl}>{state.signInUrl}</a>
         {state.accessPin ? <p>Student PIN: {state.accessPin}</p> : null}
         <Image
@@ -246,7 +247,7 @@ export function ClassCreationWizard({
           href={`/staff/classes/${state.classId}`}
           className={buttonVariants({ variant: "secondary" })}
         >
-          Continue class setup
+          Go to class
         </Link>
       </section>
     );
@@ -309,104 +310,6 @@ export function ClassCreationWizard({
               </optgroup>
             </select>
           </div>
-        </section>
-      ) : null}
-
-      {step === 1 ? (
-        <section className="stack-form">
-          <div className="field">
-            <Label htmlFor="siteSearch">Search training site</Label>
-            <Input
-              id="siteSearch"
-              value={siteFilter}
-              onChange={(event) => setSiteFilter(event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <Label htmlFor="trainingSiteId">Training site</Label>
-            <select
-              id="trainingSiteId"
-              className="select-input"
-              value={values.trainingSiteId}
-              onChange={(event) => update("trainingSiteId", event.target.value)}
-              disabled={!needsSite}
-              required={needsSite}
-            >
-              <option value="">
-                {needsSite
-                  ? "Select a site"
-                  : "No site required for online delivery"}
-              </option>
-              {recentSiteIds.length ? (
-                <optgroup label="Recently used">
-                  {filteredSites
-                    .filter((site) => recentSiteIds.includes(site.id))
-                    .map((site) => (
-                      <option key={site.id} value={site.id}>
-                        {site.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ) : null}
-              <optgroup label="All sites">
-                {filteredSites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
-          {canCreateSite ? (
-            <div className="inline-form">
-              <Label htmlFor="newSiteName">Add a new site</Label>
-              <Input
-                id="newSiteName"
-                value={newSiteName}
-                onChange={(event) => setNewSiteName(event.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={createSite}
-                disabled={creatingSite || !newSiteName.trim()}
-              >
-                {creatingSite ? "Creating site..." : "Add site"}
-              </Button>
-            </div>
-          ) : null}
-          {siteError ? (
-            <p className="form-error" role="alert">
-              {siteError}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {step === 2 ? (
-        <section className="form-grid">
-          <div className="field">
-            <Label htmlFor="startsAt">Date and start time</Label>
-            <Input
-              id="startsAt"
-              type="datetime-local"
-              value={values.startsAt}
-              onChange={(event) => update("startsAt", event.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <Label htmlFor="creditedHours">Scheduled duration (hours)</Label>
-            <Input
-              id="creditedHours"
-              type="number"
-              min="0.25"
-              step="0.25"
-              value={values.creditedHours}
-              onChange={(event) => update("creditedHours", event.target.value)}
-              required
-            />
-          </div>
           <div className="field">
             <Label htmlFor="deliveryMethod">Delivery method</Label>
             <select
@@ -421,38 +324,172 @@ export function ClassCreationWizard({
               <option value="hybrid">Hybrid</option>
             </select>
           </div>
-          <div className="field">
-            <Label htmlFor="leadInstructorId">Lead instructor</Label>
-            <select
-              id="leadInstructorId"
-              className="select-input"
-              value={values.leadInstructorId}
-              onChange={(event) =>
-                update("leadInstructorId", event.target.value)
-              }
-            >
-              {staff.map((instructor) => (
-                <option key={instructor.id} value={instructor.id}>
-                  {instructor.name}
-                </option>
-              ))}
-            </select>
+          {needsSite ? (
+            <>
+              <div className="field">
+                <Label htmlFor="siteSearch">Search training site</Label>
+                <Input
+                  id="siteSearch"
+                  value={siteFilter}
+                  onChange={(event) => setSiteFilter(event.target.value)}
+                />
+              </div>
+              <div className="field">
+                <Label htmlFor="trainingSiteId">Training site</Label>
+                <select
+                  id="trainingSiteId"
+                  className="select-input"
+                  value={values.trainingSiteId}
+                  onChange={(event) =>
+                    update("trainingSiteId", event.target.value)
+                  }
+                  required
+                >
+                  <option value="">Select a site</option>
+                  {recentSiteIds.length ? (
+                    <optgroup label="Recently used">
+                      {filteredSites
+                        .filter((site) => recentSiteIds.includes(site.id))
+                        .map((site) => (
+                          <option key={site.id} value={site.id}>
+                            {site.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ) : null}
+                  <optgroup label="All sites">
+                    {filteredSites.map((site) => (
+                      <option key={site.id} value={site.id}>
+                        {site.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+              {canCreateSite ? (
+                <div className="inline-form">
+                  <Label htmlFor="newSiteName">Add a new site</Label>
+                  <Input
+                    id="newSiteName"
+                    value={newSiteName}
+                    onChange={(event) => setNewSiteName(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={createSite}
+                    disabled={creatingSite || !newSiteName.trim()}
+                  >
+                    {creatingSite ? "Creating site..." : "Add site"}
+                  </Button>
+                </div>
+              ) : null}
+              {siteError ? (
+                <p className="form-error" role="alert">
+                  {siteError}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          <div className="form-grid">
+            <div className="field">
+              <Label htmlFor="startsAt">Date and start time</Label>
+              <Input
+                id="startsAt"
+                type="datetime-local"
+                value={values.startsAt}
+                onChange={(event) => update("startsAt", event.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <Label htmlFor="creditedHours">Scheduled duration (hours)</Label>
+              <Input
+                id="creditedHours"
+                type="number"
+                min="0.25"
+                step="0.25"
+                value={values.creditedHours}
+                onChange={(event) =>
+                  update("creditedHours", event.target.value)
+                }
+                required
+              />
+            </div>
+            <div className="field">
+              <Label htmlFor="leadInstructorId">Lead instructor</Label>
+              <select
+                id="leadInstructorId"
+                className="select-input"
+                value={values.leadInstructorId}
+                onChange={(event) =>
+                  update("leadInstructorId", event.target.value)
+                }
+              >
+                {staff.map((instructor) => (
+                  <option key={instructor.id} value={instructor.id}>
+                    {instructor.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Label className="checkbox-field field-wide">
+              <Input
+                type="checkbox"
+                checked={values.accessPinEnabled}
+                onChange={(event) =>
+                  update("accessPinEnabled", event.target.checked)
+                }
+              />
+              Require a four-digit student access PIN
+            </Label>
           </div>
-          <Label className="checkbox-field field-wide">
-            <Input
-              type="checkbox"
-              checked={values.accessPinEnabled}
-              onChange={(event) =>
-                update("accessPinEnabled", event.target.checked)
-              }
-            />
-            Require a four-digit student access PIN
-          </Label>
         </section>
       ) : null}
 
-      {step === 3 ? (
+      {step === 1 ? (
         <section className="stack-form">
+          <fieldset className="field">
+            <legend>Reporting systems</legend>
+            <div className="checkbox-list">
+              {reportingSystems.map((system) => (
+                <Label key={system.id} className="checkbox-field">
+                  <Input
+                    type="checkbox"
+                    checked={values.reportingSystemIds.includes(system.id)}
+                    onChange={(event) =>
+                      update(
+                        "reportingSystemIds",
+                        event.target.checked
+                          ? [
+                              ...new Set([
+                                ...values.reportingSystemIds,
+                                system.id,
+                              ]),
+                            ]
+                          : values.reportingSystemIds.filter(
+                              (id) => id !== system.id,
+                            ),
+                      )
+                    }
+                  />
+                  {system.name}
+                </Label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="wizard-requirements">
+            <h2>Student information required</h2>
+            {requiredInformation.length ? (
+              <ul>
+                {requiredInformation.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No additional reporting requirements are selected.</p>
+            )}
+          </div>
           <div className="field">
             <Label htmlFor="hostAgencyId">Host agency</Label>
             <select
@@ -496,53 +533,7 @@ export function ClassCreationWizard({
         </section>
       ) : null}
 
-      {step === 4 ? (
-        <section className="stack-form">
-          <fieldset className="field">
-            <legend>Reporting systems</legend>
-            <div className="checkbox-list">
-              {reportingSystems.map((system) => (
-                <Label key={system.id} className="checkbox-field">
-                  <Input
-                    type="checkbox"
-                    checked={values.reportingSystemIds.includes(system.id)}
-                    onChange={(event) =>
-                      update(
-                        "reportingSystemIds",
-                        event.target.checked
-                          ? [
-                              ...new Set([
-                                ...values.reportingSystemIds,
-                                system.id,
-                              ]),
-                            ]
-                          : values.reportingSystemIds.filter(
-                              (id) => id !== system.id,
-                            ),
-                      )
-                    }
-                  />
-                  {system.name}
-                </Label>
-              ))}
-            </div>
-          </fieldset>
-          <div className="wizard-requirements">
-            <h2>Student information required</h2>
-            {requiredInformation.length ? (
-              <ul>
-                {requiredInformation.map((requirement) => (
-                  <li key={requirement}>{requirement}</li>
-                ))}
-              </ul>
-            ) : (
-              <p>No additional reporting requirements are selected.</p>
-            )}
-          </div>
-        </section>
-      ) : null}
-
-      {step === 5 ? (
+      {step === 2 ? (
         <section className="wizard-review">
           <h2>Review class</h2>
           <dl>
@@ -620,7 +611,7 @@ export function ClassCreationWizard({
           </Button>
         ) : (
           <Button key="wizard-submit" type="submit" disabled={pending}>
-            {pending ? "Creating class..." : "Create class"}
+            {pending ? "Creating class..." : "Create & open"}
           </Button>
         )}
       </div>

@@ -1,10 +1,8 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useActionState, useState } from "react";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -167,29 +165,8 @@ export function ClassForm({
       </div>
       {state?.error ? <p className="form-error">{state.error}</p> : null}
       <Button type="submit" disabled={pending}>
-        {pending ? "Saving..." : values ? "Save class setup" : "Create draft"}
+        {pending ? "Saving..." : "Save class details"}
       </Button>
-      {state?.signInUrl && state.qrDataUrl && state.classId ? (
-        <section className="token-panel" aria-live="polite">
-          <h2>Student access</h2>
-          <p>This stable link and QR code work while the class is open.</p>
-          <a href={state.signInUrl}>{state.signInUrl}</a>
-          {state.accessPin ? <p>Student PIN: {state.accessPin}</p> : null}
-          <Image
-            src={state.qrDataUrl}
-            alt="Class sign-in QR code"
-            width={240}
-            height={240}
-            unoptimized
-          />
-          <Link
-            href={`/staff/classes/${state.classId}`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            Continue class setup
-          </Link>
-        </section>
-      ) : null}
     </form>
   );
 }

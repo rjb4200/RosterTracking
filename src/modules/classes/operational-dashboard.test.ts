@@ -4,7 +4,6 @@ import { getOperationalClassAction, isOverdueRoster } from "./services";
 
 describe("operational class dashboard state", () => {
   it("maps class lifecycle states to their dashboard actions", () => {
-    expect(getOperationalClassAction("draft")).toBe("setup");
     expect(getOperationalClassAction("open")).toBe("roster");
     expect(getOperationalClassAction("completed")).toBe("finalize");
     expect(getOperationalClassAction("finalized")).toBe("view");

@@ -65,7 +65,6 @@ export function validateClassTransition(
   cancellationReason?: string,
 ): void {
   const allowed =
-    (current === CLASS_STATUSES.DRAFT && next === CLASS_STATUSES.OPEN) ||
     (current === CLASS_STATUSES.OPEN && next === CLASS_STATUSES.COMPLETED) ||
     (current !== CLASS_STATUSES.FINALIZED &&
       current !== CLASS_STATUSES.CANCELLED &&
@@ -76,6 +75,15 @@ export function validateClassTransition(
   }
   if (next === CLASS_STATUSES.CANCELLED && !cancellationReason?.trim()) {
     throw new Error("A cancellation reason is required.");
+  }
+}
+
+export function assertClassEditable(status: string): void {
+  if (
+    status === CLASS_STATUSES.FINALIZED ||
+    status === CLASS_STATUSES.CANCELLED
+  ) {
+    throw new Error("Finalized or cancelled classes cannot be edited.");
   }
 }
 

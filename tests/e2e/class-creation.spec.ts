@@ -8,7 +8,9 @@ const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
 const connectionString = e2eDatabaseUrl();
 
-test("authorized staff can create and open a class draft", async ({ page }) => {
+test("authorized staff can create and open a class in one pass", async ({
+  page,
+}) => {
   test.skip(
     test.info().project.name !== "chromium",
     "Mutating class creation coverage runs once on chromium.",
@@ -49,36 +51,38 @@ test("authorized staff can create and open a class draft", async ({ page }) => {
 
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
+
+  // Step 1: class.
   await page.getByLabel("Course", { exact: true }).selectOption(courseId);
+  await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
+  await page.getByLabel("Add a new site").fill(`Inline Site ${suffix}`);
+  await page.getByRole("button", { name: "Add site" }).click();
+  await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
+  await page.getByLabel("Scheduled duration (hours)").fill("4");
+  await page.getByLabel("Require a four-digit student access PIN").check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByLabel("Course", { exact: true })).toHaveValue(
     courseId,
   );
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
-  await page.getByLabel("Add a new site").fill(`Inline Site ${suffix}`);
-  await page.getByRole("button", { name: "Add site" }).click();
-  await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
-  await page.getByLabel("Scheduled duration (hours)").fill("4");
-  await page.getByLabel("Require a four-digit student access PIN").check();
-  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // Step 2: reporting.
   await page.getByLabel("Add a new agency").fill(`Inline Agency ${suffix}`);
   await page.getByRole("button", { name: "Add agency" }).click();
-  await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByLabel(systemName).check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // Step 3: review and create.
   await expect(page.getByText("Review class")).toBeVisible();
   await expect(page.getByText(`Inline Agency ${suffix}`)).toBeVisible();
-  await page.getByRole("button", { name: "Create class" }).click();
-  await expect(page.getByText("Student access")).toBeVisible();
-  await page.getByRole("link", { name: "Continue class setup" }).click();
-
-  await page.getByRole("button", { name: "Open class" }).click();
-  await expect(page.getByText("open", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Create & open" }).click();
+  await expect(page.getByText("Class is open")).toBeVisible();
   await expect(page.getByText(/Student PIN: \d{4}/)).toBeVisible();
   await expect(page.getByAltText("Class sign-in QR code")).toBeVisible();
+  await page.getByRole("link", { name: "Go to class" }).click();
+
+  await expect(page.getByText("open", { exact: true })).toBeVisible();
   await expect(page.getByText("Live class")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Finish attendance and review" }),

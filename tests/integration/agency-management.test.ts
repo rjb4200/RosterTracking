@@ -3,11 +3,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CLASS_STATUSES } from "../../src/modules/classes/constants";
-import {
-  createClassDraft,
-  transitionClass,
-} from "../../src/modules/classes/services";
+import { createOpenClass } from "../../src/modules/classes/services";
 import {
   createAgency,
   setAgencyActive,
@@ -19,7 +15,6 @@ import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
   courses,
-  reportingSystems,
   students,
   trainingSites,
   users,
@@ -90,58 +85,16 @@ describeDatabase("agency management and host agency", () => {
     if (!course || !site) throw new Error("Host agency fixtures failed.");
 
     await expect(
-      createClassDraft(db, actor, {
+      createOpenClass(db, actor, {
         courseId: course.id,
         trainingSiteId: site.id,
         hostAgencyId: agency.id,
         deliveryMethod: "classroom",
-      }),
-    ).rejects.toThrow(/active host agency/i);
-  });
-
-  it("blocks opening a class when the host agency is inactive", async () => {
-    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
-    const db = drizzle(pool, { schema });
-    const actor = await createActor(db);
-    const suffix = crypto.randomUUID();
-    const [course] = await db
-      .insert(courses)
-      .values({ name: `Open Guard Course ${suffix}` })
-      .returning({ id: courses.id });
-    const [site] = await db
-      .insert(trainingSites)
-      .values({ name: `Open Guard Site ${suffix}` })
-      .returning({ id: trainingSites.id });
-    const [system] = await db
-      .select({ id: reportingSystems.id })
-      .from(reportingSystems)
-      .limit(1);
-    const agency = await createAgency(db, actor, {
-      name: `Open Guard Agency ${suffix}`,
-    });
-    if (!course || !site || !system)
-      throw new Error("Open guard fixtures failed.");
-
-    const created = await createClassDraft(
-      db,
-      actor,
-      {
-        courseId: course.id,
-        trainingSiteId: site.id,
-        hostAgencyId: agency.id,
-        deliveryMethod: "classroom",
-        reportingSystemIds: [system.id],
-      },
-      {
-        startsAt: new Date("2026-09-10T13:00:00Z"),
+        startsAt: "2026-09-10T13:00:00Z",
         creditedHours: 4,
         leadInstructorId: actor.id,
-      },
-    );
-    await setAgencyActive(db, actor, agency.id, false);
-    await expect(
-      transitionClass(db, actor, created.classRecord.id, CLASS_STATUSES.OPEN),
-    ).rejects.toThrow(/host agency/i);
+      }),
+    ).rejects.toThrow(/active host agency/i);
   });
 
   it("offers the catalog and preselects a default agency", async () => {

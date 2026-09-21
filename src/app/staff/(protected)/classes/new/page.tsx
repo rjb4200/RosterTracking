@@ -7,9 +7,9 @@ import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
 import {
+  createClassAction,
   createInlineAgencyAction,
   createInlineSiteAction,
-  createScheduledClassAction,
 } from "../actions";
 import { ClassCreationWizard } from "../class-creation-wizard";
 
@@ -29,7 +29,7 @@ export default async function NewClassPage() {
         <h1 className="staff-title">Create a class</h1>
       </div>
       <ClassCreationWizard
-        action={createScheduledClassAction}
+        action={createClassAction}
         createSiteAction={createInlineSiteAction}
         createAgencyAction={createInlineAgencyAction}
         defaultLeadInstructorId={actor.id}

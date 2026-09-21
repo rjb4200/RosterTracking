@@ -6,8 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { CLASS_STATUSES } from "../../src/modules/classes/constants";
 import {
   assignClassInstructor,
-  createClassDraft,
-  createScheduledClassDraft,
+  createOpenClass,
   listClassFormOptions,
   listOperationalClasses,
   resolveOpenClassPublicCode,
@@ -15,7 +14,7 @@ import {
   rotateClassSignInToken,
   saveClassComponent,
   transitionClass,
-  updateClassDraft,
+  updateClass,
 } from "../../src/modules/classes/services";
 import {
   createAgency,
@@ -220,21 +219,16 @@ describeDatabase("database foundation", () => {
       courseId: course.id,
       reportingSystemId: system.id,
     });
-    const created = await createClassDraft(database, actor, {
+    const created = await createOpenClass(database, actor, {
       courseId: course.id,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "classroom",
+      startsAt: "2026-09-10T13:00:00Z",
+      creditedHours: 4,
+      leadInstructorId: actor.id,
     });
-    await expect(
-      transitionClass(
-        database,
-        actor,
-        created.classRecord.id,
-        CLASS_STATUSES.OPEN,
-      ),
-    ).rejects.toThrow(/component/i);
-    await updateClassDraft(database, actor, created.classRecord.id, {
+    await updateClass(database, actor, created.classRecord.id, {
       courseId: course.id,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
@@ -283,12 +277,6 @@ describeDatabase("database foundation", () => {
       creditedHours: 4,
       position: 0,
     });
-    await transitionClass(
-      database,
-      actor,
-      created.classRecord.id,
-      CLASS_STATUSES.OPEN,
-    );
     expect(
       await resolveOpenClassToken(database, created.rawToken),
     ).toMatchObject({ id: created.classRecord.id });
@@ -340,7 +328,7 @@ describeDatabase("database foundation", () => {
           .from(classComponents)
           .where(eq(classComponents.classId, created.classRecord.id))
       ).length,
-    ).toBe(1);
+    ).toBe(2);
     expect(
       (
         await database
@@ -423,12 +411,18 @@ describeDatabase("database foundation", () => {
       .returning({ id: agencies.id });
     if (!actor || !course || !site || !agency)
       throw new Error("Scheduled fixtures missing.");
+    const [system] = await database
+      .select({ id: reportingSystems.id })
+      .from(reportingSystems)
+      .limit(1);
+    if (!system) throw new Error("Reporting system fixture missing.");
 
-    const created = await createScheduledClassDraft(database, actor, {
+    const created = await createOpenClass(database, actor, {
       courseId: course.id,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "classroom",
+      reportingSystemIds: [system.id],
       startsAt: "2026-09-10T09:00:00Z",
       creditedHours: 4,
       leadInstructorId: actor.id,
@@ -456,7 +450,7 @@ describeDatabase("database foundation", () => {
       .select({ count: sql<number>`count(*)::int` })
       .from(trainingClasses);
     await expect(
-      createScheduledClassDraft(database, actor, {
+      createOpenClass(database, actor, {
         courseId: course.id,
         trainingSiteId: site.id,
         hostAgencyId: agency.id,
@@ -531,12 +525,15 @@ describeDatabase("database foundation", () => {
     await database
       .insert(userRoles)
       .values({ userId: elevated.id, roleId: trainingMajor.id });
-    const created = await createClassDraft(database, instructor, {
+    const created = await createOpenClass(database, instructor, {
       courseId: course.id,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "classroom",
       reportingSystemIds: [system.id],
+      startsAt: "2026-09-10T08:00:00Z",
+      creditedHours: 4,
+      leadInstructorId: instructor.id,
     });
     await assignClassInstructor(
       database,
@@ -544,17 +541,6 @@ describeDatabase("database foundation", () => {
       created.classRecord.id,
       colleague.id,
       false,
-    );
-    await saveClassComponent(database, instructor, created.classRecord.id, {
-      startsAt: "2026-09-10T08:00:00Z",
-      creditedHours: 4,
-      position: 0,
-    });
-    await transitionClass(
-      database,
-      instructor,
-      created.classRecord.id,
-      CLASS_STATUSES.OPEN,
     );
 
     const now = new Date("2026-09-12T12:00:01Z");

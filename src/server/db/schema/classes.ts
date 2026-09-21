@@ -91,7 +91,7 @@ export const trainingClasses = pgTable(
     ),
     check(
       "classes_status",
-      sql`${table.status} in ('draft', 'open', 'completed', 'finalized', 'cancelled')`,
+      sql`${table.status} in ('open', 'completed', 'finalized', 'cancelled')`,
     ),
     check(
       "classes_site_required",

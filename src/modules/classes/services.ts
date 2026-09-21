@@ -47,6 +47,7 @@ import {
   type ClassStatus,
 } from "./constants";
 import {
+  assertClassEditable,
   calculateComponentEndTime,
   validateClassReadiness,
   validateClassTransition,
@@ -69,12 +70,11 @@ export interface ClassActor {
   username: string;
 }
 
-export type OperationalClassAction = "setup" | "roster" | "finalize" | "view";
+export type OperationalClassAction = "roster" | "finalize" | "view";
 
 export function getOperationalClassAction(
   status: string,
 ): OperationalClassAction {
-  if (status === CLASS_STATUSES.DRAFT) return "setup";
   if (status === CLASS_STATUSES.OPEN) return "roster";
   if (status === CLASS_STATUSES.COMPLETED) return "finalize";
   return "view";
@@ -259,30 +259,17 @@ async function findAvailablePublicCode(transaction: DatabaseTransaction) {
   throw new Error("Could not allocate a public class code. Try again.");
 }
 
-export async function createClassDraft(
+export async function createOpenClass(
   db: Database,
   actor: ClassActor,
-  input: z.input<typeof draftInput>,
-  initialComponent?: {
-    startsAt: Date;
-    creditedHours: number;
-    leadInstructorId: string;
-  },
+  input: z.input<typeof scheduledDraftInput>,
 ) {
-  const parsed = draftInput.parse(input);
-  const endsAt = initialComponent
-    ? calculateComponentEndTime(
-        initialComponent.startsAt,
-        initialComponent.creditedHours,
-      )
-    : null;
-  if (initialComponent && endsAt) {
-    validateComponentRange(
-      initialComponent.startsAt,
-      endsAt,
-      initialComponent.creditedHours,
-    );
-  }
+  const parsed = scheduledDraftInput.parse(input);
+  const endsAt = calculateComponentEndTime(
+    parsed.startsAt,
+    parsed.creditedHours,
+  );
+  validateComponentRange(parsed.startsAt, endsAt, parsed.creditedHours);
   const rawToken = generateClassSignInToken();
   return db.transaction(async (transaction) => {
     await validateReferences(transaction, parsed);
@@ -306,6 +293,7 @@ export async function createClassDraft(
       parsed.reportingSystemIds ?? defaultRows.map(({ id }) => id);
     const publicCode = await findAvailablePublicCode(transaction);
     const accessPin = parsed.accessPinEnabled ? generateClassAccessPin() : null;
+    const now = new Date();
 
     const [created] = await transaction
       .insert(trainingClasses)
@@ -315,11 +303,13 @@ export async function createClassDraft(
         hostAgencyId: parsed.hostAgencyId,
         createdByUserId: actor.id,
         deliveryMethod: parsed.deliveryMethod,
+        status: CLASS_STATUSES.OPEN,
         signInTokenHash: hashClassSignInToken(rawToken),
         signInTokenVersion: 1,
         publicCode,
         accessPinEnabled: parsed.accessPinEnabled,
         accessPinEncrypted: accessPin ? encryptClassAccessPin(accessPin) : null,
+        openedAt: now,
       })
       .returning();
     if (!created) throw new Error("Class was not created.");
@@ -335,16 +325,17 @@ export async function createClassDraft(
         details: { reportingSystemIds },
       });
     }
-    const leadInstructorId = initialComponent?.leadInstructorId ?? actor.id;
     const [leadInstructor] = await transaction
       .select({ id: users.id })
       .from(users)
-      .where(and(eq(users.id, leadInstructorId), eq(users.isActive, true)))
+      .where(
+        and(eq(users.id, parsed.leadInstructorId), eq(users.isActive, true)),
+      )
       .limit(1);
     if (!leadInstructor) throw new Error("Select an active lead instructor.");
     await transaction.insert(classInstructors).values({
       classId: created.id,
-      userId: leadInstructorId,
+      userId: parsed.leadInstructorId,
       isLead: true,
     });
     await writeAuditLog(transaction, {
@@ -353,29 +344,33 @@ export async function createClassDraft(
       action: "class.instructor.assigned",
       entityType: "class",
       entityId: created.id,
-      details: { userId: leadInstructorId, isLead: true },
+      details: { userId: parsed.leadInstructorId, isLead: true },
     });
-    if (initialComponent && endsAt) {
-      const [component] = await transaction
-        .insert(classComponents)
-        .values({
-          classId: created.id,
-          startsAt: initialComponent.startsAt,
-          endsAt,
-          creditedHours: String(initialComponent.creditedHours),
-          position: 0,
-        })
-        .returning({ id: classComponents.id });
-      if (!component) throw new Error("Class component was not created.");
-      await writeAuditLog(transaction, {
-        actorUserId: actor.id,
-        actorType: "user",
-        action: "class.component.saved",
-        entityType: "class",
-        entityId: created.id,
-        details: { componentId: component.id },
-      });
-    }
+    const [component] = await transaction
+      .insert(classComponents)
+      .values({
+        classId: created.id,
+        startsAt: parsed.startsAt,
+        endsAt,
+        creditedHours: String(parsed.creditedHours),
+        position: 0,
+      })
+      .returning({ id: classComponents.id });
+    if (!component) throw new Error("Class component was not created.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.component.saved",
+      entityType: "class",
+      entityId: created.id,
+      details: { componentId: component.id },
+    });
+    validateClassReadiness({
+      componentCount: 1,
+      leadCount: 1,
+      reportingCount: reportingSystemIds.length,
+      hostAgencyActive: true,
+    });
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -387,24 +382,19 @@ export async function createClassDraft(
         deliveryMethod: created.deliveryMethod,
       },
     });
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.status.changed",
+      entityType: "class",
+      entityId: created.id,
+      details: { from: null, to: CLASS_STATUSES.OPEN },
+    });
     return { classRecord: created, rawToken, accessPin };
   });
 }
 
-export async function createScheduledClassDraft(
-  db: Database,
-  actor: ClassActor,
-  input: z.input<typeof scheduledDraftInput>,
-) {
-  const parsed = scheduledDraftInput.parse(input);
-  return createClassDraft(db, actor, parsed, {
-    startsAt: parsed.startsAt,
-    creditedHours: parsed.creditedHours,
-    leadInstructorId: parsed.leadInstructorId,
-  });
-}
-
-export async function updateClassDraft(
+export async function updateClass(
   db: Database,
   actor: ClassActor,
   classId: string,
@@ -413,9 +403,7 @@ export async function updateClassDraft(
   const parsed = draftInput.parse(input);
   return db.transaction(async (transaction) => {
     const existing = await requireClassAccess(transaction, actor, classId);
-    if (existing.status !== CLASS_STATUSES.DRAFT) {
-      throw new Error("Only draft classes can be edited.");
-    }
+    assertClassEditable(existing.status);
     await validateReferences(transaction, parsed);
     const accessPin = parsed.accessPinEnabled
       ? existing.accessPinEnabled
@@ -475,9 +463,7 @@ export async function saveClassComponent(
   validateComponentRange(parsed.startsAt, endsAt, parsed.creditedHours);
   return db.transaction(async (transaction) => {
     const classRecord = await requireClassAccess(transaction, actor, classId);
-    if (classRecord.status !== CLASS_STATUSES.DRAFT) {
-      throw new Error("Components can only be changed on draft classes.");
-    }
+    assertClassEditable(classRecord.status);
     const existingComponents = await transaction
       .select({ startsAt: classComponents.startsAt })
       .from(classComponents)
@@ -539,9 +525,7 @@ export async function assignClassInstructor(
 ): Promise<void> {
   await db.transaction(async (transaction) => {
     const classRecord = await requireClassAccess(transaction, actor, classId);
-    if (classRecord.status !== CLASS_STATUSES.DRAFT) {
-      throw new Error("Instructors can only be changed on draft classes.");
-    }
+    assertClassEditable(classRecord.status);
     const [activeUser] = await transaction
       .select({ id: users.id })
       .from(users)
@@ -586,48 +570,10 @@ export async function transitionClass(
       nextStatus,
       cancellationReason,
     );
-    if (nextStatus === CLASS_STATUSES.OPEN) {
-      const componentCount = await transaction
-        .select({ count: sql<number>`count(*)::int` })
-        .from(classComponents)
-        .where(eq(classComponents.classId, classId));
-      const leadCount = await transaction
-        .select({ count: sql<number>`count(*)::int` })
-        .from(classInstructors)
-        .where(
-          and(
-            eq(classInstructors.classId, classId),
-            eq(classInstructors.isLead, true),
-          ),
-        );
-      const reportingCount = await transaction
-        .select({ count: sql<number>`count(*)::int` })
-        .from(classReportingSystems)
-        .where(eq(classReportingSystems.classId, classId));
-      const hostAgency = await transaction
-        .select({ id: agencies.id })
-        .from(agencies)
-        .where(
-          and(
-            eq(agencies.id, current.hostAgencyId),
-            eq(agencies.isActive, true),
-          ),
-        )
-        .limit(1);
-      validateClassReadiness({
-        componentCount: componentCount[0]?.count ?? 0,
-        leadCount: leadCount[0]?.count ?? 0,
-        reportingCount: reportingCount[0]?.count ?? 0,
-        hostAgencyActive: hostAgency.length > 0,
-      });
-    }
     if (nextStatus === CLASS_STATUSES.COMPLETED) {
       await validateRosterCompletion(transaction, classId);
     }
-    const publicCode =
-      nextStatus === CLASS_STATUSES.OPEN && !current.publicCode
-        ? await findAvailablePublicCode(transaction)
-        : current.publicCode;
+    const publicCode = current.publicCode;
     const now = new Date();
     const [updated] = await transaction
       .update(trainingClasses)
@@ -637,7 +583,7 @@ export async function transitionClass(
           nextStatus === CLASS_STATUSES.CANCELLED
             ? cancellationReason?.trim()
             : null,
-        openedAt: nextStatus === CLASS_STATUSES.OPEN ? now : current.openedAt,
+        openedAt: current.openedAt,
         completedAt:
           nextStatus === CLASS_STATUSES.COMPLETED ? now : current.completedAt,
         cancelledAt:
@@ -774,6 +720,9 @@ export async function verifyOpenClassAccessPin(
   };
 }
 
+export const PUBLIC_DIRECTORY_OPENS_BEFORE_HOURS = 18;
+export const PUBLIC_DIRECTORY_CLOSES_AFTER_HOURS = 36;
+
 function formatPublicInstructorName(displayName: string): string {
   const parts = displayName.trim().split(/\s+/);
   return parts.length > 1
@@ -845,19 +794,37 @@ export async function listPublicOpenClasses(db: Database) {
     instructorsByClass.set(row.classId, names);
   }
 
-  return records.map((record) => {
+  const now = new Date();
+  const windowOpensAt = new Date(
+    now.getTime() - PUBLIC_DIRECTORY_CLOSES_AFTER_HOURS * 60 * 60 * 1000,
+  );
+  const windowClosesAt = new Date(
+    now.getTime() + PUBLIC_DIRECTORY_OPENS_BEFORE_HOURS * 60 * 60 * 1000,
+  );
+
+  return records.flatMap((record) => {
     const publicCode = record.publicCode;
     if (!publicCode) throw new Error("Open class is missing public access.");
-    return {
-      publicCode,
-      courseName: record.courseName,
-      location:
-        record.deliveryMethod === "online"
-          ? "Virtual"
-          : (record.siteName ?? ""),
-      nextSession: nextSessionByClass.get(record.id) ?? null,
-      instructors: instructorsByClass.get(record.id) ?? [],
-    };
+    const nextSession = nextSessionByClass.get(record.id) ?? null;
+    if (
+      !nextSession ||
+      nextSession < windowOpensAt ||
+      nextSession > windowClosesAt
+    ) {
+      return [];
+    }
+    return [
+      {
+        publicCode,
+        courseName: record.courseName,
+        location:
+          record.deliveryMethod === "online"
+            ? "Virtual"
+            : (record.siteName ?? ""),
+        nextSession,
+        instructors: instructorsByClass.get(record.id) ?? [],
+      },
+    ];
   });
 }
 
@@ -892,7 +859,6 @@ export async function getClassPublicAccess(
 }
 
 export const CLASS_LIST_DEFAULT_LOOKBACK_DAYS = 30;
-export const CLASS_LIST_DRAFT_MAX_AGE_DAYS = 7;
 export const CLASS_LIST_FINALIZED_GRACE_DAYS = 7;
 export const CLASS_LIST_LIMIT = 200;
 
@@ -917,9 +883,6 @@ export async function listClasses(
   );
   const term = `%${(filters.query ?? "").trim()}%`;
   const now = new Date();
-  const draftCutoff = new Date(
-    now.getTime() - CLASS_LIST_DRAFT_MAX_AGE_DAYS * DAY_IN_MILLISECONDS,
-  );
   const finalizedCutoff = new Date(
     now.getTime() - CLASS_LIST_FINALIZED_GRACE_DAYS * DAY_IN_MILLISECONDS,
   );
@@ -954,10 +917,6 @@ export async function listClasses(
   )`;
 
   const defaultScope = or(
-    and(
-      eq(trainingClasses.status, CLASS_STATUSES.DRAFT),
-      gte(trainingClasses.createdAt, draftCutoff),
-    ),
     eq(trainingClasses.status, CLASS_STATUSES.OPEN),
     eq(trainingClasses.status, CLASS_STATUSES.COMPLETED),
     filters.includeFinalized
@@ -1090,7 +1049,6 @@ export async function listOperationalClasses(
     .where(
       and(
         inArray(trainingClasses.status, [
-          CLASS_STATUSES.DRAFT,
           CLASS_STATUSES.OPEN,
           CLASS_STATUSES.COMPLETED,
         ]),

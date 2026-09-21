@@ -14,13 +14,12 @@ import {
 } from "@/modules/classes/qr";
 import {
   assignClassInstructor,
-  createClassDraft,
-  createScheduledClassDraft,
+  createOpenClass,
   getClassPublicAccess,
   rotateClassSignInToken,
   saveClassComponent,
   transitionClass,
-  updateClassDraft,
+  updateClass,
 } from "@/modules/classes/services";
 import { getTemplateMapping } from "@/modules/official-roster-pdfs/mappings";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
@@ -83,33 +82,7 @@ export async function createClassAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   try {
     getClassSignInBaseUrl();
-    const { classRecord } = await createClassDraft(
-      getDatabase(),
-      actor,
-      draftValues(formData),
-    );
-    const signInUrl = buildClassSignInUrl(classRecord.publicCode ?? "");
-    revalidatePath("/staff/classes");
-    return {
-      classId: classRecord.id,
-      signInUrl,
-      qrDataUrl: await createClassQrDataUrl(signInUrl),
-    };
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : "Could not create class.",
-    };
-  }
-}
-
-export async function createScheduledClassAction(
-  _prev: ActionState | undefined,
-  formData: FormData,
-): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
-  try {
-    getClassSignInBaseUrl();
-    const { classRecord, accessPin } = await createScheduledClassDraft(
+    const { classRecord, accessPin } = await createOpenClass(
       getDatabase(),
       actor,
       {
@@ -191,12 +164,7 @@ export async function updateClassAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
   try {
-    await updateClassDraft(
-      getDatabase(),
-      actor,
-      classId,
-      draftValues(formData),
-    );
+    await updateClass(getDatabase(), actor, classId, draftValues(formData));
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath("/staff/classes");
     return { classId };

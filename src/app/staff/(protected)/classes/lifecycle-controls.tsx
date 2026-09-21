@@ -23,15 +23,6 @@ export function LifecycleControls({
     <div className="stack-form">
       {state?.error ? <p className="form-error">{state.error}</p> : null}
       <div className="admin-actions">
-        {status === "draft" ? (
-          <form action={formAction}>
-            <input type="hidden" name="classId" value={classId} />
-            <input type="hidden" name="status" value="open" />
-            <Button type="submit" disabled={pending}>
-              Open class
-            </Button>
-          </form>
-        ) : null}
         {status === "open" ? (
           <form action={formAction}>
             <input type="hidden" name="classId" value={classId} />

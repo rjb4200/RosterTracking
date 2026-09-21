@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
 import {
   buildClassSignInUrl,
@@ -11,13 +11,8 @@ import {
 import {
   getClassDetail,
   getClassPublicAccess,
-  listClassFormOptions,
 } from "@/modules/classes/services";
-import {
-  formatDepartmentDateTime,
-  formatDepartmentDateTimeInput,
-  roundDepartmentDateTimeToQuarterHour,
-} from "@/modules/classes/time";
+import { formatDepartmentDateTime } from "@/modules/classes/time";
 import {
   getClassRoster,
   listRosterFormOptions,
@@ -29,16 +24,11 @@ import { resolveClassRequirements } from "@/modules/student-sign-in/requirements
 import { getDatabase } from "@/server/db/client";
 
 import {
-  assignInstructorAction,
   finalizeClassAction,
   reopenClassAction,
-  saveComponentAction,
   sendOfficialRosterEmailAction,
   transitionClassAction,
-  updateClassAction,
 } from "../actions";
-import { ClassForm } from "../class-form";
-import { ComponentForm } from "../component-form";
 import { FinalizationControls } from "../finalization-controls";
 import { LifecycleControls } from "../lifecycle-controls";
 import { OfficialRosterControls } from "../official-roster-controls";
@@ -61,26 +51,23 @@ export default async function ClassDetailPage({
   } catch {
     notFound();
   }
-  const [options, revisionHistory, staff, roster, rosterOptions, requirements] =
+
+  const isOpen = classRecord.status === "open";
+  const isCompleted = classRecord.status === "completed";
+  const isFinalized = classRecord.status === "finalized";
+  const isCancelled = classRecord.status === "cancelled";
+  const editable = !isFinalized && !isCancelled;
+  const showReview = isCompleted || isFinalized;
+
+  const [revisionHistory, roster, rosterOptions, requirements, publicAccess] =
     await Promise.all([
-      listClassFormOptions(db),
-      ["completed", "finalized"].includes(classRecord.status)
-        ? getFinalizationHistory(db, actor, id)
-        : Promise.resolve([]),
-      classRecord.status === "draft"
-        ? Promise.resolve(null)
-        : getCurrentStaff(),
-      classRecord.status === "open" ? getClassRoster(db, actor, id) : null,
-      classRecord.status === "open" ? listRosterFormOptions(db) : null,
-      classRecord.status === "open" ? resolveClassRequirements(db, id) : null,
+      showReview ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
+      isOpen ? getClassRoster(db, actor, id) : null,
+      isOpen ? listRosterFormOptions(db) : null,
+      isOpen ? resolveClassRequirements(db, id) : null,
+      isOpen ? getClassPublicAccess(db, actor, id) : null,
     ]);
-  const canManageOfficialRosters = Boolean(staff);
-  const isDraft = classRecord.status === "draft";
-  const newSessionStartsAt = roundDepartmentDateTimeToQuarterHour(new Date());
-  const publicAccess =
-    classRecord.status === "open"
-      ? await getClassPublicAccess(db, actor, classRecord.id)
-      : null;
+  const canManageOfficialRosters = Boolean(await getCurrentStaff());
   const signInUrl = publicAccess
     ? buildClassSignInUrl(publicAccess.publicCode)
     : null;
@@ -90,13 +77,18 @@ export default async function ClassDetailPage({
     <main className="admin-content">
       <div className="admin-heading">
         <div>
-          <p className="eyebrow">Class record</p>
+          <p className="eyebrow">Class</p>
           <h1 className="staff-title">{classRecord.course?.name ?? "Class"}</h1>
+          <p>
+            {classRecord.site?.name ?? "Online"} |{" "}
+            {classRecord.deliveryMethod.replace("_", " ")} |{" "}
+            {classRecord.components[0]
+              ? formatDepartmentDateTime(classRecord.components[0].startsAt)
+              : "No session scheduled"}
+          </p>
         </div>
         <div className="admin-actions">
-          <Badge
-            variant={classRecord.status === "open" ? "default" : "secondary"}
-          >
+          <Badge variant={isOpen ? "default" : "secondary"}>
             {classRecord.status}
           </Badge>
           <Link
@@ -105,45 +97,30 @@ export default async function ClassDetailPage({
           >
             Back
           </Link>
-          {classRecord.status === "open" ? (
-            <Link
-              href={`/staff/classes/${classRecord.id}/roster`}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Instructor roster
-            </Link>
-          ) : null}
-          {classRecord.status === "completed" ? (
-            <Link
-              href={`/staff/classes/${classRecord.id}/review`}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Review roster and finalize
-            </Link>
-          ) : null}
         </div>
       </div>
 
-      {classRecord.status === "open" &&
-      roster &&
-      rosterOptions &&
-      requirements ? (
+      <section className="admin-section">
+        <LifecycleControls
+          classId={classRecord.id}
+          status={classRecord.status}
+          action={transitionClassAction}
+        />
+      </section>
+
+      {isOpen && roster && rosterOptions && requirements ? (
         <section className="admin-section class-command-screen">
           <div className="admin-heading">
             <div>
               <p className="eyebrow">Live class</p>
               <h2>{roster.active.length} signed-in students</h2>
-              <p>
-                {classRecord.site?.name ?? "Online"} |{" "}
-                {classRecord.deliveryMethod.replace("_", " ")}
-              </p>
               <p>Host agency: {classRecord.hostAgency?.name ?? "Not set"}</p>
             </div>
             <Link
-              href={`/staff/classes/${id}/roster`}
+              href={`/staff/classes/${id}/sign-in-record`}
               className={buttonVariants({ variant: "secondary" })}
             >
-              View full roster
+              Sign-in record
             </Link>
           </div>
           {publicAccess && signInUrl && qrDataUrl ? (
@@ -155,7 +132,7 @@ export default async function ClassDetailPage({
           ) : null}
           <div className="command-roster">
             <div>
-              <h3>Live roster</h3>
+              <h3>Roster</h3>
               <ul className="roster-list">
                 {roster.active.map((entry) => (
                   <li key={entry.id} className="roster-row">
@@ -174,7 +151,7 @@ export default async function ClassDetailPage({
               </ul>
             </div>
             <div>
-              <h3>Add student</h3>
+              <h3>Add attendance</h3>
               <AddAttendanceForms
                 classId={id}
                 students={rosterOptions.students}
@@ -183,171 +160,107 @@ export default async function ClassDetailPage({
               />
             </div>
           </div>
-          <LifecycleControls
-            classId={classRecord.id}
-            status={classRecord.status}
-            action={transitionClassAction}
-          />
         </section>
       ) : null}
 
-      {isDraft ? (
-        <section className="admin-section">
-          <p className="eyebrow">Step 1: class setup</p>
-          <ClassForm
-            action={updateClassAction}
-            {...options}
-            values={{
-              id: classRecord.id,
-              courseId: classRecord.courseId,
-              trainingSiteId: classRecord.trainingSiteId,
-              hostAgencyId: classRecord.hostAgencyId,
-              deliveryMethod: classRecord.deliveryMethod,
-              accessPinEnabled: classRecord.accessPinEnabled,
-              reportingSystemIds: classRecord.reportingSystems.map(
-                (system) => system.id,
-              ),
-            }}
-          />
-        </section>
-      ) : null}
-
-      {classRecord.status !== "open" ? (
-        <section className="admin-section">
-          <p className="eyebrow">Step 2: schedule</p>
-          <h2>Class sessions</h2>
-          <ul className="member-list">
-            {classRecord.components.map((component) => (
-              <li key={component.id} className="member-row">
-                <span>{component.title ?? "Training session"}</span>
-                <span>
-                  {formatDepartmentDateTime(component.startsAt)} to{" "}
-                  {formatDepartmentDateTime(component.endsAt)}
-                </span>
-                <Badge variant="outline">{component.creditedHours} hours</Badge>
-                {isDraft ? (
-                  <ComponentForm
-                    classId={classRecord.id}
-                    action={saveComponentAction}
-                    component={{
-                      id: component.id,
-                      title: component.title,
-                      creditedHours: component.creditedHours,
-                      startsAt: formatDepartmentDateTimeInput(
-                        component.startsAt,
-                      ),
-                    }}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          {isDraft ? (
-            <ComponentForm
-              classId={classRecord.id}
-              action={saveComponentAction}
-              defaultStartsAt={newSessionStartsAt}
-            />
+      <section className="admin-section">
+        <div className="admin-heading">
+          <h2>Class details</h2>
+          {editable ? (
+            <Link
+              href={`/staff/classes/${id}/edit`}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              Edit class details
+            </Link>
           ) : null}
-        </section>
-      ) : null}
-
-      {classRecord.status !== "open" ? (
-        <section className="admin-section">
-          <p className="eyebrow">Step 3: instructors and reporting</p>
-          <h2>Instructor assignments</h2>
-          <ul className="member-list">
-            {classRecord.instructors.map((instructor) => (
-              <li key={instructor.userId} className="member-row">
-                <span>{instructor.displayName}</span>
-                {instructor.isLead ? <Badge>Lead</Badge> : null}
-              </li>
-            ))}
-          </ul>
-          {isDraft ? (
-            <form action={assignInstructorAction} className="inline-form">
-              <input type="hidden" name="classId" value={classRecord.id} />
-              <input type="hidden" name="isLead" value="true" />
-              <select name="userId" className="select-input" required>
-                {options.staff.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.name}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit" variant="secondary">
-                Set lead instructor
-              </Button>
-            </form>
-          ) : null}
-          <h2>Reporting systems</h2>
-          <p>
+        </div>
+        <dl className="wizard-review">
+          <dt>Course</dt>
+          <dd>{classRecord.course?.name}</dd>
+          <dt>Training site</dt>
+          <dd>{classRecord.site?.name ?? "Online"}</dd>
+          <dt>Delivery</dt>
+          <dd>{classRecord.deliveryMethod.replace("_", " ")}</dd>
+          <dt>Host agency</dt>
+          <dd>{classRecord.hostAgency?.name ?? "Not set"}</dd>
+          <dt>Reporting systems</dt>
+          <dd>
             {classRecord.reportingSystems
               .map((system) => system.name)
               .join(", ") || "None selected"}
-          </p>
-          <h2>Host agency</h2>
-          <p>{classRecord.hostAgency?.name ?? "Not set"}</p>
-        </section>
-      ) : null}
+          </dd>
+          <dt>Lead instructor</dt>
+          <dd>
+            {classRecord.instructors
+              .filter((instructor) => instructor.isLead)
+              .map((instructor) => instructor.displayName)
+              .join(", ") || "Not assigned"}
+          </dd>
+          <dt>Sessions</dt>
+          <dd>
+            {classRecord.components.length === 0
+              ? "No sessions"
+              : classRecord.components
+                  .map(
+                    (component) =>
+                      `${formatDepartmentDateTime(component.startsAt)} (${component.creditedHours}h)`,
+                  )
+                  .join(", ")}
+          </dd>
+        </dl>
+      </section>
 
-      {classRecord.status !== "open" ? (
+      {showReview ? (
         <section className="admin-section">
-          <p className="eyebrow">Step 4: review and access</p>
-          <h2>Lifecycle</h2>
-          <LifecycleControls
-            classId={classRecord.id}
-            status={classRecord.status}
-            action={transitionClassAction}
-          />
+          <div className="admin-heading">
+            <h2>Finalization</h2>
+            {isCompleted ? (
+              <Link
+                href={`/staff/classes/${id}/review`}
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                Review &amp; finalize
+              </Link>
+            ) : null}
+          </div>
           <FinalizationControls
             classId={classRecord.id}
             status={classRecord.status}
             finalizeAction={finalizeClassAction}
             reopenAction={reopenClassAction}
           />
-          {publicAccess && signInUrl && qrDataUrl ? (
-            <TokenPanel
-              accessPin={publicAccess.accessPin}
-              qrDataUrl={qrDataUrl}
-              signInUrl={signInUrl}
-            />
+          {revisionHistory.length ? (
+            <ul className="member-list">
+              {revisionHistory.map((revision) => (
+                <li key={revision.id} className="member-row">
+                  <span>
+                    Revision {revision.revisionNumber} finalized by{" "}
+                    {revision.finalizedBy}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {revision.reopenReason
+                      ? `Reopened: ${revision.reopenReason}`
+                      : "Current or retained revision"}
+                  </span>
+                  <span>
+                    {revision.destinations
+                      .map(
+                        (destination) =>
+                          `${destination.systemName}: ${destination.status}`,
+                      )
+                      .join(", ")}
+                  </span>
+                  {canManageOfficialRosters ? (
+                    <OfficialRosterControls
+                      revisionId={revision.id}
+                      emailAction={sendOfficialRosterEmailAction}
+                    />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
           ) : null}
-        </section>
-      ) : null}
-      {classRecord.status !== "open" && revisionHistory.length ? (
-        <section className="admin-section">
-          <p className="eyebrow">Finalization history</p>
-          <h2>Immutable revisions</h2>
-          <ul className="member-list">
-            {revisionHistory.map((revision) => (
-              <li key={revision.id} className="member-row">
-                <span>
-                  Revision {revision.revisionNumber} finalized by{" "}
-                  {revision.finalizedBy}
-                </span>
-                <span className="text-muted-foreground">
-                  {revision.reopenReason
-                    ? `Reopened: ${revision.reopenReason}`
-                    : "Current or retained revision"}
-                </span>
-                <span>
-                  {revision.destinations
-                    .map(
-                      (destination) =>
-                        `${destination.systemName}: ${destination.status}`,
-                    )
-                    .join(", ")}
-                </span>
-                {canManageOfficialRosters ? (
-                  <OfficialRosterControls
-                    revisionId={revision.id}
-                    emailAction={sendOfficialRosterEmailAction}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ul>
         </section>
       ) : null}
     </main>

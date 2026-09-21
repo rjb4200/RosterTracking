@@ -151,38 +151,64 @@ describeDatabase("public class directory", () => {
         hostAgencyId: agencyId,
         createdByUserId: managerId,
         deliveryMethod: "classroom",
-        status: "draft",
+        status: "cancelled",
+        cancellationReason: "fixture",
         signInTokenHash: crypto.randomUUID(),
         publicCode: publicCodeC,
       })
       .returning({ id: trainingClasses.id });
+    const publicCodeD = generatePublicCode();
+    const classD = await db
+      .insert(trainingClasses)
+      .values({
+        courseId: courseCId,
+        trainingSiteId: siteId,
+        hostAgencyId: agencyId,
+        createdByUserId: managerId,
+        deliveryMethod: "classroom",
+        status: "open",
+        signInTokenHash: crypto.randomUUID(),
+        publicCode: publicCodeD,
+        openedAt: new Date(),
+      })
+      .returning({ id: trainingClasses.id });
     const classAId = classA[0]?.id;
     const classBId = classB[0]?.id;
-    if (!classAId || !classBId || !classC[0]?.id) {
+    const classDId = classD[0]?.id;
+    if (!classAId || !classBId || !classC[0]?.id || !classDId) {
       throw new Error("Class fixtures failed.");
     }
 
-    const later = new Date("2026-10-01T17:00:00Z");
-    const earlier = new Date("2026-10-01T13:00:00Z");
+    const now = Date.now();
+    const earlier = new Date(now - 60 * 60 * 1000);
+    const later = new Date(now + 60 * 60 * 1000);
+    const farFuture = new Date(now + 3 * 24 * 60 * 60 * 1000);
     await db.insert(classComponents).values([
       {
         classId: classAId,
         startsAt: later,
-        endsAt: new Date("2026-10-01T21:00:00Z"),
+        endsAt: new Date(later.getTime() + 4 * 60 * 60 * 1000),
         creditedHours: "4",
         position: 1,
       },
       {
         classId: classAId,
         startsAt: earlier,
-        endsAt: new Date("2026-10-01T17:00:00Z"),
+        endsAt: new Date(earlier.getTime() + 4 * 60 * 60 * 1000),
         creditedHours: "4",
         position: 0,
       },
       {
         classId: classBId,
         startsAt: earlier,
-        endsAt: new Date("2026-10-01T17:00:00Z"),
+        endsAt: new Date(earlier.getTime() + 4 * 60 * 60 * 1000),
+        creditedHours: "4",
+        position: 0,
+      },
+      {
+        classId: classDId,
+        startsAt: farFuture,
+        endsAt: new Date(farFuture.getTime() + 4 * 60 * 60 * 1000),
         creditedHours: "4",
         position: 0,
       },
@@ -197,6 +223,7 @@ describeDatabase("public class directory", () => {
     const entryA = directory.find((entry) => entry.publicCode === publicCodeA);
     const entryB = directory.find((entry) => entry.publicCode === publicCodeB);
     const entryC = directory.find((entry) => entry.publicCode === publicCodeC);
+    const entryD = directory.find((entry) => entry.publicCode === publicCodeD);
 
     expect(entryA).toMatchObject({
       courseName: `Directory Course A ${suffix}`,
@@ -213,5 +240,6 @@ describeDatabase("public class directory", () => {
     expect(entryB?.instructors).toEqual(["Z. Adams"]);
 
     expect(entryC).toBeUndefined();
+    expect(entryD).toBeUndefined();
   });
 });

@@ -90,7 +90,6 @@ export async function rosterAction(
     } else {
       return { error: "Invalid roster action." };
     }
-    revalidatePath(`/staff/classes/${classId}/roster`);
     revalidatePath(`/staff/classes/${classId}/review`);
     revalidatePath(`/staff/classes/${classId}`);
     return { success: "Roster updated." };

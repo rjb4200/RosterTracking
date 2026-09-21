@@ -12,19 +12,16 @@ type OperationalClass = Awaited<
 
 function ClassCard({ classRecord }: { classRecord: OperationalClass }) {
   const detailHref = `/staff/classes/${classRecord.id}`;
-  const rosterHref = `${detailHref}/roster`;
   const reviewHref = `${detailHref}/review`;
   const action =
-    classRecord.action === "setup"
-      ? { href: detailHref, label: "Continue setup" }
-      : classRecord.action === "roster"
-        ? {
-            href: rosterHref,
-            label: classRecord.isOverdue ? "Review roster" : "Open roster",
-          }
-        : classRecord.action === "finalize"
-          ? { href: reviewHref, label: "Review and finalize" }
-          : { href: detailHref, label: "View class" };
+    classRecord.action === "roster"
+      ? {
+          href: detailHref,
+          label: classRecord.isOverdue ? "Review roster" : "Open class",
+        }
+      : classRecord.action === "finalize"
+        ? { href: reviewHref, label: "Review and finalize" }
+        : { href: detailHref, label: "View class" };
 
   return (
     <article className="operational-class-card">

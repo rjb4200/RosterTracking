@@ -9,7 +9,6 @@ export type ClassDeliveryMethod =
   (typeof CLASS_DELIVERY_METHODS)[keyof typeof CLASS_DELIVERY_METHODS];
 
 export const CLASS_STATUSES = {
-  DRAFT: "draft",
   OPEN: "open",
   COMPLETED: "completed",
   FINALIZED: "finalized",

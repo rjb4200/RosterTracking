@@ -32,7 +32,6 @@ const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 const statusOptions = Object.values(CLASS_STATUSES);
 
 const statusLabels: Record<ClassStatus, string> = {
-  draft: "Draft",
   open: "Open",
   completed: "Completed",
   finalized: "Finalized",

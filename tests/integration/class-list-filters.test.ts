@@ -163,14 +163,6 @@ describeDatabase("class list filters", () => {
       return record.id;
     };
 
-    const freshDraft = await createClass({
-      status: CLASS_STATUSES.DRAFT,
-      createdAt: daysAgo(1),
-    });
-    const staleDraft = await createClass({
-      status: CLASS_STATUSES.DRAFT,
-      createdAt: daysAgo(20),
-    });
     const openClass = await createClass({
       status: CLASS_STATUSES.OPEN,
       createdAt: daysAgo(2),
@@ -206,11 +198,9 @@ describeDatabase("class list filters", () => {
     });
 
     const defaultIds = (await listClasses(db, actor)).map((row) => row.id);
-    expect(defaultIds).toContain(freshDraft);
     expect(defaultIds).toContain(openClass);
     expect(defaultIds).toContain(recentFinalized);
     expect(defaultIds).toContain(inFlightCompleted);
-    expect(defaultIds).not.toContain(staleDraft);
     expect(defaultIds).not.toContain(oldFinalized);
     expect(defaultIds).not.toContain(cancelled);
     expect(defaultIds).not.toContain(emptyOldCompleted);
@@ -242,11 +232,6 @@ describeDatabase("class list filters", () => {
       cancelledOnly.every((row) => row.status === CLASS_STATUSES.CANCELLED),
     ).toBe(true);
 
-    const draftsOnly = (
-      await listClasses(db, actor, { status: CLASS_STATUSES.DRAFT })
-    ).map((row) => row.id);
-    expect(draftsOnly).toContain(staleDraft);
-
     const oldWindow = (
       await listClasses(db, actor, {
         from: daysAgo(70),
@@ -260,6 +245,6 @@ describeDatabase("class list filters", () => {
     const searched = (
       await listClasses(db, actor, { query: `Class List Course ${suffix}` })
     ).map((row) => row.id);
-    expect(searched).toContain(freshDraft);
+    expect(searched).toContain(openClass);
   });
 });

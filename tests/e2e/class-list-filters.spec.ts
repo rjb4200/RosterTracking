@@ -21,8 +21,6 @@ function dateInput(daysAgo: number) {
 
 interface ClassFixture {
   courseName: string;
-  freshDraftId: string;
-  staleDraftId: string;
   cancelledId: string;
   pinId: string;
   finalizedId: string;
@@ -108,14 +106,6 @@ async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
     return id;
   };
 
-  const freshDraftId = await createClass({
-    status: "draft",
-    createdDaysAgo: 1,
-  });
-  const staleDraftId = await createClass({
-    status: "draft",
-    createdDaysAgo: 20,
-  });
   const cancelledId = await createClass({
     status: "cancelled",
     createdDaysAgo: 2,
@@ -142,8 +132,6 @@ async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
 
   return {
     courseName,
-    freshDraftId,
-    staleDraftId,
     cancelledId,
     pinId,
     finalizedId,
@@ -152,12 +140,7 @@ async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
 }
 
 async function cleanupClassFixture(pool: Pool, fixture: ClassFixture) {
-  const deletable = [
-    fixture.freshDraftId,
-    fixture.staleDraftId,
-    fixture.cancelledId,
-    fixture.pinId,
-  ];
+  const deletable = [fixture.cancelledId, fixture.pinId];
   await pool.query("delete from attendance where class_id = any($1)", [
     deletable,
   ]);
@@ -184,14 +167,8 @@ test("class list defaults to current work and widens with filters", async ({
   let fixture: ClassFixture | undefined;
   try {
     fixture = await seedClassFixture(pool);
-    const {
-      courseName,
-      staleDraftId,
-      cancelledId,
-      pinId,
-      finalizedId,
-      oldFinalizedId,
-    } = fixture;
+    const { courseName, cancelledId, pinId, finalizedId, oldFinalizedId } =
+      fixture;
 
     await signIn(page, username, password);
     await page.goto("/staff/classes");
@@ -206,7 +183,6 @@ test("class list defaults to current work and widens with filters", async ({
       page.getByRole("link", { name: courseName }).first(),
     ).toBeVisible();
 
-    await expect(rowFor(staleDraftId)).toHaveCount(0);
     await expect(rowFor(cancelledId)).toHaveCount(0);
     await expect(rowFor(oldFinalizedId)).toHaveCount(0);
 
@@ -230,10 +206,6 @@ test("class list defaults to current work and widens with filters", async ({
     await page.locator("#classes-from").fill(dateInput(90));
     await page.getByRole("button", { name: "Apply filters" }).click();
     await expect(rowFor(oldFinalizedId)).toHaveCount(1);
-
-    await page.locator("#classes-status").selectOption("draft");
-    await page.getByRole("button", { name: "Apply filters" }).click();
-    await expect(rowFor(staleDraftId)).toHaveCount(1);
   } finally {
     if (fixture) await cleanupClassFixture(pool, fixture);
     await pool.end();

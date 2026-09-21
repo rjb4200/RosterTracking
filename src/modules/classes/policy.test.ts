@@ -47,7 +47,7 @@ describe("class policy", () => {
 
   it("allows only supported lifecycle transitions", () => {
     expect(() =>
-      validateClassTransition(CLASS_STATUSES.DRAFT, CLASS_STATUSES.OPEN),
+      validateClassTransition(CLASS_STATUSES.OPEN, CLASS_STATUSES.COMPLETED),
     ).not.toThrow();
     expect(() =>
       validateClassTransition(CLASS_STATUSES.OPEN, CLASS_STATUSES.FINALIZED),
@@ -55,6 +55,12 @@ describe("class policy", () => {
     expect(() =>
       validateClassTransition(CLASS_STATUSES.OPEN, CLASS_STATUSES.CANCELLED),
     ).toThrow(/reason/i);
+    expect(() =>
+      validateClassTransition(
+        CLASS_STATUSES.FINALIZED,
+        CLASS_STATUSES.CANCELLED,
+      ),
+    ).toThrow(/cannot transition/i);
   });
 
   it("requires exactly one lead instructor before opening", () => {
