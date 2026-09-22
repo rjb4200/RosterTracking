@@ -53,7 +53,10 @@ import {
   validateComponentRange,
   validateDeliverySite,
 } from "./policy";
-import { getDepartmentCalendarDate, parseDepartmentDateTime } from "./time";
+import {
+  getDepartmentCalendarDate,
+  normalizeDepartmentStartTime,
+} from "./time";
 import {
   decryptClassAccessPin,
   encryptClassAccessPin,
@@ -111,13 +114,13 @@ const draftInput = z.object({
 const componentInput = z.object({
   id: z.string().uuid().optional(),
   title: z.string().trim().max(200).optional().or(z.literal("")),
-  startsAt: z.string().transform(parseDepartmentDateTime),
+  startsAt: z.string().transform(normalizeDepartmentStartTime),
   creditedHours: z.coerce.number().positive().max(999),
   position: z.coerce.number().int().min(0).default(0),
 });
 
 const scheduledDraftInput = draftInput.extend({
-  startsAt: z.string().transform(parseDepartmentDateTime),
+  startsAt: z.string().transform(normalizeDepartmentStartTime),
   creditedHours: z.coerce.number().positive().max(999),
   leadInstructorId: z.string().uuid(),
 });

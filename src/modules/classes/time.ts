@@ -118,6 +118,20 @@ export function roundDepartmentDateTimeToQuarterHour(date: Date): string {
   return formatDepartmentDateTimeInput(rounded);
 }
 
+/**
+ * Parses a department local date-time and normalizes it to the nearest
+ * 15-minute increment, returning the department-local input string. Rounding
+ * happens after the time zone is resolved so quarter hours are wall-clock
+ * minutes, and a rounded value may roll into the next hour or day.
+ */
+export function normalizeDepartmentStartTimeInput(value: string): string {
+  return roundDepartmentDateTimeToQuarterHour(parseDepartmentDateTime(value));
+}
+
+export function normalizeDepartmentStartTime(value: string): Date {
+  return parseDepartmentDateTime(normalizeDepartmentStartTimeInput(value));
+}
+
 export function calculateDepartmentEndTimeInput(
   startsAt: string,
   creditedHours: number,

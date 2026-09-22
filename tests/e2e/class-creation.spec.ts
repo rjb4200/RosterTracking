@@ -124,6 +124,32 @@ test("class wizard stays within a narrow viewport", async ({ page }) => {
   expect(coveredByStep).toBe(false);
 });
 
+test("class start time defaults to the nearest quarter hour and snaps typed times", async ({
+  page,
+}) => {
+  test.skip(!username || !password, "Set E2E staff credentials.");
+  if (!username || !password) return;
+
+  await signIn(page, username, password);
+  await page.goto("/staff/classes/new");
+
+  const startTime = page.getByLabel("Date and start time");
+
+  // The field is pre-filled on the cadence instead of starting empty.
+  const initial = await startTime.inputValue();
+  expect(initial).toMatch(/T\d{2}:(00|15|30|45)$/);
+
+  // A typed off-grid minute snaps to the nearest quarter hour on blur, and the
+  // field shows the value that will be stored.
+  await startTime.fill("2026-09-10T09:07");
+  await startTime.blur();
+  await expect(startTime).toHaveValue("2026-09-10T09:00");
+
+  await startTime.fill("2026-09-10T09:08");
+  await startTime.blur();
+  await expect(startTime).toHaveValue("2026-09-10T09:15");
+});
+
 test("staff workspace exposes the primary class creation path", async ({
   page,
 }) => {

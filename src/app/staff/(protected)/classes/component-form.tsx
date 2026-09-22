@@ -5,7 +5,11 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { calculateDepartmentEndTimeInput } from "@/modules/classes/time";
+import {
+  calculateDepartmentEndTimeInput,
+  parseDepartmentDateTime,
+  roundDepartmentDateTimeToQuarterHour,
+} from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
 
@@ -77,6 +81,15 @@ export function ComponentForm({
             step="900"
             value={startsAt}
             onChange={(event) => setStartsAt(event.target.value)}
+            onBlur={(event) =>
+              setStartsAt(
+                event.target.value
+                  ? roundDepartmentDateTimeToQuarterHour(
+                      parseDepartmentDateTime(event.target.value),
+                    )
+                  : "",
+              )
+            }
             required
           />
         </div>

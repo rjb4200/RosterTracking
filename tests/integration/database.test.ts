@@ -271,6 +271,16 @@ describeDatabase("database foundation", () => {
         position: 1,
       }),
     ).rejects.toThrow(/one roster day/i);
+    // A start time near midnight rounds to the next day, which must still be
+    // rejected by the single-roster-day rule rather than silently accepted.
+    await expect(
+      saveClassComponent(database, actor, created.classRecord.id, {
+        title: "Rounds into the next roster day",
+        startsAt: "2026-09-11T03:53:00Z",
+        creditedHours: 4,
+        position: 2,
+      }),
+    ).rejects.toThrow(/one roster day/i);
     await saveClassComponent(database, actor, created.classRecord.id, {
       id: component.id,
       title: "Updated session",

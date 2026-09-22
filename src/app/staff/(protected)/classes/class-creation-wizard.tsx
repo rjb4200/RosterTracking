@@ -7,6 +7,10 @@ import { startTransition, useActionState, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  parseDepartmentDateTime,
+  roundDepartmentDateTimeToQuarterHour,
+} from "@/modules/classes/time";
 
 import type {
   ActionState,
@@ -90,7 +94,7 @@ export function ClassCreationWizard({
     trainingSiteId: "",
     hostAgencyId: "",
     deliveryMethod: "classroom",
-    startsAt: "",
+    startsAt: roundDepartmentDateTimeToQuarterHour(new Date()),
     creditedHours: "",
     leadInstructorId: defaultLeadInstructorId,
     reportingSystemIds: [] as string[],
@@ -397,8 +401,19 @@ export function ClassCreationWizard({
               <Input
                 id="startsAt"
                 type="datetime-local"
+                step="900"
                 value={values.startsAt}
                 onChange={(event) => update("startsAt", event.target.value)}
+                onBlur={(event) =>
+                  update(
+                    "startsAt",
+                    event.target.value
+                      ? roundDepartmentDateTimeToQuarterHour(
+                          parseDepartmentDateTime(event.target.value),
+                        )
+                      : "",
+                  )
+                }
                 required
               />
             </div>
