@@ -28,6 +28,7 @@ import {
   courseReportingDefaults,
   courses,
   credentialTypes,
+  curricula,
   finalizationRevisions,
   mtuUsage,
   reportingRequirementSets,
@@ -46,6 +47,7 @@ import {
   CLASS_STATUSES,
   type ClassStatus,
 } from "./constants";
+import { defaultComponentMethod } from "./fire-subjects";
 import { hasMtuUsage, type MtuUsage, normalizeMtuUsage } from "./mtu";
 import {
   assertClassEditable,
@@ -117,18 +119,36 @@ const draftInput = z.object({
   mtuUsedSupplies: z.string().trim().max(500).default(""),
 });
 
+const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
+const optionalMethod = z
+  .union([z.enum(["cr", "ho", "ol"]), z.literal("")])
+  .optional();
+
 const componentInput = z.object({
   id: z.string().uuid().optional(),
   title: z.string().trim().max(200).optional().or(z.literal("")),
   startsAt: z.string().transform(normalizeDepartmentStartTime),
   creditedHours: z.coerce.number().positive().max(999),
   position: z.coerce.number().int().min(0).default(0),
+  trainingCodeId: optionalUuid,
+  className: z.string().trim().max(200).optional().or(z.literal("")),
+  curriculumId: optionalUuid,
+  lessonPlan: z.string().trim().max(500).optional().or(z.literal("")),
+  method: optionalMethod,
+});
+
+const fireSubjectInput = z.object({
+  trainingCodeId: z.string().uuid(),
+  className: z.string().trim().min(1).max(200),
+  curriculumId: optionalUuid,
+  lessonPlan: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
 const scheduledDraftInput = draftInput.extend({
   startsAt: z.string().transform(normalizeDepartmentStartTime),
   creditedHours: z.coerce.number().positive().max(999),
   leadInstructorId: z.string().uuid(),
+  subjects: z.array(fireSubjectInput).max(2).optional(),
 });
 
 async function canManageAllClasses(
@@ -381,28 +401,71 @@ export async function createOpenClass(
       entityId: created.id,
       details: { userId: parsed.leadInstructorId, isLead: true },
     });
-    const [component] = await transaction
+    // Each Fire subject becomes its own session. The first uses the class
+    // schedule; a second subject is auto-placed immediately after it.
+    const subjects = parsed.subjects ?? [];
+    const method = defaultComponentMethod(parsed.deliveryMethod);
+    const componentValues = subjects.length
+      ? subjects.map((subject, index) => {
+          const subjectStartsAt = new Date(
+            parsed.startsAt.getTime() +
+              index * parsed.creditedHours * 60 * 60 * 1000,
+          );
+          return {
+            classId: created.id,
+            startsAt: subjectStartsAt,
+            endsAt: calculateComponentEndTime(
+              subjectStartsAt,
+              parsed.creditedHours,
+            ),
+            creditedHours: String(parsed.creditedHours),
+            position: index,
+            trainingCodeId: subject.trainingCodeId,
+            className: subject.className,
+            curriculumId: subject.curriculumId || null,
+            lessonPlan: subject.lessonPlan || null,
+            method,
+          };
+        })
+      : [
+          {
+            classId: created.id,
+            startsAt: parsed.startsAt,
+            endsAt,
+            creditedHours: String(parsed.creditedHours),
+            position: 0,
+            method,
+          },
+        ];
+    if (
+      new Set(
+        componentValues.map((value) =>
+          getDepartmentCalendarDate(value.startsAt),
+        ),
+      ).size > 1
+    ) {
+      throw new Error("All class sessions must occur on one roster day.");
+    }
+    const createdComponents = await transaction
       .insert(classComponents)
-      .values({
-        classId: created.id,
-        startsAt: parsed.startsAt,
-        endsAt,
-        creditedHours: String(parsed.creditedHours),
-        position: 0,
-      })
+      .values(componentValues)
       .returning({ id: classComponents.id });
-    if (!component) throw new Error("Class component was not created.");
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "class.component.saved",
-      entityType: "class",
-      entityId: created.id,
-      details: { componentId: component.id },
-    });
+    if (createdComponents.length !== componentValues.length) {
+      throw new Error("Class components were not created.");
+    }
+    for (const createdComponent of createdComponents) {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "class.component.saved",
+        entityType: "class",
+        entityId: created.id,
+        details: { componentId: createdComponent.id },
+      });
+    }
     await replaceMtuUsage(transaction, created.id, mtuUsageFromDraft(parsed));
     validateClassReadiness({
-      componentCount: 1,
+      componentCount: createdComponents.length,
       leadCount: 1,
       reportingCount: reportingSystemIds.length,
       hostAgencyActive: true,
@@ -527,6 +590,11 @@ export async function saveClassComponent(
       endsAt,
       creditedHours: String(parsed.creditedHours),
       position: parsed.position,
+      trainingCodeId: parsed.trainingCodeId || null,
+      className: parsed.className || null,
+      curriculumId: parsed.curriculumId || null,
+      lessonPlan: parsed.lessonPlan || null,
+      method: parsed.method || null,
       updatedAt: new Date(),
     };
     const [component] = parsed.id
@@ -1221,6 +1289,8 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     staffRows,
     defaultRows,
     requirementRows,
+    trainingCodeRows,
+    curriculumRows,
   ] = await Promise.all([
     db
       .select({
@@ -1281,6 +1351,25 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         eq(credentialTypes.id, reportingRequirements.credentialTypeId),
       )
       .where(eq(reportingRequirementSets.isActive, true)),
+    db
+      .select({
+        id: trainingCodes.id,
+        code: trainingCodes.code,
+        title: trainingCodes.title,
+      })
+      .from(trainingCodes)
+      .where(eq(trainingCodes.isActive, true))
+      .orderBy(trainingCodes.code),
+    db
+      .select({
+        id: curricula.id,
+        publisher: curricula.publisher,
+        programTitle: curricula.programTitle,
+        version: curricula.version,
+      })
+      .from(curricula)
+      .where(eq(curricula.isActive, true))
+      .orderBy(curricula.publisher, curricula.programTitle),
   ]);
   const recentRows = actor
     ? await db
@@ -1306,6 +1395,8 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     staff: staffRows,
     courseReportingDefaults: defaultRows,
     reportingRequirements: requirementRows,
+    trainingCodes: trainingCodeRows,
+    curricula: curriculumRows,
     recentCourseIds: [...new Set(recentRows.map((row) => row.courseId))],
     recentSiteIds: [
       ...new Set(

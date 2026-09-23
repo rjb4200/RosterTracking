@@ -216,6 +216,28 @@ export const trainingCodes = pgTable(
   ],
 );
 
+export const curricula = pgTable(
+  "curricula",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    publisher: text("publisher").notNull(),
+    programTitle: text("program_title").notNull(),
+    version: text("version"),
+    additionalRequirements: text("additional_requirements"),
+    sourceRevision: text("source_revision").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("curricula_identity_unique").on(
+      table.publisher,
+      table.programTitle,
+      table.sourceRevision,
+    ),
+    index("curricula_publisher_idx").on(table.publisher),
+  ],
+);
+
 export const courses = pgTable(
   "courses",
   {

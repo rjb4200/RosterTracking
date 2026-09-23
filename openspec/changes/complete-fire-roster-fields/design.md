@@ -63,6 +63,13 @@ Finalization copies each instructor's name, FFN, and level into the revision; th
 
 - **Why**: the roster is produced before reporting; the reporting queue captures the eventual entry actor and timestamp separately.
 
+### D7 — A second Fire subject is auto-placed after the first
+Each Fire subject row becomes its own class session. At class creation the first subject uses the class-and-schedule start and duration, and a second subject starts when the first ends with the same credited hours. The one-roster-day rule still holds because the second slot is sequential.
+
+- **Why**: the form gives each subject row its own Start/End/Hours, but the wizard collects one class schedule; auto-placing keeps creation simple for the common single-subject case while still producing a valid two-row roster.
+- **Alternatives**: collect per-subject times in the Fire step (more fields, but allows differing times — deferred); capture only the first subject at creation and add the second later (leaves the wizard unable to express the common two-subject day).
+- **Follow-up**: staff can adjust the second session's times on the class edit page.
+
 ## Risks / Trade-offs
 
 - **Mapping change on a checksum-governed template** → keep the approved template file and checksum unchanged; only field population changes, and a visual fixture review is part of the tasks.

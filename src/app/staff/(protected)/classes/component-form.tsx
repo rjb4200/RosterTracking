@@ -18,6 +18,8 @@ export function ComponentForm({
   action,
   component,
   defaultStartsAt,
+  trainingCodes = [],
+  curricula = [],
 }: {
   classId: string;
   component?: {
@@ -25,8 +27,20 @@ export function ComponentForm({
     title: string | null;
     creditedHours: string;
     startsAt: string;
+    trainingCodeId?: string | null;
+    className?: string | null;
+    curriculumId?: string | null;
+    lessonPlan?: string | null;
+    method?: string | null;
   };
   defaultStartsAt?: string;
+  trainingCodes?: Array<{ id: string; code: string; title: string }>;
+  curricula?: Array<{
+    id: string;
+    publisher: string;
+    programTitle: string;
+    version: string | null;
+  }>;
   action: (
     prev: ActionState | undefined,
     formData: FormData,
@@ -101,6 +115,71 @@ export function ComponentForm({
             type="datetime-local"
             value={endTime}
             readOnly
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor={`trainingCodeId-${suffix}`}>Category</Label>
+          <select
+            id={`trainingCodeId-${suffix}`}
+            name="trainingCodeId"
+            className="select-input"
+            defaultValue={component?.trainingCodeId ?? ""}
+          >
+            <option value="">No category</option>
+            {trainingCodes.map((code) => (
+              <option key={code.id} value={code.id}>
+                {code.code} — {code.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <Label htmlFor={`className-${suffix}`}>Class name</Label>
+          <Input
+            id={`className-${suffix}`}
+            name="className"
+            defaultValue={component?.className ?? ""}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor={`curriculumId-${suffix}`}>Curriculum</Label>
+          <select
+            id={`curriculumId-${suffix}`}
+            name="curriculumId"
+            className="select-input"
+            defaultValue={component?.curriculumId ?? ""}
+          >
+            <option value="">No curriculum</option>
+            {curricula.map((curriculum) => (
+              <option key={curriculum.id} value={curriculum.id}>
+                {curriculum.publisher} — {curriculum.programTitle}
+                {curriculum.version ? ` (${curriculum.version})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <Label htmlFor={`method-${suffix}`}>Method</Label>
+          <select
+            id={`method-${suffix}`}
+            name="method"
+            className="select-input"
+            defaultValue={component?.method ?? ""}
+          >
+            <option value="">No method</option>
+            <option value="cr">Classroom</option>
+            <option value="ho">Hands-on</option>
+            <option value="ol">Online</option>
+          </select>
+        </div>
+        <div className="field field-wide">
+          <Label htmlFor={`lessonPlan-${suffix}`}>Lesson plan</Label>
+          <textarea
+            id={`lessonPlan-${suffix}`}
+            className="search-input"
+            name="lessonPlan"
+            rows={2}
+            defaultValue={component?.lessonPlan ?? ""}
           />
         </div>
       </div>

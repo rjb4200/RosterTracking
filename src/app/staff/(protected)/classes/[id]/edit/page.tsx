@@ -96,11 +96,18 @@ export default async function EditClassPage({
               <ComponentForm
                 classId={classRecord.id}
                 action={saveComponentAction}
+                trainingCodes={options.trainingCodes}
+                curricula={options.curricula}
                 component={{
                   id: component.id,
                   title: component.title,
                   creditedHours: component.creditedHours,
                   startsAt: formatDepartmentDateTimeInput(component.startsAt),
+                  trainingCodeId: component.trainingCodeId,
+                  className: component.className,
+                  curriculumId: component.curriculumId,
+                  lessonPlan: component.lessonPlan,
+                  method: component.method,
                 }}
               />
             </li>
@@ -110,6 +117,8 @@ export default async function EditClassPage({
           classId={classRecord.id}
           action={saveComponentAction}
           defaultStartsAt={newSessionStartsAt}
+          trainingCodes={options.trainingCodes}
+          curricula={options.curricula}
         />
       </section>
 

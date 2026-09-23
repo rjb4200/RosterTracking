@@ -80,6 +80,24 @@ function draftValues(formData: FormData) {
   };
 }
 
+function readSubjects(formData: FormData) {
+  const codes = formData.getAll("fireTrainingCodeId").map(String);
+  const names = formData.getAll("fireClassName").map(String);
+  const curriculumIds = formData.getAll("fireCurriculumId").map(String);
+  const lessonPlans = formData.getAll("fireLessonPlan").map(String);
+  return codes
+    .map((trainingCodeId, index) => ({
+      trainingCodeId,
+      className: names[index] ?? "",
+      curriculumId: curriculumIds[index] ?? "",
+      lessonPlan: lessonPlans[index] ?? "",
+    }))
+    .filter(
+      (subject) =>
+        Boolean(subject.trainingCodeId) && Boolean(subject.className.trim()),
+    );
+}
+
 export async function createClassAction(
   _prev: ActionState | undefined,
   formData: FormData,
@@ -95,6 +113,7 @@ export async function createClassAction(
         startsAt: read(formData, "startsAt"),
         creditedHours: read(formData, "creditedHours"),
         leadInstructorId: read(formData, "leadInstructorId"),
+        subjects: readSubjects(formData),
       },
     );
     const signInUrl = buildClassSignInUrl(classRecord.publicCode ?? "");

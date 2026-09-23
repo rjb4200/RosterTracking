@@ -3,6 +3,7 @@ import {
   UnreadableRevisionSnapshotError,
 } from "@/modules/official-roster-pdfs/service";
 import { requireStaff } from "@/modules/staff-auth/authorization";
+import { writeAuditLog } from "@/server/db/audit";
 import { getDatabase } from "@/server/db/client";
 import {
   classifyServerFailure,
@@ -26,12 +27,25 @@ export async function GET(
     if (formType !== "kfs-1a" && formType !== "kbems-e16") {
       throw new Error("Unknown official roster form.");
     }
+    const db = getDatabase();
     const roster = await generateOfficialRoster(
-      getDatabase(),
+      db,
       actor,
       revisionId,
       formType,
     );
+    // The roster is generated before external reporting, so the entry fields
+    // are left blank; record who generated it and that the fields were blank.
+    await db.transaction(async (transaction) => {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "official_roster.generated",
+        entityType: "finalization_revision",
+        entityId: revisionId,
+        details: { formType, entryFieldsBlank: formType === "kfs-1a" },
+      });
+    });
     const body = roster.bytes.buffer.slice(
       roster.bytes.byteOffset,
       roster.bytes.byteOffset + roster.bytes.byteLength,

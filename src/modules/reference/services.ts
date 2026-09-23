@@ -6,6 +6,7 @@ import {
   agencies,
   courses,
   credentialTypes,
+  curricula,
   studentAgencies,
   studentCredentials,
   students,
@@ -828,4 +829,79 @@ export async function importTrainingCodes(
     }
     return inserted;
   });
+}
+
+// ── Approved curriculum import ────────────────────────────────────────────
+
+const curriculumInput = z.object({
+  publisher: z.string().trim().min(1).max(200),
+  programTitle: z.string().trim().min(1).max(300),
+  version: z.string().trim().max(100).optional().default(""),
+  additionalRequirements: z.string().trim().max(500).optional().default(""),
+  sourceRevision: z.string().trim().min(1).max(100),
+});
+
+export async function importCurricula(
+  db: Database,
+  actor: Actor,
+  rows: z.input<typeof curriculumInput>[],
+) {
+  const parsed = rows.map((row) => curriculumInput.parse(row));
+  return db.transaction(async (transaction) => {
+    let upserted = 0;
+    for (const row of parsed) {
+      const result = await transaction
+        .insert(curricula)
+        .values({
+          publisher: row.publisher,
+          programTitle: row.programTitle,
+          version: row.version || null,
+          additionalRequirements: row.additionalRequirements || null,
+          sourceRevision: row.sourceRevision,
+        })
+        .onConflictDoUpdate({
+          target: [
+            curricula.publisher,
+            curricula.programTitle,
+            curricula.sourceRevision,
+          ],
+          set: {
+            version: sql`excluded.version`,
+            additionalRequirements: sql`excluded.additional_requirements`,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ id: curricula.id });
+      if (result[0]) upserted += 1;
+    }
+    if (upserted > 0) {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "curriculum.imported",
+        entityType: "curriculum",
+        details: { count: upserted },
+      });
+    }
+    return upserted;
+  });
+}
+
+export async function listCurricula(db: Database, query: string) {
+  const term = `%${query.trim()}%`;
+  return db
+    .select()
+    .from(curricula)
+    .where(
+      and(
+        eq(curricula.isActive, true),
+        or(
+          ilike(curricula.publisher, term),
+          ilike(curricula.programTitle, term),
+        ),
+      ),
+    )
+    .orderBy(curricula.publisher, curricula.programTitle)
+    .limit(200);
 }

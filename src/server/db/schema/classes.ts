@@ -18,7 +18,9 @@ import { users } from "./auth";
 import {
   agencies,
   courses,
+  curricula,
   reportingSystems,
+  trainingCodes,
   trainingSites,
 } from "./reference";
 
@@ -114,6 +116,19 @@ export const classComponents = pgTable(
       .notNull()
       .references(() => trainingClasses.id, { onDelete: "cascade" }),
     title: text("title"),
+    // Fire subject facts printed on the KFS-1A subject rows.
+    trainingCodeId: uuid("training_code_id").references(
+      () => trainingCodes.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    className: text("class_name"),
+    curriculumId: uuid("curriculum_id").references(() => curricula.id, {
+      onDelete: "set null",
+    }),
+    lessonPlan: text("lesson_plan"),
+    method: text("method"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     creditedHours: numeric("credited_hours", {
@@ -133,6 +148,10 @@ export const classComponents = pgTable(
       sql`${table.endsAt} > ${table.startsAt}`,
     ),
     check("class_components_hours_positive", sql`${table.creditedHours} > 0`),
+    check(
+      "class_components_method",
+      sql`${table.method} is null or ${table.method} in ('cr', 'ho', 'ol')`,
+    ),
   ],
 );
 

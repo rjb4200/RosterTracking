@@ -52,7 +52,12 @@ export interface FinalizationSnapshot {
     mileage: string | null;
     usedSupplies: string | null;
   } | null;
-  instructors: Array<{ name: string; isLead: boolean }>;
+  instructors: Array<{
+    name: string;
+    isLead: boolean;
+    ffn?: string | null;
+    level?: number | null;
+  }>;
   attendance: SnapshotAttendance[];
   fieldSnapshots: Array<{
     attendanceId: string;
@@ -68,6 +73,13 @@ export interface FinalizationSnapshot {
   // components in their encrypted finalization snapshot.
   components?: Array<{
     title: string | null;
+    category?: string | null;
+    className?: string | null;
+    curriculumPublisher?: string | null;
+    curriculumProgramTitle?: string | null;
+    curriculumVersion?: string | null;
+    lessonPlan?: string | null;
+    method?: string | null;
     startsAt: string;
     endsAt: string;
     creditedHours: string;
@@ -229,37 +241,121 @@ function setText(pdf: PDFDocument, name: string | undefined, value: string) {
   field.setText(value.slice(0, 500));
 }
 
+// KFS-1A checkbox fields, mapped by position from the approved template.
+const KFS_LEAD_LEVEL_FIELDS: Record<number, string> = {
+  1: "Check Box2",
+  2: "Check Box3",
+  3: "Check Box4",
+};
+const KFS_ASSIST_LEVEL_FIELDS: Record<number, string> = {
+  1: "Check Box5",
+  2: "Check Box6",
+  3: "Check Box7",
+};
+const KFS_METHOD_FIELDS: Array<Record<string, string>> = [
+  { cr: "Check Box8", ho: "Check Box9", ol: "Check Box10" },
+  { cr: "Check Box11", ho: "Check Box12", ol: "Check Box13" },
+];
+
+function setCheck(pdf: PDFDocument, name: string, checked: boolean) {
+  if (!checked) return;
+  try {
+    pdf.getForm().getCheckBox(name).check();
+  } catch {
+    // A missing checkbox must not fail the whole roster.
+  }
+}
+
+function curriculumLabel(component: {
+  curriculumPublisher?: string | null;
+  curriculumProgramTitle?: string | null;
+  curriculumVersion?: string | null;
+}): string {
+  return [
+    component.curriculumPublisher,
+    component.curriculumProgramTitle,
+    component.curriculumVersion,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+}
+
 function fillKfsPage(
   pdf: PDFDocument,
   snapshot: FinalizationSnapshot,
   attendees: SnapshotAttendance[],
 ) {
   const mapping = getTemplateMapping("kfs-1a");
-  const lead =
-    snapshot.instructors.find((instructor) => instructor.isLead)?.name ?? "";
-  const assisting = snapshot.instructors
-    .filter((instructor) => !instructor.isLead)
-    .map((instructor) => instructor.name)
-    .join(", ");
-  const component = snapshot.components?.[0];
+  const lead = snapshot.instructors.find((instructor) => instructor.isLead);
+  const assisting = snapshot.instructors.filter(
+    (instructor) => !instructor.isLead,
+  );
+  const subjects = snapshot.components ?? [];
+
   setText(pdf, mapping.fields.date, formatDate(snapshot.class.completedAt));
   setText(pdf, mapping.fields.hostAgency, attendees[0]?.agencyName ?? "");
   setText(pdf, mapping.fields.location, snapshot.class.siteName ?? "");
-  setText(pdf, mapping.fields.leadInstructor, lead);
-  setText(pdf, mapping.fields.assistingInstructor, assisting);
-  setText(pdf, mapping.fields.className, snapshot.class.courseName);
+  setText(pdf, mapping.fields.leadInstructor, lead?.name ?? "");
   setText(
     pdf,
-    mapping.fields.component,
-    component?.title ?? snapshot.class.courseName,
+    mapping.fields.assistingInstructor,
+    assisting.map((instructor) => instructor.name).join(", "),
   );
-  setText(pdf, mapping.fields.start, formatTime(component?.startsAt));
-  setText(pdf, mapping.fields.end, formatTime(component?.endsAt));
-  setText(
-    pdf,
-    mapping.fields.hours,
-    component?.creditedHours ?? attendees[0]?.creditedHours ?? "",
-  );
+  setText(pdf, mapping.fields.leadFfn, lead?.ffn ?? "");
+  setText(pdf, mapping.fields.assistingFfn, assisting[0]?.ffn ?? "");
+  if (lead?.level) {
+    setCheck(pdf, KFS_LEAD_LEVEL_FIELDS[lead.level] ?? "", true);
+  }
+  if (assisting[0]?.level) {
+    setCheck(pdf, KFS_ASSIST_LEVEL_FIELDS[assisting[0].level] ?? "", true);
+  }
+
+  const subjectRows = [
+    {
+      category: mapping.fields.categoryRow1,
+      className: mapping.fields.classNameRow1,
+      curriculum: mapping.fields.curriculumRow1,
+      lessonPlan: mapping.fields.lessonPlanRow1,
+      start: mapping.fields.startRow1,
+      end: mapping.fields.endRow1,
+      hours: mapping.fields.hoursRow1,
+      method: KFS_METHOD_FIELDS[0] ?? {},
+    },
+    {
+      category: mapping.fields.categoryRow2,
+      className: mapping.fields.classNameRow2,
+      curriculum: mapping.fields.curriculumRow2,
+      lessonPlan: mapping.fields.lessonPlanRow2,
+      start: mapping.fields.startRow2,
+      end: mapping.fields.endRow2,
+      hours: mapping.fields.hoursRow2,
+      method: KFS_METHOD_FIELDS[1] ?? {},
+    },
+  ];
+  subjectRows.forEach((row, index) => {
+    const component = subjects[index];
+    if (!component) return;
+    setText(pdf, row.category, component.category ?? "");
+    setText(
+      pdf,
+      row.className,
+      component.className ?? snapshot.class.courseName,
+    );
+    setText(pdf, row.curriculum, curriculumLabel(component));
+    setText(
+      pdf,
+      row.lessonPlan,
+      component.lessonPlan ?? component.title ?? snapshot.class.courseName,
+    );
+    setText(pdf, row.start, formatTime(component.startsAt));
+    setText(pdf, row.end, formatTime(component.endsAt));
+    setText(pdf, row.hours, component.creditedHours);
+    const method = component.method;
+    if (method === "cr" || method === "ho" || method === "ol") {
+      setCheck(pdf, row.method[method] ?? "", true);
+    }
+  });
+
   attendees.forEach((attendee, index) => {
     const row = index + 1;
     const [firstName = "", ...lastName] = attendeeName(attendee).split(" ");

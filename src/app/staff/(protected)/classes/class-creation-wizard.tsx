@@ -11,6 +11,7 @@ import {
   buildWizardSteps,
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
+import { validateFireSubjects } from "@/modules/classes/fire-subjects";
 import {
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
@@ -21,6 +22,11 @@ import type {
   CreateAgencyActionState,
   CreateSiteActionState,
 } from "./actions";
+import {
+  FireSubjectRow,
+  type FireSubjectValue,
+  newFireSubject,
+} from "./fire-subject-fields";
 
 type Option = { id: string; name: string };
 type CourseOption = Option & {
@@ -39,6 +45,8 @@ export function ClassCreationWizard({
   staff,
   reportingSystems,
   reportingRequirements,
+  trainingCodes,
+  curricula,
   recentCourseIds,
   recentSiteIds,
   defaultLeadInstructorId,
@@ -68,6 +76,13 @@ export function ClassCreationWizard({
     credentialName: string | null;
     studentField: string | null;
     isRequired: boolean;
+  }>;
+  trainingCodes: Array<{ id: string; code: string; title: string }>;
+  curricula: Array<{
+    id: string;
+    publisher: string;
+    programTitle: string;
+    version: string | null;
   }>;
   recentCourseIds: string[];
   recentSiteIds: string[];
@@ -102,6 +117,9 @@ export function ClassCreationWizard({
     mtuMileage: "",
     mtuUsedSupplies: "",
   });
+  const [subjects, setSubjects] = useState<FireSubjectValue[]>(() => [
+    newFireSubject(),
+  ]);
 
   const destinationSystems = DESTINATION_CODES.map((code) =>
     reportingSystems.find((system) => system.code === code),
@@ -182,8 +200,29 @@ export function ClassCreationWizard({
     // course's default reporting systems.
   }
 
+  function updateSubject(index: number, next: FireSubjectValue) {
+    setSubjects((current) =>
+      current.map((value, i) => (i === index ? next : value)),
+    );
+  }
+
+  function addSubject() {
+    setSubjects((current) =>
+      current.length < 2 ? [...current, newFireSubject()] : current,
+    );
+  }
+
+  function removeSubject(index: number) {
+    setSubjects((current) =>
+      current.length > 1 ? current.filter((_, i) => i !== index) : current,
+    );
+  }
+
   function validateStep(key: string) {
     if (key === "destinations") return values.reportingSystemIds.length > 0;
+    if (key === "fire") {
+      return validateFireSubjects(subjects);
+    }
     if (key === "class") {
       return Boolean(
         values.courseId &&
@@ -331,9 +370,26 @@ export function ClassCreationWizard({
         <section className="stack-form">
           <h2>Fire reporting</h2>
           <p className="text-muted-foreground">
-            The Kentucky Fire Commission in-house training roster (KFS-1A) will
-            be generated from this class once its roster is finalized.
+            Each subject becomes a row on the Kentucky Fire Commission KFS-1A
+            roster. A second subject is scheduled after the first.
           </p>
+          {subjects.map((subject, index) => (
+            <FireSubjectRow
+              key={subject.id}
+              index={index}
+              value={subject}
+              trainingCodes={trainingCodes}
+              curricula={curricula}
+              onChange={(next) => updateSubject(index, next)}
+              onRemove={() => removeSubject(index)}
+              canRemove={subjects.length > 1}
+            />
+          ))}
+          {subjects.length < 2 ? (
+            <Button type="button" variant="outline" onClick={addSubject}>
+              Add second subject
+            </Button>
+          ) : null}
         </section>
       ) : null}
 
@@ -644,6 +700,17 @@ export function ClassCreationWizard({
             <dd>{selectedAgency?.name ?? "Not selected"}</dd>
             <dt>Lead instructor</dt>
             <dd>{selectedInstructor?.name}</dd>
+            {selectedCodes.includes("fire") ? (
+              <>
+                <dt>Fire subjects</dt>
+                <dd>
+                  {subjects
+                    .map((subject) => subject.className)
+                    .filter(Boolean)
+                    .join(", ") || "Not provided"}
+                </dd>
+              </>
+            ) : null}
             {selectedCodes.includes("kbems") ? (
               <>
                 <dt>Course objectives</dt>
@@ -689,6 +756,34 @@ export function ClassCreationWizard({
       {values.reportingSystemIds.map((id) => (
         <input key={id} type="hidden" name="reportingSystemIds" value={id} />
       ))}
+      {selectedCodes.includes("fire")
+        ? subjects.flatMap((subject) => [
+            <input
+              key={`${subject.id}-code`}
+              type="hidden"
+              name="fireTrainingCodeId"
+              value={subject.trainingCodeId}
+            />,
+            <input
+              key={`${subject.id}-name`}
+              type="hidden"
+              name="fireClassName"
+              value={subject.className}
+            />,
+            <input
+              key={`${subject.id}-curriculum`}
+              type="hidden"
+              name="fireCurriculumId"
+              value={subject.curriculumId}
+            />,
+            <input
+              key={`${subject.id}-lesson`}
+              type="hidden"
+              name="fireLessonPlan"
+              value={subject.lessonPlan}
+            />,
+          ])
+        : null}
       {selectedCodes.includes("kbems") ? (
         <input type="hidden" name="objectives" value={values.objectives} />
       ) : null}

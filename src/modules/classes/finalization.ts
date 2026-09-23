@@ -31,6 +31,7 @@ import {
   classReportingSystems,
   courses,
   credentialTypes,
+  curricula,
   finalizationReopens,
   finalizationReportingStatuses,
   finalizationRevisions,
@@ -39,6 +40,7 @@ import {
   roles,
   students,
   trainingClasses,
+  trainingCodes,
   trainingSites,
   userRoles,
   users,
@@ -138,7 +140,12 @@ async function buildSnapshot(
     .where(eq(trainingClasses.id, classId))
     .limit(1);
   const instructors = await transaction
-    .select({ name: users.displayName, isLead: classInstructors.isLead })
+    .select({
+      name: users.displayName,
+      isLead: classInstructors.isLead,
+      ffn: users.ffn,
+      level: users.instructorLevel,
+    })
     .from(classInstructors)
     .innerJoin(users, eq(users.id, classInstructors.userId))
     .where(eq(classInstructors.classId, classId))
@@ -231,11 +238,23 @@ async function buildSnapshot(
     components: await transaction
       .select({
         title: classComponents.title,
+        category: trainingCodes.code,
+        className: classComponents.className,
+        curriculumPublisher: curricula.publisher,
+        curriculumProgramTitle: curricula.programTitle,
+        curriculumVersion: curricula.version,
+        lessonPlan: classComponents.lessonPlan,
+        method: classComponents.method,
         startsAt: classComponents.startsAt,
         endsAt: classComponents.endsAt,
         creditedHours: classComponents.creditedHours,
       })
       .from(classComponents)
+      .leftJoin(
+        trainingCodes,
+        eq(trainingCodes.id, classComponents.trainingCodeId),
+      )
+      .leftJoin(curricula, eq(curricula.id, classComponents.curriculumId))
       .where(eq(classComponents.classId, classId))
       .orderBy(asc(classComponents.position)),
     attendance: roster,
