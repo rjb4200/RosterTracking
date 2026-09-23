@@ -51,6 +51,8 @@ export const trainingClasses = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     deliveryMethod: text("delivery_method").notNull(),
+    // Course description or objectives captured for the KBEMS-E16 roster.
+    objectives: text("objectives"),
     status: text("status").default("draft").notNull(),
     signInTokenHash: text("sign_in_token_hash").notNull(),
     signInTokenVersion: integer("sign_in_token_version").default(1).notNull(),
@@ -172,6 +174,16 @@ export const classReportingSystems = pgTable(
     index("class_reporting_systems_system_idx").on(table.reportingSystemId),
   ],
 );
+
+export const mtuUsage = pgTable("mtu_usage", {
+  classId: uuid("class_id")
+    .primaryKey()
+    .references(() => trainingClasses.id, { onDelete: "cascade" }),
+  equipmentUsed: text("equipment_used"),
+  mileage: text("mileage"),
+  usedSupplies: text("used_supplies"),
+  ...timestamps,
+});
 
 export const finalizationRevisions = pgTable(
   "finalization_revisions",

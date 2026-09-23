@@ -1,0 +1,335 @@
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import {
+  finalizeClass,
+  getFinalizationHistory,
+} from "../../src/modules/classes/finalization";
+import {
+  createOpenClass,
+  getClassDetail,
+  updateClass,
+} from "../../src/modules/classes/services";
+import { decryptCredential } from "../../src/modules/reference/crypto";
+import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
+import { seedReferenceData } from "../../src/server/db/reference-seed";
+import * as schema from "../../src/server/db/schema";
+import {
+  agencies,
+  attendance,
+  attendanceReportingContexts,
+  courses,
+  finalizationReportingStatuses,
+  finalizationRevisions,
+  reportingRequirementSets,
+  reportingRequirements,
+  reportingSystems,
+  roles,
+  students,
+  trainingClasses,
+  trainingSites,
+  userRoles,
+  users,
+} from "../../src/server/db/schema";
+import { seedFoundation } from "../../src/server/db/seed";
+
+const connectionString = process.env.TEST_DATABASE_URL;
+const describeDatabase = connectionString ? describe : describe.skip;
+const pool = connectionString
+  ? new Pool({ connectionString, max: 1 })
+  : undefined;
+
+type Db = ReturnType<typeof drizzle<typeof schema>>;
+
+async function createUser(db: Db, suffix: string, roleCode: string) {
+  const [user] = await db
+    .insert(users)
+    .values({
+      username: `${roleCode}-${suffix}`,
+      displayName: roleCode,
+      passwordHash: "fixture-password-hash",
+    })
+    .returning({ id: users.id, username: users.username });
+  const [role] = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.code, roleCode));
+  if (!user || !role) throw new Error("Destination fixture user failed.");
+  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
+  return user;
+}
+
+async function createClassFixture(
+  db: Db,
+  suffix: string,
+  reportingSystemIds: string[],
+) {
+  const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
+  const [course] = await db
+    .insert(courses)
+    .values({ name: `Destination Course ${suffix}`, defaultHours: "4" })
+    .returning({ id: courses.id });
+  const [site] = await db
+    .insert(trainingSites)
+    .values({ name: `Destination Site ${suffix}` })
+    .returning({ id: trainingSites.id });
+  const [agency] = await db
+    .insert(agencies)
+    .values({ name: `Destination Agency ${suffix}` })
+    .returning({ id: agencies.id });
+  if (!course || !site || !agency) {
+    throw new Error("Destination fixture references failed.");
+  }
+  const created = await createOpenClass(db, instructor, {
+    courseId: course.id,
+    trainingSiteId: site.id,
+    hostAgencyId: agency.id,
+    deliveryMethod: "classroom",
+    startsAt: "2026-09-10T09:00",
+    creditedHours: 4,
+    leadInstructorId: instructor.id,
+    reportingSystemIds,
+    accessPinEnabled: false,
+    mtuEquipmentUsed: "Trailer 4",
+    mtuMileage: "120",
+    mtuUsedSupplies: "Gloves",
+  });
+  return { instructor, agency, classId: created.classRecord.id };
+}
+
+async function addActiveAttendance(
+  db: Db,
+  input: { classId: string; agencyId: string; requirementSetId: string },
+) {
+  const digits = crypto
+    .randomUUID()
+    .replace(/\D/g, "")
+    .padEnd(10, "0")
+    .slice(0, 10);
+  const [student] = await db
+    .insert(students)
+    .values({
+      firstName: "Ada",
+      lastName: "Lovelace",
+      phone: `+1${digits}`,
+    })
+    .returning({ id: students.id });
+  if (!student) throw new Error("Destination fixture student failed.");
+  const [record] = await db
+    .insert(attendance)
+    .values({
+      classId: input.classId,
+      studentId: student.id,
+      agencyId: input.agencyId,
+      idempotencyKey: crypto.randomUUID(),
+      payloadFingerprint: "fixture",
+      creditedHours: "4",
+    })
+    .returning({ id: attendance.id });
+  if (!record) throw new Error("Destination fixture attendance failed.");
+  await db.insert(attendanceReportingContexts).values({
+    attendanceId: record.id,
+    requirementSetId: input.requirementSetId,
+  });
+}
+
+// The reporting queue is shared across test files, so finalized fixture work is
+// retired after each test to keep unrelated pending work out of other assertions.
+async function retireRevision(db: Db, revisionId: string) {
+  await db
+    .update(finalizationReportingStatuses)
+    .set({ status: "not_required", updatedAt: new Date() })
+    .where(eq(finalizationReportingStatuses.revisionId, revisionId));
+}
+
+async function activeSetId(db: Db, code: string) {
+  const [system] = await db
+    .select({ id: reportingSystems.id })
+    .from(reportingSystems)
+    .where(eq(reportingSystems.code, code));
+  if (!system) throw new Error(`Reporting system ${code} is missing.`);
+  const [set] = await db
+    .select({ id: reportingRequirementSets.id })
+    .from(reportingRequirementSets)
+    .where(
+      and(
+        eq(reportingRequirementSets.reportingSystemId, system.id),
+        eq(reportingRequirementSets.isActive, true),
+      ),
+    );
+  if (!set) throw new Error(`Reporting system ${code} has no active set.`);
+  return { systemId: system.id, setId: set.id };
+}
+
+beforeAll(async () => {
+  if (!pool) return;
+  const db = drizzle(pool, { schema });
+  await migrate(db, { migrationsFolder: "drizzle" });
+  await db.transaction(seedFoundation);
+  await db.transaction(seedReferenceData);
+});
+
+afterAll(async () => {
+  await pool?.end();
+});
+
+describeDatabase("reporting destinations", () => {
+  it("deactivates FEMA and activates MTU with an empty requirement set", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const systems = await db.select().from(reportingSystems);
+    const byCode = new Map(systems.map((system) => [system.code, system]));
+
+    expect(byCode.get("fire")?.isActive).toBe(true);
+    expect(byCode.get("kbems")?.isActive).toBe(true);
+    expect(byCode.get("mtu")?.isActive).toBe(true);
+    expect(byCode.get("fema")?.isActive).toBe(false);
+
+    const mtu = byCode.get("mtu");
+    if (!mtu) throw new Error("MTU reporting system is missing.");
+    const [mtuSet] = await db
+      .select({ id: reportingRequirementSets.id })
+      .from(reportingRequirementSets)
+      .where(
+        and(
+          eq(reportingRequirementSets.reportingSystemId, mtu.id),
+          eq(reportingRequirementSets.isActive, true),
+        ),
+      );
+    expect(mtuSet).toBeTruthy();
+    const requirements = await db
+      .select({ id: reportingRequirements.id })
+      .from(reportingRequirements)
+      .where(eq(reportingRequirements.requirementSetId, mtuSet?.id ?? ""));
+    expect(requirements).toHaveLength(0);
+  });
+
+  it("persists and updates MTU usage, then rejects edits after finalization", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const { systemId } = await activeSetId(db, "mtu");
+    const { instructor, classId } = await createClassFixture(db, suffix, [
+      systemId,
+    ]);
+
+    const detail = await getClassDetail(db, instructor, classId);
+    expect(detail.mtuUsage).toMatchObject({
+      equipmentUsed: "Trailer 4",
+      mileage: "120",
+      usedSupplies: "Gloves",
+    });
+
+    await updateClass(db, instructor, classId, {
+      courseId: detail.courseId,
+      trainingSiteId: detail.trainingSiteId,
+      hostAgencyId: detail.hostAgencyId,
+      deliveryMethod: "classroom",
+      reportingSystemIds: [systemId],
+      accessPinEnabled: false,
+      mtuEquipmentUsed: "",
+      mtuMileage: "150",
+      mtuUsedSupplies: "",
+    });
+    const updated = await getClassDetail(db, instructor, classId);
+    expect(updated.mtuUsage).toMatchObject({
+      equipmentUsed: null,
+      mileage: "150",
+      usedSupplies: null,
+    });
+
+    await db
+      .update(trainingClasses)
+      .set({ status: "finalized" })
+      .where(eq(trainingClasses.id, classId));
+    await expect(
+      updateClass(db, instructor, classId, {
+        courseId: detail.courseId,
+        trainingSiteId: detail.trainingSiteId,
+        hostAgencyId: detail.hostAgencyId,
+        deliveryMethod: "classroom",
+        reportingSystemIds: [systemId],
+        accessPinEnabled: false,
+        mtuMileage: "999",
+      }),
+    ).rejects.toThrow(/cannot be edited/i);
+  });
+
+  it("preserves MTU usage in the finalization snapshot", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const { systemId, setId } = await activeSetId(db, "mtu");
+    const { instructor, agency, classId } = await createClassFixture(
+      db,
+      suffix,
+      [systemId],
+    );
+    await addActiveAttendance(db, {
+      classId,
+      agencyId: agency.id,
+      requirementSetId: setId,
+    });
+    await db
+      .update(trainingClasses)
+      .set({ status: "completed" })
+      .where(eq(trainingClasses.id, classId));
+
+    const revision = await finalizeClass(db, instructor, classId);
+    const [row] = await db
+      .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
+      .from(finalizationRevisions)
+      .where(eq(finalizationRevisions.id, revision.id));
+    if (!row) throw new Error("Finalization revision was not stored.");
+    const snapshot = JSON.parse(decryptCredential(row.encryptedSnapshot));
+    expect(snapshot.mtuUsage).toMatchObject({
+      equipmentUsed: "Trailer 4",
+      mileage: "120",
+      usedSupplies: "Gloves",
+    });
+    await retireRevision(db, revision.id);
+  });
+
+  it("keeps a deactivated FEMA destination readable in finalization history", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const { systemId, setId } = await activeSetId(db, "fire");
+    const { instructor, agency, classId } = await createClassFixture(
+      db,
+      suffix,
+      [systemId],
+    );
+    await addActiveAttendance(db, {
+      classId,
+      agencyId: agency.id,
+      requirementSetId: setId,
+    });
+    await db
+      .update(trainingClasses)
+      .set({ status: "completed" })
+      .where(eq(trainingClasses.id, classId));
+    const revision = await finalizeClass(db, instructor, classId);
+
+    const [fema] = await db
+      .select({ id: reportingSystems.id })
+      .from(reportingSystems)
+      .where(eq(reportingSystems.code, "fema"));
+    if (!fema) throw new Error("FEMA reporting system is missing.");
+    await db.insert(finalizationReportingStatuses).values({
+      revisionId: revision.id,
+      reportingSystemId: fema.id,
+      status: "pending",
+    });
+
+    const history = await getFinalizationHistory(db, instructor, classId);
+    const destinations = history.flatMap((entry) => entry.destinations);
+    expect(
+      destinations.some((destination) => destination.systemName === "FEMA"),
+    ).toBe(true);
+    await retireRevision(db, revision.id);
+  });
+});

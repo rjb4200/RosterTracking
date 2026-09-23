@@ -34,6 +34,7 @@ import {
   finalizationReopens,
   finalizationReportingStatuses,
   finalizationRevisions,
+  mtuUsage,
   reportingSystems,
   roles,
   students,
@@ -123,6 +124,7 @@ async function buildSnapshot(
       classId: trainingClasses.id,
       status: trainingClasses.status,
       deliveryMethod: trainingClasses.deliveryMethod,
+      objectives: trainingClasses.objectives,
       completedAt: trainingClasses.completedAt,
       courseName: courses.name,
       siteName: trainingSites.name,
@@ -212,9 +214,19 @@ async function buildSnapshot(
       eq(attendance.id, attendanceCredentialSnapshots.attendanceId),
     )
     .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const [mtu] = await transaction
+    .select({
+      equipmentUsed: mtuUsage.equipmentUsed,
+      mileage: mtuUsage.mileage,
+      usedSupplies: mtuUsage.usedSupplies,
+    })
+    .from(mtuUsage)
+    .where(eq(mtuUsage.classId, classId))
+    .limit(1);
   if (!classRow) throw new Error("Class not found.");
   return {
     class: classRow,
+    mtuUsage: mtu ?? null,
     instructors,
     components: await transaction
       .select({
@@ -550,7 +562,9 @@ export async function listReportingQueue(
       where ${attendance.classId} = ${trainingClasses.id}
         and ${attendance.removedAt} is null
     )`;
-    const baseFilters: SQL[] = [];
+    // Only active destinations are offered as work; a retired destination
+    // (for example FEMA) keeps its history but no longer appears as queue work.
+    const baseFilters: SQL[] = [eq(reportingSystems.isActive, true)];
     if (filters.reportingSystemId) {
       baseFilters.push(
         eq(

@@ -19,21 +19,26 @@ const credentialTypeDefinitions = [
     code: CREDENTIAL_TYPE_CODES.FFN,
     name: "Kentucky Firefighter Number",
     issuer: "Kentucky Fire Commission",
+    isActive: true,
   },
   {
     code: CREDENTIAL_TYPE_CODES.KEMSIS,
     name: "KEMSIS ID",
     issuer: "KBEMS",
+    isActive: true,
   },
   {
     code: CREDENTIAL_TYPE_CODES.NREMT,
     name: "NREMT Number",
     issuer: "NREMT",
+    isActive: true,
   },
   {
+    // FEMA reporting was retired; the row is kept for historical records.
     code: CREDENTIAL_TYPE_CODES.FEMA_SID,
     name: "FEMA SID",
     issuer: "FEMA",
+    isActive: false,
   },
 ];
 
@@ -41,14 +46,23 @@ const reportingSystemDefinitions = [
   {
     code: REPORTING_SYSTEM_CODES.FIRE,
     name: "Kentucky Fire Commission",
+    isActive: true,
   },
   {
     code: REPORTING_SYSTEM_CODES.KBEMS,
     name: "KBEMS / KEMSIS",
+    isActive: true,
   },
   {
+    code: REPORTING_SYSTEM_CODES.MTU,
+    name: "Mobile Training Unit",
+    isActive: true,
+  },
+  {
+    // FEMA is deactivated, not deleted: existing revisions still reference it.
     code: REPORTING_SYSTEM_CODES.FEMA,
     name: "FEMA",
+    isActive: false,
   },
 ];
 
@@ -57,8 +71,11 @@ const reportingSystemDefinitions = [
 const reportingRequirementMapping = [
   [REPORTING_SYSTEM_CODES.FIRE, CREDENTIAL_TYPE_CODES.FFN],
   [REPORTING_SYSTEM_CODES.KBEMS, CREDENTIAL_TYPE_CODES.KEMSIS],
-  [REPORTING_SYSTEM_CODES.FEMA, CREDENTIAL_TYPE_CODES.FEMA_SID],
 ] as const;
+
+// Destinations that require no student credential or field still need an
+// active requirement set so class requirement resolution can resolve them.
+const emptyRequirementSystemCodes = [REPORTING_SYSTEM_CODES.MTU] as const;
 
 export async function seedReferenceData(
   transaction: DatabaseTransaction,
@@ -71,7 +88,7 @@ export async function seedReferenceData(
       set: {
         name: sql`excluded.name`,
         issuer: sql`excluded.issuer`,
-        isActive: true,
+        isActive: sql`excluded.is_active`,
         updatedAt: new Date(),
       },
     });
@@ -83,7 +100,7 @@ export async function seedReferenceData(
       target: reportingSystems.code,
       set: {
         name: sql`excluded.name`,
-        isActive: true,
+        isActive: sql`excluded.is_active`,
         updatedAt: new Date(),
       },
     });
@@ -139,5 +156,24 @@ export async function seedReferenceData(
         isRequired: true,
       })
       .onConflictDoNothing();
+  }
+
+  for (const systemCode of emptyRequirementSystemCodes) {
+    const reportingSystemId = reportingSystemByCode.get(systemCode);
+    if (!reportingSystemId) {
+      throw new Error(
+        `Reference seed could not resolve system '${systemCode}'.`,
+      );
+    }
+    await transaction
+      .insert(reportingRequirementSets)
+      .values({ reportingSystemId, version: 1, isActive: true })
+      .onConflictDoUpdate({
+        target: [
+          reportingRequirementSets.reportingSystemId,
+          reportingRequirementSets.version,
+        ],
+        set: { isActive: true },
+      });
   }
 }

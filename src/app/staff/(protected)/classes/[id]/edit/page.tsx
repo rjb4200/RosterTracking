@@ -76,6 +76,8 @@ export default async function EditClassPage({
             reportingSystemIds: classRecord.reportingSystems.map(
               (system) => system.id,
             ),
+            objectives: classRecord.objectives,
+            mtuUsage: classRecord.mtuUsage,
           }}
         />
       </section>

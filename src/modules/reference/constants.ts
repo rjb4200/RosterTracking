@@ -8,6 +8,7 @@ export const CREDENTIAL_TYPE_CODES = {
 export const REPORTING_SYSTEM_CODES = {
   FIRE: "fire",
   KBEMS: "kbems",
+  MTU: "mtu",
   FEMA: "fema",
 } as const;
 

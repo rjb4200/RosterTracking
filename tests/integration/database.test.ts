@@ -129,7 +129,8 @@ describeDatabase("database foundation", () => {
     await database.transaction(seedReferenceData);
 
     expect((await database.select().from(credentialTypes)).length).toBe(4);
-    expect((await database.select().from(reportingSystems)).length).toBe(3);
+    // fire, kbems, mtu, and the deactivated fema row are all retained.
+    expect((await database.select().from(reportingSystems)).length).toBe(4);
     expect(
       (await database.select().from(reportingRequirementSets)).length,
     ).toBe(3);

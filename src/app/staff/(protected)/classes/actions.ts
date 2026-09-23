@@ -73,6 +73,10 @@ function draftValues(formData: FormData) {
       | "hybrid",
     reportingSystemIds,
     accessPinEnabled: read(formData, "accessPinEnabled") === "on",
+    objectives: read(formData, "objectives"),
+    mtuEquipmentUsed: read(formData, "mtuEquipmentUsed"),
+    mtuMileage: read(formData, "mtuMileage"),
+    mtuUsedSupplies: read(formData, "mtuUsedSupplies"),
   };
 }
 

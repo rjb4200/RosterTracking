@@ -161,9 +161,19 @@ export async function resolveClassRequirements(
       ),
     );
   const resolved = reduceClassRequirements(rows);
+  // Count only active destinations: a class may still reference a destination
+  // that has since been deactivated (for example FEMA), which now imposes no
+  // requirements and must not make the class unresolvable.
   const selectedSystems = await db
     .select({ id: classReportingSystems.reportingSystemId })
     .from(classReportingSystems)
+    .innerJoin(
+      reportingSystems,
+      and(
+        eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+        eq(reportingSystems.isActive, true),
+      ),
+    )
     .where(eq(classReportingSystems.classId, classId));
   if (selectedSystems.length !== resolved.sets.length) {
     throw new Error("Class reporting requirements are unavailable.");

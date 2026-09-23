@@ -42,8 +42,16 @@ export interface FinalizationSnapshot {
   class: {
     courseName: string;
     siteName: string | null;
+    // Course description or objectives captured for the KBEMS-E16 roster.
+    objectives?: string | null;
     completedAt: string | null;
   };
+  // Optional because revisions written before MTU tracking have no usage facts.
+  mtuUsage?: {
+    equipmentUsed: string | null;
+    mileage: string | null;
+    usedSupplies: string | null;
+  } | null;
   instructors: Array<{ name: string; isLead: boolean }>;
   attendance: SnapshotAttendance[];
   fieldSnapshots: Array<{
@@ -289,7 +297,7 @@ function fillKbemsPage(
   setText(
     pdf,
     mapping.fields.objectives,
-    component?.title ?? snapshot.class.courseName,
+    snapshot.class.objectives ?? component?.title ?? snapshot.class.courseName,
   );
   setText(pdf, mapping.fields.page, String(page));
   setText(pdf, mapping.fields.pageCount, String(pageCount));

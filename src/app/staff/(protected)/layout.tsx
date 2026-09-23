@@ -50,6 +50,11 @@ const navItems: Array<{ href: string; label: string; permission: string }> = [
     label: "Reporting",
     permission: PERMISSIONS.REPORTING_MANAGE,
   },
+  {
+    href: "/staff/profile",
+    label: "Profile",
+    permission: PERMISSIONS.STAFF_ACCESS,
+  },
 ];
 
 export default async function ProtectedStaffLayout({

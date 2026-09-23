@@ -52,28 +52,34 @@ test("authorized staff can create and open a class in one pass", async ({
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
 
-  // Step 1: class.
+  // Step 1: destinations.
+  await page.getByLabel(systemName).check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // The selected destination's step (Fire is informational) precedes class
+  // details.
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // Class and schedule step.
   await page.getByLabel("Course", { exact: true }).selectOption(courseId);
   await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Add a new site").fill(`Inline Site ${suffix}`);
   await page.getByRole("button", { name: "Add site" }).click();
+  await page.getByLabel("Add a new agency").fill(`Inline Agency ${suffix}`);
+  await page.getByRole("button", { name: "Add agency" }).click();
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
   await page.getByLabel("Scheduled duration (hours)").fill("4");
   await page.getByLabel("Require a four-digit student access PIN").check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // Back navigation retains values.
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByLabel("Course", { exact: true })).toHaveValue(
     courseId,
   );
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // Step 2: reporting.
-  await page.getByLabel("Add a new agency").fill(`Inline Agency ${suffix}`);
-  await page.getByRole("button", { name: "Add agency" }).click();
-  await page.getByLabel(systemName).check();
-  await page.getByRole("button", { name: "Next", exact: true }).click();
-
-  // Step 3: review and create.
+  // Review and create.
   await expect(page.getByText("Review class")).toBeVisible();
   await expect(page.getByText(`Inline Agency ${suffix}`)).toBeVisible();
   await page.getByRole("button", { name: "Create & open" }).click();
@@ -132,6 +138,11 @@ test("class start time defaults to the nearest quarter hour and snaps typed time
 
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
+
+  // Advance past Destinations and the destination step to the class details.
+  await page.getByLabel("Mobile Training Unit").check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
 
   const startTime = page.getByLabel("Date and start time");
 

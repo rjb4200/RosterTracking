@@ -23,7 +23,7 @@ const accountInput = z.object({
   roleCode: roleSchema,
 });
 
-async function requireAdministrator(
+export async function requireAdministrator(
   transaction: DatabaseTransaction,
   actorId: string,
 ) {
@@ -104,6 +104,9 @@ export async function listStaffAccounts(db: Database, actorId: string) {
         username: users.username,
         displayName: users.displayName,
         isActive: users.isActive,
+        ffn: users.ffn,
+        instructorLevel: users.instructorLevel,
+        emsProviderNumber: users.emsProviderNumber,
         roleCode: roles.code,
       })
       .from(users)

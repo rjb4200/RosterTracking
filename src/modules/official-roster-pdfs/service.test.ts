@@ -124,6 +124,27 @@ describe("official roster PDF templates", () => {
     );
   });
 
+  it("renders a KBEMS roster when objectives and MTU usage are absent", async () => {
+    // Older revisions predate both the KBEMS objectives field and MTU usage;
+    // both must be optional so an existing revision still renders.
+    const legacy: FinalizationSnapshot = {
+      ...snapshot,
+      class: { ...snapshot.class, objectives: null },
+      mtuUsage: undefined,
+    };
+    const withObjectives: FinalizationSnapshot = {
+      ...snapshot,
+      class: { ...snapshot.class, objectives: "Airway management" },
+    };
+
+    await expect(
+      renderOfficialRoster("kbems-e16", legacy),
+    ).resolves.toBeInstanceOf(Uint8Array);
+    await expect(
+      renderOfficialRoster("kbems-e16", withObjectives),
+    ).resolves.toBeInstanceOf(Uint8Array);
+  });
+
   it("limits authority to Training Majors and Administrators", () => {
     expect(hasOfficialRosterAuthority(["training-major"])).toBe(true);
     expect(hasOfficialRosterAuthority(["administrator"])).toBe(true);

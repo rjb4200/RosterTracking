@@ -5,7 +5,12 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 
-import { type AccountActionState, accountAction } from "./actions";
+import { ProfileForm } from "../profile/profile-form";
+import {
+  type AccountActionState,
+  accountAction,
+  profileAction,
+} from "./actions";
 
 const roles = [
   [ROLE_CODES.INSTRUCTOR, "Instructor"],
@@ -50,6 +55,9 @@ export function AccountControls({
     username: string;
     displayName: string;
     isActive: boolean;
+    ffn: string | null;
+    instructorLevel: number | null;
+    emsProviderNumber: string | null;
     roleCodes: string[];
   }>;
 }) {
@@ -87,31 +95,40 @@ export function AccountControls({
         <h2>Staff accounts</h2>
         <div className="stack-form">
           {accounts.map((account) => (
-            <form action={action} className="inline-form" key={account.id}>
-              <input type="hidden" name="operation" value="update" />
-              <input type="hidden" name="userId" value={account.id} />
-              <strong>
-                {account.displayName} ({account.username})
-              </strong>
-              <RoleSelect value={account.roleCodes[0]} />
-              <select
-                className="select-input"
-                name="isActive"
-                defaultValue={String(account.isActive)}
-              >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
-              <input
-                className="search-input"
-                name="password"
-                placeholder="New password (optional)"
-                type="password"
+            <div className="account-profile" key={account.id}>
+              <form action={action} className="inline-form">
+                <input type="hidden" name="operation" value="update" />
+                <input type="hidden" name="userId" value={account.id} />
+                <strong>
+                  {account.displayName} ({account.username})
+                </strong>
+                <RoleSelect value={account.roleCodes[0]} />
+                <select
+                  className="select-input"
+                  name="isActive"
+                  defaultValue={String(account.isActive)}
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+                <input
+                  className="search-input"
+                  name="password"
+                  placeholder="New password (optional)"
+                  type="password"
+                />
+                <Button type="submit" variant="secondary" disabled={pending}>
+                  Save
+                </Button>
+              </form>
+              <ProfileForm
+                idPrefix={`account-${account.id}`}
+                heading={`Instructor profile — ${account.displayName}`}
+                action={profileAction}
+                userId={account.id}
+                values={account}
               />
-              <Button type="submit" variant="secondary" disabled={pending}>
-                Save
-              </Button>
-            </form>
+            </div>
           ))}
         </div>
       </section>

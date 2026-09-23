@@ -42,6 +42,12 @@ export function ClassForm({
     deliveryMethod: string;
     reportingSystemIds: string[];
     accessPinEnabled: boolean;
+    objectives?: string | null;
+    mtuUsage?: {
+      equipmentUsed: string | null;
+      mileage: string | null;
+      usedSupplies: string | null;
+    } | null;
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -159,6 +165,44 @@ export function ClassForm({
             finalizing.
           </p>
         </fieldset>
+        <div className="field field-wide">
+          <Label htmlFor="objectives">Course description or objectives</Label>
+          <textarea
+            id="objectives"
+            className="search-input"
+            name="objectives"
+            rows={3}
+            defaultValue={values?.objectives ?? ""}
+          />
+        </div>
+        <div className="field field-wide">
+          <Label htmlFor="mtuEquipmentUsed">MTU equipment used</Label>
+          <textarea
+            id="mtuEquipmentUsed"
+            className="search-input"
+            name="mtuEquipmentUsed"
+            rows={2}
+            defaultValue={values?.mtuUsage?.equipmentUsed ?? ""}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="mtuMileage">MTU mileage</Label>
+          <Input
+            id="mtuMileage"
+            name="mtuMileage"
+            defaultValue={values?.mtuUsage?.mileage ?? ""}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="mtuUsedSupplies">MTU used supplies</Label>
+          <textarea
+            id="mtuUsedSupplies"
+            className="search-input"
+            name="mtuUsedSupplies"
+            rows={2}
+            defaultValue={values?.mtuUsage?.usedSupplies ?? ""}
+          />
+        </div>
         <Label className="checkbox-field field-wide">
           <Input
             defaultChecked={values?.accessPinEnabled ?? false}

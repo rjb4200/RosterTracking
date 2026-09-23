@@ -87,6 +87,23 @@ export async function resolveRequiredRequirements(
   return reduceRequirements(rows);
 }
 
+/**
+ * Active reporting destinations, including ones with an empty requirement set
+ * (for example MTU). Used where a destination list is needed without requiring
+ * the destination to impose a student credential.
+ */
+export async function listActiveReportingSystems(db: Database) {
+  return db
+    .select({
+      id: reportingSystems.id,
+      code: reportingSystems.code,
+      name: reportingSystems.name,
+    })
+    .from(reportingSystems)
+    .where(eq(reportingSystems.isActive, true))
+    .orderBy(reportingSystems.name);
+}
+
 export async function listReportingRequirements(db: Database) {
   return db
     .select({

@@ -34,6 +34,9 @@ export const users = pgTable(
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
     sessionVersion: integer("session_version").default(1).notNull(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    ffn: text("ffn"),
+    instructorLevel: integer("instructor_level"),
+    emsProviderNumber: text("ems_provider_number"),
     ...timestamps,
   },
   (table) => [
@@ -48,6 +51,17 @@ export const users = pgTable(
       sql`${table.failedLoginCount} >= 0`,
     ),
     check("users_session_version_positive", sql`${table.sessionVersion} > 0`),
+    check(
+      "users_ffn_format",
+      sql`${table.ffn} is null or ${table.ffn} ~ '^[0-9]{4}-[0-9]{4}$'`,
+    ),
+    check(
+      "users_instructor_level_valid",
+      sql`${table.instructorLevel} is null or ${table.instructorLevel} in (1, 2, 3)`,
+    ),
+    uniqueIndex("users_ffn_unique")
+      .on(table.ffn)
+      .where(sql`${table.ffn} is not null`),
   ],
 );
 

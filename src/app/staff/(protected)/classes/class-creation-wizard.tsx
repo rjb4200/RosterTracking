@@ -8,6 +8,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  buildWizardSteps,
+  DESTINATION_CODES,
+} from "@/modules/classes/destination-steps";
+import {
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
@@ -23,8 +27,7 @@ type CourseOption = Option & {
   defaultHours: string | null;
   trainingCode: string | null;
 };
-
-const steps = ["Class", "Reporting", "Review"];
+type ReportingSystemOption = Option & { code: string };
 
 export function ClassCreationWizard({
   action,
@@ -35,7 +38,6 @@ export function ClassCreationWizard({
   agencies,
   staff,
   reportingSystems,
-  courseReportingDefaults,
   reportingRequirements,
   recentCourseIds,
   recentSiteIds,
@@ -59,11 +61,7 @@ export function ClassCreationWizard({
   sites: Option[];
   agencies: Option[];
   staff: Option[];
-  reportingSystems: Option[];
-  courseReportingDefaults: Array<{
-    courseId: string;
-    reportingSystemId: string;
-  }>;
+  reportingSystems: ReportingSystemOption[];
   reportingRequirements: Array<{
     reportingSystemId: string;
     kind: string;
@@ -99,7 +97,23 @@ export function ClassCreationWizard({
     leadInstructorId: defaultLeadInstructorId,
     reportingSystemIds: [] as string[],
     accessPinEnabled: false,
+    objectives: "",
+    mtuEquipmentUsed: "",
+    mtuMileage: "",
+    mtuUsedSupplies: "",
   });
+
+  const destinationSystems = DESTINATION_CODES.map((code) =>
+    reportingSystems.find((system) => system.code === code),
+  ).filter((system): system is ReportingSystemOption => Boolean(system));
+
+  const selectedCodes = destinationSystems
+    .filter((system) => values.reportingSystemIds.includes(system.id))
+    .map((system) => system.code);
+
+  const steps = buildWizardSteps(selectedCodes);
+  const activeStep = Math.min(step, steps.length - 1);
+  const currentKey = steps[activeStep]?.key ?? "destinations";
 
   const selectedCourse = courses.find(
     (course) => course.id === values.courseId,
@@ -151,39 +165,46 @@ export function ClassCreationWizard({
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  function toggleDestination(systemId: string, selected: boolean) {
+    update(
+      "reportingSystemIds",
+      selected
+        ? [...new Set([...values.reportingSystemIds, systemId])]
+        : values.reportingSystemIds.filter((id) => id !== systemId),
+    );
+  }
+
   function selectCourse(courseId: string) {
     const course = courses.find((item) => item.id === courseId);
     update("courseId", courseId);
     update("creditedHours", course?.defaultHours ?? "");
-    update(
-      "reportingSystemIds",
-      courseReportingDefaults
-        .filter((item) => item.courseId === courseId)
-        .map((item) => item.reportingSystemId),
-    );
+    // Destinations are chosen on the first step and are not overridden by a
+    // course's default reporting systems.
   }
 
-  function validateStep() {
-    if (step === 0) {
+  function validateStep(key: string) {
+    if (key === "destinations") return values.reportingSystemIds.length > 0;
+    if (key === "class") {
       return Boolean(
         values.courseId &&
           (!needsSite || values.trainingSiteId) &&
           values.startsAt &&
           values.creditedHours &&
-          values.leadInstructorId,
-      );
-    }
-    if (step === 1) {
-      return Boolean(
-        values.hostAgencyId && values.reportingSystemIds.length > 0,
+          values.leadInstructorId &&
+          values.hostAgencyId,
       );
     }
     return true;
   }
 
   function next() {
-    if (validateStep())
-      setStep((current) => Math.min(current + 1, steps.length - 1));
+    if (validateStep(currentKey)) {
+      setStep(Math.min(activeStep + 1, steps.length - 1));
+    }
+  }
+
+  function back() {
+    setStep(Math.max(activeStep - 1, 0));
   }
 
   function createSite() {
@@ -260,19 +281,117 @@ export function ClassCreationWizard({
   return (
     <form action={formAction} className="stack-form class-wizard">
       <ol className="class-wizard-steps" aria-label="Class creation progress">
-        {steps.map((label, index) => (
+        {steps.map((item, index) => (
           <li
-            key={label}
-            aria-current={index === step ? "step" : undefined}
-            className={index <= step ? "is-current" : ""}
+            key={item.key}
+            aria-current={index === activeStep ? "step" : undefined}
+            className={index <= activeStep ? "is-current" : ""}
           >
             <span>{index + 1}</span>
-            {label}
+            {item.label}
           </li>
         ))}
       </ol>
 
-      {step === 0 ? (
+      {currentKey === "destinations" ? (
+        <section className="stack-form">
+          <fieldset className="field">
+            <legend>Report this class to</legend>
+            <div className="checkbox-list">
+              {destinationSystems.map((system) => (
+                <Label key={system.id} className="checkbox-field">
+                  <Input
+                    type="checkbox"
+                    checked={values.reportingSystemIds.includes(system.id)}
+                    onChange={(event) =>
+                      toggleDestination(system.id, event.target.checked)
+                    }
+                  />
+                  {system.name}
+                </Label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="wizard-requirements">
+            <h2>Student information required</h2>
+            {requiredInformation.length ? (
+              <ul>
+                {requiredInformation.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No additional reporting requirements are selected.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {currentKey === "fire" ? (
+        <section className="stack-form">
+          <h2>Fire reporting</h2>
+          <p className="text-muted-foreground">
+            The Kentucky Fire Commission in-house training roster (KFS-1A) will
+            be generated from this class once its roster is finalized.
+          </p>
+        </section>
+      ) : null}
+
+      {currentKey === "kbems" ? (
+        <section className="stack-form">
+          <h2>KBEMS reporting</h2>
+          <div className="field">
+            <Label htmlFor="objectives">Course description or objectives</Label>
+            <textarea
+              id="objectives"
+              className="search-input"
+              rows={4}
+              value={values.objectives}
+              onChange={(event) => update("objectives", event.target.value)}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {currentKey === "mtu" ? (
+        <section className="stack-form">
+          <h2>Mobile Training Unit usage</h2>
+          <div className="field">
+            <Label htmlFor="mtuEquipmentUsed">Equipment used</Label>
+            <textarea
+              id="mtuEquipmentUsed"
+              className="search-input"
+              rows={2}
+              value={values.mtuEquipmentUsed}
+              onChange={(event) =>
+                update("mtuEquipmentUsed", event.target.value)
+              }
+            />
+          </div>
+          <div className="field">
+            <Label htmlFor="mtuMileage">Mileage</Label>
+            <Input
+              id="mtuMileage"
+              value={values.mtuMileage}
+              onChange={(event) => update("mtuMileage", event.target.value)}
+            />
+          </div>
+          <div className="field">
+            <Label htmlFor="mtuUsedSupplies">Used supplies</Label>
+            <textarea
+              id="mtuUsedSupplies"
+              className="search-input"
+              rows={2}
+              value={values.mtuUsedSupplies}
+              onChange={(event) =>
+                update("mtuUsedSupplies", event.target.value)
+              }
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {currentKey === "class" ? (
         <section className="stack-form">
           <div className="field">
             <Label htmlFor="courseSearch">Search course or training code</Label>
@@ -395,6 +514,46 @@ export function ClassCreationWizard({
               ) : null}
             </>
           ) : null}
+          <div className="field">
+            <Label htmlFor="hostAgencyId">Host agency</Label>
+            <select
+              id="hostAgencyId"
+              className="select-input"
+              value={values.hostAgencyId}
+              onChange={(event) => update("hostAgencyId", event.target.value)}
+              required
+            >
+              <option value="">Select the reporting host agency</option>
+              {agencyOptions.map((agency) => (
+                <option key={agency.id} value={agency.id}>
+                  {agency.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {canCreateAgency ? (
+            <div className="inline-form">
+              <Label htmlFor="newAgencyName">Add a new agency</Label>
+              <Input
+                id="newAgencyName"
+                value={newAgencyName}
+                onChange={(event) => setNewAgencyName(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={createAgency}
+                disabled={creatingAgency || !newAgencyName.trim()}
+              >
+                {creatingAgency ? "Creating agency..." : "Add agency"}
+              </Button>
+            </div>
+          ) : null}
+          {agencyError ? (
+            <p className="form-error" role="alert">
+              {agencyError}
+            </p>
+          ) : null}
           <div className="form-grid">
             <div className="field">
               <Label htmlFor="startsAt">Date and start time</Label>
@@ -462,96 +621,15 @@ export function ClassCreationWizard({
         </section>
       ) : null}
 
-      {step === 1 ? (
-        <section className="stack-form">
-          <fieldset className="field">
-            <legend>Reporting systems</legend>
-            <div className="checkbox-list">
-              {reportingSystems.map((system) => (
-                <Label key={system.id} className="checkbox-field">
-                  <Input
-                    type="checkbox"
-                    checked={values.reportingSystemIds.includes(system.id)}
-                    onChange={(event) =>
-                      update(
-                        "reportingSystemIds",
-                        event.target.checked
-                          ? [
-                              ...new Set([
-                                ...values.reportingSystemIds,
-                                system.id,
-                              ]),
-                            ]
-                          : values.reportingSystemIds.filter(
-                              (id) => id !== system.id,
-                            ),
-                      )
-                    }
-                  />
-                  {system.name}
-                </Label>
-              ))}
-            </div>
-          </fieldset>
-          <div className="wizard-requirements">
-            <h2>Student information required</h2>
-            {requiredInformation.length ? (
-              <ul>
-                {requiredInformation.map((requirement) => (
-                  <li key={requirement}>{requirement}</li>
-                ))}
-              </ul>
-            ) : (
-              <p>No additional reporting requirements are selected.</p>
-            )}
-          </div>
-          <div className="field">
-            <Label htmlFor="hostAgencyId">Host agency</Label>
-            <select
-              id="hostAgencyId"
-              className="select-input"
-              value={values.hostAgencyId}
-              onChange={(event) => update("hostAgencyId", event.target.value)}
-              required
-            >
-              <option value="">Select the reporting host agency</option>
-              {agencyOptions.map((agency) => (
-                <option key={agency.id} value={agency.id}>
-                  {agency.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {canCreateAgency ? (
-            <div className="inline-form">
-              <Label htmlFor="newAgencyName">Add a new agency</Label>
-              <Input
-                id="newAgencyName"
-                value={newAgencyName}
-                onChange={(event) => setNewAgencyName(event.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={createAgency}
-                disabled={creatingAgency || !newAgencyName.trim()}
-              >
-                {creatingAgency ? "Creating agency..." : "Add agency"}
-              </Button>
-            </div>
-          ) : null}
-          {agencyError ? (
-            <p className="form-error" role="alert">
-              {agencyError}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {step === 2 ? (
+      {currentKey === "review" ? (
         <section className="wizard-review">
           <h2>Review class</h2>
           <dl>
+            <dt>Reported to</dt>
+            <dd>
+              {selectedSystems.map((system) => system.name).join(", ") ||
+                "None selected"}
+            </dd>
             <dt>Course</dt>
             <dd>{selectedCourse?.name}</dd>
             <dt>Training site</dt>
@@ -566,11 +644,22 @@ export function ClassCreationWizard({
             <dd>{selectedAgency?.name ?? "Not selected"}</dd>
             <dt>Lead instructor</dt>
             <dd>{selectedInstructor?.name}</dd>
-            <dt>Reporting</dt>
-            <dd>
-              {selectedSystems.map((system) => system.name).join(", ") ||
-                "None selected"}
-            </dd>
+            {selectedCodes.includes("kbems") ? (
+              <>
+                <dt>Course objectives</dt>
+                <dd>{values.objectives || "Not provided"}</dd>
+              </>
+            ) : null}
+            {selectedCodes.includes("mtu") ? (
+              <>
+                <dt>MTU equipment used</dt>
+                <dd>{values.mtuEquipmentUsed || "Not provided"}</dd>
+                <dt>MTU mileage</dt>
+                <dd>{values.mtuMileage || "Not provided"}</dd>
+                <dt>MTU used supplies</dt>
+                <dd>{values.mtuUsedSupplies || "Not provided"}</dd>
+              </>
+            ) : null}
           </dl>
         </section>
       ) : null}
@@ -600,27 +689,41 @@ export function ClassCreationWizard({
       {values.reportingSystemIds.map((id) => (
         <input key={id} type="hidden" name="reportingSystemIds" value={id} />
       ))}
+      {selectedCodes.includes("kbems") ? (
+        <input type="hidden" name="objectives" value={values.objectives} />
+      ) : null}
+      {selectedCodes.includes("mtu") ? (
+        <>
+          <input
+            type="hidden"
+            name="mtuEquipmentUsed"
+            value={values.mtuEquipmentUsed}
+          />
+          <input type="hidden" name="mtuMileage" value={values.mtuMileage} />
+          <input
+            type="hidden"
+            name="mtuUsedSupplies"
+            value={values.mtuUsedSupplies}
+          />
+        </>
+      ) : null}
       {state?.error ? (
         <p className="form-error" role="alert">
           {state.error}
         </p>
       ) : null}
       <div className="class-wizard-actions">
-        {step > 0 ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setStep((current) => current - 1)}
-          >
+        {activeStep > 0 ? (
+          <Button type="button" variant="outline" onClick={back}>
             Back
           </Button>
         ) : null}
-        {step < steps.length - 1 ? (
+        {activeStep < steps.length - 1 ? (
           <Button
             key="wizard-next"
             type="button"
             onClick={next}
-            disabled={!validateStep()}
+            disabled={!validateStep(currentKey)}
           >
             Next
           </Button>

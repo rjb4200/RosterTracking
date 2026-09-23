@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
+import type { ProfileActionState } from "@/modules/staff-auth/profile-contract";
+import { updateStaffProfile } from "@/modules/staff-auth/profiles";
 import {
   createStaffAccount,
   updateStaffAccount,
@@ -54,6 +56,35 @@ export async function accountAction(
     return {
       error:
         error instanceof Error ? error.message : "Could not update account.",
+    };
+  }
+}
+
+export async function profileAction(
+  _prev: ProfileActionState | undefined,
+  formData: FormData,
+): Promise<ProfileActionState> {
+  const actor = await getCurrentStaff();
+  if (!actor || !isAdministrator(actor.roleCodes)) {
+    return { error: "Administrator access is required." };
+  }
+  try {
+    await updateStaffProfile(
+      getDatabase(),
+      actor.id,
+      read(formData, "userId"),
+      {
+        ffn: read(formData, "ffn"),
+        instructorLevel: read(formData, "instructorLevel"),
+        emsProviderNumber: read(formData, "emsProviderNumber"),
+      },
+    );
+    revalidatePath("/staff/accounts");
+    return { success: "Profile updated." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not update profile.",
     };
   }
 }

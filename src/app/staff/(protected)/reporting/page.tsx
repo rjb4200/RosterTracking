@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { listReportingQueue } from "@/modules/classes/finalization";
-import { listReportingRequirements } from "@/modules/reference/requirements";
+import { listActiveReportingSystems } from "@/modules/reference/requirements";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -41,8 +41,8 @@ export default async function ReportingPage({
   const status = readSearchParam(query.status);
   const from = readSearchParam(query.from);
   const to = readSearchParam(query.to);
-  const [requirements, queue] = await Promise.all([
-    listReportingRequirements(db),
+  const [systems, queue] = await Promise.all([
+    listActiveReportingSystems(db),
     listReportingQueue(db, actor, {
       reportingSystemId,
       status: statuses.includes(status as (typeof statuses)[number])
@@ -52,10 +52,6 @@ export default async function ReportingPage({
       to: to ? new Date(`${to}T23:59:59.999`) : undefined,
     }),
   ]);
-
-  const systems = [
-    ...new Map(requirements.map((row) => [row.systemId, row])).values(),
-  ];
 
   return (
     <main className="admin-content">
@@ -101,8 +97,8 @@ export default async function ReportingPage({
           >
             <option value="">All destinations</option>
             {systems.map((system) => (
-              <option key={system.systemId} value={system.systemId}>
-                {system.systemName}
+              <option key={system.id} value={system.id}>
+                {system.name}
               </option>
             ))}
           </select>

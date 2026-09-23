@@ -38,13 +38,13 @@ async function ensureId(
 
 async function seedReportingFixture(pool: Pool): Promise<ReportingFixture> {
   const systems = await pool.query<{ id: string; code: string }>(
-    "select id, code from reporting_systems where code in ('fire', 'kbems', 'fema')",
+    "select id, code from reporting_systems where code in ('fire', 'kbems', 'mtu')",
   );
   const fireSystemId = systems.rows.find((row) => row.code === "fire")?.id;
   const kbemsSystemId = systems.rows.find((row) => row.code === "kbems")?.id;
-  const femaSystemId = systems.rows.find((row) => row.code === "fema")?.id;
-  if (!fireSystemId || !kbemsSystemId || !femaSystemId) {
-    throw new Error("Reporting systems fire, kbems, and fema must exist.");
+  const mtuSystemId = systems.rows.find((row) => row.code === "mtu")?.id;
+  if (!fireSystemId || !kbemsSystemId || !mtuSystemId) {
+    throw new Error("Reporting systems fire, kbems, and mtu must exist.");
   }
 
   const courseId = await ensureId(
@@ -122,7 +122,7 @@ async function seedReportingFixture(pool: Pool): Promise<ReportingFixture> {
   await pool.query(
     `insert into finalization_reporting_statuses (revision_id, reporting_system_id, status)
      values ($1, $2, 'pending'), ($1, $3, 'pending'), ($1, $4, 'pending')`,
-    [revisionId, fireSystemId, kbemsSystemId, femaSystemId],
+    [revisionId, fireSystemId, kbemsSystemId, mtuSystemId],
   );
 
   return {
@@ -298,11 +298,13 @@ test("reporting staff complete, defer, filter, and download destination work", a
     const kbemsRow = fixtureRow(page, courseName).filter({
       hasText: "KBEMS / KEMSIS:",
     });
-    const femaRow = fixtureRow(page, courseName).filter({ hasText: "FEMA:" });
+    const mtuRow = fixtureRow(page, courseName).filter({
+      hasText: "Mobile Training Unit:",
+    });
 
     await expect(fireRow).toContainText("pending");
     await expect(kbemsRow).toContainText("pending");
-    await expect(femaRow).toContainText("pending");
+    await expect(mtuRow).toContainText("pending");
 
     await expect(
       fireRow.getByRole("link", { name: "Download roster PDF" }),
@@ -311,7 +313,7 @@ test("reporting staff complete, defer, filter, and download destination work", a
       kbemsRow.getByRole("link", { name: "Download roster PDF" }),
     ).toBeVisible();
     await expect(
-      femaRow.getByRole("link", { name: "Download roster PDF" }),
+      mtuRow.getByRole("link", { name: "Download roster PDF" }),
     ).toHaveCount(0);
 
     const enteredResponse = page.waitForResponse(

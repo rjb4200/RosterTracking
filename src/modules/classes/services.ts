@@ -29,6 +29,7 @@ import {
   courses,
   credentialTypes,
   finalizationRevisions,
+  mtuUsage,
   reportingRequirementSets,
   reportingRequirements,
   reportingSystems,
@@ -45,6 +46,7 @@ import {
   CLASS_STATUSES,
   type ClassStatus,
 } from "./constants";
+import { hasMtuUsage, type MtuUsage, normalizeMtuUsage } from "./mtu";
 import {
   assertClassEditable,
   calculateComponentEndTime,
@@ -109,6 +111,10 @@ const draftInput = z.object({
   deliveryMethod: z.enum(CLASS_DELIVERY_METHODS),
   reportingSystemIds: z.array(z.string().uuid()).optional(),
   accessPinEnabled: z.boolean().default(false),
+  objectives: z.string().trim().max(2000).default(""),
+  mtuEquipmentUsed: z.string().trim().max(500).default(""),
+  mtuMileage: z.string().trim().max(200).default(""),
+  mtuUsedSupplies: z.string().trim().max(500).default(""),
 });
 
 const componentInput = z.object({
@@ -248,6 +254,32 @@ async function replaceReportingSystems(
   }
 }
 
+function mtuUsageFromDraft(input: z.infer<typeof draftInput>): MtuUsage {
+  return normalizeMtuUsage({
+    equipmentUsed: input.mtuEquipmentUsed,
+    mileage: input.mtuMileage,
+    usedSupplies: input.mtuUsedSupplies,
+  });
+}
+
+async function replaceMtuUsage(
+  transaction: DatabaseTransaction,
+  classId: string,
+  usage: MtuUsage,
+): Promise<void> {
+  if (hasMtuUsage(usage)) {
+    await transaction
+      .insert(mtuUsage)
+      .values({ classId, ...usage })
+      .onConflictDoUpdate({
+        target: mtuUsage.classId,
+        set: { ...usage, updatedAt: new Date() },
+      });
+  } else {
+    await transaction.delete(mtuUsage).where(eq(mtuUsage.classId, classId));
+  }
+}
+
 async function findAvailablePublicCode(transaction: DatabaseTransaction) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const code = generateClassPublicCode();
@@ -305,6 +337,7 @@ export async function createOpenClass(
         hostAgencyId: parsed.hostAgencyId,
         createdByUserId: actor.id,
         deliveryMethod: parsed.deliveryMethod,
+        objectives: parsed.objectives || null,
         status: CLASS_STATUSES.OPEN,
         signInTokenHash: hashClassSignInToken(rawToken),
         signInTokenVersion: 1,
@@ -367,6 +400,7 @@ export async function createOpenClass(
       entityId: created.id,
       details: { componentId: component.id },
     });
+    await replaceMtuUsage(transaction, created.id, mtuUsageFromDraft(parsed));
     validateClassReadiness({
       componentCount: 1,
       leadCount: 1,
@@ -419,6 +453,7 @@ export async function updateClass(
         trainingSiteId: parsed.trainingSiteId ?? null,
         hostAgencyId: parsed.hostAgencyId,
         deliveryMethod: parsed.deliveryMethod,
+        objectives: parsed.objectives || null,
         accessPinEnabled: parsed.accessPinEnabled,
         accessPinEncrypted: accessPin,
         updatedAt: new Date(),
@@ -431,6 +466,7 @@ export async function updateClass(
       classId,
       parsed.reportingSystemIds ?? [],
     );
+    await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -1146,7 +1182,11 @@ export async function getClassDetail(
       .where(eq(classInstructors.classId, classId))
       .orderBy(sql`${classInstructors.isLead} desc`, users.displayName);
     const systems = await transaction
-      .select({ id: reportingSystems.id, name: reportingSystems.name })
+      .select({
+        id: reportingSystems.id,
+        code: reportingSystems.code,
+        name: reportingSystems.name,
+      })
       .from(classReportingSystems)
       .innerJoin(
         reportingSystems,
@@ -1154,6 +1194,11 @@ export async function getClassDetail(
       )
       .where(eq(classReportingSystems.classId, classId))
       .orderBy(reportingSystems.name);
+    const [mtu] = await transaction
+      .select()
+      .from(mtuUsage)
+      .where(eq(mtuUsage.classId, classId))
+      .limit(1);
     return {
       ...classRecord,
       course: course[0] ?? null,
@@ -1162,6 +1207,7 @@ export async function getClassDetail(
       components,
       instructors,
       reportingSystems: systems,
+      mtuUsage: mtu ?? null,
     };
   });
 }
@@ -1198,7 +1244,11 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       .where(eq(agencies.isActive, true))
       .orderBy(agencies.name),
     db
-      .select({ id: reportingSystems.id, name: reportingSystems.name })
+      .select({
+        id: reportingSystems.id,
+        code: reportingSystems.code,
+        name: reportingSystems.name,
+      })
       .from(reportingSystems)
       .where(eq(reportingSystems.isActive, true))
       .orderBy(reportingSystems.name),
