@@ -127,6 +127,8 @@ async function buildSnapshot(
       status: trainingClasses.status,
       deliveryMethod: trainingClasses.deliveryMethod,
       objectives: trainingClasses.objectives,
+      courseType: trainingClasses.courseType,
+      courseNumber: trainingClasses.courseNumber,
       completedAt: trainingClasses.completedAt,
       courseName: courses.name,
       siteName: trainingSites.name,
@@ -521,6 +523,7 @@ export async function getFinalizationHistory(
       .select({
         revisionId: finalizationReportingStatuses.revisionId,
         reportingSystemId: reportingSystems.id,
+        systemCode: reportingSystems.code,
         systemName: reportingSystems.name,
         status: finalizationReportingStatuses.status,
         referenceNumber: finalizationReportingStatuses.referenceNumber,

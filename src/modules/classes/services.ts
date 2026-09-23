@@ -114,6 +114,13 @@ const draftInput = z.object({
   reportingSystemIds: z.array(z.string().uuid()).optional(),
   accessPinEnabled: z.boolean().default(false),
   objectives: z.string().trim().max(2000).default(""),
+  courseType: z
+    .union([
+      z.enum(["continuing_education", "initial_certification", "refresher"]),
+      z.literal(""),
+    ])
+    .optional(),
+  courseNumber: z.string().trim().max(100).default(""),
   mtuEquipmentUsed: z.string().trim().max(500).default(""),
   mtuMileage: z.string().trim().max(200).default(""),
   mtuUsedSupplies: z.string().trim().max(500).default(""),
@@ -358,6 +365,8 @@ export async function createOpenClass(
         createdByUserId: actor.id,
         deliveryMethod: parsed.deliveryMethod,
         objectives: parsed.objectives || null,
+        courseType: parsed.courseType || null,
+        courseNumber: parsed.courseNumber || null,
         status: CLASS_STATUSES.OPEN,
         signInTokenHash: hashClassSignInToken(rawToken),
         signInTokenVersion: 1,
@@ -517,6 +526,8 @@ export async function updateClass(
         hostAgencyId: parsed.hostAgencyId,
         deliveryMethod: parsed.deliveryMethod,
         objectives: parsed.objectives || null,
+        courseType: parsed.courseType || null,
+        courseNumber: parsed.courseNumber || null,
         accessPinEnabled: parsed.accessPinEnabled,
         accessPinEncrypted: accessPin,
         updatedAt: new Date(),

@@ -73,6 +73,29 @@ function EmailControl({
   );
 }
 
+export function CompletionCertificateControls({
+  revisionId,
+}: {
+  revisionId: string;
+}) {
+  const href = `/api/staff/completion-certificates/${revisionId}`;
+  return (
+    <section className="inline-form" aria-label="Completion certificates">
+      <span>Completion certificates</span>
+      <Link
+        href={`${href}?disposition=inline`}
+        target="_blank"
+        className={buttonVariants({ variant: "outline" })}
+      >
+        View certificates PDF
+      </Link>
+      <Link href={href} className={buttonVariants({ variant: "secondary" })}>
+        Download certificates PDF
+      </Link>
+    </section>
+  );
+}
+
 export function OfficialRosterControls({
   revisionId,
   emailAction,

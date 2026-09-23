@@ -113,6 +113,8 @@ export function ClassCreationWizard({
     reportingSystemIds: [] as string[],
     accessPinEnabled: false,
     objectives: "",
+    courseType: "",
+    courseNumber: "",
     mtuEquipmentUsed: "",
     mtuMileage: "",
     mtuUsedSupplies: "",
@@ -396,6 +398,30 @@ export function ClassCreationWizard({
       {currentKey === "kbems" ? (
         <section className="stack-form">
           <h2>KBEMS reporting</h2>
+          <div className="field">
+            <Label htmlFor="courseType">Course type</Label>
+            <select
+              id="courseType"
+              className="select-input"
+              value={values.courseType}
+              onChange={(event) => update("courseType", event.target.value)}
+            >
+              <option value="">Select a course type</option>
+              <option value="continuing_education">Continuing education</option>
+              <option value="initial_certification">
+                Initial certification
+              </option>
+              <option value="refresher">Refresher</option>
+            </select>
+          </div>
+          <div className="field">
+            <Label htmlFor="courseNumber">Course number</Label>
+            <Input
+              id="courseNumber"
+              value={values.courseNumber}
+              onChange={(event) => update("courseNumber", event.target.value)}
+            />
+          </div>
           <div className="field">
             <Label htmlFor="objectives">Course description or objectives</Label>
             <textarea
@@ -713,6 +739,10 @@ export function ClassCreationWizard({
             ) : null}
             {selectedCodes.includes("kbems") ? (
               <>
+                <dt>Course type</dt>
+                <dd>{values.courseType.replace("_", " ") || "Not provided"}</dd>
+                <dt>Course number</dt>
+                <dd>{values.courseNumber || "Not provided"}</dd>
                 <dt>Course objectives</dt>
                 <dd>{values.objectives || "Not provided"}</dd>
               </>
@@ -785,7 +815,15 @@ export function ClassCreationWizard({
           ])
         : null}
       {selectedCodes.includes("kbems") ? (
-        <input type="hidden" name="objectives" value={values.objectives} />
+        <>
+          <input type="hidden" name="objectives" value={values.objectives} />
+          <input type="hidden" name="courseType" value={values.courseType} />
+          <input
+            type="hidden"
+            name="courseNumber"
+            value={values.courseNumber}
+          />
+        </>
       ) : null}
       {selectedCodes.includes("mtu") ? (
         <>

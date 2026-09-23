@@ -35,7 +35,10 @@ import {
 import { ClassForm } from "../../class-form";
 import { ComponentForm } from "../../component-form";
 import { FinalizationControls } from "../../finalization-controls";
-import { OfficialRosterControls } from "../../official-roster-controls";
+import {
+  CompletionCertificateControls,
+  OfficialRosterControls,
+} from "../../official-roster-controls";
 import { AddAttendanceForms, AttendanceControls } from "../../roster-controls";
 
 export const dynamic = "force-dynamic";
@@ -199,6 +202,12 @@ export default async function CompletedClassReviewPage({
                     revisionId={revision.id}
                     emailAction={sendOfficialRosterEmailAction}
                   />
+                ) : null}
+                {canManageOfficialRosters &&
+                revision.destinations.some(
+                  (destination) => destination.systemCode === "kbems",
+                ) ? (
+                  <CompletionCertificateControls revisionId={revision.id} />
                 ) : null}
               </li>
             ))}

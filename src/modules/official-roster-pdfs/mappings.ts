@@ -6,8 +6,15 @@ export const OFFICIAL_ROSTER_FORMS = {
 export type OfficialRosterForm =
   (typeof OFFICIAL_ROSTER_FORMS)[keyof typeof OFFICIAL_ROSTER_FORMS];
 
+export const DOCUMENT_TYPES = {
+  ...OFFICIAL_ROSTER_FORMS,
+  COMPLETION_CERTIFICATE: "completion-certificate",
+} as const;
+
+export type DocumentType = (typeof DOCUMENT_TYPES)[keyof typeof DOCUMENT_TYPES];
+
 export interface TemplateMapping {
-  formType: OfficialRosterForm;
+  formType: DocumentType;
   templateVersion: string;
   assetName: string;
   sourceChecksum: string;
@@ -133,6 +140,31 @@ export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
       "Instructor Signature",
     ],
   },
+};
+
+export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {
+  formType: "completion-certificate",
+  templateVersion: "class-completion-certificate-002",
+  assetName: "class-completion-certificate-002.pdf",
+  sourceChecksum:
+    "6f1d9a051919a97cd13359ed5270e0713ad26f41b0b1d1b64a862f1ec125b623",
+  // One certificate per page; the renderer emits one page per participant.
+  pageCapacity: 1,
+  pageSize: { width: 792, height: 612 },
+  typography: { font: "Helvetica", fontSize: 10 },
+  fieldCoordinates: {},
+  fields: {
+    studentName: "Student_Name",
+    classHours: "Class_Hours",
+    courseType: "Course_Type",
+    courseNumber: "Course_Number",
+    completionDate: "Completion_Date",
+    instructorName: "Instructor_Name",
+    instructorTitleCourse: "Instructor_Title_Course",
+    instructorSignature: "Instructor_Signature",
+  },
+  // The certificate is physically signed; never rendered electronically.
+  blankFields: ["Instructor_Signature"],
 };
 
 export function getTemplateMapping(

@@ -22,7 +22,6 @@ import {
   transitionClass,
   updateClass,
 } from "@/modules/classes/services";
-import { getTemplateMapping } from "@/modules/official-roster-pdfs/mappings";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { createAgency, createSite } from "@/modules/reference/services";
 import { requireStaff } from "@/modules/staff-auth/authorization";
@@ -74,6 +73,12 @@ function draftValues(formData: FormData) {
     reportingSystemIds,
     accessPinEnabled: read(formData, "accessPinEnabled") === "on",
     objectives: read(formData, "objectives"),
+    courseType: read(formData, "courseType") as
+      | ""
+      | "continuing_education"
+      | "initial_certification"
+      | "refresher",
+    courseNumber: read(formData, "courseNumber"),
     mtuEquipmentUsed: read(formData, "mtuEquipmentUsed"),
     mtuMileage: read(formData, "mtuMileage"),
     mtuUsedSupplies: read(formData, "mtuUsedSupplies"),
@@ -360,7 +365,7 @@ export async function sendOfficialRosterEmailAction(
       getDatabase(),
       actor,
       read(formData, "revisionId"),
-      getTemplateMapping(formType).formType,
+      formType,
       read(formData, "recipient"),
     );
     return { success: "Official roster email accepted for delivery." };

@@ -43,6 +43,8 @@ export function ClassForm({
     reportingSystemIds: string[];
     accessPinEnabled: boolean;
     objectives?: string | null;
+    courseType?: string | null;
+    courseNumber?: string | null;
     mtuUsage?: {
       equipmentUsed: string | null;
       mileage: string | null;
@@ -165,6 +167,28 @@ export function ClassForm({
             finalizing.
           </p>
         </fieldset>
+        <div className="field">
+          <Label htmlFor="courseType">Course type</Label>
+          <select
+            id="courseType"
+            name="courseType"
+            className="select-input"
+            defaultValue={values?.courseType ?? ""}
+          >
+            <option value="">No course type</option>
+            <option value="continuing_education">Continuing education</option>
+            <option value="initial_certification">Initial certification</option>
+            <option value="refresher">Refresher</option>
+          </select>
+        </div>
+        <div className="field">
+          <Label htmlFor="courseNumber">Course number</Label>
+          <Input
+            id="courseNumber"
+            name="courseNumber"
+            defaultValue={values?.courseNumber ?? ""}
+          />
+        </div>
         <div className="field field-wide">
           <Label htmlFor="objectives">Course description or objectives</Label>
           <textarea

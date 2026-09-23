@@ -77,6 +77,8 @@ export default async function EditClassPage({
               (system) => system.id,
             ),
             objectives: classRecord.objectives,
+            courseType: classRecord.courseType,
+            courseNumber: classRecord.courseNumber,
             mtuUsage: classRecord.mtuUsage,
           }}
         />

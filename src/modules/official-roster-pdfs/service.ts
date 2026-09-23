@@ -44,8 +44,13 @@ export interface FinalizationSnapshot {
     siteName: string | null;
     // Course description or objectives captured for the KBEMS-E16 roster.
     objectives?: string | null;
+    // EMS course details printed on the completion certificate.
+    courseType?: string | null;
+    courseNumber?: string | null;
     completedAt: string | null;
   };
+  // Reporting destinations selected for the class at finalization.
+  destinations?: Array<{ code: string; name: string }>;
   // Optional because revisions written before MTU tracking have no usage facts.
   mtuUsage?: {
     equipmentUsed: string | null;
@@ -86,7 +91,7 @@ export interface FinalizationSnapshot {
   }>;
 }
 
-function formatDate(value: string | null): string {
+export function formatDate(value: string | null): string {
   if (!value) return "";
   return new Intl.DateTimeFormat("en-US", {
     timeZone: process.env.DEPARTMENT_TIME_ZONE ?? "America/New_York",
@@ -211,7 +216,7 @@ export class UnreadableRevisionSnapshotError extends Error {
   }
 }
 
-async function readSnapshot(
+export async function readSnapshot(
   db: Database,
   actor: OfficialRosterActor,
   revisionId: string,
@@ -409,7 +414,7 @@ function fillKbemsPage(
   });
 }
 
-async function renderPage(
+export async function renderPage(
   mapping: TemplateMapping,
   fill: (pdf: PDFDocument) => void,
 ): Promise<PDFDocument> {

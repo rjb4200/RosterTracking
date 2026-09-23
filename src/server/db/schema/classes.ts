@@ -55,6 +55,9 @@ export const trainingClasses = pgTable(
     deliveryMethod: text("delivery_method").notNull(),
     // Course description or objectives captured for the KBEMS-E16 roster.
     objectives: text("objectives"),
+    // EMS course details printed on the completion certificate.
+    courseType: text("course_type"),
+    courseNumber: text("course_number"),
     status: text("status").default("draft").notNull(),
     signInTokenHash: text("sign_in_token_hash").notNull(),
     signInTokenVersion: integer("sign_in_token_version").default(1).notNull(),
@@ -92,6 +95,10 @@ export const trainingClasses = pgTable(
     check(
       "classes_delivery_method",
       sql`${table.deliveryMethod} in ('classroom', 'hands_on', 'online', 'hybrid')`,
+    ),
+    check(
+      "classes_course_type",
+      sql`${table.courseType} is null or ${table.courseType} in ('continuing_education', 'initial_certification', 'refresher')`,
     ),
     check(
       "classes_status",
