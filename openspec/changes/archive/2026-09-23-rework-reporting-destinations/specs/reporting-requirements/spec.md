@@ -18,6 +18,10 @@ The system SHALL map each reporting system's requirement set to the credential t
 - **WHEN** the kbems reporting system's active requirement set is resolved
 - **THEN** it requires the KEMSIS ID credential type
 
+#### Scenario: FEMA requirement
+- **WHEN** the fema reporting system is resolved
+- **THEN** it is not an active reporting system and imposes no credential requirement
+
 #### Scenario: MTU requires no student credential
 - **WHEN** the mtu reporting system's active requirement set is resolved
 - **THEN** it requires no student credential type and no student field

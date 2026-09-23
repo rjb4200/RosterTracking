@@ -3,9 +3,7 @@
 ## Purpose
 
 Preserve a completed class as immutable historical roster revisions and track each reporting destination independently before official roster files are generated.
-
 ## Requirements
-
 ### Requirement: Finalization creates an immutable roster revision
 The system SHALL allow an assigned instructor, Training Major, or Administrator to finalize a completed class only after revalidating its roster. The completed-class review SHALL show finalization readiness before the operator confirms finalization. Finalization SHALL create a numbered immutable revision containing class, instructor, attendance, agency, credit, attestation, and reporting-requirement snapshot facts. Authorized official-roster view, print, download, and email actions SHALL use these preserved facts without modifying the revision.
 
@@ -33,11 +31,11 @@ The system SHALL allow an assigned instructor, Training Major, or Administrator 
 - **THEN** the system creates a new revision without overwriting or deleting the prior revision
 
 ### Requirement: Reporting destinations are independent
-The system SHALL allow only Training Majors and Administrators to manage Fire, KBEMS, and FEMA reporting status independently for each finalization revision. Each destination SHALL have one of `pending`, `entered`, `needs_correction`, or `not_required` as its current status. The system SHALL retain the staff actor, server timestamp, optional external reference number, and optional notes for each status update.
+The system SHALL allow only Training Majors and Administrators to manage Fire, KBEMS, and MTU reporting status independently for each finalization revision. Each destination SHALL have one of `pending`, `entered`, `needs_correction`, or `not_required` as its current status. The system SHALL retain the staff actor, server timestamp, optional external reference number, and optional notes for each status update.
 
 #### Scenario: Record one destination entry
 - **WHEN** authorized staff mark Fire entered for a revision
-- **THEN** the system records Fire as entered with the authenticated staff user and server timestamp without changing KBEMS or FEMA status
+- **THEN** the system records Fire as entered with the authenticated staff user and server timestamp without changing KBEMS or MTU status
 
 #### Scenario: Mark a destination not required
 - **WHEN** authorized staff mark a reporting destination not required for a revision
@@ -83,5 +81,6 @@ The system SHALL provide a Training Major reporting work queue for finalized rev
 - **THEN** the system provides the corresponding finalized roster PDF download from that item
 
 #### Scenario: Exclude unsupported roster forms
-- **WHEN** staff view a FEMA reporting queue item
+- **WHEN** staff view an MTU reporting queue item
 - **THEN** the system does not offer an official roster PDF download
+

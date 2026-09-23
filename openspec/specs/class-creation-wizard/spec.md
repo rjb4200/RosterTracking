@@ -3,11 +3,9 @@
 ## Purpose
 
 Give authorized instructors a fast, reviewable guided path to create a scheduled class that is open for sign-in as soon as it is created, without exposing all setup choices at once.
-
 ## Requirements
-
 ### Requirement: Guided class creation
-The system SHALL present class creation as a Class step, a Reporting step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Class step SHALL collect the course, delivery method, training site when required, scheduled start and duration, lead instructor, and optional student access PIN. The Reporting step SHALL collect the host agency and reporting systems and SHALL show the student information those systems require.
+The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select any combination of Fire, KBEMS, and MTU and SHALL NOT offer FEMA. The class-and-schedule step SHALL collect the course, delivery method, training site when required, scheduled start and duration, lead instructor, host agency, and optional student access PIN. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -17,8 +15,20 @@ The system SHALL present class creation as a Class step, a Reporting step, and a
 - **WHEN** staff return to a previous step from a later step
 - **THEN** the system restores their entered values and permits them to change those values before continuing
 
+#### Scenario: Add a destination step
+- **WHEN** staff select a destination on the Destinations step
+- **THEN** that destination's step becomes part of the workflow in the destination order
+
+#### Scenario: Remove a destination step
+- **WHEN** staff clear a destination that had been selected
+- **THEN** that destination's step is removed from the workflow and its values are not submitted
+
+#### Scenario: Offer no FEMA destination
+- **WHEN** staff view the Destinations step
+- **THEN** FEMA is not offered as a selectable destination
+
 #### Scenario: Select the host agency
-- **WHEN** staff reach the Reporting step
+- **WHEN** staff reach the class-and-schedule step
 - **THEN** they can select an active agency or add a new one inline before continuing
 
 ### Requirement: Final review creates an open class
@@ -46,3 +56,64 @@ The system SHALL keep the class creation wizard within the width of its containe
 #### Scenario: Final submission remains pointer-operable
 - **WHEN** staff reach the review step on a narrow mobile viewport and activate the create control with a pointer
 - **THEN** the reviewed class is submitted
+
+### Requirement: KBEMS destination step captures course objectives
+When KBEMS is a selected destination, the system SHALL provide a KBEMS step that captures the course description or objectives used on the KBEMS-E16 roster.
+
+#### Scenario: Enter KBEMS course objectives
+- **WHEN** KBEMS is selected and staff complete the KBEMS step
+- **THEN** the system retains the course description or objectives for the KBEMS roster
+
+#### Scenario: KBEMS step absent when not selected
+- **WHEN** KBEMS is not a selected destination
+- **THEN** the workflow does not present a KBEMS step
+
+### Requirement: MTU destination step captures usage
+When MTU is a selected destination, the system SHALL provide an MTU step that captures equipment used, mileage, and used supplies as free text.
+
+#### Scenario: Enter MTU usage
+- **WHEN** MTU is selected and staff complete the MTU step
+- **THEN** the system retains the entered equipment used, mileage, and used supplies for the class
+
+#### Scenario: MTU step absent when not selected
+- **WHEN** MTU is not a selected destination
+- **THEN** the workflow does not present an MTU step
+
+### Requirement: Fire destination step collects subject rows
+When Fire is a selected destination, the system SHALL provide a Fire step that collects up to two subject rows. Each subject row SHALL capture a Category from the searchable training-code catalog, a Class Name, a Curriculum from the searchable approved-curricula catalog, and a free-text Lesson Plan. Selecting a training code SHALL pre-fill the Class Name, and staff SHALL be able to overwrite the Class Name manually.
+
+#### Scenario: Select a training code
+- **WHEN** staff choose a training code on a Fire subject row
+- **THEN** the system pre-fills the Class Name from the training code's title and keeps it editable
+
+#### Scenario: Override the class name
+- **WHEN** staff edit a pre-filled Class Name
+- **THEN** the system keeps the typed Class Name while retaining the selected training code as the category
+
+#### Scenario: Add a second subject
+- **WHEN** staff add a second Fire subject row
+- **THEN** the system collects its category, class name, curriculum, and lesson plan independently of the first
+
+#### Scenario: Limit to two subjects
+- **WHEN** two Fire subject rows already exist
+- **THEN** the system does not offer a third subject row
+
+#### Scenario: Require the subject essentials
+- **WHEN** staff try to leave the Fire step with a subject row that has no category or class name
+- **THEN** the system blocks the step and identifies the missing field
+
+### Requirement: KBEMS destination step collects EMS course details
+When KBEMS is a selected destination, the system SHALL collect a Course type from a selectable set and a Course number as free text on the KBEMS step, in addition to the course description or objectives.
+
+#### Scenario: Select a course type
+- **WHEN** KBEMS is selected and staff choose a course type
+- **THEN** the system retains the course type for the class
+
+#### Scenario: Enter a course number
+- **WHEN** staff enter a course number on the KBEMS step
+- **THEN** the system retains the course number for the class
+
+#### Scenario: Leave the course number optional
+- **WHEN** staff leave the course number empty
+- **THEN** the system allows the step to advance and the certificate later leaves that field blank
+
