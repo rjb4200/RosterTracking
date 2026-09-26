@@ -238,40 +238,6 @@ export const curricula = pgTable(
   ],
 );
 
-export const courses = pgTable(
-  "courses",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    name: text("name").notNull(),
-    description: text("description"),
-    defaultHours: numeric("default_hours", { precision: 5, scale: 2 }),
-    trainingCodeId: uuid("training_code_id").references(
-      () => trainingCodes.id,
-      {
-        onDelete: "set null",
-      },
-    ),
-    isActive: boolean("is_active").default(true).notNull(),
-    ...timestamps,
-  },
-  (table) => [index("courses_name_idx").on(table.name)],
-);
-
-export const courseReportingDefaults = pgTable(
-  "course_reporting_defaults",
-  {
-    courseId: uuid("course_id")
-      .notNull()
-      .references(() => courses.id, { onDelete: "restrict" }),
-    reportingSystemId: uuid("reporting_system_id")
-      .notNull()
-      .references(() => reportingSystems.id, { onDelete: "restrict" }),
-  },
-  (table) => [
-    primaryKey({ columns: [table.courseId, table.reportingSystemId] }),
-  ],
-);
-
 export const trainingSites = pgTable(
   "training_sites",
   {

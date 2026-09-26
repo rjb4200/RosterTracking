@@ -15,28 +15,21 @@ interface Option {
 
 export function ClassForm({
   action,
-  courses,
   sites,
   agencies,
   reportingSystems,
-  courseReportingDefaults,
   values,
 }: {
   action: (
     prev: ActionState | undefined,
     formData: FormData,
   ) => Promise<ActionState>;
-  courses: Option[];
   sites: Option[];
   agencies: Option[];
   reportingSystems: Option[];
-  courseReportingDefaults: Array<{
-    courseId: string;
-    reportingSystemId: string;
-  }>;
   values?: {
     id: string;
-    courseId: string;
+    name: string | null;
     trainingSiteId: string | null;
     hostAgencyId: string | null;
     deliveryMethod: string;
@@ -53,7 +46,6 @@ export function ClassForm({
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
-  const [courseId, setCourseId] = useState(values?.courseId ?? "");
   const [reportingSystemIds, setReportingSystemIds] = useState(
     values?.reportingSystemIds ?? [],
   );
@@ -63,32 +55,13 @@ export function ClassForm({
       {values ? <input type="hidden" name="classId" value={values.id} /> : null}
       <div className="form-grid">
         <div className="field">
-          <Label htmlFor="courseId">Course</Label>
-          <select
-            id="courseId"
-            name="courseId"
-            className="select-input"
-            value={courseId}
-            onChange={(event) => {
-              const selectedCourseId = event.target.value;
-              setCourseId(selectedCourseId);
-              setReportingSystemIds(
-                courseReportingDefaults
-                  .filter(({ courseId }) => courseId === selectedCourseId)
-                  .map(({ reportingSystemId }) => reportingSystemId),
-              );
-            }}
-            required
-          >
-            <option value="" disabled>
-              Select a course
-            </option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </select>
+          <Label htmlFor="name">Class name</Label>
+          <Input
+            id="name"
+            name="name"
+            defaultValue={values?.name ?? ""}
+            placeholder="e.g. EMS Continuing Education"
+          />
         </div>
         <div className="field">
           <Label htmlFor="deliveryMethod">Delivery</Label>

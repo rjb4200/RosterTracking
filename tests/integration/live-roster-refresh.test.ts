@@ -13,7 +13,6 @@ import {
   agencies,
   classComponents,
   classInstructors,
-  courses,
   trainingClasses,
   trainingSites,
   users,
@@ -59,10 +58,6 @@ async function createFixture() {
       passwordHash: "hash",
     })
     .returning({ id: users.id, username: users.username });
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `Live Roster Course ${suffix}` })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `Live Roster Site ${suffix}` })
@@ -71,12 +66,12 @@ async function createFixture() {
     .insert(agencies)
     .values({ name: `Live Roster Agency ${suffix}` })
     .returning({ id: agencies.id, name: agencies.name });
-  if (!instructor || !outsider || !course || !site || !agency)
+  if (!instructor || !outsider || !site || !agency)
     throw new Error("Fixture creation failed.");
   const [classRecord] = await db
     .insert(trainingClasses)
     .values({
-      courseId: course.id,
+      name: `Live Roster Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       createdByUserId: instructor.id,

@@ -8,10 +8,6 @@ const password = process.env.E2E_STAFF_PASSWORD;
 const connectionString = e2eDatabaseUrl();
 
 async function seedFireFixtures(pool: Pool, suffix: string) {
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name, default_hours) values ($1, 4) returning id",
-    [`E2E Fire Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Fire Site ${suffix}`],
@@ -29,24 +25,20 @@ async function seedFireFixtures(pool: Pool, suffix: string) {
      values ('IFSTA', $1, '8th Edition', 'Approval of AHJ', 'e2e') returning id`,
     [`Essentials of Firefighting ${suffix}`],
   );
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const agencyId = agency.rows[0]?.id;
   const trainingCodeId = trainingCode.rows[0]?.id;
   const curriculumId = curriculum.rows[0]?.id;
-  if (!courseId || !siteId || !agencyId || !trainingCodeId || !curriculumId) {
+  if (!siteId || !agencyId || !trainingCodeId || !curriculumId) {
     throw new Error("Fire browser fixtures were not created.");
   }
-  return { courseId, siteId, agencyId, trainingCodeId, curriculumId };
+  return { siteId, agencyId, trainingCodeId, curriculumId };
 }
 
 async function completeClassStep(
   page: Page,
-  fixture: { courseId: string; siteId: string; agencyId: string },
+  fixture: { siteId: string; agencyId: string },
 ) {
-  await page
-    .getByLabel("Course", { exact: true })
-    .selectOption(fixture.courseId);
   await page
     .getByLabel("Training site", { exact: true })
     .selectOption(fixture.siteId);

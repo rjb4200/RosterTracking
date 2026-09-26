@@ -18,7 +18,6 @@ import {
   agencies,
   attendance,
   attendanceReportingContexts,
-  courses,
   curricula,
   finalizationReportingStatuses,
   finalizationRevisions,
@@ -91,10 +90,6 @@ async function retireRevision(db: Db, revisionId: string) {
 
 async function createFireClassFixture(db: Db, suffix: string) {
   const instructor = await createInstructor(db, suffix);
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `Fire Course ${suffix}`, defaultHours: "4" })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `Fire Site ${suffix}` })
@@ -121,12 +116,12 @@ async function createFireClassFixture(db: Db, suffix: string) {
       sourceRevision: "test",
     })
     .returning({ id: curricula.id });
-  if (!course || !site || !agency || !trainingCode || !curriculum) {
+  if (!site || !agency || !trainingCode || !curriculum) {
     throw new Error("Fire fixture references failed.");
   }
   const { systemId, setId } = await activeSetId(db, "fire");
   const created = await createOpenClass(db, instructor, {
-    courseId: course.id,
+    name: `Fire Course ${suffix}`,
     trainingSiteId: site.id,
     hostAgencyId: agency.id,
     deliveryMethod: "classroom",

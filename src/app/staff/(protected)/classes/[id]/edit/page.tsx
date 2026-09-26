@@ -51,7 +51,7 @@ export default async function EditClassPage({
       <div className="admin-heading">
         <div>
           <p className="eyebrow">Edit class</p>
-          <h1 className="staff-title">{classRecord.course?.name ?? "Class"}</h1>
+          <h1 className="staff-title">{classRecord.name ?? "Class"}</h1>
         </div>
         <Link
           href={`/staff/classes/${id}`}
@@ -68,7 +68,7 @@ export default async function EditClassPage({
           {...options}
           values={{
             id: classRecord.id,
-            courseId: classRecord.courseId,
+            name: classRecord.name,
             trainingSiteId: classRecord.trainingSiteId,
             hostAgencyId: classRecord.hostAgencyId,
             deliveryMethod: classRecord.deliveryMethod,

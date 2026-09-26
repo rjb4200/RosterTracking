@@ -17,7 +17,6 @@ import {
 import { users } from "./auth";
 import {
   agencies,
-  courses,
   curricula,
   reportingSystems,
   trainingCodes,
@@ -37,9 +36,9 @@ export const trainingClasses = pgTable(
   "classes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    courseId: uuid("course_id")
-      .notNull()
-      .references(() => courses.id, { onDelete: "restrict" }),
+    // The class's name: the EMS course name, the first Fire subject's class
+    // name, or a name entered when neither Fire nor KBEMS is selected.
+    name: text("name"),
     trainingSiteId: uuid("training_site_id").references(
       () => trainingSites.id,
       { onDelete: "restrict" },
@@ -71,7 +70,6 @@ export const trainingClasses = pgTable(
     ...timestamps,
   },
   (table) => [
-    index("classes_course_idx").on(table.courseId),
     index("classes_site_idx").on(table.trainingSiteId),
     index("classes_host_agency_idx").on(table.hostAgencyId),
     index("classes_creator_status_idx").on(table.createdByUserId, table.status),

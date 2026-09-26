@@ -124,9 +124,7 @@ export default async function CompletedClassReviewPage({
           <p className="eyebrow">
             {isFinalized ? "Finalized class review" : "Completed class review"}
           </p>
-          <h1 className="staff-title">
-            {classRecord.course?.name ?? "Class roster"}
-          </h1>
+          <h1 className="staff-title">{classRecord.name ?? "Class roster"}</h1>
           <p>
             {classRecord.site?.name ?? "Online"} | Scheduled total:{" "}
             {roster.scheduledHours} hours
@@ -225,7 +223,7 @@ export default async function CompletedClassReviewPage({
               {...classOptions}
               values={{
                 id: classRecord.id,
-                courseId: classRecord.courseId,
+                name: classRecord.name,
                 trainingSiteId: classRecord.trainingSiteId,
                 hostAgencyId: classRecord.hostAgencyId,
                 deliveryMethod: classRecord.deliveryMethod,

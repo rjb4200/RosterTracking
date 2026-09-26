@@ -9,7 +9,6 @@ import {
   agencies,
   classComponents,
   classInstructors,
-  courses,
   trainingClasses,
   trainingSites,
   users,
@@ -94,32 +93,13 @@ describeDatabase("public class directory", () => {
     const memberId = member[0]?.id;
     if (!leadId || !memberId) throw new Error("Instructor fixtures failed.");
 
-    const courseA = await db
-      .insert(courses)
-      .values({ name: `Directory Course A ${suffix}` })
-      .returning({ id: courses.id });
-    const courseB = await db
-      .insert(courses)
-      .values({ name: `Directory Course B ${suffix}` })
-      .returning({ id: courses.id });
-    const courseC = await db
-      .insert(courses)
-      .values({ name: `Directory Course C ${suffix}` })
-      .returning({ id: courses.id });
-    const courseAId = courseA[0]?.id;
-    const courseBId = courseB[0]?.id;
-    const courseCId = courseC[0]?.id;
-    if (!courseAId || !courseBId || !courseCId) {
-      throw new Error("Course fixtures failed.");
-    }
-
     const publicCodeA = generatePublicCode();
     const publicCodeB = generatePublicCode();
     const publicCodeC = generatePublicCode();
     const classA = await db
       .insert(trainingClasses)
       .values({
-        courseId: courseAId,
+        name: `Directory Course A ${suffix}`,
         trainingSiteId: siteId,
         hostAgencyId: agencyId,
         createdByUserId: managerId,
@@ -133,7 +113,7 @@ describeDatabase("public class directory", () => {
     const classB = await db
       .insert(trainingClasses)
       .values({
-        courseId: courseBId,
+        name: `Directory Course B ${suffix}`,
         hostAgencyId: agencyId,
         createdByUserId: managerId,
         deliveryMethod: "online",
@@ -146,7 +126,7 @@ describeDatabase("public class directory", () => {
     const classC = await db
       .insert(trainingClasses)
       .values({
-        courseId: courseCId,
+        name: `Directory Course C ${suffix}`,
         trainingSiteId: siteId,
         hostAgencyId: agencyId,
         createdByUserId: managerId,
@@ -161,7 +141,7 @@ describeDatabase("public class directory", () => {
     const classD = await db
       .insert(trainingClasses)
       .values({
-        courseId: courseCId,
+        name: `Directory Course C ${suffix}`,
         trainingSiteId: siteId,
         hostAgencyId: agencyId,
         createdByUserId: managerId,

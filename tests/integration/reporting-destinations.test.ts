@@ -21,7 +21,6 @@ import {
   agencies,
   attendance,
   attendanceReportingContexts,
-  courses,
   finalizationReportingStatuses,
   finalizationRevisions,
   reportingRequirementSets,
@@ -68,10 +67,6 @@ async function createClassFixture(
   reportingSystemIds: string[],
 ) {
   const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `Destination Course ${suffix}`, defaultHours: "4" })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `Destination Site ${suffix}` })
@@ -80,11 +75,11 @@ async function createClassFixture(
     .insert(agencies)
     .values({ name: `Destination Agency ${suffix}` })
     .returning({ id: agencies.id });
-  if (!course || !site || !agency) {
+  if (!site || !agency) {
     throw new Error("Destination fixture references failed.");
   }
   const created = await createOpenClass(db, instructor, {
-    courseId: course.id,
+    name: `Destination Course ${suffix}`,
     trainingSiteId: site.id,
     hostAgencyId: agency.id,
     deliveryMethod: "classroom",
@@ -224,7 +219,7 @@ describeDatabase("reporting destinations", () => {
     });
 
     await updateClass(db, instructor, classId, {
-      courseId: detail.courseId,
+      name: detail.name ?? "",
       trainingSiteId: detail.trainingSiteId,
       hostAgencyId: detail.hostAgencyId,
       deliveryMethod: "classroom",
@@ -247,7 +242,7 @@ describeDatabase("reporting destinations", () => {
       .where(eq(trainingClasses.id, classId));
     await expect(
       updateClass(db, instructor, classId, {
-        courseId: detail.courseId,
+        name: detail.name ?? "",
         trainingSiteId: detail.trainingSiteId,
         hostAgencyId: detail.hostAgencyId,
         deliveryMethod: "classroom",

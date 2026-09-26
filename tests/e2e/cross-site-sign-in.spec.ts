@@ -18,10 +18,6 @@ async function createOpenClassFixture(connectionString: string) {
   const pool = new Pool({ connectionString, max: 1 });
   const suffix = crypto.randomUUID();
   const publicCode = generatePublicCode();
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Cross-site Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`Cross-site Site ${suffix}`],
@@ -36,9 +32,9 @@ async function createOpenClassFixture(connectionString: string) {
     [`cross-site-owner-${suffix}`],
   );
   const classRecord = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
     [
-      course.rows[0]?.id,
+      `Cross-site Course ${suffix}`,
       site.rows[0]?.id,
       owner.rows[0]?.id,
       crypto.randomUUID(),

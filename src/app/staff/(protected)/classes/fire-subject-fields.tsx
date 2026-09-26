@@ -80,7 +80,24 @@ export function FireSubjectRow({
         <Input
           id={`fireCodeSearch-${index}`}
           value={codeFilter}
-          onChange={(event) => setCodeFilter(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            setCodeFilter(next);
+            const term = next.toLowerCase();
+            if (!term) return;
+            const first = trainingCodes.find(
+              (code) =>
+                code.code.toLowerCase().includes(term) ||
+                code.title.toLowerCase().includes(term),
+            );
+            if (first) {
+              onChange({
+                ...value,
+                trainingCodeId: first.id,
+                className: first.title,
+              });
+            }
+          }}
         />
       </div>
       <div className="field">
@@ -125,7 +142,20 @@ export function FireSubjectRow({
         <Input
           id={`fireCurriculumSearch-${index}`}
           value={curriculumFilter}
-          onChange={(event) => setCurriculumFilter(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            setCurriculumFilter(next);
+            const term = next.toLowerCase();
+            if (!term) return;
+            const first = curricula.find(
+              (curriculum) =>
+                curriculum.publisher.toLowerCase().includes(term) ||
+                curriculum.programTitle.toLowerCase().includes(term),
+            );
+            if (first) {
+              onChange({ ...value, curriculumId: first.id });
+            }
+          }}
         />
       </div>
       <div className="field">

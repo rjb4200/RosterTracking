@@ -4,7 +4,6 @@ import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
   agencies,
-  courses,
   credentialTypes,
   curricula,
   studentAgencies,
@@ -73,13 +72,6 @@ const agencyInput = z.object({
 const credentialInput = z.object({
   value: z.string().trim().min(1).max(200),
   expirationDate: z.string().trim().max(20).optional().or(z.literal("")),
-});
-
-const courseInput = z.object({
-  name: z.string().trim().min(1).max(300),
-  description: z.string().trim().max(2000).optional().or(z.literal("")),
-  defaultHours: z.coerce.number().min(0).max(999).optional(),
-  trainingCodeId: z.string().uuid().optional().or(z.literal("")),
 });
 
 const siteInput = z.object({
@@ -560,35 +552,7 @@ export async function upsertStudentCredential(
   });
 }
 
-// ── Courses, training codes, and sites ────────────────────────────────────
-
-export async function listCourses(db: Database, query: string) {
-  const term = `%${query.trim()}%`;
-  return db
-    .select({
-      id: courses.id,
-      name: courses.name,
-      description: courses.description,
-      defaultHours: courses.defaultHours,
-      trainingCodeId: courses.trainingCodeId,
-      trainingCode: trainingCodes.code,
-      isActive: courses.isActive,
-    })
-    .from(courses)
-    .leftJoin(trainingCodes, eq(trainingCodes.id, courses.trainingCodeId))
-    .where(or(ilike(courses.name, term), ilike(trainingCodes.code, term)))
-    .orderBy(courses.name)
-    .limit(100);
-}
-
-export async function getCourse(db: Database, id: string) {
-  const [course] = await db
-    .select()
-    .from(courses)
-    .where(eq(courses.id, id))
-    .limit(1);
-  return course ?? null;
-}
+// ── Training codes and sites ──────────────────────────────────────────────
 
 export async function listTrainingCodes(db: Database, query: string) {
   const term = `%${query.trim()}%`;
@@ -600,91 +564,6 @@ export async function listTrainingCodes(db: Database, query: string) {
     )
     .orderBy(trainingCodes.code)
     .limit(100);
-}
-
-export async function createCourse(
-  db: Database,
-  actor: Actor,
-  input: z.infer<typeof courseInput>,
-) {
-  const parsed = courseInput.parse(input);
-  return db.transaction(async (transaction) => {
-    const [course] = await transaction
-      .insert(courses)
-      .values({
-        name: parsed.name,
-        description: nullable(parsed.description ?? ""),
-        defaultHours: parsed.defaultHours ? String(parsed.defaultHours) : null,
-        trainingCodeId: parsed.trainingCodeId ? parsed.trainingCodeId : null,
-      })
-      .returning();
-    if (!course) throw new Error("Course was not created.");
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "course.created",
-      entityType: "course",
-      entityId: course.id,
-      details: { name: course.name },
-    });
-    return course;
-  });
-}
-
-export async function updateCourse(
-  db: Database,
-  actor: Actor,
-  id: string,
-  input: z.infer<typeof courseInput>,
-) {
-  const parsed = courseInput.parse(input);
-  return db.transaction(async (transaction) => {
-    const [course] = await transaction
-      .update(courses)
-      .set({
-        name: parsed.name,
-        description: nullable(parsed.description ?? ""),
-        defaultHours: parsed.defaultHours ? String(parsed.defaultHours) : null,
-        trainingCodeId: parsed.trainingCodeId ? parsed.trainingCodeId : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(courses.id, id))
-      .returning();
-    if (!course) throw new Error("Course not found.");
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "course.updated",
-      entityType: "course",
-      entityId: course.id,
-      details: { name: course.name },
-    });
-    return course;
-  });
-}
-
-export async function setCourseActive(
-  db: Database,
-  actor: Actor,
-  id: string,
-  isActive: boolean,
-) {
-  return db.transaction(async (transaction) => {
-    const [course] = await transaction
-      .update(courses)
-      .set({ isActive, updatedAt: new Date() })
-      .where(eq(courses.id, id))
-      .returning();
-    if (!course) throw new Error("Course not found.");
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: isActive ? "course.activated" : "course.deactivated",
-      entityType: "course",
-      entityId: course.id,
-    });
-    return course;
-  });
 }
 
 export async function listSites(db: Database, query: string) {

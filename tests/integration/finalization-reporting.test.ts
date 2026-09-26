@@ -16,7 +16,6 @@ import {
   auditLogs,
   classComponents,
   classInstructors,
-  courses,
   finalizationReportingStatuses,
   finalizationRevisions,
   reportingSystems,
@@ -66,10 +65,6 @@ async function createReportingClassFixture(
     `${suffix}-instructor`,
     ROLE_CODES.INSTRUCTOR,
   );
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `Supersede Course ${suffix}` })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `Supersede Site ${suffix}` })
@@ -82,12 +77,12 @@ async function createReportingClassFixture(
     .select({ id: reportingSystems.id })
     .from(reportingSystems)
     .where(eq(reportingSystems.code, "fire"));
-  if (!course || !site || !agency || !fire)
+  if (!site || !agency || !fire)
     throw new Error("Supersession fixture creation failed.");
   const [classRecord] = await db
     .insert(trainingClasses)
     .values({
-      courseId: course.id,
+      name: `Supersede Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       createdByUserId: instructor.id,
@@ -176,10 +171,6 @@ describeDatabase("finalization reporting queue", () => {
     const suffix = crypto.randomUUID();
     const reporter = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
     const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
-    const [course] = await db
-      .insert(courses)
-      .values({ name: `Reporting Course ${suffix}` })
-      .returning({ id: courses.id });
     const [site] = await db
       .insert(trainingSites)
       .values({ name: `Reporting Site ${suffix}` })
@@ -194,12 +185,12 @@ describeDatabase("finalization reporting queue", () => {
       .where(eq(reportingSystems.isActive, true));
     const fire = systems.find((system) => system.code === "fire");
     const kbems = systems.find((system) => system.code === "kbems");
-    if (!course || !site || !agency || !fire || !kbems)
+    if (!site || !agency || !fire || !kbems)
       throw new Error("Reporting fixture reference creation failed.");
     const [classRecord] = await db
       .insert(trainingClasses)
       .values({
-        courseId: course.id,
+        name: `Reporting Course ${suffix}`,
         trainingSiteId: site.id,
         hostAgencyId: agency.id,
         createdByUserId: instructor.id,

@@ -19,7 +19,6 @@ import {
 } from "../../src/modules/classes/services";
 import {
   createAgency,
-  createCourse,
   createSite,
   createStudent,
   setStudentMembership,
@@ -32,8 +31,6 @@ import {
   classComponents,
   classInstructors,
   classReportingSystems,
-  courseReportingDefaults,
-  courses,
   credentialTypes,
   permissions,
   reportingRequirementSets,
@@ -86,7 +83,6 @@ describeDatabase("database foundation", () => {
       "reporting_requirement_sets",
       "reporting_requirements",
       "training_codes",
-      "courses",
       "training_sites",
       "classes",
       "class_components",
@@ -107,6 +103,8 @@ describeDatabase("database foundation", () => {
     ]) {
       expect(tables.has(table)).toBe(true);
     }
+    expect(tables.has("courses")).toBe(false);
+    expect(tables.has("course_reporting_defaults")).toBe(false);
     expect(tables.has("official_roster_artifacts")).toBe(false);
   });
 
@@ -167,12 +165,6 @@ describeDatabase("database foundation", () => {
       isPrimary: true,
       isActive: true,
     });
-    const course = await createCourse(database, actor, {
-      name: `Course ${suffix}`,
-      description: "",
-      defaultHours: 8,
-      trainingCodeId: "",
-    });
     const site = await createSite(database, actor, {
       name: `Site ${suffix}`,
       address: "",
@@ -183,7 +175,6 @@ describeDatabase("database foundation", () => {
 
     expect(agency.id).toBeTruthy();
     expect(student.phone).toMatch(/^\+1/);
-    expect(course.id).toBeTruthy();
     expect(site.id).toBeTruthy();
   });
 
@@ -200,10 +191,6 @@ describeDatabase("database foundation", () => {
         passwordHash: "not-a-real-hash",
       })
       .returning({ id: users.id, username: users.username });
-    const [course] = await database
-      .insert(courses)
-      .values({ name: `Class Course ${suffix}` })
-      .returning();
     const [site] = await database
       .insert(trainingSites)
       .values({ name: `Class Site ${suffix}` })
@@ -213,16 +200,12 @@ describeDatabase("database foundation", () => {
       .values({ name: `Class Agency ${suffix}` })
       .returning({ id: agencies.id });
     const [system] = await database.select().from(reportingSystems).limit(1);
-    if (!actor || !course || !site || !agency || !system) {
+    if (!actor || !site || !agency || !system) {
       throw new Error("Class integration fixtures were not created.");
     }
 
-    await database.insert(courseReportingDefaults).values({
-      courseId: course.id,
-      reportingSystemId: system.id,
-    });
     const created = await createOpenClass(database, actor, {
-      courseId: course.id,
+      name: `Class Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "classroom",
@@ -231,7 +214,7 @@ describeDatabase("database foundation", () => {
       leadInstructorId: actor.id,
     });
     await updateClass(database, actor, created.classRecord.id, {
-      courseId: course.id,
+      name: `Class Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "hybrid",
@@ -403,7 +386,7 @@ describeDatabase("database foundation", () => {
     // Class details, sessions, and instructors stay editable while the class
     // is under completed review.
     await updateClass(database, actor, created.classRecord.id, {
-      courseId: course.id,
+      name: `Class Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "hybrid",
@@ -463,10 +446,6 @@ describeDatabase("database foundation", () => {
         passwordHash: "not-a-real-hash",
       })
       .returning({ id: users.id, username: users.username });
-    const [course] = await database
-      .insert(courses)
-      .values({ name: `Scheduled Class Course ${suffix}` })
-      .returning({ id: courses.id });
     const [site] = await database
       .insert(trainingSites)
       .values({ name: `Scheduled Class Site ${suffix}` })
@@ -475,7 +454,7 @@ describeDatabase("database foundation", () => {
       .insert(agencies)
       .values({ name: `Scheduled Class Agency ${suffix}` })
       .returning({ id: agencies.id });
-    if (!actor || !course || !site || !agency)
+    if (!actor || !site || !agency)
       throw new Error("Scheduled fixtures missing.");
     const [system] = await database
       .select({ id: reportingSystems.id })
@@ -484,7 +463,7 @@ describeDatabase("database foundation", () => {
     if (!system) throw new Error("Reporting system fixture missing.");
 
     const created = await createOpenClass(database, actor, {
-      courseId: course.id,
+      name: `Scheduled Class Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "classroom",
@@ -508,7 +487,6 @@ describeDatabase("database foundation", () => {
       ]),
     );
     const options = await listClassFormOptions(database, actor);
-    expect(options.recentCourseIds).toContain(course.id);
     expect(options.recentSiteIds).toContain(site.id);
     expect(options.reportingRequirements.length).toBeGreaterThan(0);
 
@@ -517,7 +495,7 @@ describeDatabase("database foundation", () => {
       .from(trainingClasses);
     await expect(
       createOpenClass(database, actor, {
-        courseId: course.id,
+        name: `Scheduled Class Course ${suffix}`,
         trainingSiteId: site.id,
         hostAgencyId: agency.id,
         deliveryMethod: "classroom",
@@ -558,10 +536,6 @@ describeDatabase("database foundation", () => {
         },
       ])
       .returning({ id: users.id, username: users.username });
-    const [course] = await database
-      .insert(courses)
-      .values({ name: `Dashboard Course ${suffix}` })
-      .returning({ id: courses.id });
     const [site] = await database
       .insert(trainingSites)
       .values({ name: `Dashboard Site ${suffix}` })
@@ -580,7 +554,6 @@ describeDatabase("database foundation", () => {
       !instructor ||
       !colleague ||
       !elevated ||
-      !course ||
       !site ||
       !agency ||
       !system ||
@@ -592,7 +565,7 @@ describeDatabase("database foundation", () => {
       .insert(userRoles)
       .values({ userId: elevated.id, roleId: trainingMajor.id });
     const created = await createOpenClass(database, instructor, {
-      courseId: course.id,
+      name: `Dashboard Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       deliveryMethod: "classroom",

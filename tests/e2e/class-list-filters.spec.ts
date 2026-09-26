@@ -30,10 +30,6 @@ interface ClassFixture {
 async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
   const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
   const courseName = `E2E Class List ${suffix}`;
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name, default_hours) values ($1, 4) returning id",
-    [courseName],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Class List Site ${suffix}`],
@@ -50,12 +46,11 @@ async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
     "insert into students (first_name, last_name, phone) values ('E2E', $1, $2) returning id",
     [`Class ${suffix}`, `555-${suffix}`],
   );
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const userId = user.rows[0]?.id;
   const agencyId = agency.rows[0]?.id;
   const studentId = student.rows[0]?.id;
-  if (!courseId || !siteId || !userId || !agencyId || !studentId) {
+  if (!siteId || !userId || !agencyId || !studentId) {
     throw new Error("Class list fixture prerequisites failed.");
   }
 
@@ -67,10 +62,10 @@ async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
     finalizedDaysAgo?: number;
   }) => {
     const record = await pool.query<{ id: string }>(
-      `insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, cancellation_reason, created_at)
+      `insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, cancellation_reason, created_at)
        values ($1, $2, $3, 'classroom', $4, $5, $6, $7, now() - ($8 || ' days')::interval) returning id`,
       [
-        courseId,
+        courseName,
         siteId,
         userId,
         options.status,

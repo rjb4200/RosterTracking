@@ -26,10 +26,6 @@ test("staff can open and print the class sign-in record", async ({ page }) => {
     [username],
   );
   if (!actor.rows[0]?.id) throw new Error("E2E staff user was not found.");
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Record Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`Record Site ${suffix}`],
@@ -39,9 +35,9 @@ test("staff can open and print the class sign-in record", async ({ page }) => {
     [`Record Agency ${suffix}`],
   );
   const klass = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, completed_at) values ($1, $2, $3, 'classroom', 'completed', $4, $5, now()) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, completed_at) values ($1, $2, $3, 'classroom', 'completed', $4, $5, now()) returning id",
     [
-      course.rows[0]?.id,
+      `Record Course ${suffix}`,
       site.rows[0]?.id,
       actor.rows[0].id,
       crypto.randomUUID(),

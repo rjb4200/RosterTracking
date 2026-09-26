@@ -47,10 +47,6 @@ test("staff download completion certificates for a finalized KBEMS class", async
 
   const suffix = crypto.randomUUID();
   const pool = new Pool({ connectionString, max: 1 });
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name, default_hours) values ($1, 2) returning id",
-    [`E2E Certificate Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Certificate Site ${suffix}`],
@@ -66,20 +62,19 @@ test("staff download completion certificates for a finalized KBEMS class", async
   const kbems = await pool.query<{ id: string }>(
     "select id from reporting_systems where code = 'kbems'",
   );
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const agencyId = agency.rows[0]?.id;
   const userId = user.rows[0]?.id;
   const kbemsSystemId = kbems.rows[0]?.id;
-  if (!courseId || !siteId || !agencyId || !userId || !kbemsSystemId) {
+  if (!siteId || !agencyId || !userId || !kbemsSystemId) {
     await pool.end();
     throw new Error("Certificate browser fixtures were not created.");
   }
 
   const classRecord = await pool.query<{ id: string }>(
-    `insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, course_type, course_number)
+    `insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, course_type, course_number)
      values ($1, $2, $3, 'classroom', 'finalized', $4, $5, 'continuing_education', 'CE-1') returning id`,
-    [courseId, siteId, userId, suffix, agencyId],
+    [`E2E Certificate Course ${suffix}`, siteId, userId, suffix, agencyId],
   );
   const classId = classRecord.rows[0]?.id;
   if (!classId) {

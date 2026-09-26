@@ -80,7 +80,7 @@ function ClassTable({ rows, empty }: { rows: ClassListRow[]; empty: string }) {
           <TableHead className="class-rail-head">
             <span className="sr-only">Status indicator</span>
           </TableHead>
-          <TableHead>Course</TableHead>
+          <TableHead>Class name</TableHead>
           <TableHead>Site</TableHead>
           <TableHead>Delivery</TableHead>
           <TableHead>Status</TableHead>
@@ -248,14 +248,14 @@ export default async function ClassesPage({
           Include cancelled
         </label>
         <label className="sr-only" htmlFor="classes-search">
-          Search course or site
+          Search class or site
         </label>
         <input
           id="classes-search"
           type="search"
           name="q"
           defaultValue={search}
-          placeholder="Search course or site"
+          placeholder="Search class or site"
           className="search-input"
         />
         <button

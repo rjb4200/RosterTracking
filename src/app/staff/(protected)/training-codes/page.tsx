@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import {
   Table,
   TableBody,
@@ -20,7 +18,7 @@ export default async function TrainingCodesPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requirePagePermission(PERMISSIONS.COURSES_MANAGE);
+  await requirePagePermission(PERMISSIONS.TRAINING_CODES_MANAGE);
   const { q = "" } = await searchParams;
   const codes = await listTrainingCodes(getDatabase(), q);
 
@@ -31,9 +29,6 @@ export default async function TrainingCodesPage({
           <p className="eyebrow">Reference data</p>
           <h1 className="staff-title">Training codes</h1>
         </div>
-        <Link href="/staff/courses" className="back-link-plain">
-          Courses
-        </Link>
       </div>
 
       <form className="search-bar" action="/staff/training-codes">

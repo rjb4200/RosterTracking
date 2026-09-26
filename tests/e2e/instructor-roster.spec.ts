@@ -36,10 +36,6 @@ for (const viewport of [
       [username],
     );
     if (!actor.rows[0]) throw new Error("E2E staff user was not found.");
-    const course = await pool.query<{ id: string }>(
-      "insert into courses (name) values ($1) returning id",
-      [`Roster Course ${suffix}`],
-    );
     const site = await pool.query<{ id: string }>(
       "insert into training_sites (name) values ($1) returning id",
       [`Roster Site ${suffix}`],
@@ -49,9 +45,9 @@ for (const viewport of [
       [`Roster Agency ${suffix}`],
     );
     const classRecord = await pool.query<{ id: string }>(
-      "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
+      "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
       [
-        course.rows[0]?.id,
+        `Roster Course ${suffix}`,
         site.rows[0]?.id,
         actor.rows[0].id,
         crypto.randomUUID(),
@@ -157,10 +153,6 @@ test("elevated staff can open an unassigned completed-class review", async ({
   );
   if (!elevated.rows[0])
     throw new Error("Elevated E2E user needs an active elevated role.");
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Elevated Review Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`Elevated Review Site ${suffix}`],
@@ -170,9 +162,9 @@ test("elevated staff can open an unassigned completed-class review", async ({
     [`Elevated Review Agency ${suffix}`],
   );
   const classRecord = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, completed_at, host_agency_id) values ($1, $2, $3, 'classroom', 'completed', $4, now(), $5) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, completed_at, host_agency_id) values ($1, $2, $3, 'classroom', 'completed', $4, now(), $5) returning id",
     [
-      course.rows[0]?.id,
+      `Elevated Review Course ${suffix}`,
       site.rows[0]?.id,
       elevated.rows[0].id,
       crypto.randomUUID(),

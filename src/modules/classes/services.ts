@@ -25,8 +25,6 @@ import {
   classComponents,
   classInstructors,
   classReportingSystems,
-  courseReportingDefaults,
-  courses,
   credentialTypes,
   curricula,
   finalizationRevisions,
@@ -107,7 +105,7 @@ function asDate(value: Date | string | null): Date | null {
 }
 
 const draftInput = z.object({
-  courseId: z.string().uuid(),
+  name: z.string().trim().max(200).default(""),
   trainingSiteId: z.string().uuid().nullable().optional(),
   hostAgencyId: z.string().uuid(),
   deliveryMethod: z.enum(CLASS_DELIVERY_METHODS),
@@ -216,12 +214,6 @@ async function validateReferences(
   input: z.infer<typeof draftInput>,
 ): Promise<void> {
   validateDeliverySite(input.deliveryMethod, input.trainingSiteId ?? null);
-  const [course] = await transaction
-    .select({ id: courses.id })
-    .from(courses)
-    .where(and(eq(courses.id, input.courseId), eq(courses.isActive, true)))
-    .limit(1);
-  if (!course) throw new Error("Select an active course.");
 
   const [hostAgency] = await transaction
     .select({ id: agencies.id })
@@ -334,24 +326,9 @@ export async function createOpenClass(
   const rawToken = generateClassSignInToken();
   return db.transaction(async (transaction) => {
     await validateReferences(transaction, parsed);
-    const defaultRows = parsed.reportingSystemIds
-      ? []
-      : await transaction
-          .select({ id: courseReportingDefaults.reportingSystemId })
-          .from(courseReportingDefaults)
-          .innerJoin(
-            reportingSystems,
-            and(
-              eq(
-                reportingSystems.id,
-                courseReportingDefaults.reportingSystemId,
-              ),
-              eq(reportingSystems.isActive, true),
-            ),
-          )
-          .where(eq(courseReportingDefaults.courseId, parsed.courseId));
-    const reportingSystemIds =
-      parsed.reportingSystemIds ?? defaultRows.map(({ id }) => id);
+    const reportingSystemIds = parsed.reportingSystemIds ?? [];
+    // The class name: the entered/EMS course name, else the first Fire subject.
+    const className = parsed.name || parsed.subjects?.[0]?.className || null;
     const publicCode = await findAvailablePublicCode(transaction);
     const accessPin = parsed.accessPinEnabled ? generateClassAccessPin() : null;
     const now = new Date();
@@ -359,7 +336,7 @@ export async function createOpenClass(
     const [created] = await transaction
       .insert(trainingClasses)
       .values({
-        courseId: parsed.courseId,
+        name: className,
         trainingSiteId: parsed.trainingSiteId ?? null,
         hostAgencyId: parsed.hostAgencyId,
         createdByUserId: actor.id,
@@ -486,7 +463,7 @@ export async function createOpenClass(
       entityType: "class",
       entityId: created.id,
       details: {
-        courseId: created.courseId,
+        name: created.name,
         deliveryMethod: created.deliveryMethod,
       },
     });
@@ -521,7 +498,7 @@ export async function updateClass(
     const [updated] = await transaction
       .update(trainingClasses)
       .set({
-        courseId: parsed.courseId,
+        name: parsed.name || null,
         trainingSiteId: parsed.trainingSiteId ?? null,
         hostAgencyId: parsed.hostAgencyId,
         deliveryMethod: parsed.deliveryMethod,
@@ -555,7 +532,7 @@ export async function updateClass(
       action: "class.updated",
       entityType: "class",
       entityId: classId,
-      details: { courseId: updated.courseId },
+      details: { name: updated.name },
     });
     return updated;
   });
@@ -852,12 +829,11 @@ export async function listPublicOpenClasses(db: Database) {
     .select({
       id: trainingClasses.id,
       publicCode: trainingClasses.publicCode,
-      courseName: courses.name,
+      courseName: trainingClasses.name,
       deliveryMethod: trainingClasses.deliveryMethod,
       siteName: trainingSites.name,
     })
     .from(trainingClasses)
-    .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
     .leftJoin(
       trainingSites,
       eq(trainingSites.id, trainingClasses.trainingSiteId),
@@ -868,7 +844,7 @@ export async function listPublicOpenClasses(db: Database) {
         isNotNull(trainingClasses.publicCode),
       ),
     )
-    .orderBy(courses.name)
+    .orderBy(trainingClasses.name)
     .limit(100);
 
   const classIds = records.map((record) => record.id);
@@ -1060,7 +1036,7 @@ export async function listClasses(
       id: trainingClasses.id,
       status: trainingClasses.status,
       deliveryMethod: trainingClasses.deliveryMethod,
-      courseName: courses.name,
+      courseName: trainingClasses.name,
       siteName: trainingSites.name,
       createdAt: trainingClasses.createdAt,
       updatedAt: trainingClasses.updatedAt,
@@ -1070,14 +1046,13 @@ export async function listClasses(
       attendanceCount,
     })
     .from(trainingClasses)
-    .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
     .leftJoin(
       trainingSites,
       eq(trainingSites.id, trainingClasses.trainingSiteId),
     )
     .where(
       and(
-        or(ilike(courses.name, term), ilike(trainingSites.name, term)),
+        or(ilike(trainingClasses.name, term), ilike(trainingSites.name, term)),
         access,
         filters.status
           ? eq(trainingClasses.status, filters.status)
@@ -1136,7 +1111,7 @@ export async function listOperationalClasses(
     .select({
       id: trainingClasses.id,
       status: trainingClasses.status,
-      courseName: courses.name,
+      courseName: trainingClasses.name,
       siteName: trainingSites.name,
       deliveryMethod: trainingClasses.deliveryMethod,
       firstSessionStartsAt: sql<Date | null>`(
@@ -1158,7 +1133,6 @@ export async function listOperationalClasses(
       )`,
     })
     .from(trainingClasses)
-    .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
     .leftJoin(
       trainingSites,
       eq(trainingSites.id, trainingClasses.trainingSiteId),
@@ -1228,11 +1202,6 @@ export async function getClassDetail(
       classId,
       false,
     );
-    const course = await transaction
-      .select({ id: courses.id, name: courses.name })
-      .from(courses)
-      .where(eq(courses.id, classRecord.courseId))
-      .limit(1);
     const site = classRecord.trainingSiteId
       ? await transaction
           .select({ id: trainingSites.id, name: trainingSites.name })
@@ -1280,7 +1249,6 @@ export async function getClassDetail(
       .limit(1);
     return {
       ...classRecord,
-      course: course[0] ?? null,
       site: site[0] ?? null,
       hostAgency: hostAgency[0] ?? null,
       components,
@@ -1293,27 +1261,14 @@ export async function getClassDetail(
 
 export async function listClassFormOptions(db: Database, actor?: ClassActor) {
   const [
-    courseRows,
     siteRows,
     agencyRows,
     systemRows,
     staffRows,
-    defaultRows,
     requirementRows,
     trainingCodeRows,
     curriculumRows,
   ] = await Promise.all([
-    db
-      .select({
-        id: courses.id,
-        name: courses.name,
-        defaultHours: courses.defaultHours,
-        trainingCode: trainingCodes.code,
-      })
-      .from(courses)
-      .leftJoin(trainingCodes, eq(trainingCodes.id, courses.trainingCodeId))
-      .where(eq(courses.isActive, true))
-      .orderBy(courses.name),
     db
       .select({ id: trainingSites.id, name: trainingSites.name })
       .from(trainingSites)
@@ -1338,12 +1293,6 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       .from(users)
       .where(eq(users.isActive, true))
       .orderBy(users.displayName),
-    db
-      .select({
-        courseId: courseReportingDefaults.courseId,
-        reportingSystemId: courseReportingDefaults.reportingSystemId,
-      })
-      .from(courseReportingDefaults),
     db
       .select({
         reportingSystemId: reportingRequirementSets.reportingSystemId,
@@ -1385,7 +1334,6 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
   const recentRows = actor
     ? await db
         .select({
-          courseId: trainingClasses.courseId,
           trainingSiteId: trainingClasses.trainingSiteId,
         })
         .from(trainingClasses)
@@ -1399,16 +1347,13 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         .limit(10)
     : [];
   return {
-    courses: courseRows,
     sites: siteRows,
     agencies: agencyRows,
     reportingSystems: systemRows,
     staff: staffRows,
-    courseReportingDefaults: defaultRows,
     reportingRequirements: requirementRows,
     trainingCodes: trainingCodeRows,
     curricula: curriculumRows,
-    recentCourseIds: [...new Set(recentRows.map((row) => row.courseId))],
     recentSiteIds: [
       ...new Set(
         recentRows.flatMap((row) =>

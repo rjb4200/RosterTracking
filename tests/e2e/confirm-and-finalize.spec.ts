@@ -28,10 +28,6 @@ async function createOpenClass() {
     [username],
   );
   if (!actor.rows[0]) throw new Error("E2E staff user was not found.");
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Confirm Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`Confirm Site ${suffix}`],
@@ -41,9 +37,9 @@ async function createOpenClass() {
     [`Confirm Agency ${suffix}`],
   );
   const classRecord = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
     [
-      course.rows[0]?.id,
+      `Confirm Course ${suffix}`,
       site.rows[0]?.id,
       actor.rows[0].id,
       crypto.randomUUID(),

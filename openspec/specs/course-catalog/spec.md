@@ -2,21 +2,14 @@
 
 ## Purpose
 
-Store Fire training codes, reusable course definitions, and training sites so instructors can select previously used data instead of retyping it, and so classes reference stable catalog records.
+Store Fire training codes, approved curricula, and training sites so instructors can select previously used data instead of retyping it, and so a class carries its own name.
 ## Requirements
 ### Requirement: Training code catalog
-The system SHALL store training codes with a code, title, and source revision, distinct from course definitions.
+The system SHALL store training codes with a code, title, and source revision, distinct from approved curricula.
 
 #### Scenario: Import training codes
 - **WHEN** a structured training-code list is imported
 - **THEN** codes are stored idempotently keyed by code and source revision
-
-### Requirement: Course definitions
-The system SHALL store reusable course definitions with a name, optional description, optional default hours, and an optional training-code reference.
-
-#### Scenario: Create a course
-- **WHEN** authorized staff create a course with a name and optional training code
-- **THEN** the course is stored once and can be reused by many classes
 
 ### Requirement: Training sites
 The system SHALL store reusable training sites with a name and optional address fields, SHALL let authorized staff quickly create a new site, and SHALL make active sites searchable during class creation.
@@ -30,15 +23,11 @@ The system SHALL store reusable training sites with a name and optional address 
 - **THEN** the system lets them create the site inline and selects it for the class without discarding wizard values
 
 ### Requirement: Searchable catalog administration
-The system SHALL let authorized staff search courses, training codes, and sites by name or code, including while selecting a course or site for a new class.
+The system SHALL let authorized staff search training codes and sites by name or code, including while selecting a code or site for a new class.
 
-#### Scenario: Search courses
-- **WHEN** authorized staff search courses by a name fragment or training-code fragment
-- **THEN** matching active courses are returned
-
-#### Scenario: Select a recently used course
-- **WHEN** an instructor begins course selection for a new class and has prior class history
-- **THEN** the system surfaces their recently used courses as selectable options
+#### Scenario: Select a recently used site
+- **WHEN** an instructor begins site selection for a new class and has prior class history
+- **THEN** the system surfaces their recently used sites as selectable options
 
 ### Requirement: Approved curricula catalog
 The system SHALL store approved curriculum materials with a publisher, program title, optional version, optional additional requirements, and a source revision, imported idempotently and keyed by publisher, program title, and source revision. It SHALL make active curricula searchable during class creation.

@@ -13,12 +13,7 @@ import { resolveRegularAttendanceAgencies } from "../../src/modules/student-sign
 import type { Database } from "../../src/server/db/client";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
-import {
-  courses,
-  students,
-  trainingSites,
-  users,
-} from "../../src/server/db/schema";
+import { students, trainingSites, users } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -70,10 +65,6 @@ describeDatabase("agency management and host agency", () => {
     const db = drizzle(pool, { schema });
     const actor = await createActor(db);
     const suffix = crypto.randomUUID();
-    const [course] = await db
-      .insert(courses)
-      .values({ name: `Host Agency Course ${suffix}` })
-      .returning({ id: courses.id });
     const [site] = await db
       .insert(trainingSites)
       .values({ name: `Host Agency Site ${suffix}` })
@@ -82,11 +73,11 @@ describeDatabase("agency management and host agency", () => {
       name: `Inactive Agency ${suffix}`,
     });
     await setAgencyActive(db, actor, agency.id, false);
-    if (!course || !site) throw new Error("Host agency fixtures failed.");
+    if (!site) throw new Error("Host agency fixtures failed.");
 
     await expect(
       createOpenClass(db, actor, {
-        courseId: course.id,
+        name: `Host Agency Course ${suffix}`,
         trainingSiteId: site.id,
         hostAgencyId: agency.id,
         deliveryMethod: "classroom",

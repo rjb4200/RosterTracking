@@ -29,17 +29,12 @@ import {
 } from "./fire-subject-fields";
 
 type Option = { id: string; name: string };
-type CourseOption = Option & {
-  defaultHours: string | null;
-  trainingCode: string | null;
-};
 type ReportingSystemOption = Option & { code: string };
 
 export function ClassCreationWizard({
   action,
   createSiteAction,
   createAgencyAction,
-  courses,
   sites,
   agencies,
   staff,
@@ -47,7 +42,6 @@ export function ClassCreationWizard({
   reportingRequirements,
   trainingCodes,
   curricula,
-  recentCourseIds,
   recentSiteIds,
   defaultLeadInstructorId,
   canCreateSite,
@@ -65,7 +59,6 @@ export function ClassCreationWizard({
     prev: CreateAgencyActionState | undefined,
     formData: FormData,
   ) => Promise<CreateAgencyActionState>;
-  courses: CourseOption[];
   sites: Option[];
   agencies: Option[];
   staff: Option[];
@@ -84,7 +77,6 @@ export function ClassCreationWizard({
     programTitle: string;
     version: string | null;
   }>;
-  recentCourseIds: string[];
   recentSiteIds: string[];
   defaultLeadInstructorId: string;
   canCreateSite: boolean;
@@ -92,7 +84,6 @@ export function ClassCreationWizard({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [step, setStep] = useState(0);
-  const [courseFilter, setCourseFilter] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
   const [newSiteName, setNewSiteName] = useState("");
   const [siteOptions, setSiteOptions] = useState(sites);
@@ -103,12 +94,13 @@ export function ClassCreationWizard({
   const [agencyError, setAgencyError] = useState<string>();
   const [creatingAgency, setCreatingAgency] = useState(false);
   const [values, setValues] = useState({
-    courseId: "",
+    className: "",
+    kbemsCourseName: "",
     trainingSiteId: "",
     hostAgencyId: "",
     deliveryMethod: "classroom",
     startsAt: roundDepartmentDateTimeToQuarterHour(new Date()),
-    creditedHours: "",
+    creditedHours: "2",
     leadInstructorId: defaultLeadInstructorId,
     reportingSystemIds: [] as string[],
     accessPinEnabled: false,
@@ -135,9 +127,6 @@ export function ClassCreationWizard({
   const activeStep = Math.min(step, steps.length - 1);
   const currentKey = steps[activeStep]?.key ?? "destinations";
 
-  const selectedCourse = courses.find(
-    (course) => course.id === values.courseId,
-  );
   const selectedSite = siteOptions.find(
     (site) => site.id === values.trainingSiteId,
   );
@@ -166,17 +155,17 @@ export function ClassCreationWizard({
         .filter((requirement): requirement is string => Boolean(requirement)),
     ),
   ];
-  const filteredCourses = courses.filter((course) => {
-    const term = courseFilter.toLowerCase();
-    return (
-      course.name.toLowerCase().includes(term) ||
-      course.trainingCode?.toLowerCase().includes(term)
-    );
-  });
   const filteredSites = siteOptions.filter((site) =>
     site.name.toLowerCase().includes(siteFilter.toLowerCase()),
   );
   const needsSite = values.deliveryMethod !== "online";
+  const needsClassName =
+    !selectedCodes.includes("fire") && !selectedCodes.includes("kbems");
+  const resolvedClassName = selectedCodes.includes("kbems")
+    ? values.kbemsCourseName
+    : needsClassName
+      ? values.className
+      : (subjects[0]?.className ?? "");
 
   function update<K extends keyof typeof values>(
     key: K,
@@ -192,14 +181,6 @@ export function ClassCreationWizard({
         ? [...new Set([...values.reportingSystemIds, systemId])]
         : values.reportingSystemIds.filter((id) => id !== systemId),
     );
-  }
-
-  function selectCourse(courseId: string) {
-    const course = courses.find((item) => item.id === courseId);
-    update("courseId", courseId);
-    update("creditedHours", course?.defaultHours ?? "");
-    // Destinations are chosen on the first step and are not overridden by a
-    // course's default reporting systems.
   }
 
   function updateSubject(index: number, next: FireSubjectValue) {
@@ -227,7 +208,7 @@ export function ClassCreationWizard({
     }
     if (key === "class") {
       return Boolean(
-        values.courseId &&
+        (!needsClassName || values.className) &&
           (!needsSite || values.trainingSiteId) &&
           values.startsAt &&
           values.creditedHours &&
@@ -399,6 +380,16 @@ export function ClassCreationWizard({
         <section className="stack-form">
           <h2>KBEMS reporting</h2>
           <div className="field">
+            <Label htmlFor="kbemsCourseName">EMS course name</Label>
+            <Input
+              id="kbemsCourseName"
+              value={values.kbemsCourseName}
+              onChange={(event) =>
+                update("kbemsCourseName", event.target.value)
+              }
+            />
+          </div>
+          <div className="field">
             <Label htmlFor="courseType">Course type</Label>
             <select
               id="courseType"
@@ -475,46 +466,17 @@ export function ClassCreationWizard({
 
       {currentKey === "class" ? (
         <section className="stack-form">
-          <div className="field">
-            <Label htmlFor="courseSearch">Search course or training code</Label>
-            <Input
-              id="courseSearch"
-              value={courseFilter}
-              onChange={(event) => setCourseFilter(event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <Label htmlFor="courseId">Course</Label>
-            <select
-              id="courseId"
-              className="select-input"
-              value={values.courseId}
-              onChange={(event) => selectCourse(event.target.value)}
-              required
-            >
-              <option value="">Select a course</option>
-              {recentCourseIds.length ? (
-                <optgroup label="Recently used">
-                  {filteredCourses
-                    .filter((course) => recentCourseIds.includes(course.id))
-                    .map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {course.trainingCode ? `${course.trainingCode} - ` : ""}
-                        {course.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ) : null}
-              <optgroup label="All courses">
-                {filteredCourses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.trainingCode ? `${course.trainingCode} - ` : ""}
-                    {course.name}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
+          {needsClassName ? (
+            <div className="field">
+              <Label htmlFor="className">Class name</Label>
+              <Input
+                id="className"
+                value={values.className}
+                onChange={(event) => update("className", event.target.value)}
+                required
+              />
+            </div>
+          ) : null}
           <div className="field">
             <Label htmlFor="deliveryMethod">Delivery method</Label>
             <select
@@ -712,8 +674,8 @@ export function ClassCreationWizard({
               {selectedSystems.map((system) => system.name).join(", ") ||
                 "None selected"}
             </dd>
-            <dt>Course</dt>
-            <dd>{selectedCourse?.name}</dd>
+            <dt>Class name</dt>
+            <dd>{resolvedClassName || "Not provided"}</dd>
             <dt>Training site</dt>
             <dd>{selectedSite?.name ?? "Online"}</dd>
             <dt>Schedule</dt>
@@ -761,7 +723,7 @@ export function ClassCreationWizard({
         </section>
       ) : null}
 
-      <input type="hidden" name="courseId" value={values.courseId} />
+      <input type="hidden" name="name" value={resolvedClassName} />
       <input
         type="hidden"
         name="trainingSiteId"

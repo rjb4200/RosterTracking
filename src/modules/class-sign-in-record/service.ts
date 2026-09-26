@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
 import { hasElevatedRosterAccess } from "@/modules/instructor-roster/services";
@@ -12,7 +12,6 @@ import {
   attendanceAttestations,
   classGuests,
   classInstructors,
-  courses,
   finalizationRevisions,
   roles,
   students,
@@ -180,13 +179,12 @@ export async function getClassSignInRecord(
     const [classRow] = await transaction
       .select({
         classId: trainingClasses.id,
-        courseName: courses.name,
+        courseName: sql<string>`coalesce(${trainingClasses.name}, '')`,
         siteName: trainingSites.name,
         deliveryMethod: trainingClasses.deliveryMethod,
         hostAgencyName: agencies.name,
       })
       .from(trainingClasses)
-      .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
       .leftJoin(
         trainingSites,
         eq(trainingSites.id, trainingClasses.trainingSiteId),

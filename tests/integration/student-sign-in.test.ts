@@ -24,7 +24,6 @@ import {
   classComponents,
   classGuests,
   classInstructors,
-  courses,
   rememberedDevices,
   studentAgencies,
   students,
@@ -68,10 +67,6 @@ async function createOpenClassFixture() {
       passwordHash: "not-a-real-hash",
     })
     .returning({ id: users.id });
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `Sign-in Course ${suffix}` })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `Sign-in Site ${suffix}` })
@@ -80,13 +75,13 @@ async function createOpenClassFixture() {
     .insert(agencies)
     .values({ name: `Sign-in Agency ${suffix}` })
     .returning({ id: agencies.id });
-  if (!actor || !course || !site || !agency) {
+  if (!actor || !site || !agency) {
     throw new Error("Sign-in fixtures were not created.");
   }
   const [classRecord] = await db
     .insert(trainingClasses)
     .values({
-      courseId: course.id,
+      name: `Sign-in Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       createdByUserId: actor.id,

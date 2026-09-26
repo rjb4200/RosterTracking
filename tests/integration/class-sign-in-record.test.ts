@@ -18,7 +18,6 @@ import {
   attendance,
   classComponents,
   classInstructors,
-  courses,
   students,
   trainingClasses,
   trainingSites,
@@ -66,10 +65,6 @@ async function createFixture() {
       passwordHash: "not-a-real-hash",
     })
     .returning({ id: users.id, username: users.username });
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `Record Course ${suffix}` })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `Record Site ${suffix}` })
@@ -78,13 +73,13 @@ async function createFixture() {
     .insert(agencies)
     .values({ name: `Record Agency ${suffix}` })
     .returning({ id: agencies.id });
-  if (!actor || !course || !site || !agency) {
+  if (!actor || !site || !agency) {
     throw new Error("Record fixtures were not created.");
   }
   const [classRecord] = await db
     .insert(trainingClasses)
     .values({
-      courseId: course.id,
+      name: `Record Course ${suffix}`,
       trainingSiteId: site.id,
       hostAgencyId: agency.id,
       createdByUserId: actor.id,

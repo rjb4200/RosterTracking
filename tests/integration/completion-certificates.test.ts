@@ -15,7 +15,6 @@ import {
   attendance,
   attendanceReportingContexts,
   auditLogs,
-  courses,
   finalizationReportingStatuses,
   reportingRequirementSets,
   reportingSystems,
@@ -75,10 +74,6 @@ async function activeSetId(db: Db, code: string) {
 
 async function createFinalizedKbemsClass(db: Db, suffix: string) {
   const instructor = await createInstructor(db, suffix);
-  const [course] = await db
-    .insert(courses)
-    .values({ name: `EMS Course ${suffix}`, defaultHours: "2" })
-    .returning({ id: courses.id });
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `EMS Site ${suffix}` })
@@ -87,12 +82,12 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     .insert(agencies)
     .values({ name: `EMS Agency ${suffix}` })
     .returning({ id: agencies.id });
-  if (!course || !site || !agency) {
+  if (!site || !agency) {
     throw new Error("Certificate fixture references failed.");
   }
   const { systemId, setId } = await activeSetId(db, "kbems");
   const created = await createOpenClass(db, instructor, {
-    courseId: course.id,
+    name: `EMS Course ${suffix}`,
     trainingSiteId: site.id,
     hostAgencyId: agency.id,
     deliveryMethod: "classroom",

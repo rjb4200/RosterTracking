@@ -22,10 +22,6 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
 
   const suffix = crypto.randomUUID();
   const pool = new Pool({ connectionString, max: 1 });
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name, default_hours) values ($1, 4) returning id",
-    [`E2E Destination Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Destination Site ${suffix}`],
@@ -35,10 +31,9 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
     [`E2E Destination Agency ${suffix}`],
   );
   await pool.end();
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const agencyId = agency.rows[0]?.id;
-  if (!courseId || !siteId || !agencyId) {
+  if (!siteId || !agencyId) {
     throw new Error("Destination browser fixtures were not created.");
   }
 
@@ -70,8 +65,8 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
   await page.getByLabel("Used supplies").fill("Gloves");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // Class and schedule step.
-  await page.getByLabel("Course", { exact: true }).selectOption(courseId);
+  // Class and schedule step. MTU-only, so it collects the class name.
+  await page.getByLabel("Class name", { exact: true }).fill("MTU In-Service");
   await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
   await page.getByLabel("Scheduled duration (hours)").fill("4");

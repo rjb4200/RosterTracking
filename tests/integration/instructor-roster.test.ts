@@ -18,7 +18,6 @@ import {
   attendance,
   classComponents,
   classInstructors,
-  courses,
   finalizationRevisions,
   trainingClasses,
   trainingSites,
@@ -58,10 +57,6 @@ describeDatabase("instructor roster transactions", () => {
         passwordHash: "hash",
       })
       .returning({ id: users.id, username: users.username });
-    const [course] = await db
-      .insert(courses)
-      .values({ name: `Roster Course ${suffix}` })
-      .returning({ id: courses.id });
     const [site] = await db
       .insert(trainingSites)
       .values({ name: `Roster Site ${suffix}` })
@@ -70,12 +65,11 @@ describeDatabase("instructor roster transactions", () => {
       .insert(agencies)
       .values({ name: `Roster Agency ${suffix}` })
       .returning({ id: agencies.id });
-    if (!actor || !course || !site || !agency)
-      throw new Error("Fixture creation failed.");
+    if (!actor || !site || !agency) throw new Error("Fixture creation failed.");
     const [classRecord] = await db
       .insert(trainingClasses)
       .values({
-        courseId: course.id,
+        name: `Roster Course ${suffix}`,
         trainingSiteId: site.id,
         hostAgencyId: agency.id,
         createdByUserId: actor.id,

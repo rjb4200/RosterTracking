@@ -37,10 +37,6 @@ async function createRememberedFixture(
   const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
   const classToken = `${crypto.randomUUID()}${crypto.randomUUID()}`;
 
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Remembered Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`Remembered Site ${suffix}`],
@@ -54,9 +50,9 @@ async function createRememberedFixture(
     [`remembered-owner-${suffix}`],
   );
   const classRecord = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
     [
-      course.rows[0]?.id,
+      `Remembered Course ${suffix}`,
       site.rows[0]?.id,
       owner.rows[0]?.id,
       createHash("sha256").update(classToken).digest("hex"),
@@ -127,10 +123,6 @@ test("regular student without agency memberships can complete sign-in", async ({
     .padStart(7, "0")}`;
   const code = generatePublicCode();
   const agencyName = `Sign-in Agency ${suffix}`;
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Sign-in Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`Sign-in Site ${suffix}`],
@@ -144,9 +136,9 @@ test("regular student without agency memberships can complete sign-in", async ({
     [`signin-owner-${suffix}`],
   );
   const classRecord = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, public_code, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, $6, now()) returning id",
     [
-      course.rows[0]?.id,
+      `Sign-in Course ${suffix}`,
       site.rows[0]?.id,
       owner.rows[0]?.id,
       crypto.randomUUID(),

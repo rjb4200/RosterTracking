@@ -13,7 +13,6 @@ import {
   agencies,
   attendance,
   classComponents,
-  courses,
   finalizationRevisions,
   roles,
   students,
@@ -82,10 +81,6 @@ describeDatabase("class list filters", () => {
     const manager = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
     const actor = { id: manager.id, username: manager.username };
 
-    const [course] = await db
-      .insert(courses)
-      .values({ name: `Class List Course ${suffix}` })
-      .returning({ id: courses.id });
     const [site] = await db
       .insert(trainingSites)
       .values({ name: `Class List Site ${suffix}` })
@@ -102,7 +97,7 @@ describeDatabase("class list filters", () => {
         phone: `555-${suffix}`,
       })
       .returning({ id: students.id });
-    if (!course || !site || !agency || !student) {
+    if (!site || !agency || !student) {
       throw new Error("Class list fixture references failed.");
     }
 
@@ -116,7 +111,7 @@ describeDatabase("class list filters", () => {
       const [record] = await db
         .insert(trainingClasses)
         .values({
-          courseId: course.id,
+          name: `Class List Course ${suffix}`,
           trainingSiteId: site.id,
           hostAgencyId: agency.id,
           createdByUserId: manager.id,

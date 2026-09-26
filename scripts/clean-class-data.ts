@@ -19,7 +19,6 @@ import {
   classGuests,
   classInstructors,
   classReportingSystems,
-  courses,
   finalizationRevisions,
   publicRateLimitWindows,
   signInWorkflowStaging,
@@ -152,7 +151,6 @@ async function printPlan() {
     .select({
       id: trainingClasses.id,
       status: trainingClasses.status,
-      courseId: trainingClasses.courseId,
       siteId: trainingClasses.trainingSiteId,
       hostAgencyId: trainingClasses.hostAgencyId,
     })
@@ -194,7 +192,6 @@ async function printPlan() {
     .from(users)
     .where(like(users.username, "e2e-%"));
 
-  const affectedCourseIds = [...new Set(rows.map((row) => row.courseId))];
   const affectedSiteIds = [
     ...new Set(
       rows.map((row) => row.siteId).filter((id): id is string => !!id),
@@ -211,7 +208,6 @@ async function printPlan() {
     ids,
     e2eUserIds: e2eUsers.map((row) => row.id),
     e2eUserNames: e2eUsers.map((row) => row.username),
-    affectedCourseIds,
     affectedSiteIds,
   };
 }
@@ -274,16 +270,11 @@ async function deleteClassesInTransaction(
   return deleted.length;
 }
 
-async function deleteOrphanedCatalog(
+async function deleteOrphanedSites(
   transaction: DatabaseTransaction,
-  courseIds: string[],
   siteIds: string[],
 ) {
-  const orphanCourses = await orphanIds(transaction, "course", courseIds);
-  if (orphanCourses.length) {
-    await transaction.delete(courses).where(inArray(courses.id, orphanCourses));
-  }
-  const orphanSites = await orphanIds(transaction, "site", [
+  const orphanSites = await orphanSiteIds(transaction, [
     ...siteIds,
     ...(await junkSiteIds(transaction)),
   ]);
@@ -292,27 +283,20 @@ async function deleteOrphanedCatalog(
       .delete(trainingSites)
       .where(inArray(trainingSites.id, orphanSites));
   }
-  return { courses: orphanCourses.length, sites: orphanSites.length };
+  return { sites: orphanSites.length };
 }
 
-async function orphanIds(
+async function orphanSiteIds(
   transaction: DatabaseTransaction,
-  kind: "course" | "site",
   ids: string[],
 ): Promise<string[]> {
   const unique = [...new Set(ids)];
   const result: string[] = [];
   for (const id of unique) {
-    const [row] =
-      kind === "course"
-        ? await transaction
-            .select({ n: sql<number>`count(*)::int` })
-            .from(trainingClasses)
-            .where(eq(trainingClasses.courseId, id))
-        : await transaction
-            .select({ n: sql<number>`count(*)::int` })
-            .from(trainingClasses)
-            .where(eq(trainingClasses.trainingSiteId, id));
+    const [row] = await transaction
+      .select({ n: sql<number>`count(*)::int` })
+      .from(trainingClasses)
+      .where(eq(trainingClasses.trainingSiteId, id));
     if ((row?.n ?? 0) === 0) result.push(id);
   }
   return result;
@@ -430,9 +414,8 @@ async function main() {
 
   const result = await db.transaction(async (transaction) => {
     const classes = await deleteClassesInTransaction(transaction, plan.ids);
-    const catalog = await deleteOrphanedCatalog(
+    const catalog = await deleteOrphanedSites(
       transaction,
-      plan.affectedCourseIds,
       plan.affectedSiteIds,
     );
     const usersDeleted = await deleteE2eUsersWithoutReferences(
@@ -442,7 +425,6 @@ async function main() {
     const agenciesDeleted = await deleteOrphanedE2eAgencies(transaction);
     return {
       classes,
-      courses: catalog.courses,
       sites: catalog.sites,
       users: usersDeleted,
       agencies: agenciesDeleted,

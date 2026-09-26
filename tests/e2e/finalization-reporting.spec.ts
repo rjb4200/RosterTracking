@@ -47,13 +47,6 @@ async function seedReportingFixture(pool: Pool): Promise<ReportingFixture> {
     throw new Error("Reporting systems fire, kbems, and mtu must exist.");
   }
 
-  const courseId = await ensureId(
-    pool,
-    "select id from courses where name = $1 limit 1",
-    [FIXTURE_COURSE],
-    "insert into courses (name, default_hours) values ($1, 4) returning id",
-    [FIXTURE_COURSE],
-  );
   const siteId = await ensureId(
     pool,
     "select id from training_sites where name = $1 limit 1",
@@ -77,11 +70,11 @@ async function seedReportingFixture(pool: Pool): Promise<ReportingFixture> {
   );
   const classId = await ensureId(
     pool,
-    "select id from classes where course_id = $1 order by created_at limit 1",
-    [courseId],
-    `insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id)
+    "select id from classes where name = $1 order by created_at limit 1",
+    [FIXTURE_COURSE],
+    `insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id)
      values ($1, $2, $3, 'classroom', 'finalized', $4, $5) returning id`,
-    [courseId, siteId, userId, FIXTURE_USERNAME, agencyId],
+    [FIXTURE_COURSE, siteId, userId, FIXTURE_USERNAME, agencyId],
   );
 
   const component = await pool.query<{ id: string }>(
@@ -169,10 +162,6 @@ async function seedRevisedReportingFixture(
   const fireSystemId = systems.rows[0]?.id;
   if (!fireSystemId) throw new Error("Reporting system fire must exist.");
 
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name, default_hours) values ($1, 4) returning id",
-    [courseName],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Revised Site ${suffix}`],
@@ -185,18 +174,17 @@ async function seedRevisedReportingFixture(
     "insert into users (username, display_name, password_hash) values ($1, 'E2E Revised Fixture', 'fixture') returning id",
     [`e2e-revised-${suffix}`],
   );
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const agencyId = agency.rows[0]?.id;
   const userId = user.rows[0]?.id;
-  if (!courseId || !siteId || !agencyId || !userId) {
+  if (!siteId || !agencyId || !userId) {
     throw new Error("Revised reporting fixture creation failed.");
   }
 
   const classRecord = await pool.query<{ id: string }>(
-    `insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id)
+    `insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id)
      values ($1, $2, $3, 'classroom', 'finalized', $4, $5) returning id`,
-    [courseId, siteId, userId, suffix, agencyId],
+    [courseName, siteId, userId, suffix, agencyId],
   );
   const classId = classRecord.rows[0]?.id;
   if (!classId) throw new Error("Revised reporting fixture class failed.");

@@ -62,7 +62,7 @@ function draftValues(formData: FormData) {
     .getAll("reportingSystemIds")
     .map((value) => value.toString());
   return {
-    courseId: read(formData, "courseId"),
+    name: read(formData, "name"),
     trainingSiteId: site || null,
     hostAgencyId: read(formData, "hostAgencyId"),
     deliveryMethod: read(formData, "deliveryMethod") as

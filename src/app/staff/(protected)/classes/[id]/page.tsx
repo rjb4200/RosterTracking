@@ -84,7 +84,7 @@ export default async function ClassDetailPage({
       <div className="admin-heading">
         <div>
           <p className="eyebrow">Class</p>
-          <h1 className="staff-title">{classRecord.course?.name ?? "Class"}</h1>
+          <h1 className="staff-title">{classRecord.name ?? "Class"}</h1>
           <p>
             {classRecord.site?.name ?? "Online"} |{" "}
             {classRecord.deliveryMethod.replace("_", " ")} |{" "}
@@ -156,8 +156,8 @@ export default async function ClassDetailPage({
           ) : null}
         </div>
         <dl className="wizard-review">
-          <dt>Course</dt>
-          <dd>{classRecord.course?.name}</dd>
+          <dt>Class name</dt>
+          <dd>{classRecord.name ?? "Not set"}</dd>
           <dt>Training site</dt>
           <dd>{classRecord.site?.name ?? "Online"}</dd>
           <dt>Delivery</dt>

@@ -23,10 +23,6 @@ test("authorized staff can create and open a class in one pass", async ({
 
   const suffix = crypto.randomUUID();
   const pool = new Pool({ connectionString, max: 1 });
-  const course = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`E2E Course ${suffix}`],
-  );
   const site = await pool.query<{ id: string }>(
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Site ${suffix}`],
@@ -42,10 +38,9 @@ test("authorized staff can create and open a class in one pass", async ({
      limit 1`,
   );
   await pool.end();
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const systemName = system.rows[0]?.name;
-  if (!courseId || !siteId || !systemName) {
+  if (!siteId || !systemName) {
     throw new Error("Class browser fixtures were not created.");
   }
 
@@ -61,7 +56,6 @@ test("authorized staff can create and open a class in one pass", async ({
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Class and schedule step.
-  await page.getByLabel("Course", { exact: true }).selectOption(courseId);
   await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Add a new site").fill(`Inline Site ${suffix}`);
   await page.getByRole("button", { name: "Add site" }).click();
@@ -74,9 +68,7 @@ test("authorized staff can create and open a class in one pass", async ({
 
   // Back navigation retains values.
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByLabel("Course", { exact: true })).toHaveValue(
-    courseId,
-  );
+  await expect(page.getByLabel("Scheduled duration (hours)")).toHaveValue("4");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Review and create.
@@ -185,7 +177,7 @@ test("instructor dashboard limits overdue reminders to assigned classes", async 
   const suffix = crypto.randomUUID();
   const password = "dashboard-test-password";
   const username = `dashboard-${suffix}`;
-  const [instructor, otherInstructor, course, site, agency, instructorRole] =
+  const [instructor, otherInstructor, site, agency, instructorRole] =
     await Promise.all([
       pool.query<{ id: string }>(
         "insert into users (username, display_name, password_hash) values ($1, $2, $3) returning id",
@@ -198,10 +190,6 @@ test("instructor dashboard limits overdue reminders to assigned classes", async 
           "Other Instructor",
           await hashPassword(password),
         ],
-      ),
-      pool.query<{ id: string }>(
-        "insert into courses (name) values ($1) returning id",
-        [`Assigned Overdue ${suffix}`],
       ),
       pool.query<{ id: string }>(
         "insert into training_sites (name) values ($1) returning id",
@@ -217,14 +205,12 @@ test("instructor dashboard limits overdue reminders to assigned classes", async 
     ]);
   const instructorId = instructor.rows[0]?.id;
   const otherInstructorId = otherInstructor.rows[0]?.id;
-  const courseId = course.rows[0]?.id;
   const siteId = site.rows[0]?.id;
   const agencyId = agency.rows[0]?.id;
   const instructorRoleId = instructorRole.rows[0]?.id;
   if (
     !instructorId ||
     !otherInstructorId ||
-    !courseId ||
     !siteId ||
     !agencyId ||
     !instructorRoleId
@@ -237,17 +223,19 @@ test("instructor dashboard limits overdue reminders to assigned classes", async 
     [instructorId, instructorRoleId, otherInstructorId],
   );
   const assignedClass = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
-    [courseId, siteId, instructorId, crypto.randomUUID(), agencyId],
-  );
-  const unrelatedCourse = await pool.query<{ id: string }>(
-    "insert into courses (name) values ($1) returning id",
-    [`Unrelated Overdue ${suffix}`],
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
+    [
+      `Assigned Overdue ${suffix}`,
+      siteId,
+      instructorId,
+      crypto.randomUUID(),
+      agencyId,
+    ],
   );
   const unrelatedClass = await pool.query<{ id: string }>(
-    "insert into classes (course_id, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
     [
-      unrelatedCourse.rows[0]?.id,
+      `Unrelated Overdue ${suffix}`,
       siteId,
       otherInstructorId,
       crypto.randomUUID(),

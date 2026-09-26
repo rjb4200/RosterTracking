@@ -29,7 +29,6 @@ import {
   classGuests,
   classInstructors,
   classReportingSystems,
-  courses,
   credentialTypes,
   curricula,
   finalizationReopens,
@@ -130,11 +129,10 @@ async function buildSnapshot(
       courseType: trainingClasses.courseType,
       courseNumber: trainingClasses.courseNumber,
       completedAt: trainingClasses.completedAt,
-      courseName: courses.name,
+      courseName: sql<string>`coalesce(${trainingClasses.name}, '')`,
       siteName: trainingSites.name,
     })
     .from(trainingClasses)
-    .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
     .leftJoin(
       trainingSites,
       eq(trainingSites.id, trainingClasses.trainingSiteId),
@@ -615,7 +613,7 @@ export async function listReportingQueue(
         revisionNumber: finalizationRevisions.revisionNumber,
         classId: trainingClasses.id,
         classDate,
-        courseName: courses.name,
+        courseName: trainingClasses.name,
         leadInstructor,
         attendanceCount,
         systemId: reportingSystems.id,
@@ -654,7 +652,6 @@ export async function listReportingQueue(
         trainingClasses,
         eq(trainingClasses.id, finalizationRevisions.classId),
       )
-      .innerJoin(courses, eq(courses.id, trainingClasses.courseId))
       .innerJoin(
         reportingSystems,
         eq(
