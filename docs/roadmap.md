@@ -29,12 +29,13 @@ Production hardening, extensive testing, and improvement (issue #2).
   for row. Recovery is proven, not assumed.
 - Official roster output verified field by field against the approved KFS-1A and
   KBEMS-E16 templates, and signed off.
+- Production migration ledger reconciled and `0013` applied, so the schema and
+  the ledger agree and migrations can ship again.
 
 ### Follow-ups
 
-- **Reconcile the production migration ledger.** Production records 8 applied
-  migrations against 14 in the repository; five were applied out of band and
-  `0013` is genuinely unapplied. The migrator cannot run until this is fixed.
+- **Change the `classes.status` column default.** It still defaults to `'draft'`,
+  which the narrowed check constraint forbids — inert today, but wrong (H-14).
 - **Flag revised reporting work** so a re-finalized class is not reported twice
   (#12, #35). The only finding whose failure mode is a wrong external
   submission.

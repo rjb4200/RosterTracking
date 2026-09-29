@@ -6,6 +6,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { z } from "zod";
 
+import { parseComponentMethod } from "@/modules/classes/fire-subjects";
 import { decryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
@@ -355,8 +356,7 @@ function fillKfsPage(
     setText(pdf, row.start, formatTime(component.startsAt));
     setText(pdf, row.end, formatTime(component.endsAt));
     setText(pdf, row.hours, component.creditedHours);
-    const method = component.method;
-    if (method === "cr" || method === "ho" || method === "ol") {
+    for (const method of parseComponentMethod(component.method)) {
       setCheck(pdf, row.method[method] ?? "", true);
     }
   });

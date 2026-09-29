@@ -58,6 +58,35 @@ export function hasElevatedRosterAccess(roleCodes: string[]): boolean {
   );
 }
 
+/**
+ * Asserts that the actor may read a class's roster outputs: elevated staff
+ * (Administrator or Training Major) for any class, otherwise only a staff
+ * member assigned to the class. Shared by the sign-in record and audit log.
+ */
+export async function assertClassRosterAccess(
+  transaction: DatabaseTransaction,
+  actor: { id: string },
+  classId: string,
+): Promise<void> {
+  const elevated = await transaction
+    .select({ code: roles.code })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(and(eq(userRoles.userId, actor.id), eq(roles.isActive, true)));
+  if (hasElevatedRosterAccess(elevated.map((row) => row.code))) return;
+  const [assigned] = await transaction
+    .select({ classId: classInstructors.classId })
+    .from(classInstructors)
+    .where(
+      and(
+        eq(classInstructors.classId, classId),
+        eq(classInstructors.userId, actor.id),
+      ),
+    )
+    .limit(1);
+  if (!assigned) throw new Error("Class roster access denied.");
+}
+
 const rosterInput = z.object({
   classId: z.string().uuid(),
   agencyId: z.string().uuid(),

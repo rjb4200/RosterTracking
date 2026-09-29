@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
-import { hasElevatedRosterAccess } from "@/modules/instructor-roster/services";
+import { assertClassRosterAccess } from "@/modules/instructor-roster/services";
 import { decryptCredential } from "@/modules/reference/crypto";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
@@ -11,13 +11,10 @@ import {
   attendance,
   attendanceAttestations,
   classGuests,
-  classInstructors,
   finalizationRevisions,
-  roles,
   students,
   trainingClasses,
   trainingSites,
-  userRoles,
   users,
 } from "@/server/db/schema";
 
@@ -30,30 +27,6 @@ import type {
 export interface SignInRecordActor {
   id: string;
   username: string;
-}
-
-async function assertClassRosterAccess(
-  transaction: DatabaseTransaction,
-  actor: SignInRecordActor,
-  classId: string,
-) {
-  const elevated = await transaction
-    .select({ id: roles.id, code: roles.code })
-    .from(userRoles)
-    .innerJoin(roles, eq(roles.id, userRoles.roleId))
-    .where(and(eq(userRoles.userId, actor.id), eq(roles.isActive, true)));
-  if (hasElevatedRosterAccess(elevated.map((row) => row.code))) return;
-  const assigned = await transaction
-    .select({ classId: classInstructors.classId })
-    .from(classInstructors)
-    .where(
-      and(
-        eq(classInstructors.classId, classId),
-        eq(classInstructors.userId, actor.id),
-      ),
-    )
-    .limit(1);
-  if (!assigned.length) throw new Error("Sign-in record access denied.");
 }
 
 export function buildClassSignInRecord(

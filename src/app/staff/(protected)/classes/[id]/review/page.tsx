@@ -43,6 +43,18 @@ import { AddAttendanceForms, AttendanceControls } from "../../roster-controls";
 
 export const dynamic = "force-dynamic";
 
+function DocumentLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      target="_blank"
+      className={buttonVariants({ variant: "outline" })}
+    >
+      View {label}
+    </Link>
+  );
+}
+
 export default async function CompletedClassReviewPage({
   params,
 }: {
@@ -83,6 +95,7 @@ export default async function CompletedClassReviewPage({
   const canManageOfficialRosters = isFinalized
     ? Boolean(await getCurrentStaff())
     : false;
+  const latestRevision = revisionHistory[0] ?? null;
 
   const renderEntry = (
     entry: (typeof roster.active)[number],
@@ -174,44 +187,113 @@ export default async function CompletedClassReviewPage({
           reopenAction={reopenClassAction}
           canFinalize={reviewData?.readiness.ready ?? false}
         />
-        {isFinalized && revisionHistory.length ? (
-          <ul className="member-list">
-            {revisionHistory.map((revision) => (
-              <li key={revision.id} className="member-row">
-                <span>
-                  Revision {revision.revisionNumber} finalized by{" "}
-                  {revision.finalizedBy}
-                </span>
-                <span className="text-muted-foreground">
-                  {revision.reopenReason
-                    ? `Reopened: ${revision.reopenReason}`
-                    : "Current or retained revision"}
-                </span>
-                <span>
-                  {revision.destinations
-                    .map(
-                      (destination) =>
-                        `${destination.systemName}: ${destination.status}`,
-                    )
-                    .join(", ")}
-                </span>
-                {canManageOfficialRosters ? (
-                  <OfficialRosterControls
-                    revisionId={revision.id}
-                    emailAction={sendOfficialRosterEmailAction}
-                  />
-                ) : null}
-                {canManageOfficialRosters &&
-                revision.destinations.some(
-                  (destination) => destination.systemCode === "kbems",
-                ) ? (
-                  <CompletionCertificateControls revisionId={revision.id} />
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
       </section>
+
+      <section className="admin-section">
+        <h2>Documents</h2>
+        <p className="roster-note">
+          View a document to open its PDF. Use the browser viewer to print or
+          save a copy.
+        </p>
+        <ul className="member-list">
+          <li className="member-row">
+            <span>Class sign-in record</span>
+            <DocumentLink
+              href={`/api/staff/class-sign-in-record/${id}?disposition=inline`}
+              label="sign-in record"
+            />
+          </li>
+          <li className="member-row">
+            <span>Class audit log</span>
+            <DocumentLink
+              href={`/api/staff/class-audit-log/${id}?disposition=inline`}
+              label="audit log"
+            />
+          </li>
+        </ul>
+        {isFinalized ? (
+          latestRevision && canManageOfficialRosters ? (
+            <div className="admin-section">
+              <p className="roster-note">
+                Official rosters and certificates for revision{" "}
+                {latestRevision.revisionNumber}.
+              </p>
+              <OfficialRosterControls
+                revisionId={latestRevision.id}
+                emailAction={sendOfficialRosterEmailAction}
+              />
+              {latestRevision.destinations.some(
+                (destination) => destination.systemCode === "kbems",
+              ) ? (
+                <CompletionCertificateControls revisionId={latestRevision.id} />
+              ) : null}
+            </div>
+          ) : null
+        ) : (
+          <p className="roster-note">
+            Finalize the roster to produce official rosters and completion
+            certificates.
+          </p>
+        )}
+      </section>
+
+      {isFinalized && revisionHistory.length ? (
+        <section className="admin-section">
+          <h2>Revision history</h2>
+          <ul className="member-list">
+            {revisionHistory.map((revision, index) => {
+              const isLatest = index === 0;
+              const hasKbems = revision.destinations.some(
+                (destination) => destination.systemCode === "kbems",
+              );
+              return (
+                <li key={revision.id} className="member-row">
+                  <div>
+                    <strong>Revision {revision.revisionNumber}</strong>
+                    <span className="text-muted-foreground">
+                      Finalized by {revision.finalizedBy} on{" "}
+                      {formatDepartmentDateTime(revision.finalizedAt)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {revision.reopenReason
+                        ? `Reopened: ${revision.reopenReason}`
+                        : "Current or retained revision"}
+                    </span>
+                    <span>
+                      {revision.destinations
+                        .map(
+                          (destination) =>
+                            `${destination.systemName}: ${destination.status}`,
+                        )
+                        .join(", ")}
+                    </span>
+                  </div>
+                  {canManageOfficialRosters ? (
+                    isLatest ? (
+                      <span className="text-muted-foreground">
+                        Latest revision — see Documents
+                      </span>
+                    ) : (
+                      <div className="member-actions">
+                        <OfficialRosterControls
+                          revisionId={revision.id}
+                          emailAction={sendOfficialRosterEmailAction}
+                          showEmail={false}
+                        />
+                        {hasKbems ? (
+                          <CompletionCertificateControls
+                            revisionId={revision.id}
+                          />
+                        ) : null}
+                      </div>
+                    )
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {isCompleted && classOptions ? (
         <details className="admin-section">

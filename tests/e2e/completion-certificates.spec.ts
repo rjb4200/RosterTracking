@@ -148,10 +148,10 @@ test("staff download completion certificates for a finalized KBEMS class", async
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}/review`);
 
-  const download = page.getByRole("link", {
-    name: "Download certificates PDF",
+  const view = page.getByRole("link", {
+    name: "View certificates PDF",
   });
-  await expect(download).toBeVisible();
+  await expect(view).toBeVisible();
 
   const response = await page.request.get(
     `/api/staff/completion-certificates/${revisionId}`,

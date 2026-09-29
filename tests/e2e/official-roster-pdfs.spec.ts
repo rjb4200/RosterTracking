@@ -27,22 +27,18 @@ test("authorized staff can download an on-demand official roster", async ({
   await page.goto(`/staff/classes/${classId}`);
   const controls = page.getByLabel("Official roster downloads").first();
   await expect(controls).toBeVisible();
+  const kfsView = controls.getByRole("link", { name: /view kfs-1a pdf/i });
+  await expect(kfsView).toHaveAttribute("target", "_blank");
+  await expect(kfsView).toHaveAttribute("href", /disposition=inline/);
   await expect(
-    controls.getByRole("link", { name: /download kfs-1a pdf/i }),
-  ).toBeVisible();
-  await expect(
-    controls.getByRole("link", { name: /download kbems-e16 pdf/i }),
-  ).toBeVisible();
-  await expect(
-    controls.getByRole("link", { name: /view kfs-1a pdf/i }),
-  ).toHaveAttribute("target", "_blank");
-  await expect(
-    controls.getByRole("link", { name: /print kfs-1a pdf/i }),
+    controls.getByRole("link", { name: /view kbems-e16 pdf/i }),
   ).toHaveAttribute("target", "_blank");
   await expect(
     controls.getByLabel(/email recipient for kfs-1a/i),
   ).toBeVisible();
-  const download = page.waitForEvent("download");
-  await controls.getByRole("link", { name: /download kfs-1a pdf/i }).click();
-  expect((await download).suggestedFilename()).toMatch(/^kfs-1a-.*\.pdf$/);
+  const viewHref = await kfsView.getAttribute("href");
+  expect(viewHref).toBeTruthy();
+  const response = await page.request.get(viewHref ?? "");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
 });

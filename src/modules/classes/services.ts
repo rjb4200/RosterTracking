@@ -125,8 +125,15 @@ const draftInput = z.object({
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
+// Stored KFS-1A Method values: one code, or "cr,ol" for hybrid delivery.
 const optionalMethod = z
-  .union([z.enum(["cr", "ho", "ol"]), z.literal("")])
+  .union([
+    z.literal("cr"),
+    z.literal("ho"),
+    z.literal("ol"),
+    z.literal("cr,ol"),
+    z.literal(""),
+  ])
   .optional();
 
 const componentInput = z.object({
@@ -512,6 +519,17 @@ export async function updateClass(
       .where(eq(trainingClasses.id, classId))
       .returning();
     if (!updated) throw new Error("Class was not updated.");
+    // The KFS-1A Method follows the class delivery method, so re-derive it on
+    // every session when the delivery method changes.
+    if (existing.deliveryMethod !== parsed.deliveryMethod) {
+      await transaction
+        .update(classComponents)
+        .set({
+          method: defaultComponentMethod(parsed.deliveryMethod),
+          updatedAt: new Date(),
+        })
+        .where(eq(classComponents.classId, classId));
+    }
     await replaceReportingSystems(
       transaction,
       classId,

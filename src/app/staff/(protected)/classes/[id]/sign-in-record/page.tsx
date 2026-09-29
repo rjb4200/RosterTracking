@@ -77,13 +77,7 @@ export default async function ClassSignInRecordPage({
             target="_blank"
             className={buttonVariants({ variant: "secondary" })}
           >
-            Print record
-          </Link>
-          <Link
-            href={`/api/staff/class-sign-in-record/${id}`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            Download record
+            View record
           </Link>
         </div>
       </div>

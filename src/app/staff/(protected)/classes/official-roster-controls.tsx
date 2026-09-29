@@ -89,9 +89,6 @@ export function CompletionCertificateControls({
       >
         View certificates PDF
       </Link>
-      <Link href={href} className={buttonVariants({ variant: "secondary" })}>
-        Download certificates PDF
-      </Link>
     </section>
   );
 }
@@ -99,16 +96,17 @@ export function CompletionCertificateControls({
 export function OfficialRosterControls({
   revisionId,
   emailAction,
+  showEmail = true,
 }: {
   revisionId: string;
   emailAction: (
     previous: OfficialRosterEmailActionState | undefined,
     formData: FormData,
   ) => Promise<OfficialRosterEmailActionState>;
+  showEmail?: boolean;
 }) {
   return (
     <section className="inline-form" aria-label="Official roster downloads">
-      <span>Official rosters</span>
       {Object.values(TEMPLATE_MAPPINGS).map((mapping) => {
         const href = `/api/staff/official-rosters/${revisionId}/${mapping.formType}`;
         return (
@@ -121,24 +119,13 @@ export function OfficialRosterControls({
             >
               View {mapping.formType.toUpperCase()} PDF
             </Link>
-            <Link
-              href={`${href}?disposition=inline`}
-              target="_blank"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Print {mapping.formType.toUpperCase()} PDF
-            </Link>
-            <Link
-              href={href}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Download {mapping.formType.toUpperCase()} PDF
-            </Link>
-            <EmailControl
-              revisionId={revisionId}
-              formType={mapping.formType}
-              action={emailAction}
-            />
+            {showEmail ? (
+              <EmailControl
+                revisionId={revisionId}
+                formType={mapping.formType}
+                action={emailAction}
+              />
+            ) : null}
           </div>
         );
       })}

@@ -167,9 +167,10 @@ export function ComponentForm({
             defaultValue={component?.method ?? ""}
           >
             <option value="">No method</option>
-            <option value="cr">Classroom</option>
-            <option value="ho">Hands-on</option>
-            <option value="ol">Online</option>
+            <option value="cr">Classroom (CR)</option>
+            <option value="ho">Hands-on (HO)</option>
+            <option value="ol">Online (OL)</option>
+            <option value="cr,ol">Hybrid (CR + OL)</option>
           </select>
         </div>
         <div className="field field-wide">

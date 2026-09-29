@@ -239,6 +239,21 @@ The system SHALL let a class session store a Fire subject: a training-code refer
 - **WHEN** a class with Fire subjects is finalized
 - **THEN** the revision retains each subject's category, class name, curriculum, and lesson plan
 
+### Requirement: A session's KFS-1A method follows the class delivery method
+The system SHALL derive every session's KFS-1A Method from the class delivery method: Classroom marks CR, Hands-On marks HO, Online marks OL, and Hybrid marks both CR and OL. When staff change the delivery method of an open class, the system SHALL update every session's Method to match the new delivery method.
+
+#### Scenario: Derive the method at class creation
+- **WHEN** staff create a class with a delivery method and one or more Fire subjects
+- **THEN** each created session stores the delivery method's KFS-1A method
+
+#### Scenario: Hybrid marks both boxes
+- **WHEN** a session's class uses Hybrid delivery
+- **THEN** the session's KFS-1A method marks both CR and OL
+
+#### Scenario: Re-derive the method when the delivery method changes
+- **WHEN** staff change the delivery method of an open class
+- **THEN** every session's KFS-1A method is updated to match the new delivery method
+
 ### Requirement: Instructor certification details accompany the roster
 The system SHALL retain each assigned instructor's Fire Commission FFN and certification level as finalization facts so official Fire output can print them, without altering the instructor's current profile.
 

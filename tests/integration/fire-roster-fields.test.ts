@@ -8,6 +8,7 @@ import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   createOpenClass,
   getClassDetail,
+  updateClass,
 } from "../../src/modules/classes/services";
 import { decryptCredential } from "../../src/modules/reference/crypto";
 import { importCurricula } from "../../src/modules/reference/services";
@@ -258,6 +259,38 @@ describeDatabase("fire roster fields", () => {
     expect(second).toMatchObject({ className: "SCBA Donning", method: "cr" });
     // The second subject starts when the first ends.
     expect(second?.startsAt).toEqual(first?.endsAt);
+  });
+
+  it("re-derives the KFS-1A method when the delivery method changes", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId } = await createFireClassFixture(
+      db,
+      crypto.randomUUID(),
+    );
+    const { systemId } = await activeSetId(db, "fire");
+
+    const before = await getClassDetail(db, instructor, classId);
+    expect(before.components.map((component) => component.method)).toEqual([
+      "cr",
+      "cr",
+    ]);
+
+    await updateClass(db, instructor, classId, {
+      name: before.name ?? "",
+      trainingSiteId: before.trainingSiteId,
+      hostAgencyId: before.hostAgencyId,
+      deliveryMethod: "hybrid",
+      reportingSystemIds: [systemId],
+      accessPinEnabled: false,
+    });
+
+    const after = await getClassDetail(db, instructor, classId);
+    // Hybrid delivery marks both CR and OL.
+    expect(after.components.map((component) => component.method)).toEqual([
+      "cr,ol",
+      "cr,ol",
+    ]);
   });
 
   it("preserves Fire subjects and instructor certification in the snapshot", async () => {

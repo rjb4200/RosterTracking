@@ -87,6 +87,10 @@ The system SHALL populate the KFS-1A subject rows with each finalized subject's 
 - **WHEN** a finalized revision has one or two Fire subjects
 - **THEN** the generated KFS-1A shows each subject's category, class name, curriculum, lesson plan, times, method, and hours
 
+#### Scenario: Mark the recorded delivery method
+- **WHEN** a finalized subject session recorded a method derived from its class delivery method
+- **THEN** the generated KFS-1A marks the matching Method boxes, and a hybrid session marks both CR and OL
+
 #### Scenario: Fill instructor certification fields
 - **WHEN** a finalized revision has instructor FFN and level facts
 - **THEN** the generated KFS-1A shows each instructor's FFN and marks the recorded certification level

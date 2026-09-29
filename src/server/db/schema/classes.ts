@@ -155,7 +155,8 @@ export const classComponents = pgTable(
     check("class_components_hours_positive", sql`${table.creditedHours} > 0`),
     check(
       "class_components_method",
-      sql`${table.method} is null or ${table.method} in ('cr', 'ho', 'ol')`,
+      // Hybrid delivery marks both CR and OL, stored as "cr,ol".
+      sql`${table.method} is null or ${table.method} in ('cr', 'ho', 'ol', 'cr,ol')`,
     ),
   ],
 );

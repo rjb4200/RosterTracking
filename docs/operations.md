@@ -54,30 +54,31 @@ layout is now swapped and the original branch is misnamed.
 **Lesson: always pass `finalize: false` when restoring for a drill.** That is
 what keeps a drill read-only in effect.
 
-## Migration state hazard
+## Migration ledger — resolved 2026-09-21
 
-The production database records **8 applied migrations** while the repository
-contains **14**. Six are recorded as unapplied:
+Production previously recorded **8 applied migrations** against **14** in the
+repository. Five had been applied out of band, and `0013` was genuinely
+unapplied. All five were verified present (attendance tables, credit columns,
+the `credited_hours` constraint, the finalization tables, the class public-code
+and PIN columns), their ledger records were backfilled with the correct hashes,
+and `0013` was applied through the migrator. The ledger now holds all 14 rows,
+and `classes_status` no longer permits `draft`.
 
-| Migration | Effect | Actually present in production? |
-| --- | --- | --- |
-| `0005_graceful_glorian` | creates the attendance tables | **Yes** |
-| `0006_parallel_cammi` | adds attendance credit columns | **Yes** |
-| `0007_pink_doctor_octopus` | tightens the credited-hours constraint | **Yes** |
-| `0008_abandoned_sunset_bain` | creates the finalization tables | **Yes** |
-| `0009_medical_colleen_wing` | adds class public code and PIN columns | **Yes** |
-| `0013_numerous_ozymandias` | narrows the `classes_status` constraint | **No** |
+**How the migrator actually decides.** It selects the row with the greatest
+`created_at` and applies only migrations whose `when` is strictly greater
+(`node_modules/drizzle-orm/pg-core/dialect.js`). Unrecorded migrations *older*
+than the maximum are therefore skipped, not re-run — so the original concern
+that `0005` would fail on an existing `attendance` table was wrong. The
+practical risk was confined to `0013`, which sorts after `0012`.
 
-Five of the six have been applied out of band, so the ledger disagrees with
-reality; the sixth genuinely is not applied, and the `classes_status` constraint
-still permits `draft` (`draft` row count is 0, so applying it is data-safe).
+Reconciling the ledger was still worth doing: a ledger that disagrees with
+reality is exactly what makes this question hard to answer.
 
-**Running `npm run db:migrate` against production as it stands would attempt to
-re-run `0005`, fail on the already-existing `attendance` table, and stop before
-reaching `0013`.** The migration ledger must be reconciled first — either by
-marking the five out-of-band migrations as applied, or by applying `0013`
-directly and recording it. Do not run the migrator against production until this
-is resolved.
+**Remaining inconsistency.** The `classes.status` column still carries
+`DEFAULT 'draft'`, which the narrowed check constraint no longer permits. No
+code omits `status` on insert — `createOpenClass` sets `open` explicitly — so it
+is inert today, but an insert that omitted it would fail rather than default.
+Tracked as finding H-14.
 
 ## Failure reporting
 

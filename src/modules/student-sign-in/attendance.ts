@@ -585,7 +585,10 @@ export async function confirmAttendance(
             entityType: "student",
             entityId: participant.studentId,
             ipAddress: input.request.ipAddress,
-            details: { credentialTypeId: credential.credentialTypeId },
+            details: {
+              classId: context.classId,
+              credentialTypeId: credential.credentialTypeId,
+            },
           });
         }
         if (
@@ -599,6 +602,7 @@ export async function confirmAttendance(
             entityId: participant.studentId,
             ipAddress: input.request.ipAddress,
             details: {
+              classId: context.classId,
               fields: Object.keys(participant.fields).sort(),
               phoneReplaced: Boolean(participant.replacementPhone),
             },
@@ -666,7 +670,10 @@ export async function confirmAttendance(
             entityType: "student",
             entityId: studentId,
             ipAddress: input.request.ipAddress,
-            details: { credentialTypeId: credential.credentialTypeId },
+            details: {
+              classId: context.classId,
+              credentialTypeId: credential.credentialTypeId,
+            },
           });
         }
         await writeAuditLog(transaction, {
@@ -744,7 +751,7 @@ export async function confirmAttendance(
             entityType: "student",
             entityId: studentId,
             ipAddress: input.request.ipAddress,
-            details: { agencyId },
+            details: { classId: context.classId, agencyId },
           });
         }
       }
