@@ -1,11 +1,14 @@
 "use client";
 
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 export interface SearchSelectOption {
   value: string;
   label: string;
   group?: string;
+  // Pinned options are always shown but are excluded from filtering and
+  // first-match auto-select (for example, a "not listed" affordance).
+  pinned?: boolean;
 }
 
 /**
@@ -23,6 +26,7 @@ export function SearchSelect({
   onChange,
   required = false,
   invalid = false,
+  footer,
 }: {
   id?: string;
   label: string;
@@ -33,14 +37,19 @@ export function SearchSelect({
   onChange: (value: string) => void;
   required?: boolean;
   invalid?: boolean;
+  footer?: ReactNode;
 }) {
   const reactId = useId();
   const selectId = id ?? reactId;
   const [filter, setFilter] = useState("");
   const term = filter.trim().toLowerCase();
-  const filtered = term
-    ? options.filter((option) => option.label.toLowerCase().includes(term))
+  const matches = term
+    ? options.filter(
+        (option) => !option.pinned && option.label.toLowerCase().includes(term),
+      )
     : options;
+  const pinnedOptions = options.filter((option) => option.pinned);
+  const filtered = term ? [...matches, ...pinnedOptions] : options;
   // Keep the current selection visible even when the filter would hide it.
   const selected = value
     ? options.find((option) => option.value === value)
@@ -66,8 +75,8 @@ export function SearchSelect({
     setFilter(next);
     const term = next.trim().toLowerCase();
     if (!term) return;
-    const first = options.find((option) =>
-      option.label.toLowerCase().includes(term),
+    const first = options.find(
+      (option) => !option.pinned && option.label.toLowerCase().includes(term),
     );
     if (first && first.value !== value) onChange(first.value);
   }
@@ -127,6 +136,7 @@ export function SearchSelect({
           <p className="search-select-empty">No matches</p>
         ) : null}
       </div>
+      {footer}
     </div>
   );
 }

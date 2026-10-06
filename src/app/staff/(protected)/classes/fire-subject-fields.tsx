@@ -3,11 +3,9 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  chapterLabel,
-  curriculumSearchOptions,
-} from "@/modules/classes/fire-subjects";
+import { chapterLabel } from "@/modules/classes/fire-subjects";
 
+import { CurriculumSelect } from "./curriculum-select";
 import { SearchSelect } from "./search-select";
 
 export interface FireSubjectValue {
@@ -80,10 +78,6 @@ export function FireSubjectRow({
     value: code.id,
     label: `${code.code} — ${code.title}`,
   }));
-  const curriculumOptions = curriculumSearchOptions(
-    curricula,
-    recentCurriculumIds,
-  );
 
   return (
     <fieldset className="field field-wide">
@@ -123,33 +117,16 @@ export function FireSubjectRow({
           }
         />
       </div>
-      <SearchSelect
+      <CurriculumSelect
         id={`fireCurriculum-${index}`}
-        label="Curriculum"
-        placeholder="Search approved curricula…"
-        emptyLabel="Select a curriculum"
-        options={curriculumOptions}
-        value={value.curriculumId}
-        onChange={(nextId) =>
-          onChange({ ...value, curriculumId: nextId, curriculumName: "" })
+        curricula={curricula}
+        recentCurriculumIds={recentCurriculumIds}
+        curriculumId={value.curriculumId}
+        curriculumName={value.curriculumName}
+        onChange={({ curriculumId, curriculumName }) =>
+          onChange({ ...value, curriculumId, curriculumName })
         }
       />
-      <div className="field">
-        <Label htmlFor={`fireCurriculumName-${index}`}>
-          Curriculum not listed (optional)
-        </Label>
-        <Input
-          id={`fireCurriculumName-${index}`}
-          value={value.curriculumName}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              curriculumName: event.target.value,
-              curriculumId: event.target.value ? "" : value.curriculumId,
-            })
-          }
-        />
-      </div>
       <div className="field">
         <Label htmlFor={`fireCurriculumChapter-${index}`}>
           Chapter

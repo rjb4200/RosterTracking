@@ -13,6 +13,7 @@ import {
 } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
+import { CurriculumSelect } from "./curriculum-select";
 import type { CurriculumChapterOption } from "./fire-subject-fields";
 
 export function ComponentForm({
@@ -23,6 +24,7 @@ export function ComponentForm({
   trainingCodes = [],
   curricula = [],
   curriculumChapters = [],
+  recentCurriculumIds = [],
 }: {
   classId: string;
   component?: {
@@ -47,6 +49,7 @@ export function ComponentForm({
     version: string | null;
   }>;
   curriculumChapters?: CurriculumChapterOption[];
+  recentCurriculumIds?: string[];
   action: (
     prev: ActionState | undefined,
     formData: FormData,
@@ -162,41 +165,19 @@ export function ComponentForm({
             defaultValue={component?.className ?? ""}
           />
         </div>
-        <div className="field">
-          <Label htmlFor={`curriculumId-${suffix}`}>Curriculum</Label>
-          <select
-            id={`curriculumId-${suffix}`}
-            name="curriculumId"
-            className="select-input"
-            value={curriculumId}
-            onChange={(event) => {
-              setCurriculumId(event.target.value);
-              setCurriculumName("");
-            }}
-          >
-            <option value="">No curriculum</option>
-            {curricula.map((curriculum) => (
-              <option key={curriculum.id} value={curriculum.id}>
-                {curriculum.publisher} — {curriculum.programTitle}
-                {curriculum.version ? ` (${curriculum.version})` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <Label htmlFor={`curriculumName-${suffix}`}>
-            Curriculum not listed (optional)
-          </Label>
-          <Input
-            id={`curriculumName-${suffix}`}
-            name="curriculumName"
-            value={curriculumName}
-            onChange={(event) => {
-              setCurriculumName(event.target.value);
-              if (event.target.value) setCurriculumId("");
-            }}
-          />
-        </div>
+        <CurriculumSelect
+          id={`curriculumId-${suffix}`}
+          curricula={curricula}
+          recentCurriculumIds={recentCurriculumIds}
+          curriculumId={curriculumId}
+          curriculumName={curriculumName}
+          onChange={({ curriculumId: nextId, curriculumName: nextName }) => {
+            setCurriculumId(nextId);
+            setCurriculumName(nextName);
+          }}
+        />
+        <input type="hidden" name="curriculumId" value={curriculumId} />
+        <input type="hidden" name="curriculumName" value={curriculumName} />
         <div className="field">
           <Label htmlFor={`curriculumChapter-${suffix}`}>Chapter</Label>
           <Input

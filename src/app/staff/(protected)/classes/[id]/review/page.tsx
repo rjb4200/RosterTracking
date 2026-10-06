@@ -336,6 +336,7 @@ export default async function CompletedClassReviewPage({
                     trainingCodes={classOptions.trainingCodes}
                     curricula={classOptions.curricula}
                     curriculumChapters={classOptions.curriculumChapters}
+                    recentCurriculumIds={classOptions.recentCurriculumIds}
                     component={{
                       id: component.id,
                       title: component.title,
@@ -362,6 +363,7 @@ export default async function CompletedClassReviewPage({
               trainingCodes={classOptions.trainingCodes}
               curricula={classOptions.curricula}
               curriculumChapters={classOptions.curriculumChapters}
+              recentCurriculumIds={classOptions.recentCurriculumIds}
             />
           </section>
 
