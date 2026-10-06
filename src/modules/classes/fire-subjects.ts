@@ -51,6 +51,55 @@ export function composeCurriculumLabel(
   return book || chapter || "";
 }
 
+export interface CurriculumOptionSource {
+  id: string;
+  publisher: string;
+  programTitle: string;
+  version: string | null;
+}
+
+/** The catalog label for a curriculum: publisher — program title (version). */
+export function curriculumLabel(curriculum: {
+  publisher: string;
+  programTitle: string;
+  version: string | null;
+}): string {
+  return `${curriculum.publisher} — ${curriculum.programTitle}${
+    curriculum.version ? ` (${curriculum.version})` : ""
+  }`;
+}
+
+export interface SearchOption {
+  value: string;
+  label: string;
+  group?: string;
+}
+
+/**
+ * Curriculum options for a search control: the actor's recently used curricula
+ * first, then the full catalog. Recent entries also appear in the full group.
+ */
+export function curriculumSearchOptions(
+  curricula: CurriculumOptionSource[],
+  recentCurriculumIds: readonly string[],
+): SearchOption[] {
+  const recent = new Set(recentCurriculumIds);
+  return [
+    ...curricula
+      .filter((curriculum) => recent.has(curriculum.id))
+      .map((curriculum) => ({
+        value: curriculum.id,
+        label: curriculumLabel(curriculum),
+        group: "Recently used",
+      })),
+    ...curricula.map((curriculum) => ({
+      value: curriculum.id,
+      label: curriculumLabel(curriculum),
+      group: "All curricula",
+    })),
+  ];
+}
+
 /**
  * A Fire subject row needs a category and a class name. A chapter is also
  * required when the chosen approved curriculum has catalog chapters.

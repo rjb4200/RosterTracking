@@ -49,6 +49,7 @@ export function ClassCreationWizard({
   curricula,
   curriculumChapters,
   recentSiteIds,
+  recentCurriculumIds,
   defaultLeadInstructorId,
   canCreateSite,
   canCreateAgency,
@@ -85,6 +86,7 @@ export function ClassCreationWizard({
   }>;
   curriculumChapters: CurriculumChapterOption[];
   recentSiteIds: string[];
+  recentCurriculumIds: string[];
   defaultLeadInstructorId: string;
   canCreateSite: boolean;
   canCreateAgency: boolean;
@@ -391,6 +393,7 @@ export function ClassCreationWizard({
               trainingCodes={trainingCodes}
               curricula={curricula}
               curriculumChapters={curriculumChapters}
+              recentCurriculumIds={recentCurriculumIds}
               errors={errors}
               onChange={(next) => updateSubject(index, next)}
               onRemove={() => removeSubject(index)}

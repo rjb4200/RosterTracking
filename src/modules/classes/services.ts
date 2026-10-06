@@ -1409,6 +1409,28 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         .orderBy(desc(trainingClasses.updatedAt))
         .limit(10)
     : [];
+  // Curricula the actor used most recently, mirroring the recent sites. A class
+  // can hold up to two subjects, so the window is doubled before de-duplication.
+  const recentCurriculumRows = actor
+    ? await db
+        .select({ curriculumId: classComponents.curriculumId })
+        .from(classComponents)
+        .innerJoin(
+          trainingClasses,
+          eq(trainingClasses.id, classComponents.classId),
+        )
+        .where(
+          and(
+            isNotNull(classComponents.curriculumId),
+            or(
+              eq(trainingClasses.createdByUserId, actor.id),
+              sql`exists (select 1 from ${classInstructors} where ${classInstructors.classId} = ${trainingClasses.id} and ${classInstructors.userId} = ${actor.id})`,
+            ),
+          ),
+        )
+        .orderBy(desc(trainingClasses.updatedAt))
+        .limit(20)
+    : [];
   return {
     sites: siteRows,
     agencies: agencyRows,
@@ -1422,6 +1444,13 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       ...new Set(
         recentRows.flatMap((row) =>
           row.trainingSiteId ? [row.trainingSiteId] : [],
+        ),
+      ),
+    ],
+    recentCurriculumIds: [
+      ...new Set(
+        recentCurriculumRows.flatMap((row) =>
+          row.curriculumId ? [row.curriculumId] : [],
         ),
       ),
     ],

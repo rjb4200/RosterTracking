@@ -4,6 +4,8 @@ import {
   chapterLabel,
   componentMethodsForDelivery,
   composeCurriculumLabel,
+  curriculumLabel,
+  curriculumSearchOptions,
   defaultComponentMethod,
   isFireSubjectComplete,
   parseComponentMethod,
@@ -171,5 +173,68 @@ describe("curriculum chapters", () => {
         withChapters,
       ),
     ).toBe(true);
+  });
+});
+
+describe("curriculum search options", () => {
+  const alpha = {
+    id: "a",
+    publisher: "IFSTA",
+    programTitle: "Alpha",
+    version: "1st Edition",
+  };
+  const bravo = {
+    id: "b",
+    publisher: "IFSTA",
+    programTitle: "Bravo",
+    version: null,
+  };
+  const charlie = {
+    id: "c",
+    publisher: "IFSTA",
+    programTitle: "Charlie",
+    version: "2nd Edition",
+  };
+  const curricula = [alpha, bravo, charlie];
+
+  it("labels a curriculum with publisher, title, and version", () => {
+    expect(curriculumLabel(alpha)).toBe("IFSTA — Alpha (1st Edition)");
+    expect(curriculumLabel(bravo)).toBe("IFSTA — Bravo");
+  });
+
+  it("puts recently used curricula first and repeats them in the full group", () => {
+    expect(curriculumSearchOptions(curricula, ["c"])).toEqual([
+      {
+        value: "c",
+        label: "IFSTA — Charlie (2nd Edition)",
+        group: "Recently used",
+      },
+      {
+        value: "a",
+        label: "IFSTA — Alpha (1st Edition)",
+        group: "All curricula",
+      },
+      { value: "b", label: "IFSTA — Bravo", group: "All curricula" },
+      {
+        value: "c",
+        label: "IFSTA — Charlie (2nd Edition)",
+        group: "All curricula",
+      },
+    ]);
+  });
+
+  it("omits the recently used group when there is no history", () => {
+    const options = curriculumSearchOptions(curricula, []);
+    expect(options).toHaveLength(3);
+    expect(options.every((option) => option.group === "All curricula")).toBe(
+      true,
+    );
+  });
+
+  it("ignores recent ids that are not in the catalog", () => {
+    const options = curriculumSearchOptions(curricula, ["missing"]);
+    expect(options.some((option) => option.group === "Recently used")).toBe(
+      false,
+    );
   });
 });

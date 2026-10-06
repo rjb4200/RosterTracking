@@ -3,7 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { chapterLabel } from "@/modules/classes/fire-subjects";
+import {
+  chapterLabel,
+  curriculumSearchOptions,
+} from "@/modules/classes/fire-subjects";
 
 import { SearchSelect } from "./search-select";
 
@@ -36,22 +39,13 @@ export function newFireSubject(): FireSubjectValue {
   };
 }
 
-export function curriculumLabel(curriculum: {
-  publisher: string;
-  programTitle: string;
-  version: string | null;
-}): string {
-  return `${curriculum.publisher} — ${curriculum.programTitle}${
-    curriculum.version ? ` (${curriculum.version})` : ""
-  }`;
-}
-
 export function FireSubjectRow({
   index,
   value,
   trainingCodes,
   curricula,
   curriculumChapters,
+  recentCurriculumIds,
   errors,
   onChange,
   onRemove,
@@ -67,6 +61,7 @@ export function FireSubjectRow({
     version: string | null;
   }>;
   curriculumChapters: CurriculumChapterOption[];
+  recentCurriculumIds: string[];
   errors: string[];
   onChange: (value: FireSubjectValue) => void;
   onRemove: () => void;
@@ -85,10 +80,10 @@ export function FireSubjectRow({
     value: code.id,
     label: `${code.code} — ${code.title}`,
   }));
-  const curriculumOptions = curricula.map((curriculum) => ({
-    value: curriculum.id,
-    label: curriculumLabel(curriculum),
-  }));
+  const curriculumOptions = curriculumSearchOptions(
+    curricula,
+    recentCurriculumIds,
+  );
 
   return (
     <fieldset className="field field-wide">
