@@ -980,6 +980,66 @@ h1 {
   min-width: 0;
 }
 
+/* A genuine search box: distinct from the generic input style so a filter never
+   reads as a required field. */
+.search-field {
+  width: 100%;
+  min-height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23687681' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.55rem center;
+  background-size: 1rem;
+  padding: 0.35rem 0.6rem 0.35rem 2rem;
+  color: var(--ink);
+  font: inherit;
+}
+
+.class-list-filters .search-field {
+  width: auto;
+  min-width: 11rem;
+}
+
+/* One labeled control: a filter box and a select joined in a single container. */
+.search-select {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: white;
+}
+
+.search-select:focus-within {
+  border-color: var(--signal);
+}
+
+.search-select .search-select-filter {
+  min-height: 1.9rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.search-select .search-select-value {
+  width: 100%;
+  min-height: 2.1rem;
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.6rem;
+  color: var(--ink);
+  font: inherit;
+}
+
+.search-select-empty {
+  margin: 0;
+  padding: 0 0.6rem 0.35rem;
+  color: var(--steel);
+  font-size: 0.78rem;
+}
+
 .stack-form {
   display: grid;
   max-width: 760px;
@@ -1092,6 +1152,26 @@ h1 {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.required-mark {
+  color: var(--signal);
+  font-weight: 800;
+}
+
+.required-legend {
+  margin: 0;
+  color: var(--steel);
+  font-size: 0.78rem;
+}
+
+.select-input[aria-invalid="true"],
+.search-select.is-invalid {
+  border-color: #d95344;
+}
+
+.search-select.is-invalid {
+  box-shadow: 0 0 0 1px #d95344;
 }
 
 .field-wide {

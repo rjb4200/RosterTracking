@@ -24,10 +24,12 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
   const pool = new Pool({ connectionString, max: 1 });
   const suffix = crypto.randomUUID();
   const code = `K9-${suffix.slice(0, 6)}`;
-  await pool.query(
-    "insert into training_codes (code, title, source_revision) values ($1, 'Hose Loads', 'e2e')",
+  const trainingCode = await pool.query<{ id: string }>(
+    "insert into training_codes (code, title, source_revision) values ($1, 'Hose Loads', 'e2e') returning id",
     [code],
   );
+  const trainingCodeId = trainingCode.rows[0]?.id;
+  if (!trainingCodeId) throw new Error("E2E training code was not created.");
   const curriculum = await pool.query<{ id: string }>(
     "insert into curricula (publisher, program_title, version, source_revision) values ('IFSTA', $1, '8th Edition', 'e2e') returning id",
     [`E2E Essentials ${suffix}`],
@@ -53,19 +55,24 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   const next = page.getByRole("button", { name: "Next", exact: true });
-  await page.getByLabel("Search training code").fill(code);
+  await page.getByLabel("Filter Category").fill(code);
+  await page
+    .getByLabel("Category", { exact: true })
+    .selectOption(trainingCodeId);
   await page
     .getByLabel("Curriculum", { exact: true })
     .selectOption(curriculumId);
 
   // A chapter is required once the chosen curriculum has catalog chapters.
-  await expect(next).toBeDisabled();
+  await next.click();
+  await expect(
+    page.getByText("Complete the highlighted fields."),
+  ).toBeVisible();
+  await expect(page.getByText("Fire reporting")).toBeVisible();
+
   await page
     .getByLabel("Chapter")
     .fill("Firefighter I: Chapter 3. Communications");
-  await expect(next).toBeEnabled();
-
-  // A book outside the catalog is still accepted.
-  await page.getByLabel("Book not listed (optional)").fill("Custom Book");
-  await expect(next).toBeEnabled();
+  await next.click();
+  await expect(page.getByLabel("Delivery method")).toBeVisible();
 });

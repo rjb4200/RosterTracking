@@ -37,7 +37,7 @@ export default async function TrainingCodesPage({
           name="q"
           defaultValue={q}
           placeholder="Search code or title"
-          className="search-input"
+          className="search-field"
         />
       </form>
 

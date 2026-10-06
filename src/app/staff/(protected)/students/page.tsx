@@ -43,7 +43,7 @@ export default async function StudentsPage({
           name="q"
           defaultValue={q}
           placeholder="Search name, phone, or number"
-          className="search-input"
+          className="search-field"
         />
         <Button type="submit" variant="outline">
           Search

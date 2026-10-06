@@ -256,7 +256,7 @@ export default async function ClassesPage({
           name="q"
           defaultValue={search}
           placeholder="Search class or site"
-          className="search-input"
+          className="search-field"
         />
         <button
           type="submit"

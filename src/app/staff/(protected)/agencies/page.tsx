@@ -41,7 +41,7 @@ export default async function AgenciesPage({
           name="q"
           defaultValue={q}
           placeholder="Search agencies"
-          className="search-input"
+          className="search-field"
         />
       </form>
 

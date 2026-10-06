@@ -41,7 +41,7 @@ export default async function SitesPage({
           name="q"
           defaultValue={q}
           placeholder="Search sites"
-          className="search-input"
+          className="search-field"
         />
       </form>
 

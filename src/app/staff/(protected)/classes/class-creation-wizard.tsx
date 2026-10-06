@@ -11,11 +11,14 @@ import {
   buildWizardSteps,
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
-import { validateFireSubjects } from "@/modules/classes/fire-subjects";
 import {
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
+import {
+  type WizardValidationInput,
+  wizardStepErrors,
+} from "@/modules/classes/wizard-validation";
 
 import type {
   ActionState,
@@ -28,6 +31,7 @@ import {
   type FireSubjectValue,
   newFireSubject,
 } from "./fire-subject-fields";
+import { SearchSelect, type SearchSelectOption } from "./search-select";
 
 type Option = { id: string; name: string };
 type ReportingSystemOption = Option & { code: string };
@@ -87,7 +91,6 @@ export function ClassCreationWizard({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [step, setStep] = useState(0);
-  const [siteFilter, setSiteFilter] = useState("");
   const [newSiteName, setNewSiteName] = useState("");
   const [siteOptions, setSiteOptions] = useState(sites);
   const [siteError, setSiteError] = useState<string>();
@@ -162,9 +165,20 @@ export function ClassCreationWizard({
         .filter((requirement): requirement is string => Boolean(requirement)),
     ),
   ];
-  const filteredSites = siteOptions.filter((site) =>
-    site.name.toLowerCase().includes(siteFilter.toLowerCase()),
-  );
+  const siteSearchOptions: SearchSelectOption[] = [
+    ...siteOptions
+      .filter((site) => recentSiteIds.includes(site.id))
+      .map((site) => ({
+        value: site.id,
+        label: site.name,
+        group: "Recently used",
+      })),
+    ...siteOptions.map((site) => ({
+      value: site.id,
+      label: site.name,
+      group: "All sites",
+    })),
+  ];
   const needsSite = values.deliveryMethod !== "online";
   const needsClassName =
     !selectedCodes.includes("fire") && !selectedCodes.includes("kbems");
@@ -208,31 +222,33 @@ export function ClassCreationWizard({
     );
   }
 
-  function validateStep(key: string) {
-    if (key === "destinations") return values.reportingSystemIds.length > 0;
-    if (key === "fire") {
-      return validateFireSubjects(subjects, curriculaWithChapters);
-    }
-    if (key === "class") {
-      return Boolean(
-        (!needsClassName || values.className) &&
-          (!needsSite || values.trainingSiteId) &&
-          values.startsAt &&
-          values.creditedHours &&
-          values.leadInstructorId &&
-          values.hostAgencyId,
-      );
-    }
-    return true;
-  }
+  const [attempted, setAttempted] = useState(false);
+  const validationInput: WizardValidationInput = {
+    reportingSystemIds: values.reportingSystemIds,
+    needsClassName,
+    className: values.className,
+    needsSite,
+    trainingSiteId: values.trainingSiteId,
+    startsAt: values.startsAt,
+    creditedHours: values.creditedHours,
+    leadInstructorId: values.leadInstructorId,
+    hostAgencyId: values.hostAgencyId,
+    subjects,
+    curriculaWithChapters,
+  };
+  const errors = attempted ? wizardStepErrors(currentKey, validationInput) : [];
 
   function next() {
-    if (validateStep(currentKey)) {
+    if (wizardStepErrors(currentKey, validationInput).length === 0) {
+      setAttempted(false);
       setStep(Math.min(activeStep + 1, steps.length - 1));
+    } else {
+      setAttempted(true);
     }
   }
 
   function back() {
+    setAttempted(false);
     setStep(Math.max(activeStep - 1, 0));
   }
 
@@ -322,6 +338,10 @@ export function ClassCreationWizard({
         ))}
       </ol>
 
+      {["destinations", "fire", "class"].includes(currentKey) ? (
+        <p className="required-legend">* Required</p>
+      ) : null}
+
       {currentKey === "destinations" ? (
         <section className="stack-form">
           <fieldset className="field">
@@ -371,6 +391,7 @@ export function ClassCreationWizard({
               trainingCodes={trainingCodes}
               curricula={curricula}
               curriculumChapters={curriculumChapters}
+              errors={errors}
               onChange={(next) => updateSubject(index, next)}
               onRemove={() => removeSubject(index)}
               canRemove={subjects.length > 1}
@@ -476,11 +497,18 @@ export function ClassCreationWizard({
         <section className="stack-form">
           {needsClassName ? (
             <div className="field">
-              <Label htmlFor="className">Class name</Label>
+              <Label htmlFor="className">
+                Class name
+                <span className="required-mark" aria-hidden="true">
+                  {" "}
+                  *
+                </span>
+              </Label>
               <Input
                 id="className"
                 value={values.className}
                 onChange={(event) => update("className", event.target.value)}
+                aria-invalid={errors.includes("className") || undefined}
                 required
               />
             </div>
@@ -501,46 +529,17 @@ export function ClassCreationWizard({
           </div>
           {needsSite ? (
             <>
-              <div className="field">
-                <Label htmlFor="siteSearch">Search training site</Label>
-                <Input
-                  id="siteSearch"
-                  value={siteFilter}
-                  onChange={(event) => setSiteFilter(event.target.value)}
-                />
-              </div>
-              <div className="field">
-                <Label htmlFor="trainingSiteId">Training site</Label>
-                <select
-                  id="trainingSiteId"
-                  className="select-input"
-                  value={values.trainingSiteId}
-                  onChange={(event) =>
-                    update("trainingSiteId", event.target.value)
-                  }
-                  required
-                >
-                  <option value="">Select a site</option>
-                  {recentSiteIds.length ? (
-                    <optgroup label="Recently used">
-                      {filteredSites
-                        .filter((site) => recentSiteIds.includes(site.id))
-                        .map((site) => (
-                          <option key={site.id} value={site.id}>
-                            {site.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ) : null}
-                  <optgroup label="All sites">
-                    {filteredSites.map((site) => (
-                      <option key={site.id} value={site.id}>
-                        {site.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
+              <SearchSelect
+                id="trainingSiteId"
+                label="Training site"
+                placeholder="Search training sites…"
+                emptyLabel="Select a site"
+                required
+                invalid={errors.includes("trainingSiteId")}
+                options={siteSearchOptions}
+                value={values.trainingSiteId}
+                onChange={(nextId) => update("trainingSiteId", nextId)}
+              />
               {canCreateSite ? (
                 <div className="inline-form">
                   <Label htmlFor="newSiteName">Add a new site</Label>
@@ -567,12 +566,19 @@ export function ClassCreationWizard({
             </>
           ) : null}
           <div className="field">
-            <Label htmlFor="hostAgencyId">Host agency</Label>
+            <Label htmlFor="hostAgencyId">
+              Host agency
+              <span className="required-mark" aria-hidden="true">
+                {" "}
+                *
+              </span>
+            </Label>
             <select
               id="hostAgencyId"
               className="select-input"
               value={values.hostAgencyId}
               onChange={(event) => update("hostAgencyId", event.target.value)}
+              aria-invalid={errors.includes("hostAgencyId") || undefined}
               required
             >
               <option value="">Select the reporting host agency</option>
@@ -608,7 +614,13 @@ export function ClassCreationWizard({
           ) : null}
           <div className="form-grid">
             <div className="field">
-              <Label htmlFor="startsAt">Date and start time</Label>
+              <Label htmlFor="startsAt">
+                Date and start time
+                <span className="required-mark" aria-hidden="true">
+                  {" "}
+                  *
+                </span>
+              </Label>
               <Input
                 id="startsAt"
                 type="datetime-local"
@@ -625,11 +637,18 @@ export function ClassCreationWizard({
                       : "",
                   )
                 }
+                aria-invalid={errors.includes("startsAt") || undefined}
                 required
               />
             </div>
             <div className="field">
-              <Label htmlFor="creditedHours">Scheduled duration (hours)</Label>
+              <Label htmlFor="creditedHours">
+                Scheduled duration (hours)
+                <span className="required-mark" aria-hidden="true">
+                  {" "}
+                  *
+                </span>
+              </Label>
               <Input
                 id="creditedHours"
                 type="number"
@@ -639,11 +658,18 @@ export function ClassCreationWizard({
                 onChange={(event) =>
                   update("creditedHours", event.target.value)
                 }
+                aria-invalid={errors.includes("creditedHours") || undefined}
                 required
               />
             </div>
             <div className="field">
-              <Label htmlFor="leadInstructorId">Lead instructor</Label>
+              <Label htmlFor="leadInstructorId">
+                Lead instructor
+                <span className="required-mark" aria-hidden="true">
+                  {" "}
+                  *
+                </span>
+              </Label>
               <select
                 id="leadInstructorId"
                 className="select-input"
@@ -651,6 +677,7 @@ export function ClassCreationWizard({
                 onChange={(event) =>
                   update("leadInstructorId", event.target.value)
                 }
+                aria-invalid={errors.includes("leadInstructorId") || undefined}
               >
                 {staff.map((instructor) => (
                   <option key={instructor.id} value={instructor.id}>
@@ -827,6 +854,11 @@ export function ClassCreationWizard({
           {state.error}
         </p>
       ) : null}
+      {attempted && errors.length > 0 ? (
+        <p className="form-error" role="alert">
+          Complete the highlighted fields.
+        </p>
+      ) : null}
       <div className="class-wizard-actions">
         {activeStep > 0 ? (
           <Button type="button" variant="outline" onClick={back}>
@@ -834,12 +866,7 @@ export function ClassCreationWizard({
           </Button>
         ) : null}
         {activeStep < steps.length - 1 ? (
-          <Button
-            key="wizard-next"
-            type="button"
-            onClick={next}
-            disabled={!validateStep(currentKey)}
-          >
+          <Button key="wizard-next" type="button" onClick={next}>
             Next
           </Button>
         ) : (
