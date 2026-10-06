@@ -243,6 +243,8 @@ async function buildSnapshot(
         curriculumPublisher: curricula.publisher,
         curriculumProgramTitle: curricula.programTitle,
         curriculumVersion: curricula.version,
+        curriculumName: classComponents.curriculumName,
+        curriculumChapter: classComponents.curriculumChapter,
         lessonPlan: classComponents.lessonPlan,
         method: classComponents.method,
         startsAt: classComponents.startsAt,

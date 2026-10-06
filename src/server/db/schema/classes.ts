@@ -132,6 +132,10 @@ export const classComponents = pgTable(
     curriculumId: uuid("curriculum_id").references(() => curricula.id, {
       onDelete: "set null",
     }),
+    // A book recorded outside the approved catalog, used in place of curriculumId.
+    curriculumName: text("curriculum_name"),
+    // The chapter label as offered by the selector, including its section.
+    curriculumChapter: text("curriculum_chapter"),
     lessonPlan: text("lesson_plan"),
     method: text("method"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),

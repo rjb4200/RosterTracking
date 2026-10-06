@@ -1,4 +1,4 @@
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -6,6 +6,7 @@ import {
   agencies,
   credentialTypes,
   curricula,
+  curriculumChapters,
   studentAgencies,
   studentCredentials,
   students,
@@ -783,4 +784,94 @@ export async function listCurricula(db: Database, query: string) {
     )
     .orderBy(curricula.publisher, curricula.programTitle)
     .limit(200);
+}
+
+// ── Approved curriculum chapters ──────────────────────────────────────────
+
+const curriculumChapterInput = z.object({
+  curriculumId: z.string().uuid(),
+  // An empty part means the book has no sections.
+  part: z.string().trim().max(200).optional().default(""),
+  number: z.string().trim().min(1).max(50),
+  title: z.string().trim().min(1).max(300),
+  position: z.coerce.number().int().min(0).optional().default(0),
+  sourceRevision: z.string().trim().min(1).max(100),
+});
+
+/**
+ * Upserts the approved-curricula chapter catalog. A chapter is identified by its
+ * curriculum, section, and number so re-importing updates titles in place.
+ */
+export async function importCurriculumChapters(
+  db: Database,
+  actor: Actor,
+  rows: z.input<typeof curriculumChapterInput>[],
+) {
+  const parsed = rows.map((row) => curriculumChapterInput.parse(row));
+  return db.transaction(async (transaction) => {
+    let upserted = 0;
+    for (const row of parsed) {
+      const result = await transaction
+        .insert(curriculumChapters)
+        .values({
+          curriculumId: row.curriculumId,
+          part: row.part,
+          number: row.number,
+          title: row.title,
+          position: row.position,
+          sourceRevision: row.sourceRevision,
+        })
+        .onConflictDoUpdate({
+          target: [
+            curriculumChapters.curriculumId,
+            curriculumChapters.part,
+            curriculumChapters.number,
+          ],
+          set: {
+            title: sql`excluded.title`,
+            position: sql`excluded.position`,
+            sourceRevision: sql`excluded.source_revision`,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ id: curriculumChapters.id });
+      if (result[0]) upserted += 1;
+    }
+    if (upserted > 0) {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "curriculum.chapters.imported",
+        entityType: "curriculum",
+        details: { count: upserted },
+      });
+    }
+    return upserted;
+  });
+}
+
+export async function listCurriculumChapters(
+  db: Database,
+  curriculumIds?: string[],
+) {
+  return db
+    .select({
+      id: curriculumChapters.id,
+      curriculumId: curriculumChapters.curriculumId,
+      part: curriculumChapters.part,
+      number: curriculumChapters.number,
+      title: curriculumChapters.title,
+      position: curriculumChapters.position,
+    })
+    .from(curriculumChapters)
+    .where(
+      and(
+        eq(curriculumChapters.isActive, true),
+        curriculumIds?.length
+          ? inArray(curriculumChapters.curriculumId, curriculumIds)
+          : undefined,
+      ),
+    )
+    .orderBy(curriculumChapters.curriculumId, curriculumChapters.position);
 }

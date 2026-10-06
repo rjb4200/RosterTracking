@@ -100,6 +100,7 @@ export default async function EditClassPage({
                 action={saveComponentAction}
                 trainingCodes={options.trainingCodes}
                 curricula={options.curricula}
+                curriculumChapters={options.curriculumChapters}
                 component={{
                   id: component.id,
                   title: component.title,
@@ -108,6 +109,8 @@ export default async function EditClassPage({
                   trainingCodeId: component.trainingCodeId,
                   className: component.className,
                   curriculumId: component.curriculumId,
+                  curriculumName: component.curriculumName,
+                  curriculumChapter: component.curriculumChapter,
                   lessonPlan: component.lessonPlan,
                   method: component.method,
                 }}
@@ -121,6 +124,7 @@ export default async function EditClassPage({
           defaultStartsAt={newSessionStartsAt}
           trainingCodes={options.trainingCodes}
           curricula={options.curricula}
+          curriculumChapters={options.curriculumChapters}
         />
       </section>
 

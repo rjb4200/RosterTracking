@@ -6,7 +6,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { z } from "zod";
 
-import { parseComponentMethod } from "@/modules/classes/fire-subjects";
+import {
+  composeCurriculumLabel,
+  parseComponentMethod,
+} from "@/modules/classes/fire-subjects";
 import { decryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
@@ -84,6 +87,9 @@ export interface FinalizationSnapshot {
     curriculumPublisher?: string | null;
     curriculumProgramTitle?: string | null;
     curriculumVersion?: string | null;
+    // Optional because older revisions predate the typed-book and chapter fields.
+    curriculumName?: string | null;
+    curriculumChapter?: string | null;
     lessonPlan?: string | null;
     method?: string | null;
     startsAt: string;
@@ -272,20 +278,6 @@ function setCheck(pdf: PDFDocument, name: string, checked: boolean) {
   }
 }
 
-function curriculumLabel(component: {
-  curriculumPublisher?: string | null;
-  curriculumProgramTitle?: string | null;
-  curriculumVersion?: string | null;
-}): string {
-  return [
-    component.curriculumPublisher,
-    component.curriculumProgramTitle,
-    component.curriculumVersion,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ");
-}
-
 function fillKfsPage(
   pdf: PDFDocument,
   snapshot: FinalizationSnapshot,
@@ -347,7 +339,7 @@ function fillKfsPage(
       row.className,
       component.className ?? snapshot.class.courseName,
     );
-    setText(pdf, row.curriculum, curriculumLabel(component));
+    setText(pdf, row.curriculum, composeCurriculumLabel(component));
     setText(
       pdf,
       row.lessonPlan,

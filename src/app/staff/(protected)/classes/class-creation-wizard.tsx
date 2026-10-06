@@ -23,6 +23,7 @@ import type {
   CreateSiteActionState,
 } from "./actions";
 import {
+  type CurriculumChapterOption,
   FireSubjectRow,
   type FireSubjectValue,
   newFireSubject,
@@ -42,6 +43,7 @@ export function ClassCreationWizard({
   reportingRequirements,
   trainingCodes,
   curricula,
+  curriculumChapters,
   recentSiteIds,
   defaultLeadInstructorId,
   canCreateSite,
@@ -77,6 +79,7 @@ export function ClassCreationWizard({
     programTitle: string;
     version: string | null;
   }>;
+  curriculumChapters: CurriculumChapterOption[];
   recentSiteIds: string[];
   defaultLeadInstructorId: string;
   canCreateSite: boolean;
@@ -114,6 +117,10 @@ export function ClassCreationWizard({
   const [subjects, setSubjects] = useState<FireSubjectValue[]>(() => [
     newFireSubject(),
   ]);
+
+  const curriculaWithChapters = new Set(
+    curriculumChapters.map((chapter) => chapter.curriculumId),
+  );
 
   const destinationSystems = DESTINATION_CODES.map((code) =>
     reportingSystems.find((system) => system.code === code),
@@ -204,7 +211,7 @@ export function ClassCreationWizard({
   function validateStep(key: string) {
     if (key === "destinations") return values.reportingSystemIds.length > 0;
     if (key === "fire") {
-      return validateFireSubjects(subjects);
+      return validateFireSubjects(subjects, curriculaWithChapters);
     }
     if (key === "class") {
       return Boolean(
@@ -363,6 +370,7 @@ export function ClassCreationWizard({
               value={subject}
               trainingCodes={trainingCodes}
               curricula={curricula}
+              curriculumChapters={curriculumChapters}
               onChange={(next) => updateSubject(index, next)}
               onRemove={() => removeSubject(index)}
               canRemove={subjects.length > 1}
@@ -767,6 +775,18 @@ export function ClassCreationWizard({
               type="hidden"
               name="fireCurriculumId"
               value={subject.curriculumId}
+            />,
+            <input
+              key={`${subject.id}-curriculum-name`}
+              type="hidden"
+              name="fireCurriculumName"
+              value={subject.curriculumName}
+            />,
+            <input
+              key={`${subject.id}-chapter`}
+              type="hidden"
+              name="fireCurriculumChapter"
+              value={subject.curriculumChapter}
             />,
             <input
               key={`${subject.id}-lesson`}

@@ -89,12 +89,18 @@ function readSubjects(formData: FormData) {
   const codes = formData.getAll("fireTrainingCodeId").map(String);
   const names = formData.getAll("fireClassName").map(String);
   const curriculumIds = formData.getAll("fireCurriculumId").map(String);
+  const curriculumNames = formData.getAll("fireCurriculumName").map(String);
+  const curriculumChapters = formData
+    .getAll("fireCurriculumChapter")
+    .map(String);
   const lessonPlans = formData.getAll("fireLessonPlan").map(String);
   return codes
     .map((trainingCodeId, index) => ({
       trainingCodeId,
       className: names[index] ?? "",
       curriculumId: curriculumIds[index] ?? "",
+      curriculumName: curriculumNames[index] ?? "",
+      curriculumChapter: curriculumChapters[index] ?? "",
       lessonPlan: lessonPlans[index] ?? "",
     }))
     .filter(
@@ -217,6 +223,13 @@ export async function saveComponentAction(
       startsAt: read(formData, "startsAt"),
       creditedHours: read(formData, "creditedHours"),
       position: read(formData, "position") || 0,
+      trainingCodeId: read(formData, "trainingCodeId"),
+      className: read(formData, "className"),
+      curriculumId: read(formData, "curriculumId"),
+      curriculumName: read(formData, "curriculumName"),
+      curriculumChapter: read(formData, "curriculumChapter"),
+      lessonPlan: read(formData, "lessonPlan"),
+      method: read(formData, "method") as "" | "cr" | "ho" | "ol" | "cr,ol",
     });
     revalidatePath(`/staff/classes/${classId}`);
     return { classId };

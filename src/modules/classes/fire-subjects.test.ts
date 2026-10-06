@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chapterLabel,
   componentMethodsForDelivery,
+  composeCurriculumLabel,
   defaultComponentMethod,
   isFireSubjectComplete,
   parseComponentMethod,
@@ -68,5 +70,106 @@ describe("fire subjects", () => {
     expect(parseComponentMethod(null)).toEqual([]);
     expect(parseComponentMethod(undefined)).toEqual([]);
     expect(parseComponentMethod("bogus")).toEqual([]);
+  });
+});
+
+describe("curriculum chapters", () => {
+  it("labels a chapter with its section when it has one", () => {
+    expect(
+      chapterLabel({
+        part: "Firefighter I",
+        number: "3",
+        title: "Communications",
+      }),
+    ).toBe("Firefighter I: Chapter 3. Communications");
+    expect(
+      chapterLabel({ part: "", number: "1", title: "The Fire Service" }),
+    ).toBe("Chapter 1. The Fire Service");
+    expect(chapterLabel({ part: null, number: "10", title: "Fire Hose" })).toBe(
+      "Chapter 10. Fire Hose",
+    );
+  });
+
+  it("composes the Curriculum cell from the book and chapter", () => {
+    expect(
+      composeCurriculumLabel({
+        curriculumPublisher: "IFSTA",
+        curriculumProgramTitle: "Essentials of Firefighting",
+        curriculumVersion: "8th Edition",
+        curriculumChapter: "Chapter 3. Communications",
+      }),
+    ).toBe(
+      "IFSTA Essentials of Firefighting 8th Edition - Chapter 3. Communications",
+    );
+    // A typed book replaces the catalog label.
+    expect(
+      composeCurriculumLabel({
+        curriculumName: "Custom Book",
+        curriculumChapter: "Chapter 1. Intro",
+      }),
+    ).toBe("Custom Book - Chapter 1. Intro");
+    // Absent values are omitted, not printed as placeholders.
+    expect(
+      composeCurriculumLabel({
+        curriculumPublisher: "IFSTA",
+        curriculumProgramTitle: "Essentials of Firefighting",
+      }),
+    ).toBe("IFSTA Essentials of Firefighting");
+    expect(composeCurriculumLabel({})).toBe("");
+  });
+
+  it("requires a chapter only when the curriculum has catalog chapters", () => {
+    const withChapters = new Set(["curriculum-a"]);
+    expect(
+      validateFireSubjects(
+        [
+          {
+            trainingCodeId: "c1",
+            className: "Hose Loads",
+            curriculumId: "curriculum-a",
+          },
+        ],
+        withChapters,
+      ),
+    ).toBe(false);
+    expect(
+      validateFireSubjects(
+        [
+          {
+            trainingCodeId: "c1",
+            className: "Hose Loads",
+            curriculumId: "curriculum-a",
+            curriculumChapter: "Chapter 3. Communications",
+          },
+        ],
+        withChapters,
+      ),
+    ).toBe(true);
+    // A curriculum with no catalog chapters leaves the chapter optional.
+    expect(
+      validateFireSubjects(
+        [
+          {
+            trainingCodeId: "c1",
+            className: "Hose Loads",
+            curriculumId: "curriculum-b",
+          },
+        ],
+        withChapters,
+      ),
+    ).toBe(true);
+    // A typed book is not subject to the requirement.
+    expect(
+      validateFireSubjects(
+        [
+          {
+            trainingCodeId: "c1",
+            className: "Hose Loads",
+            curriculumName: "Custom Book",
+          },
+        ],
+        withChapters,
+      ),
+    ).toBe(true);
   });
 });

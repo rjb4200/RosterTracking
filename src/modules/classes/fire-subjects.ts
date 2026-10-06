@@ -2,18 +2,84 @@ export interface FireSubject {
   trainingCodeId: string;
   className: string;
   curriculumId?: string | null;
+  curriculumName?: string | null;
+  curriculumChapter?: string | null;
   lessonPlan?: string | null;
 }
 
-/** A Fire subject row needs a category and a class name; the rest is optional. */
-export function isFireSubjectComplete(subject: FireSubject): boolean {
-  return Boolean(subject.trainingCodeId) && Boolean(subject.className.trim());
+export interface CurriculumChapter {
+  part: string | null;
+  number: string;
+  title: string;
+}
+
+/** The label a chapter is offered and printed with, including its section. */
+export function chapterLabel(chapter: CurriculumChapter): string {
+  const base = `Chapter ${chapter.number}. ${chapter.title}`;
+  const part = chapter.part?.trim();
+  return part ? `${part}: ${base}` : base;
+}
+
+export interface CurriculumLabelParts {
+  curriculumPublisher?: string | null;
+  curriculumProgramTitle?: string | null;
+  curriculumVersion?: string | null;
+  curriculumName?: string | null;
+  curriculumChapter?: string | null;
+}
+
+/**
+ * The official Curriculum cell: the catalog or typed book followed by the
+ * chapter, joined as "<book> - <chapter>". A typed book replaces the catalog
+ * label; absent values are omitted rather than printed as placeholders.
+ */
+export function composeCurriculumLabel(
+  component: CurriculumLabelParts,
+): string {
+  const typedBook = component.curriculumName?.trim();
+  const book = typedBook
+    ? typedBook
+    : [
+        component.curriculumPublisher,
+        component.curriculumProgramTitle,
+        component.curriculumVersion,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" ");
+  const chapter = component.curriculumChapter?.trim();
+  if (book && chapter) return `${book} - ${chapter}`;
+  return book || chapter || "";
+}
+
+/**
+ * A Fire subject row needs a category and a class name. A chapter is also
+ * required when the chosen approved curriculum has catalog chapters.
+ */
+export function isFireSubjectComplete(
+  subject: FireSubject,
+  curriculumHasChapters = false,
+): boolean {
+  if (!subject.trainingCodeId || !subject.className.trim()) return false;
+  if (curriculumHasChapters && !subject.curriculumChapter?.trim()) return false;
+  return true;
 }
 
 export function validateFireSubjects(
   subjects: readonly FireSubject[],
+  curriculaWithChapters: ReadonlySet<string> = new Set(),
 ): boolean {
-  return subjects.length > 0 && subjects.every(isFireSubjectComplete);
+  return (
+    subjects.length > 0 &&
+    subjects.every((subject) =>
+      isFireSubjectComplete(
+        subject,
+        Boolean(
+          subject.curriculumId &&
+            curriculaWithChapters.has(subject.curriculumId),
+        ),
+      ),
+    )
+  );
 }
 
 /** The KFS-1A Method checkboxes, in the order they appear on the form. */

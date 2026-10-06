@@ -5,13 +5,23 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { chapterLabel } from "@/modules/classes/fire-subjects";
 
 export interface FireSubjectValue {
   id: string;
   trainingCodeId: string;
   className: string;
   curriculumId: string;
+  curriculumName: string;
+  curriculumChapter: string;
   lessonPlan: string;
+}
+
+export interface CurriculumChapterOption {
+  curriculumId: string;
+  part: string | null;
+  number: string;
+  title: string;
 }
 
 export function newFireSubject(): FireSubjectValue {
@@ -20,6 +30,8 @@ export function newFireSubject(): FireSubjectValue {
     trainingCodeId: "",
     className: "",
     curriculumId: "",
+    curriculumName: "",
+    curriculumChapter: "",
     lessonPlan: "",
   };
 }
@@ -39,6 +51,7 @@ export function FireSubjectRow({
   value,
   trainingCodes,
   curricula,
+  curriculumChapters,
   onChange,
   onRemove,
   canRemove,
@@ -52,6 +65,7 @@ export function FireSubjectRow({
     programTitle: string;
     version: string | null;
   }>;
+  curriculumChapters: CurriculumChapterOption[];
   onChange: (value: FireSubjectValue) => void;
   onRemove: () => void;
   canRemove: boolean;
@@ -71,6 +85,12 @@ export function FireSubjectRow({
       curriculum.publisher.toLowerCase().includes(curriculumTerm) ||
       curriculum.programTitle.toLowerCase().includes(curriculumTerm),
   );
+  const chapterOptions = value.curriculumId
+    ? curriculumChapters.filter(
+        (chapter) => chapter.curriculumId === value.curriculumId,
+      )
+    : [];
+  const chapterListId = `fireChapterOptions-${index}`;
 
   return (
     <fieldset className="field field-wide">
@@ -153,7 +173,11 @@ export function FireSubjectRow({
                 curriculum.programTitle.toLowerCase().includes(term),
             );
             if (first) {
-              onChange({ ...value, curriculumId: first.id });
+              onChange({
+                ...value,
+                curriculumId: first.id,
+                curriculumName: "",
+              });
             }
           }}
         />
@@ -165,7 +189,11 @@ export function FireSubjectRow({
           className="select-input"
           value={value.curriculumId}
           onChange={(event) =>
-            onChange({ ...value, curriculumId: event.target.value })
+            onChange({
+              ...value,
+              curriculumId: event.target.value,
+              curriculumName: "",
+            })
           }
         >
           <option value="">Select a curriculum</option>
@@ -175,6 +203,41 @@ export function FireSubjectRow({
             </option>
           ))}
         </select>
+      </div>
+      <div className="field">
+        <Label htmlFor={`fireCurriculumName-${index}`}>
+          Book not listed (optional)
+        </Label>
+        <Input
+          id={`fireCurriculumName-${index}`}
+          value={value.curriculumName}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              curriculumName: event.target.value,
+              curriculumId: event.target.value ? "" : value.curriculumId,
+            })
+          }
+        />
+      </div>
+      <div className="field">
+        <Label htmlFor={`fireCurriculumChapter-${index}`}>Chapter</Label>
+        <Input
+          id={`fireCurriculumChapter-${index}`}
+          list={chapterOptions.length ? chapterListId : undefined}
+          value={value.curriculumChapter}
+          onChange={(event) =>
+            onChange({ ...value, curriculumChapter: event.target.value })
+          }
+        />
+        {chapterOptions.length ? (
+          <datalist id={chapterListId}>
+            {chapterOptions.map((chapter) => {
+              const label = chapterLabel(chapter);
+              return <option key={label} value={label} />;
+            })}
+          </datalist>
+        ) : null}
       </div>
       <div className="field">
         <Label htmlFor={`fireLessonPlan-${index}`}>Lesson plan</Label>

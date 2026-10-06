@@ -1,0 +1,144 @@
+{
+  "books": [
+    {
+      "publisher": "IFSTA",
+      "programTitle": "Essentials of Firefighting",
+      "version": "8th Edition",
+      "sourceRevision": "2026",
+      "chapters": [
+        {
+          "part": "Firefighter I",
+          "number": "1",
+          "title": "Introduction to the Fire Service and Firefighter Safety"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "2",
+          "title": "Operational Scene Safety and Management"
+        },
+        { "part": "Firefighter I", "number": "3", "title": "Communications" },
+        {
+          "part": "Firefighter I",
+          "number": "4",
+          "title": "Building Construction"
+        },
+        { "part": "Firefighter I", "number": "5", "title": "Fire Dynamics" },
+        {
+          "part": "Firefighter I",
+          "number": "6",
+          "title": "Firefighter Personal Protective Equipment"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "7",
+          "title": "Portable Fire Extinguishers"
+        },
+        { "part": "Firefighter I", "number": "8", "title": "Ropes and Knots" },
+        { "part": "Firefighter I", "number": "9", "title": "Ground Ladders" },
+        { "part": "Firefighter I", "number": "10", "title": "Forcible Entry" },
+        {
+          "part": "Firefighter I",
+          "number": "11",
+          "title": "Structural Search and Rescue"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "12",
+          "title": "Tactical Ventilation"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "13",
+          "title": "Fire Hose, Hose Operations, and Hose Streams"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "14",
+          "title": "Fire Suppression"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "15",
+          "title": "Overhaul, Property Conservation, and Scene Preservation"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "16",
+          "title": "First Aid Provider"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "1",
+          "title": "Incident Scene Operations"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "2",
+          "title": "Building Materials, Structural Collapse, and Effects of Fire Suppression"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "3",
+          "title": "Technical Rescue Support and Vehicle Extrication Operations"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "4",
+          "title": "Foam Fire Fighting, Liquid Fires, and Gas Fires"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "5",
+          "title": "Fire Origin and Cause Determination"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "6",
+          "title": "Maintenance and Testing Responsibilities"
+        },
+        {
+          "part": "Firefighter II",
+          "number": "7",
+          "title": "Community Risk Reduction"
+        }
+      ]
+    },
+    {
+      "publisher": "Jones and Bartlett",
+      "programTitle": "Fundamentals of Firefighter Skills for Support Personnel",
+      "version": "1st Edition",
+      "sourceRevision": "2026",
+      "chapters": [
+        { "part": "", "number": "1", "title": "The Fire Service" },
+        { "part": "", "number": "2", "title": "Firefighter Health and Safety" },
+        { "part": "", "number": "3", "title": "Personal Protective Equipment" },
+        { "part": "", "number": "4", "title": "Fire Service Communications" },
+        { "part": "", "number": "5", "title": "Fire Behavior" },
+        { "part": "", "number": "6", "title": "Portable Fire Extinguishers" },
+        {
+          "part": "",
+          "number": "7",
+          "title": "Firefighter Tools and Equipment"
+        },
+        { "part": "", "number": "8", "title": "Ropes and Knots" },
+        { "part": "", "number": "9", "title": "Water Supply Systems" },
+        { "part": "", "number": "10", "title": "Fire Hose" },
+        {
+          "part": "",
+          "number": "11",
+          "title": "Supply Line and Attack Line Evolutions"
+        },
+        {
+          "part": "",
+          "number": "12",
+          "title": "Hazardous Materials Regulations, Standards, and Laws"
+        },
+        {
+          "part": "",
+          "number": "13",
+          "title": "Recognizing and Identifying the Hazards"
+        }
+      ]
+    }
+  ]
+}

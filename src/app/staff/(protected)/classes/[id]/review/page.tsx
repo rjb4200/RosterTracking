@@ -333,6 +333,9 @@ export default async function CompletedClassReviewPage({
                   <ComponentForm
                     classId={classRecord.id}
                     action={saveComponentAction}
+                    trainingCodes={classOptions.trainingCodes}
+                    curricula={classOptions.curricula}
+                    curriculumChapters={classOptions.curriculumChapters}
                     component={{
                       id: component.id,
                       title: component.title,
@@ -340,6 +343,13 @@ export default async function CompletedClassReviewPage({
                       startsAt: formatDepartmentDateTimeInput(
                         component.startsAt,
                       ),
+                      trainingCodeId: component.trainingCodeId,
+                      className: component.className,
+                      curriculumId: component.curriculumId,
+                      curriculumName: component.curriculumName,
+                      curriculumChapter: component.curriculumChapter,
+                      lessonPlan: component.lessonPlan,
+                      method: component.method,
                     }}
                   />
                 </li>
@@ -349,6 +359,9 @@ export default async function CompletedClassReviewPage({
               classId={classRecord.id}
               action={saveComponentAction}
               defaultStartsAt={roundDepartmentDateTimeToQuarterHour(new Date())}
+              trainingCodes={classOptions.trainingCodes}
+              curricula={classOptions.curricula}
+              curriculumChapters={classOptions.curriculumChapters}
             />
           </section>
 

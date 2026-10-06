@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { chapterLabel } from "@/modules/classes/fire-subjects";
 import {
   calculateDepartmentEndTimeInput,
   parseDepartmentDateTime,
@@ -12,6 +13,7 @@ import {
 } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
+import type { CurriculumChapterOption } from "./fire-subject-fields";
 
 export function ComponentForm({
   classId,
@@ -20,6 +22,7 @@ export function ComponentForm({
   defaultStartsAt,
   trainingCodes = [],
   curricula = [],
+  curriculumChapters = [],
 }: {
   classId: string;
   component?: {
@@ -30,6 +33,8 @@ export function ComponentForm({
     trainingCodeId?: string | null;
     className?: string | null;
     curriculumId?: string | null;
+    curriculumName?: string | null;
+    curriculumChapter?: string | null;
     lessonPlan?: string | null;
     method?: string | null;
   };
@@ -41,6 +46,7 @@ export function ComponentForm({
     programTitle: string;
     version: string | null;
   }>;
+  curriculumChapters?: CurriculumChapterOption[];
   action: (
     prev: ActionState | undefined,
     formData: FormData,
@@ -54,12 +60,27 @@ export function ComponentForm({
   const [creditedHours, setCreditedHours] = useState(
     component?.creditedHours ?? "2.00",
   );
+  const [curriculumId, setCurriculumId] = useState(
+    component?.curriculumId ?? "",
+  );
+  const [curriculumName, setCurriculumName] = useState(
+    component?.curriculumName ?? "",
+  );
+  const [curriculumChapter, setCurriculumChapter] = useState(
+    component?.curriculumChapter ?? "",
+  );
+  const chapterOptions = curriculumId
+    ? curriculumChapters.filter(
+        (chapter) => chapter.curriculumId === curriculumId,
+      )
+    : [];
+  const chapterListId = `curriculumChapterOptions-${suffix}`;
   const endTime =
     startsAt && Number(creditedHours) > 0
       ? calculateDepartmentEndTimeInput(startsAt, Number(creditedHours))
       : "";
   return (
-    <form action={formAction} className="stack-form">
+    <form action={formAction} className="stack-form component-form">
       <input type="hidden" name="classId" value={classId} />
       {component ? (
         <input type="hidden" name="id" value={component.id} />
@@ -147,7 +168,11 @@ export function ComponentForm({
             id={`curriculumId-${suffix}`}
             name="curriculumId"
             className="select-input"
-            defaultValue={component?.curriculumId ?? ""}
+            value={curriculumId}
+            onChange={(event) => {
+              setCurriculumId(event.target.value);
+              setCurriculumName("");
+            }}
           >
             <option value="">No curriculum</option>
             {curricula.map((curriculum) => (
@@ -157,6 +182,38 @@ export function ComponentForm({
               </option>
             ))}
           </select>
+        </div>
+        <div className="field">
+          <Label htmlFor={`curriculumName-${suffix}`}>
+            Book not listed (optional)
+          </Label>
+          <Input
+            id={`curriculumName-${suffix}`}
+            name="curriculumName"
+            value={curriculumName}
+            onChange={(event) => {
+              setCurriculumName(event.target.value);
+              if (event.target.value) setCurriculumId("");
+            }}
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor={`curriculumChapter-${suffix}`}>Chapter</Label>
+          <Input
+            id={`curriculumChapter-${suffix}`}
+            name="curriculumChapter"
+            list={chapterOptions.length ? chapterListId : undefined}
+            value={curriculumChapter}
+            onChange={(event) => setCurriculumChapter(event.target.value)}
+          />
+          {chapterOptions.length ? (
+            <datalist id={chapterListId}>
+              {chapterOptions.map((chapter) => {
+                const label = chapterLabel(chapter);
+                return <option key={label} value={label} />;
+              })}
+            </datalist>
+          ) : null}
         </div>
         <div className="field">
           <Label htmlFor={`method-${suffix}`}>Method</Label>

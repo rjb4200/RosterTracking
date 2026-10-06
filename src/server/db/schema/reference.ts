@@ -5,7 +5,6 @@ import {
   date,
   index,
   integer,
-  numeric,
   pgTable,
   primaryKey,
   text,
@@ -235,6 +234,37 @@ export const curricula = pgTable(
       table.sourceRevision,
     ),
     index("curricula_publisher_idx").on(table.publisher),
+  ],
+);
+
+export const curriculumChapters = pgTable(
+  "curriculum_chapters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    curriculumId: uuid("curriculum_id")
+      .notNull()
+      .references(() => curricula.id, { onDelete: "cascade" }),
+    // The optional section a chapter belongs to (for example "Firefighter I").
+    // Stored as an empty string when the book has no sections so the identity
+    // index can reliably upsert on curriculum, section, and number.
+    part: text("part").default("").notNull(),
+    number: text("number").notNull(),
+    title: text("title").notNull(),
+    position: integer("position").default(0).notNull(),
+    sourceRevision: text("source_revision").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("curriculum_chapters_identity_unique").on(
+      table.curriculumId,
+      table.part,
+      table.number,
+    ),
+    index("curriculum_chapters_curriculum_position_idx").on(
+      table.curriculumId,
+      table.position,
+    ),
   ],
 );
 

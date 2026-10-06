@@ -27,6 +27,7 @@ import {
   classReportingSystems,
   credentialTypes,
   curricula,
+  curriculumChapters,
   finalizationRevisions,
   mtuUsage,
   reportingRequirementSets,
@@ -145,6 +146,8 @@ const componentInput = z.object({
   trainingCodeId: optionalUuid,
   className: z.string().trim().max(200).optional().or(z.literal("")),
   curriculumId: optionalUuid,
+  curriculumName: z.string().trim().max(300).optional().or(z.literal("")),
+  curriculumChapter: z.string().trim().max(500).optional().or(z.literal("")),
   lessonPlan: z.string().trim().max(500).optional().or(z.literal("")),
   method: optionalMethod,
 });
@@ -153,6 +156,8 @@ const fireSubjectInput = z.object({
   trainingCodeId: z.string().uuid(),
   className: z.string().trim().min(1).max(200),
   curriculumId: optionalUuid,
+  curriculumName: z.string().trim().max(300).optional().or(z.literal("")),
+  curriculumChapter: z.string().trim().max(500).optional().or(z.literal("")),
   lessonPlan: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
@@ -258,6 +263,25 @@ async function validateReferences(
     if (selected.length !== new Set(input.reportingSystemIds).size) {
       throw new Error("Select only active reporting systems.");
     }
+  }
+}
+
+/**
+ * A chapter is required only when the chosen approved curriculum has catalog
+ * chapters; typed books and chapter-less books leave the chapter optional.
+ */
+async function assertCurriculumChapter(
+  transaction: DatabaseTransaction,
+  subject: { curriculumId?: string | null; curriculumChapter?: string | null },
+): Promise<void> {
+  if (!subject.curriculumId || subject.curriculumChapter?.trim()) return;
+  const [chapter] = await transaction
+    .select({ id: curriculumChapters.id })
+    .from(curriculumChapters)
+    .where(eq(curriculumChapters.curriculumId, subject.curriculumId))
+    .limit(1);
+  if (chapter) {
+    throw new Error("Select a chapter for the chosen curriculum.");
   }
 }
 
@@ -397,6 +421,9 @@ export async function createOpenClass(
     // Each Fire subject becomes its own session. The first uses the class
     // schedule; a second subject is auto-placed immediately after it.
     const subjects = parsed.subjects ?? [];
+    for (const subject of subjects) {
+      await assertCurriculumChapter(transaction, subject);
+    }
     const method = defaultComponentMethod(parsed.deliveryMethod);
     const componentValues = subjects.length
       ? subjects.map((subject, index) => {
@@ -416,6 +443,8 @@ export async function createOpenClass(
             trainingCodeId: subject.trainingCodeId,
             className: subject.className,
             curriculumId: subject.curriculumId || null,
+            curriculumName: subject.curriculumName || null,
+            curriculumChapter: subject.curriculumChapter || null,
             lessonPlan: subject.lessonPlan || null,
             method,
           };
@@ -599,10 +628,13 @@ export async function saveClassComponent(
       trainingCodeId: parsed.trainingCodeId || null,
       className: parsed.className || null,
       curriculumId: parsed.curriculumId || null,
+      curriculumName: parsed.curriculumName || null,
+      curriculumChapter: parsed.curriculumChapter || null,
       lessonPlan: parsed.lessonPlan || null,
       method: parsed.method || null,
       updatedAt: new Date(),
     };
+    await assertCurriculumChapter(transaction, parsed);
     const [component] = parsed.id
       ? await transaction
           .update(classComponents)
@@ -1286,6 +1318,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     requirementRows,
     trainingCodeRows,
     curriculumRows,
+    curriculumChapterRows,
   ] = await Promise.all([
     db
       .select({ id: trainingSites.id, name: trainingSites.name })
@@ -1348,6 +1381,18 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       .from(curricula)
       .where(eq(curricula.isActive, true))
       .orderBy(curricula.publisher, curricula.programTitle),
+    db
+      .select({
+        id: curriculumChapters.id,
+        curriculumId: curriculumChapters.curriculumId,
+        part: curriculumChapters.part,
+        number: curriculumChapters.number,
+        title: curriculumChapters.title,
+        position: curriculumChapters.position,
+      })
+      .from(curriculumChapters)
+      .where(eq(curriculumChapters.isActive, true))
+      .orderBy(curriculumChapters.curriculumId, curriculumChapters.position),
   ]);
   const recentRows = actor
     ? await db
@@ -1372,6 +1417,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     reportingRequirements: requirementRows,
     trainingCodes: trainingCodeRows,
     curricula: curriculumRows,
+    curriculumChapters: curriculumChapterRows,
     recentSiteIds: [
       ...new Set(
         recentRows.flatMap((row) =>

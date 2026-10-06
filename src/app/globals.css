@@ -1038,6 +1038,14 @@ h1 {
   min-width: 0;
 }
 
+/* Text inputs match the white selects and textareas across the class forms. */
+.class-wizard .field input,
+.class-wizard .field textarea,
+.component-form .field input,
+.component-form .field textarea {
+  background: white;
+}
+
 .wizard-requirements,
 .wizard-review {
   border: 1px solid var(--line);
