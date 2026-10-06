@@ -60,6 +60,18 @@ export function SearchSelect({
     grouped.get(key)?.push(option);
   }
 
+  // Live feedback: as staff type, select the first match. An empty filter does
+  // nothing, and a filter with no matches keeps the current selection.
+  function handleFilterChange(next: string) {
+    setFilter(next);
+    const term = next.trim().toLowerCase();
+    if (!term) return;
+    const first = options.find((option) =>
+      option.label.toLowerCase().includes(term),
+    );
+    if (first && first.value !== value) onChange(first.value);
+  }
+
   return (
     <div className="field">
       <label htmlFor={selectId}>
@@ -79,7 +91,7 @@ export function SearchSelect({
           placeholder={placeholder}
           aria-label={`Filter ${label}`}
           aria-invalid={invalid || undefined}
-          onChange={(event) => setFilter(event.target.value)}
+          onChange={(event) => handleFilterChange(event.target.value)}
         />
         <select
           id={selectId}

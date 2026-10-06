@@ -141,7 +141,7 @@ export function FireSubjectRow({
       />
       <div className="field">
         <Label htmlFor={`fireCurriculumName-${index}`}>
-          Book not listed (optional)
+          Curriculum not listed (optional)
         </Label>
         <Input
           id={`fireCurriculumName-${index}`}

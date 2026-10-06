@@ -185,7 +185,7 @@ export function ComponentForm({
         </div>
         <div className="field">
           <Label htmlFor={`curriculumName-${suffix}`}>
-            Book not listed (optional)
+            Curriculum not listed (optional)
           </Label>
           <Input
             id={`curriculumName-${suffix}`}
