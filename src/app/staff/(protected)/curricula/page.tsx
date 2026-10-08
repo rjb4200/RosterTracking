@@ -13,7 +13,13 @@ import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
-import { archiveCurriculumAction, setCurriculumActiveAction } from "./actions";
+import {
+  archiveCurriculumAction,
+  createCurriculumAction,
+  setCurriculumActiveAction,
+  updateCurriculumAction,
+} from "./actions";
+import { CurriculumForm } from "./curriculum-form";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +66,8 @@ export default async function CurriculaPage({
           {curricula.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="text-muted-foreground">
-                No curricula found. Import the approved curriculum list to add
-                the catalog.
+                No curricula found. Add one below or import the approved
+                curriculum list.
               </TableCell>
             </TableRow>
           ) : (
@@ -103,12 +109,33 @@ export default async function CurriculaPage({
                       </Button>
                     </form>
                   </div>
+                  <details className="admin-section">
+                    <summary>Edit</summary>
+                    <CurriculumForm
+                      action={updateCurriculumAction}
+                      submitLabel="Save changes"
+                      values={{
+                        id: curriculum.id,
+                        publisher: curriculum.publisher,
+                        programTitle: curriculum.programTitle,
+                        version: curriculum.version,
+                        additionalRequirements:
+                          curriculum.additionalRequirements,
+                        sourceRevision: curriculum.sourceRevision,
+                      }}
+                    />
+                  </details>
                 </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      <section className="admin-section">
+        <h2>Add curriculum</h2>
+        <CurriculumForm action={createCurriculumAction} />
+      </section>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { writeAuditLog } from "@/server/db/audit";
@@ -111,7 +111,8 @@ export async function listStaffAccounts(db: Database, actorId: string) {
       })
       .from(users)
       .leftJoin(userRoles, eq(userRoles.userId, users.id))
-      .leftJoin(roles, eq(roles.id, userRoles.roleId));
+      .leftJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(isNull(users.archivedAt));
     return Object.values(
       rows.reduce<
         Record<string, (typeof rows)[number] & { roleCodes: string[] }>
@@ -139,6 +140,49 @@ export async function createStaffAccount(
   return db.transaction(async (transaction) => {
     await requireAdministrator(transaction, actorId);
     const role = await requireRole(transaction, parsed.roleCode);
+    const [existing] = await transaction
+      .select({ id: users.id, archivedAt: users.archivedAt })
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+    if (existing && !existing.archivedAt) {
+      throw new Error("A staff account with that username already exists.");
+    }
+    if (existing) {
+      // Re-creating an archived username revives the account.
+      const [revived] = await transaction
+        .update(users)
+        .set({
+          displayName: parsed.displayName,
+          passwordHash,
+          isActive: true,
+          archivedAt: null,
+          failedLoginCount: 0,
+          lockedUntil: null,
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existing.id))
+        .returning({ id: users.id });
+      if (!revived) throw new Error("Staff account was not created.");
+      await transaction
+        .delete(userRoles)
+        .where(eq(userRoles.userId, existing.id));
+      await transaction.insert(userRoles).values({
+        userId: existing.id,
+        roleId: role.id,
+        assignedByUserId: actorId,
+      });
+      await writeAuditLog(transaction, {
+        actorUserId: actorId,
+        actorType: "user",
+        action: "staff.account.revived",
+        entityType: "user",
+        entityId: existing.id,
+        details: { username, roleCode: parsed.roleCode },
+      });
+      return revived;
+    }
     const [account] = await transaction
       .insert(users)
       .values({ username, displayName: parsed.displayName, passwordHash })
@@ -156,6 +200,40 @@ export async function createStaffAccount(
       entityType: "user",
       entityId: account.id,
       details: { username, roleCode: parsed.roleCode },
+    });
+    return account;
+  });
+}
+
+export async function archiveStaffAccount(
+  db: Database,
+  actorId: string,
+  userId: string,
+) {
+  return db.transaction(async (transaction) => {
+    await requireAdministrator(transaction, actorId);
+    if (userId === actorId) {
+      throw new Error("You cannot archive your own account.");
+    }
+    await ensureNotFinalAdministrator(transaction, userId);
+    const [account] = await transaction
+      .update(users)
+      .set({
+        isActive: false,
+        archivedAt: new Date(),
+        sessionVersion: sql`${users.sessionVersion} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id, username: users.username });
+    if (!account) throw new Error("Staff account not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actorId,
+      actorType: "user",
+      action: "staff.account.archived",
+      entityType: "user",
+      entityId: account.id,
+      details: { username: account.username },
     });
     return account;
   });

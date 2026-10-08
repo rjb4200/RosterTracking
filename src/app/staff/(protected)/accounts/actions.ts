@@ -6,6 +6,7 @@ import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import type { ProfileActionState } from "@/modules/staff-auth/profile-contract";
 import { updateStaffProfile } from "@/modules/staff-auth/profiles";
 import {
+  archiveStaffAccount,
   createStaffAccount,
   updateStaffAccount,
 } from "@/modules/staff-auth/staff-accounts";
@@ -58,6 +59,13 @@ export async function accountAction(
         error instanceof Error ? error.message : "Could not update account.",
     };
   }
+}
+
+export async function archiveAccountAction(formData: FormData): Promise<void> {
+  const actor = await getCurrentStaff();
+  if (!actor || !isAdministrator(actor.roleCodes)) return;
+  await archiveStaffAccount(getDatabase(), actor.id, read(formData, "userId"));
+  revalidatePath("/staff/accounts");
 }
 
 export async function profileAction(

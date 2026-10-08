@@ -19,12 +19,12 @@ describe("instructor profile input", () => {
   it("accepts a Fire Commission FFN, a level, and trims the provider number", () => {
     expect(
       parseProfileInput({
-        ffn: "0009-9999",
+        ffn: "00099999",
         instructorLevel: "2",
         emsProviderNumber: "  EMS-123  ",
       }),
     ).toEqual({
-      ffn: "0009-9999",
+      ffn: "00099999",
       instructorLevel: 2,
       emsProviderNumber: "EMS-123",
     });
@@ -33,11 +33,11 @@ describe("instructor profile input", () => {
   it("rejects a malformed FFN", () => {
     expect(() =>
       parseProfileInput({
-        ffn: "12345",
+        ffn: "1234-5678",
         instructorLevel: "",
         emsProviderNumber: "",
       }),
-    ).toThrow(/0000-0000/);
+    ).toThrow(/digits only/);
   });
 
   it("rejects a certification level outside one to three", () => {
@@ -64,14 +64,14 @@ describe("instructor profile input", () => {
     expect(
       changedProfileAttributes(
         { ffn: null, instructorLevel: null, emsProviderNumber: null },
-        { ffn: "0001-2345", instructorLevel: 1, emsProviderNumber: null },
+        { ffn: "00012345", instructorLevel: 1, emsProviderNumber: null },
       ),
     ).toEqual(["ffn", "instructorLevel"]);
   });
 
   it("reports no change when values are identical", () => {
     const values = {
-      ffn: "0001-2345",
+      ffn: "00012345",
       instructorLevel: 1,
       emsProviderNumber: null,
     };

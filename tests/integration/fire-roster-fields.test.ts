@@ -50,7 +50,7 @@ async function createInstructor(db: Db, suffix: string) {
       username: `instructor-${suffix}`,
       displayName: "Fire Instructor",
       passwordHash: "fixture-password-hash",
-      ffn: `0001-${ffnDigits}`,
+      ffn: `0001${ffnDigits}`,
       instructorLevel: 2,
     })
     .returning({ id: users.id, username: users.username });
@@ -331,7 +331,7 @@ describeDatabase("fire roster fields", () => {
       name: "Fire Instructor",
       level: 2,
     });
-    expect(snapshot.instructors[0].ffn).toMatch(/^0001-/);
+    expect(snapshot.instructors[0].ffn).toMatch(/^0001/);
     await retireRevision(db, revision.id);
   });
 });

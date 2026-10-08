@@ -9,6 +9,7 @@ import { ProfileForm } from "../profile/profile-form";
 import {
   type AccountActionState,
   accountAction,
+  archiveAccountAction,
   profileAction,
 } from "./actions";
 
@@ -119,6 +120,12 @@ export function AccountControls({
                 />
                 <Button type="submit" variant="secondary" disabled={pending}>
                   Save
+                </Button>
+              </form>
+              <form action={archiveAccountAction} className="inline-form">
+                <input type="hidden" name="userId" value={account.id} />
+                <Button type="submit" variant="destructive">
+                  Archive
                 </Button>
               </form>
               <ProfileForm

@@ -4,7 +4,7 @@ export const INSTRUCTOR_LEVELS = [1, 2, 3] as const;
 
 export type InstructorLevel = (typeof INSTRUCTOR_LEVELS)[number];
 
-export const FFN_PATTERN = /^\d{4}-\d{4}$/;
+export const FFN_PATTERN = /^\d+$/;
 
 export interface ProfileValues {
   ffn: string | null;
@@ -37,16 +37,15 @@ export function isInstructorLevel(value: number): value is InstructorLevel {
 
 /**
  * Normalizes and validates raw profile input. Empty strings become null so the
- * database stores "not recorded" rather than a blank value, and an FFN must use
- * the Fire Commission's eight-digit `0000-0000` form because it is printed on
- * official rosters.
+ * database stores "not recorded" rather than a blank value, and an FFN must be
+ * digits only (for example `063446`), without a dash or a fixed length.
  */
 export function parseProfileInput(input: ProfileInput): ProfileValues {
   const parsed = profileInputSchema.parse(input);
 
   const ffn = parsed.ffn === "" ? null : parsed.ffn;
   if (ffn !== null && !FFN_PATTERN.test(ffn)) {
-    throw new Error("FFN must use the form 0000-0000.");
+    throw new Error("FFN must be digits only.");
   }
 
   const levelText = parsed.instructorLevel;

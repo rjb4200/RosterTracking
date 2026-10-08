@@ -30,6 +30,7 @@ export const users = pgTable(
     displayName: text("display_name").notNull(),
     passwordHash: text("password_hash").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     failedLoginCount: integer("failed_login_count").default(0).notNull(),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
     sessionVersion: integer("session_version").default(1).notNull(),
@@ -53,7 +54,11 @@ export const users = pgTable(
     check("users_session_version_positive", sql`${table.sessionVersion} > 0`),
     check(
       "users_ffn_format",
-      sql`${table.ffn} is null or ${table.ffn} ~ '^[0-9]{4}-[0-9]{4}$'`,
+      sql`${table.ffn} is null or ${table.ffn} ~ '^[0-9]+$'`,
+    ),
+    check(
+      "users_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
     ),
     check(
       "users_instructor_level_valid",

@@ -28,7 +28,7 @@ function randomFfn() {
     .replace(/\D/g, "")
     .padEnd(8, "0")
     .slice(0, 8);
-  return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return digits;
 }
 
 async function createUser(db: Db, suffix: string, roleCode: string) {

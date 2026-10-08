@@ -1020,6 +1020,160 @@ export async function archiveCurriculum(
   });
 }
 
+export async function createTrainingCode(
+  db: Database,
+  actor: Actor,
+  input: z.input<typeof trainingCodeInput>,
+) {
+  const parsed = trainingCodeInput.parse(input);
+  return db.transaction(async (transaction) => {
+    try {
+      const [code] = await transaction
+        .insert(trainingCodes)
+        .values(parsed)
+        .returning();
+      if (!code) throw new Error("Training code was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "training_code.created",
+        entityType: "training_code",
+        entityId: code.id,
+        details: { code: code.code },
+      });
+      return code;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error(
+          "A training code with that code and source revision already exists.",
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+export async function updateTrainingCode(
+  db: Database,
+  actor: Actor,
+  id: string,
+  input: z.input<typeof trainingCodeInput>,
+) {
+  const parsed = trainingCodeInput.parse(input);
+  return db.transaction(async (transaction) => {
+    try {
+      const [code] = await transaction
+        .update(trainingCodes)
+        .set({
+          code: parsed.code,
+          title: parsed.title,
+          sourceRevision: parsed.sourceRevision,
+          updatedAt: new Date(),
+        })
+        .where(eq(trainingCodes.id, id))
+        .returning();
+      if (!code) throw new Error("Training code not found.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "training_code.updated",
+        entityType: "training_code",
+        entityId: code.id,
+        details: { code: code.code },
+      });
+      return code;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error(
+          "A training code with that code and source revision already exists.",
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+export async function createCurriculum(
+  db: Database,
+  actor: Actor,
+  input: z.input<typeof curriculumInput>,
+) {
+  const parsed = curriculumInput.parse(input);
+  return db.transaction(async (transaction) => {
+    try {
+      const [curriculum] = await transaction
+        .insert(curricula)
+        .values({
+          publisher: parsed.publisher,
+          programTitle: parsed.programTitle,
+          version: parsed.version || null,
+          additionalRequirements: parsed.additionalRequirements || null,
+          sourceRevision: parsed.sourceRevision,
+        })
+        .returning();
+      if (!curriculum) throw new Error("Curriculum was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "curriculum.created",
+        entityType: "curriculum",
+        entityId: curriculum.id,
+        details: { programTitle: curriculum.programTitle },
+      });
+      return curriculum;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error(
+          "A curriculum with that publisher, program title, and source revision already exists.",
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+export async function updateCurriculum(
+  db: Database,
+  actor: Actor,
+  id: string,
+  input: z.input<typeof curriculumInput>,
+) {
+  const parsed = curriculumInput.parse(input);
+  return db.transaction(async (transaction) => {
+    try {
+      const [curriculum] = await transaction
+        .update(curricula)
+        .set({
+          publisher: parsed.publisher,
+          programTitle: parsed.programTitle,
+          version: parsed.version || null,
+          additionalRequirements: parsed.additionalRequirements || null,
+          sourceRevision: parsed.sourceRevision,
+          updatedAt: new Date(),
+        })
+        .where(eq(curricula.id, id))
+        .returning();
+      if (!curriculum) throw new Error("Curriculum not found.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "curriculum.updated",
+        entityType: "curriculum",
+        entityId: curriculum.id,
+        details: { programTitle: curriculum.programTitle },
+      });
+      return curriculum;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error(
+          "A curriculum with that publisher, program title, and source revision already exists.",
+        );
+      }
+      throw error;
+    }
+  });
+}
+
 // ── Approved curriculum chapters ──────────────────────────────────────────
 
 const curriculumChapterInput = z.object({

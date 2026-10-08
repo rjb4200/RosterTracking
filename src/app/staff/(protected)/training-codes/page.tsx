@@ -15,8 +15,11 @@ import { getDatabase } from "@/server/db/client";
 
 import {
   archiveTrainingCodeAction,
+  createTrainingCodeAction,
   setTrainingCodeActiveAction,
+  updateTrainingCodeAction,
 } from "./actions";
+import { TrainingCodeForm } from "./training-code-form";
 
 export const dynamic = "force-dynamic";
 
@@ -62,8 +65,8 @@ export default async function TrainingCodesPage({
           {codes.length === 0 ? (
             <TableRow>
               <TableCell colSpan={5} className="text-muted-foreground">
-                No training codes found. Import a structured JSON file to add
-                the catalog.
+                No training codes found. Add one below or import a structured
+                JSON file.
               </TableCell>
             </TableRow>
           ) : (
@@ -102,12 +105,30 @@ export default async function TrainingCodesPage({
                       </Button>
                     </form>
                   </div>
+                  <details className="admin-section">
+                    <summary>Edit</summary>
+                    <TrainingCodeForm
+                      action={updateTrainingCodeAction}
+                      submitLabel="Save changes"
+                      values={{
+                        id: code.id,
+                        code: code.code,
+                        title: code.title,
+                        sourceRevision: code.sourceRevision,
+                      }}
+                    />
+                  </details>
                 </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      <section className="admin-section">
+        <h2>Add training code</h2>
+        <TrainingCodeForm action={createTrainingCodeAction} />
+      </section>
     </main>
   );
 }
