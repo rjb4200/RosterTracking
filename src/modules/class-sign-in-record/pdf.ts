@@ -43,7 +43,10 @@ const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 48;
 const LINE_HEIGHT = 14;
-const ROWS_PER_PAGE = 18;
+const HEADER_LINES = 6;
+// Vertical room left for entry blocks after the page header and its spacing.
+const BODY_HEIGHT =
+  PAGE_HEIGHT - MARGIN * 2 - HEADER_LINES * LINE_HEIGHT - LINE_HEIGHT / 2;
 
 function safeText(value: string): string {
   // pdf-lib's standard fonts are WinAnsi; replace unsupported glyphs so a
@@ -83,24 +86,81 @@ function wrap(text: string, maxChars: number): string[] {
   return lines;
 }
 
+interface EntryLine {
+  text: string;
+  size: number;
+  bold: boolean;
+}
+
+type SignInRow =
+  | { kind: "active"; entry: ClassSignInRecordEntry }
+  | { kind: "removed"; entry: ClassSignInRecordRemovedEntry };
+
+function entryLines(row: SignInRow): EntryLine[] {
+  const entry = row.entry;
+  const suffix = row.kind === "removed" ? " (REMOVED)" : "";
+  const lines: EntryLine[] = [
+    { text: `${entry.participantName}${suffix}`, size: 11, bold: true },
+    {
+      text: `  ${entry.participantType} | ${entry.agencyName} | ${entry.signInMethod} | ${entry.creditedHours} hours`,
+      size: 9,
+      bold: false,
+    },
+  ];
+  if (entry.attestation) {
+    lines.push({
+      text: `  Confirmed ${formatDepartmentDateTime(entry.attestation.confirmedAt)}`,
+      size: 9,
+      bold: false,
+    });
+    for (const wrapped of wrap(entry.attestation.renderedText, 92)) {
+      lines.push({ text: `  "${wrapped}"`, size: 9, bold: false });
+    }
+    lines.push({
+      text: `  Attestation v${entry.attestation.textVersion} | IP ${entry.attestation.originatingIp} | Device ${entry.attestation.rememberedDeviceId ?? "none"}`,
+      size: 9,
+      bold: false,
+    });
+  } else {
+    lines.push({ text: "  No attestation recorded.", size: 9, bold: false });
+  }
+  if (row.kind === "removed") {
+    lines.push({
+      text: `  Removed ${formatDepartmentDateTime(row.entry.removedAt)} by ${row.entry.removedBy}: ${row.entry.removalReason}`,
+      size: 9,
+      bold: false,
+    });
+  }
+  return lines;
+}
+
 export async function renderClassSignInRecordPdf(
   record: ClassSignInRecord,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const rows: Array<
-    | { kind: "active"; entry: ClassSignInRecordEntry }
-    | { kind: "removed"; entry: ClassSignInRecordRemovedEntry }
-  > = [
+  const rows: SignInRow[] = [
     ...record.active.map((entry) => ({ kind: "active" as const, entry })),
     ...record.removed.map((entry) => ({ kind: "removed" as const, entry })),
   ];
-  const pageGroups: (typeof rows)[] = [];
-  for (let index = 0; index < rows.length; index += ROWS_PER_PAGE) {
-    pageGroups.push(rows.slice(index, index + ROWS_PER_PAGE));
+
+  // Pack entries onto pages by their real rendered height so a class of any
+  // size flows onto additional pages instead of running off the bottom.
+  const pageGroups: SignInRow[][] = [];
+  let current: SignInRow[] = [];
+  let usedHeight = 0;
+  for (const row of rows) {
+    const entryHeight = entryLines(row).length * LINE_HEIGHT + LINE_HEIGHT / 2;
+    if (current.length > 0 && usedHeight + entryHeight > BODY_HEIGHT) {
+      pageGroups.push(current);
+      current = [];
+      usedHeight = 0;
+    }
+    current.push(row);
+    usedHeight += entryHeight;
   }
-  if (pageGroups.length === 0) pageGroups.push([]);
+  pageGroups.push(current);
 
   pageGroups.forEach((group, pageIndex) => {
     const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -133,33 +193,8 @@ export async function renderClassSignInRecordPdf(
     }
 
     for (const row of group) {
-      const entry = row.entry;
-      const suffix = row.kind === "removed" ? " (REMOVED)" : "";
-      line(`${entry.participantName}${suffix}`, 11, true);
-      line(
-        `  ${entry.participantType} | ${entry.agencyName} | ${entry.signInMethod} | ${entry.creditedHours} hours`,
-        9,
-      );
-      if (entry.attestation) {
-        line(
-          `  Confirmed ${formatDepartmentDateTime(entry.attestation.confirmedAt)}`,
-          9,
-        );
-        for (const wrapped of wrap(entry.attestation.renderedText, 92)) {
-          line(`  "${wrapped}"`, 9);
-        }
-        line(
-          `  Attestation v${entry.attestation.textVersion} | IP ${entry.attestation.originatingIp} | Device ${entry.attestation.rememberedDeviceId ?? "none"}`,
-          9,
-        );
-      } else {
-        line("  No attestation recorded.", 9);
-      }
-      if (row.kind === "removed") {
-        line(
-          `  Removed ${formatDepartmentDateTime(row.entry.removedAt)} by ${row.entry.removedBy}: ${row.entry.removalReason}`,
-          9,
-        );
+      for (const entryLine of entryLines(row)) {
+        line(entryLine.text, entryLine.size, entryLine.bold);
       }
       y -= LINE_HEIGHT / 2;
     }
