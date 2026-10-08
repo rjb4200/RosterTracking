@@ -27,6 +27,9 @@ export interface TemplateMapping {
     { x: number; y: number; width: number; height: number }
   >;
   fields: Record<string, string>;
+  // Text fields that should wrap a long value across lines rather than
+  // auto-shrink it onto a single line.
+  wrapFields?: readonly string[];
   blankFields: readonly string[];
   // Field-name prefix for the per-attendee initials column (for example
   // "INITIALSRow", used as INITIALSRow1..N). Absent when the form has none.
@@ -92,6 +95,16 @@ export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
       leadSignature: "Text1",
       instructorInitials: "Instructor Initials",
     },
+    // Subject cells hold variable-length values; wrap them onto a second
+    // line instead of auto-shrinking them onto one.
+    wrapFields: [
+      "Class NameRow1",
+      "Class NameRow2",
+      "CurriculumRow1",
+      "CurriculumRow2",
+      "Lesson PlanRow1",
+      "Lesson PlanRow2",
+    ],
     // Everything approved is populated: the lead instructor signs and both
     // instructor and attendee initials are printed. Nothing is left blank.
     blankFields: [],

@@ -1,19 +1,20 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import { PDFDocument } from "pdf-lib";
+import { PDFContentStream, PDFDocument } from "pdf-lib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encryptCredential } from "@/modules/reference/crypto";
 import type { Database } from "@/server/db/client";
 
-import { TEMPLATE_MAPPINGS } from "./mappings";
+import { getTemplateMapping, TEMPLATE_MAPPINGS } from "./mappings";
 import {
   emailOfficialRoster,
   type FinalizationSnapshot,
   generateOfficialRoster,
   hasOfficialRosterAuthority,
   renderOfficialRoster,
+  renderPage,
   renderRosterPage,
   snapshotIdentifier,
   UnreadableRevisionSnapshotError,
@@ -51,6 +52,31 @@ const snapshot: FinalizationSnapshot = {
   credentialSnapshots: [],
 };
 
+/**
+ * Reads a field's rendered appearance before flattening and reports the
+ * auto-sized font size and how many text runs (lines) it drew. pdf-lib lays a
+ * wrapped value out as one text run per line.
+ */
+function renderedTextRuns(
+  page: PDFDocument,
+  fieldName: string,
+): { fontSize: number; lineCount: number } {
+  const widget = page
+    .getForm()
+    .getTextField(fieldName)
+    .acroField.getWidgets()[0];
+  const normal = widget?.getAppearances()?.normal;
+  if (!(normal instanceof PDFContentStream)) {
+    throw new Error(`No appearance stream for ${fieldName}`);
+  }
+  const content = normal.getContentsString();
+  const fontSize = Number(
+    /\/[A-Za-z0-9]+\s+([\d.]+)\s+Tf/.exec(content)?.[1] ?? "0",
+  );
+  const lineCount = content.match(/\bTj\b/g)?.length ?? 0;
+  return { fontSize, lineCount };
+}
+
 describe("official roster PDF templates", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -74,6 +100,82 @@ describe("official roster PDF templates", () => {
       for (const name of Object.values(mapping.fields))
         expect(fields.has(name)).toBe(true);
     }
+  });
+
+  it("wraps long KFS-1A subject values across two lines at a larger size", async () => {
+    const longCurriculumLabel =
+      "IFSTA Essentials of Firefighting 8th Edition - Chapter 3. Communications";
+    const long: FinalizationSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          title: "Command operations",
+          className: "Incident Command and Multi-Agency Coordination",
+          curriculumPublisher: "IFSTA",
+          curriculumProgramTitle: "Essentials of Firefighting",
+          curriculumVersion: "8th Edition",
+          curriculumChapter: "Chapter 3. Communications",
+          lessonPlan: "Command operations and multi-agency coordination plan",
+          startsAt: "2026-09-05T13:00:00.000Z",
+          endsAt: "2026-09-05T17:00:00.000Z",
+          creditedHours: "4",
+        },
+      ],
+    };
+    const page = await renderRosterPage(
+      "kfs-1a",
+      long,
+      long.attendance.slice(0, 1),
+      { flatten: false },
+    );
+
+    for (const field of [
+      "CurriculumRow1",
+      "Class NameRow1",
+      "Lesson PlanRow1",
+    ]) {
+      expect(renderedTextRuns(page, field).lineCount).toBe(2);
+    }
+
+    // Without wrapping, the same value in the same cell shrinks onto one line.
+    const mapping = getTemplateMapping("kfs-1a");
+    const unwrapped = await renderPage(
+      { ...mapping, wrapFields: undefined },
+      (pdf) => {
+        pdf
+          .getForm()
+          .getTextField("CurriculumRow1")
+          .setText(longCurriculumLabel);
+      },
+      { flatten: false },
+    );
+    const unwrappedCurriculum = renderedTextRuns(unwrapped, "CurriculumRow1");
+    expect(unwrappedCurriculum.lineCount).toBe(1);
+    expect(renderedTextRuns(page, "CurriculumRow1").fontSize).toBeGreaterThan(
+      unwrappedCurriculum.fontSize,
+    );
+  });
+
+  it("keeps a short KFS-1A subject value on one line", async () => {
+    const short: FinalizationSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          title: "Command operations",
+          curriculumChapter: "Ch 3",
+          startsAt: "2026-09-05T13:00:00.000Z",
+          endsAt: "2026-09-05T17:00:00.000Z",
+          creditedHours: "4",
+        },
+      ],
+    };
+    const page = await renderRosterPage(
+      "kfs-1a",
+      short,
+      short.attendance.slice(0, 1),
+      { flatten: false },
+    );
+    expect(renderedTextRuns(page, "CurriculumRow1").lineCount).toBe(1);
   });
 
   it("paginates every attendee and flattens the form", async () => {

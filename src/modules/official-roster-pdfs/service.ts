@@ -460,10 +460,12 @@ export async function renderPage(
   );
   const pdf = await PDFDocument.load(source);
   fill(pdf);
-  pdf
-    .getForm()
-    .updateFieldAppearances(await pdf.embedFont(StandardFonts.Helvetica));
-  if (options.flatten ?? true) pdf.getForm().flatten();
+  const form = pdf.getForm();
+  for (const name of mapping.wrapFields ?? []) {
+    form.getTextField(name).enableMultiline();
+  }
+  form.updateFieldAppearances(await pdf.embedFont(StandardFonts.Helvetica));
+  if (options.flatten ?? true) form.flatten();
   return pdf;
 }
 
