@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Allow authorized staff to create, schedule, open, complete, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
+Allow authorized staff to create, schedule, open, finalize, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
 ## Requirements
 ### Requirement: Class records use reference data
 The system SHALL let authorized staff create an open class with a class name, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, the EMS course name when KBEMS is selected, or a class name entered on the class-and-schedule step when neither is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
@@ -89,23 +89,19 @@ The system SHALL let authorized staff assign active staff users as instructors a
 - **THEN** the newly selected instructor becomes the only lead assignment
 
 ### Requirement: Class lifecycle is controlled
-The system SHALL represent open, completed, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, close public sign-in and enter completed roster review when an open class finishes attendance, finalize a completed class only once its roster is ready, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable while it is open or completed, except where a lifecycle restriction expressly applies.
+The system SHALL represent open, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, finalize an open class only once its roster is ready and only by its lead instructor, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable while it is open, except where a lifecycle restriction expressly applies.
 
-#### Scenario: Complete an open class
-- **WHEN** authorized staff finish attendance for an open class
-- **THEN** public sign-in closes and the class state changes to completed for roster review, whether or not the roster still needs correction
+#### Scenario: Finalize an open class
+- **WHEN** the class's lead instructor finalizes a roster-ready open class
+- **THEN** public sign-in closes, the class state changes to finalized, and the roster is locked in the same action
 
 #### Scenario: Block finalization with roster errors
-- **WHEN** authorized staff attempt to finalize a completed class whose roster has no active attendance, missing required reporting context, or credited hours outside the class scheduled total
-- **THEN** the system keeps the class completed and reports the roster validation errors
+- **WHEN** the lead instructor attempts to finalize an open class whose roster has no active attendance, missing required reporting context, or credited hours outside the class scheduled total
+- **THEN** the system keeps the class open, leaves public sign-in unchanged, and reports the roster validation errors
 
 #### Scenario: Edit an open class
 - **WHEN** authorized staff change the course, site, host agency, reporting systems, sessions, or lead instructor of an open class
 - **THEN** the system saves the change and the class remains open
-
-#### Scenario: Edit a completed class
-- **WHEN** authorized staff change the course, site, host agency, reporting systems, sessions, or lead instructor of a completed class that is under roster review
-- **THEN** the system saves the change and the class remains completed
 
 #### Scenario: Lock finalized class editing
 - **WHEN** a class is finalized
@@ -113,10 +109,10 @@ The system SHALL represent open, completed, finalized, and cancelled class state
 
 #### Scenario: Reopen a finalized class
 - **WHEN** authorized staff provide a non-empty reopen reason
-- **THEN** the class leaves finalized state and retains the reason and prior finalization history
+- **THEN** the class leaves finalized state, returns to open, and retains the reason and prior finalization history
 
 #### Scenario: Cancel a class
-- **WHEN** authorized staff cancel an open or completed class with a reason
+- **WHEN** authorized staff cancel an open class with a reason
 - **THEN** the class state changes to cancelled and the reason is retained
 
 ### Requirement: Class changes are audited
@@ -183,27 +179,27 @@ The system SHALL display the current four-digit student access PIN only to autho
 - **THEN** the student access PIN is not displayed to staff or public visitors
 
 ### Requirement: Class list defaults to current operational work
-The system SHALL present the staff class list scoped by default to current operational work: classes whose scheduled sessions fall on or after the default lookback of 30 days, whose lifecycle state is draft, open, or completed, and classes finalized within the last seven days. The system SHALL exclude cancelled classes and finalized classes older than that grace window unless the operator includes them. The system SHALL let authorized staff widen the list through a session date range, a lifecycle status selection, and explicit inclusion of finalized and cancelled classes, while keeping the existing class and site search.
+The system SHALL present the staff class list scoped by default to current operational work: classes whose scheduled sessions fall on or after the default lookback of 30 days, whose lifecycle state is open, and classes finalized within the last seven days. The system SHALL exclude cancelled classes and finalized classes older than that grace window unless the operator includes them. The system SHALL let authorized staff widen the list through a session date range, a lifecycle status selection, and explicit inclusion of finalized and cancelled classes, while keeping the existing class and site search.
 
 #### Scenario: Show current work by default
 - **WHEN** an authorized staff member opens the class list without changing any filter
-- **THEN** the system lists draft, open, and completed classes whose sessions fall within the default recent window together with classes finalized within the last seven days, and excludes cancelled classes
+- **THEN** the system lists open classes whose sessions fall within the default recent window together with classes finalized within the last seven days, and excludes cancelled classes
 
-#### Scenario: Hide a stale draft
-- **WHEN** a draft class was created more than seven days ago
-- **THEN** the system omits that draft from the default list
+#### Scenario: Hide a stale class
+- **WHEN** a class was created more than seven days ago and is neither open with a recent session nor recently finalized
+- **THEN** the system omits that class from the default list
 
 #### Scenario: Reach a hidden class through the filters
 - **WHEN** an operator widens the status or session date filters, or chooses to include finalized and cancelled classes
 - **THEN** the system lists the previously hidden classes that match the widened filters
 
 #### Scenario: Retain unfinalized work with students
-- **WHEN** a class has at least one active student on its roster, has not been finalized, and its session falls outside the default recent window
+- **WHEN** an open class has at least one active student on its roster and its session falls outside the default recent window
 - **THEN** the system still lists that class until it is finalized
 
 #### Scenario: Filter by session date range
 - **WHEN** an operator sets a session date range
-- **THEN** the system lists only classes whose sessions fall within that range, apart from unfinalized classes that have active students
+- **THEN** the system lists only classes whose sessions fall within that range, apart from open classes that have active students
 
 #### Scenario: Search within the active filters
 - **WHEN** an operator searches by course or site name
@@ -213,7 +209,7 @@ The system SHALL present the staff class list scoped by default to current opera
 The system SHALL distinguish every lifecycle state on the class list with a colored indicator and the written state name, SHALL keep each state understandable without relying on color alone, and SHALL show an overdue roster as a separate indicator beside the class status rather than replacing it.
 
 #### Scenario: Distinguish lifecycle states
-- **WHEN** the class list shows draft, open, completed, finalized, and cancelled classes
+- **WHEN** the class list shows open, finalized, and cancelled classes
 - **THEN** each state is visually distinguishable from the others
 
 #### Scenario: Keep status readable without color
@@ -225,7 +221,7 @@ The system SHALL distinguish every lifecycle state on the class list with a colo
 - **THEN** the system shows an overdue indicator alongside, not instead of, the lifecycle status
 
 ### Requirement: Class sessions retain Fire subject fields
-The system SHALL let a class session store a Fire subject: a training-code reference (category), a class name, a curriculum reference, and a free-text lesson plan. A class SHALL support up to two Fire subjects for official Fire output. These fields SHALL be editable while the class is open or completed and SHALL be preserved at finalization.
+The system SHALL let a class session store a Fire subject: a training-code reference (category), a class name, a curriculum reference, and a free-text lesson plan. A class SHALL support up to two Fire subjects for official Fire output. These fields SHALL be editable while the class is open and SHALL be preserved at finalization.
 
 #### Scenario: Save a Fire subject
 - **WHEN** staff save a class session with a category, class name, curriculum, and lesson plan
@@ -266,7 +262,7 @@ The system SHALL retain each assigned instructor's Fire Commission FFN and certi
 - **THEN** the existing revision keeps the values captured at finalization
 
 ### Requirement: Class retains EMS course type and number
-The system SHALL let a class store an EMS course type and a course number. These SHALL be editable while the class is open or completed, SHALL be preserved at finalization, and SHALL be available to completion-certificate output.
+The system SHALL let a class store an EMS course type and a course number. These SHALL be editable while the class is open, SHALL be preserved at finalization, and SHALL be available to completion-certificate output.
 
 #### Scenario: Save EMS course details
 - **WHEN** staff save a class with a course type and course number
@@ -282,7 +278,7 @@ The system SHALL let a class store an EMS course type and a course number. These
 
 ### Requirement: Class sessions retain a Fire subject chapter and typed book
 
-The system SHALL let a class session store a Fire subject chapter and, when the book is not in the approved catalog, a free-text curriculum name alongside the training-code reference, class name, curriculum reference, and lesson plan. These values SHALL be editable while the class is open or completed and SHALL be preserved at finalization.
+The system SHALL let a class session store a Fire subject chapter and, when the book is not in the approved catalog, a free-text curriculum name alongside the training-code reference, class name, curriculum reference, and lesson plan. These values SHALL be editable while the class is open and SHALL be preserved at finalization.
 
 #### Scenario: Save a subject chapter
 - **WHEN** staff save a class session with a chapter
@@ -295,4 +291,3 @@ The system SHALL let a class session store a Fire subject chapter and, when the 
 #### Scenario: Preserve the chapter and typed book at finalization
 - **WHEN** a class with a subject chapter or a typed book is finalized
 - **THEN** the revision retains the chapter and the typed book name
-

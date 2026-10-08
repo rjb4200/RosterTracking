@@ -1,6 +1,7 @@
 # mtu-usage-tracking Specification
 
 ## Purpose
+
 Record how the grant-funded Mobile Training Unit was used for a class so its equipment, mileage, and supplies consumption can be accounted for and reported later.
 ## Requirements
 ### Requirement: MTU usage is recorded for a class
@@ -14,25 +15,13 @@ When MTU is a selected destination, the system SHALL store the class's Mobile Tr
 - **WHEN** staff provide only mileage
 - **THEN** the system stores mileage and leaves equipment and supplies empty without blocking the class
 
-### Requirement: MTU usage is editable until finalization
-The system SHALL allow authorized staff to change a class's MTU usage while the class is open or completed and SHALL reject the change after the class is finalized.
+### Requirement: MTU usage is editable at any time
+The system SHALL allow authorized staff to change a class's MTU usage at any time, including while the class is open and after it is finalized. The review page SHALL display and edit the current operational MTU usage independently of the class and roster lock. MTU changes SHALL be audited and SHALL NOT alter signed revision facts or official roster PDFs.
 
 #### Scenario: Edit MTU usage while open
 - **WHEN** staff change a class's MTU mileage while the class is open
 - **THEN** the system saves the new value
 
-#### Scenario: Reject MTU usage edit after finalization
-- **WHEN** staff attempt to change MTU usage for a finalized class
-- **THEN** the system rejects the change
-
-### Requirement: MTU usage is preserved at finalization
-Finalizing a class SHALL preserve its MTU usage facts in the immutable revision so a later report can read them.
-
-#### Scenario: Preserve MTU usage in a revision
-- **WHEN** a class with MTU usage is finalized
-- **THEN** the revision retains the equipment used, mileage, and used supplies captured at finalization
-
-#### Scenario: Retain MTU usage when a class is reopened
-- **WHEN** a finalized class is reopened and finalized again
-- **THEN** the new revision retains the MTU usage current at the later finalization
-
+#### Scenario: Edit MTU usage after finalization
+- **WHEN** staff change a class's MTU usage after the class is finalized
+- **THEN** the system saves the new value without requiring the class to be reopened

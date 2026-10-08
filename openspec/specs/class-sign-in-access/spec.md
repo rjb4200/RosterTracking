@@ -25,7 +25,7 @@ The system SHALL present a QR code for the stable public class URL so authorized
 - **THEN** the staff member can view a QR code encoding the stable public URL
 
 ### Requirement: Public token resolution is state-limited
-The system SHALL resolve a valid raw sign-in token only for an open class. A resolved token SHALL establish a server-validated class context bound to the current class sign-in token version and present the public student identification and attendance workflow without exposing the raw token to application logs. When the class has an enabled access PIN, the system SHALL require correct PIN verification before establishing that context. Requests with unknown, rotated, cancelled, completed, draft, or finalized class tokens SHALL not reveal class details.
+The system SHALL resolve a valid raw sign-in token only for an open class. A resolved token SHALL establish a server-validated class context bound to the current class sign-in token version and present the public student identification and attendance workflow without exposing the raw token to application logs. When the class has an enabled access PIN, the system SHALL require correct PIN verification before establishing that context. Requests with unknown, rotated, cancelled, draft, or finalized class tokens SHALL not reveal class details.
 
 #### Scenario: Resolve an open class token
 - **WHEN** a visitor requests a valid token for an open class
@@ -81,7 +81,7 @@ The system SHALL assign each class a globally unique, human-readable four-charac
 - **THEN** the system begins that class's student-access flow
 
 #### Scenario: Reject an inactive public code
-- **WHEN** a visitor requests a public code for a draft, completed, finalized, or cancelled class
+- **WHEN** a visitor requests a public code for a draft, finalized, or cancelled class
 - **THEN** the system returns a generic unavailable response without class details
 
 ### Requirement: Stable public access is available to authorized instructors

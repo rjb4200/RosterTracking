@@ -5,7 +5,7 @@
 Generate printable KFS-1A and KBEMS-E16 roster PDFs on demand from immutable finalization revisions.
 ## Requirements
 ### Requirement: Official rosters use finalized revision facts
-The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster revision. Each form SHALL use the class, instructor, component, participant, agency, credit, and required credential facts preserved by that revision rather than mutable current records.
+The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster revision. Each form SHALL use the class, instructor, component, participant, agency, credit, and required credential facts preserved by that revision rather than mutable current records. Operational MTU edits SHALL NOT change either roster PDF; the forms SHALL retain their existing approved fields without adding MTU usage.
 
 #### Scenario: Generate a Fire roster
 - **WHEN** a Training Major or Administrator generates a KFS-1A roster for a finalized revision
@@ -18,6 +18,10 @@ The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster
 #### Scenario: Block non-finalized source data
 - **WHEN** staff attempt to generate an official roster for a class without a finalized revision
 - **THEN** the system rejects the request without returning a roster document
+
+#### Scenario: Preserve roster output after an MTU edit
+- **WHEN** a class's MTU usage changes after finalization and its roster is generated again
+- **THEN** the roster retains the same revision-based facts and layout without rendering MTU usage
 
 ### Requirement: Form fields preserve official-signature boundaries
 The system SHALL populate the KFS-1A lead-instructor signature area and each attendee's initials cell from the finalization revision's signing facts, and SHALL leave the KFS-1A assisting-instructor signature, the KBEMS-E16 student and instructor signature fields, and all other signature fields blank for the required physical signing process. It SHALL populate only approved fields otherwise.
@@ -154,4 +158,3 @@ The system SHALL render each KFS-1A subject row's Class Name, Curriculum, and Le
 #### Scenario: Leave other documents unchanged
 - **WHEN** the system generates a KBEMS-E16 roster or a completion certificate
 - **THEN** its layout and field rendering are unchanged by this behavior
-

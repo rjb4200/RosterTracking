@@ -7,19 +7,15 @@ Give instructors and elevated staff one focused, responsive screen for operating
 ## Requirements
 
 ### Requirement: Live class command screen
-The system SHALL show authorized class operators one class page that adapts to the class state with a single state-appropriate primary action: finish attendance and review while the class is open, review and finalize the roster when the class is completed, and no mutating action once the class is finalized. It SHALL show the class name, schedule, site, delivery method, plain-language status, and active attendance count. Assigned instructors SHALL operate their assigned classes; elevated staff SHALL operate department classes.
+The system SHALL show authorized class operators one class page that adapts to the class state with a single state-appropriate primary action: review and finalize the roster while the class is open, and no mutating action once the class is finalized. It SHALL show the class name, schedule, site, delivery method, plain-language status, and active attendance count. Assigned instructors SHALL operate their assigned classes; elevated staff SHALL operate department classes.
 
 #### Scenario: Operate an open class
 - **WHEN** an authorized operator opens an open class
-- **THEN** the class page shows its live facts, attendance count, sign-in access, a read-only roster, and the single primary action to finish attendance and review
+- **THEN** the class page shows its live facts, attendance count, sign-in access, a read-only roster, and the single primary action to review and finalize
 
-#### Scenario: Finish attendance and reach the review step
-- **WHEN** an authorized operator finishes attendance for an open class
-- **THEN** the class page moves the operator to the review step where the class data and the roster are confirmed and corrected
-
-#### Scenario: Show the next action by state
-- **WHEN** an authorized operator opens a completed class
-- **THEN** the class page offers the single primary action to review and finalize the roster, which opens the review step, and does not finalize the roster itself
+#### Scenario: Reach the finalize step
+- **WHEN** an authorized operator chooses the primary action on an open class
+- **THEN** the class page moves the operator to the review step where the class data and the roster are confirmed, corrected, and finalized
 
 #### Scenario: Read-only after finalization
 - **WHEN** an authorized operator opens a finalized class
@@ -33,11 +29,7 @@ The system SHALL let authorized operators copy the active class sign-in link and
 - **THEN** the QR code and sign-in link are displayed prominently for students
 
 ### Requirement: Embedded live roster
-The system SHALL show active attendance rows with student name, agency when present, sign-in time, and credit exceptions on the class page, and SHALL offer authorized operators manual attendance entry and the class sign-in record without leaving the class page. While the class is open, the system SHALL keep the displayed roster current on its own, showing a newly signed-in attendee without the operator reloading the page, and SHALL add new rows in place without a flash, highlight, or sound. Credited-hour and removal corrections SHALL be made at the finish-attendance step rather than on the class page.
-
-#### Scenario: Add attendance during a class
-- **WHEN** an operator adds a student manually to an open class
-- **THEN** the class page refreshes with the attendee and updated count
+The system SHALL show active attendance rows with student name, agency when present, sign-in time, and credit exceptions on the class page, and SHALL offer authorized operators the class sign-in record without leaving the class page. While the class is open, the system SHALL keep the displayed roster current on its own, showing a newly signed-in attendee without the operator reloading the page, and SHALL add new rows in place without a flash, highlight, or sound. Credited-hour and removal corrections SHALL be made at the finalization step rather than on the class page.
 
 #### Scenario: See a new sign-in without reloading
 - **WHEN** a student signs in while an authorized operator has the open class page displayed

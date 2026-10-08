@@ -6,14 +6,14 @@ Provide a detailed, printable audit trail for a class so authorized staff can se
 ## Requirements
 ### Requirement: Class audit log is class-scoped and detailed
 
-The system SHALL produce a class audit log from the append-only audit records associated with the class. The log SHALL include class lifecycle changes, attendance additions, removals, credit adjustments, and public sign-ins, finalization and reopen actions, and reporting and official-output generation events. The system SHALL order entries chronologically and SHALL identify each entry by its department timestamp, actor, action, and affected entity. The log SHALL represent repeated official-output generation by the same actor for the same revision once rather than once per generation: one entry per actor per revision per form for official rosters, and one entry per actor per revision for completion certificates. Official-roster email deliveries SHALL remain represented per send.
+The system SHALL produce a class audit log from the append-only audit records associated with the class. The log SHALL include class lifecycle changes, attendance removals, credit adjustments, and public sign-ins, finalization and reopen actions, and reporting and official-output generation events. The system SHALL order entries chronologically and SHALL identify each entry by its department timestamp, actor, action, and affected entity. The log SHALL represent repeated official-output generation by the same actor for the same revision once rather than once per generation: one entry per actor per revision per form for official rosters, and one entry per actor per revision for completion certificates. Official-roster email deliveries SHALL remain represented per send.
 
 #### Scenario: Include class lifecycle changes
-- **WHEN** an authorized user views the audit log for a class that has been created, edited, scheduled, assigned, opened, completed, and finalized
+- **WHEN** an authorized user views the audit log for a class that has been created, edited, scheduled, assigned, opened, and finalized
 - **THEN** every recorded class lifecycle change appears with its actor and timestamp
 
 #### Scenario: Include attendance changes
-- **WHEN** attendance for the class was manually added, removed, or credit-adjusted
+- **WHEN** attendance for the class was removed or credit-adjusted
 - **THEN** each of those events appears in the class audit log
 
 #### Scenario: Include public sign-ins
@@ -99,4 +99,3 @@ The class audit log SHALL NOT display values the audit system excludes from stor
 #### Scenario: Omit protected values
 - **WHEN** the class audit log is rendered
 - **THEN** no password, token, secret, raw phone number, or full credential value appears in the document
-
