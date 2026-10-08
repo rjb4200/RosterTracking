@@ -8,6 +8,10 @@ export interface WizardValidationInput {
   creditedHours: string;
   leadInstructorId: string;
   hostAgencyId: string;
+  kbemsCourseName: string;
+  courseType: string;
+  objectives: string;
+  courseNumber: string;
   subjects: ReadonlyArray<{
     trainingCodeId: string;
     className: string;
@@ -49,6 +53,18 @@ export function wizardStepErrors(
         missing.push(`fire.${index}.curriculumChapter`);
       }
     });
+    return missing;
+  }
+  if (key === "kbems") {
+    if (!input.kbemsCourseName.trim()) missing.push("kbemsCourseName");
+    if (!input.courseType) missing.push("courseType");
+    if (!input.objectives.trim()) missing.push("objectives");
+    if (
+      input.courseType === "initial_certification" &&
+      !input.courseNumber.trim()
+    ) {
+      missing.push("courseNumber");
+    }
     return missing;
   }
   if (key === "class") {

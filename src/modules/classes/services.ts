@@ -16,6 +16,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
+import { REPORTING_SYSTEM_CODES } from "@/modules/reference/constants";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -267,6 +268,47 @@ async function validateReferences(
 }
 
 /**
+ * A KBEMS class must carry the EMS details its roster and certificate need.
+ * Enforced at creation only; the completed-class edit path does not collect
+ * these fields.
+ */
+async function assertKbemsCourseDetails(
+  transaction: DatabaseTransaction,
+  input: z.infer<typeof scheduledDraftInput>,
+): Promise<void> {
+  const ids = input.reportingSystemIds ?? [];
+  if (ids.length === 0) return;
+  const [kbems] = await transaction
+    .select({ id: reportingSystems.id })
+    .from(reportingSystems)
+    .where(
+      and(
+        inArray(reportingSystems.id, ids),
+        eq(reportingSystems.code, REPORTING_SYSTEM_CODES.KBEMS),
+      ),
+    )
+    .limit(1);
+  if (!kbems) return;
+  if (!input.name.trim()) {
+    throw new Error("Enter the EMS course name.");
+  }
+  if (!input.courseType) {
+    throw new Error("Select a course type.");
+  }
+  if (!input.objectives.trim()) {
+    throw new Error("Enter the course description or objectives.");
+  }
+  if (
+    input.courseType === "initial_certification" &&
+    !input.courseNumber.trim()
+  ) {
+    throw new Error(
+      "Enter the course number for an initial-certification class.",
+    );
+  }
+}
+
+/**
  * A chapter is required only when the chosen approved curriculum has catalog
  * chapters; typed books and chapter-less books leave the chapter optional.
  */
@@ -357,6 +399,7 @@ export async function createOpenClass(
   const rawToken = generateClassSignInToken();
   return db.transaction(async (transaction) => {
     await validateReferences(transaction, parsed);
+    await assertKbemsCourseDetails(transaction, parsed);
     const reportingSystemIds = parsed.reportingSystemIds ?? [];
     // The class name: the entered/EMS course name, else the first Fire subject.
     const className = parsed.name || parsed.subjects?.[0]?.className || null;

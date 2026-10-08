@@ -13,6 +13,10 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     creditedHours: "4",
     leadInstructorId: "user-1",
     hostAgencyId: "agency-1",
+    kbemsCourseName: "",
+    courseType: "",
+    objectives: "",
+    courseNumber: "",
     subjects: [] as Array<{
       trainingCodeId: string;
       className: string;
@@ -99,6 +103,47 @@ describe("wizard step validation", () => {
               curriculumChapter: "",
             },
           ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("requires the EMS course details and the course number only for initial certification", () => {
+    expect(wizardStepErrors("kbems", base())).toEqual([
+      "kbemsCourseName",
+      "courseType",
+      "objectives",
+    ]);
+    // A non-initial class needs no course number.
+    expect(
+      wizardStepErrors(
+        "kbems",
+        base({
+          kbemsCourseName: "EMT Refresher",
+          courseType: "refresher",
+          objectives: "Review of EMT skills",
+        }),
+      ),
+    ).toEqual([]);
+    // An initial-certification class requires the course number.
+    expect(
+      wizardStepErrors(
+        "kbems",
+        base({
+          kbemsCourseName: "EMT Initial",
+          courseType: "initial_certification",
+          objectives: "Initial EMT certification",
+        }),
+      ),
+    ).toEqual(["courseNumber"]);
+    expect(
+      wizardStepErrors(
+        "kbems",
+        base({
+          kbemsCourseName: "EMT Initial",
+          courseType: "initial_certification",
+          objectives: "Initial EMT certification",
+          courseNumber: "EMS-100",
         }),
       ),
     ).toEqual([]);

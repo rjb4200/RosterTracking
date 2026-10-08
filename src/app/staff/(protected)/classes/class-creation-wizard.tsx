@@ -235,6 +235,10 @@ export function ClassCreationWizard({
     creditedHours: values.creditedHours,
     leadInstructorId: values.leadInstructorId,
     hostAgencyId: values.hostAgencyId,
+    kbemsCourseName: values.kbemsCourseName,
+    courseType: values.courseType,
+    objectives: values.objectives,
+    courseNumber: values.courseNumber,
     subjects,
     curriculaWithChapters,
   };
@@ -340,7 +344,7 @@ export function ClassCreationWizard({
         ))}
       </ol>
 
-      {["destinations", "fire", "class"].includes(currentKey) ? (
+      {["destinations", "fire", "kbems", "class"].includes(currentKey) ? (
         <p className="required-legend">* Required</p>
       ) : null}
 
@@ -412,22 +416,38 @@ export function ClassCreationWizard({
         <section className="stack-form">
           <h2>KBEMS reporting</h2>
           <div className="field">
-            <Label htmlFor="kbemsCourseName">EMS course name</Label>
+            <Label htmlFor="kbemsCourseName">
+              EMS course name
+              <span className="required-mark" aria-hidden="true">
+                {" "}
+                *
+              </span>
+            </Label>
             <Input
               id="kbemsCourseName"
               value={values.kbemsCourseName}
               onChange={(event) =>
                 update("kbemsCourseName", event.target.value)
               }
+              aria-invalid={errors.includes("kbemsCourseName") || undefined}
+              required
             />
           </div>
           <div className="field">
-            <Label htmlFor="courseType">Course type</Label>
+            <Label htmlFor="courseType">
+              Course type
+              <span className="required-mark" aria-hidden="true">
+                {" "}
+                *
+              </span>
+            </Label>
             <select
               id="courseType"
               className="select-input"
               value={values.courseType}
               onChange={(event) => update("courseType", event.target.value)}
+              aria-invalid={errors.includes("courseType") || undefined}
+              required
             >
               <option value="">Select a course type</option>
               <option value="continuing_education">Continuing education</option>
@@ -437,22 +457,40 @@ export function ClassCreationWizard({
               <option value="refresher">Refresher</option>
             </select>
           </div>
+          {values.courseType === "initial_certification" ? (
+            <div className="field">
+              <Label htmlFor="courseNumber">
+                Course number
+                <span className="required-mark" aria-hidden="true">
+                  {" "}
+                  *
+                </span>
+              </Label>
+              <Input
+                id="courseNumber"
+                value={values.courseNumber}
+                onChange={(event) => update("courseNumber", event.target.value)}
+                aria-invalid={errors.includes("courseNumber") || undefined}
+                required
+              />
+            </div>
+          ) : null}
           <div className="field">
-            <Label htmlFor="courseNumber">Course number</Label>
-            <Input
-              id="courseNumber"
-              value={values.courseNumber}
-              onChange={(event) => update("courseNumber", event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <Label htmlFor="objectives">Course description or objectives</Label>
+            <Label htmlFor="objectives">
+              Course description or objectives
+              <span className="required-mark" aria-hidden="true">
+                {" "}
+                *
+              </span>
+            </Label>
             <textarea
               id="objectives"
               className="search-input"
               rows={4}
               value={values.objectives}
               onChange={(event) => update("objectives", event.target.value)}
+              aria-invalid={errors.includes("objectives") || undefined}
+              required
             />
           </div>
         </section>
@@ -830,11 +868,13 @@ export function ClassCreationWizard({
         <>
           <input type="hidden" name="objectives" value={values.objectives} />
           <input type="hidden" name="courseType" value={values.courseType} />
-          <input
-            type="hidden"
-            name="courseNumber"
-            value={values.courseNumber}
-          />
+          {values.courseType === "initial_certification" ? (
+            <input
+              type="hidden"
+              name="courseNumber"
+              value={values.courseNumber}
+            />
+          ) : null}
         </>
       ) : null}
       {selectedCodes.includes("mtu") ? (

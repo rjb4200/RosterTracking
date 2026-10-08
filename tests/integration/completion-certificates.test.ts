@@ -98,6 +98,7 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     accessPinEnabled: false,
     courseType: "continuing_education",
     courseNumber: `CE-${suffix.slice(0, 6)}`,
+    objectives: "Continuing education for EMTs",
   });
   const classId = created.classRecord.id;
 
