@@ -88,7 +88,7 @@ async function activeFireSetId(db: Db) {
   return { systemId: system.id, setId: set.id };
 }
 
-async function createCompletedClass(db: Db, suffix: string) {
+async function createRosterReadyClass(db: Db, suffix: string) {
   const lead = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR, "Ada Lead");
   const [site] = await db
     .insert(trainingSites)
@@ -158,7 +158,7 @@ async function createCompletedClass(db: Db, suffix: string) {
   });
   await db
     .update(trainingClasses)
-    .set({ status: "completed" })
+    .set({ status: "open" })
     .where(eq(trainingClasses.id, classId));
   return { lead, classId };
 }
@@ -186,7 +186,7 @@ describeDatabase("digital roster signing", () => {
       ROLE_CODES.ADMINISTRATOR,
       "Admin Signer",
     );
-    const { lead, classId } = await createCompletedClass(db, suffix);
+    const { lead, classId } = await createRosterReadyClass(db, suffix);
 
     await expect(
       finalizeClass(db, admin, classId, {
@@ -218,7 +218,7 @@ describeDatabase("digital roster signing", () => {
   it("requires the certification and a typed name to finalize", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
-    const { lead, classId } = await createCompletedClass(
+    const { lead, classId } = await createRosterReadyClass(
       db,
       crypto.randomUUID().slice(0, 8),
     );
@@ -241,7 +241,7 @@ describeDatabase("digital roster signing", () => {
       ROLE_CODES.ADMINISTRATOR,
       "Admin Reopener",
     );
-    const { lead, classId } = await createCompletedClass(db, suffix);
+    const { lead, classId } = await createRosterReadyClass(db, suffix);
     const revision = await finalizeClass(db, lead, classId, {
       certified: true,
       typedName: "Ada Lead",

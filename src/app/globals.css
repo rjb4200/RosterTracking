@@ -1660,10 +1660,6 @@ h1 {
   background: var(--info);
 }
 
-.class-status-rail[data-status="completed"] {
-  background: var(--warning);
-}
-
 .class-status-rail[data-status="finalized"] {
   background: var(--success);
 }

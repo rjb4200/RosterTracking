@@ -38,10 +38,10 @@ describe("audit action labels", () => {
       describeAuditEntry(
         entry({
           action: "class.status.changed",
-          details: { from: "open", to: "completed" },
+          details: { from: "open", to: "finalized" },
         }),
       ),
-    ).toBe("Status changed from open to completed");
+    ).toBe("Status changed from open to finalized");
     expect(
       describeAuditEntry(
         entry({

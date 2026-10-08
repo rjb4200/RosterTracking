@@ -307,7 +307,7 @@ describeDatabase("fire roster fields", () => {
     });
     await db
       .update(trainingClasses)
-      .set({ status: "completed" })
+      .set({ status: "open" })
       .where(eq(trainingClasses.id, classId));
 
     const revision = await finalizeClass(db, instructor, classId, {

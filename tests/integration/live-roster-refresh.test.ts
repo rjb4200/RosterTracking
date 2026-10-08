@@ -4,19 +4,51 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  addManualGuestAttendance,
-  getClassRosterRefresh,
-} from "../../src/modules/instructor-roster/services";
+import { getClassRosterRefresh } from "../../src/modules/instructor-roster/services";
 import * as schema from "../../src/server/db/schema";
 import {
   agencies,
+  attendance,
   classComponents,
+  classGuests,
   classInstructors,
   trainingClasses,
   trainingSites,
   users,
 } from "../../src/server/db/schema";
+
+async function addGuestAttendance(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  input: {
+    classId: string;
+    agencyId: string;
+    firstName: string;
+    lastName: string;
+  },
+) {
+  const [guest] = await db
+    .insert(classGuests)
+    .values({
+      classId: input.classId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    })
+    .returning({ id: classGuests.id });
+  if (!guest) throw new Error("Guest creation failed.");
+  const [record] = await db
+    .insert(attendance)
+    .values({
+      classId: input.classId,
+      guestId: guest.id,
+      agencyId: input.agencyId,
+      idempotencyKey: crypto.randomUUID(),
+      payloadFingerprint: "fixture",
+      creditedHours: "4",
+    })
+    .returning({ id: attendance.id });
+  if (!record) throw new Error("Attendance creation failed.");
+  return record.id;
+}
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -102,13 +134,11 @@ async function createFixture() {
 describeDatabase("live roster refresh", () => {
   it("serves an assigned instructor the roster and a bounded deadline", async () => {
     const fixture = await createFixture();
-    await addManualGuestAttendance(fixture.db, fixture.instructor, {
+    await addGuestAttendance(fixture.db, {
       classId: fixture.classRecord.id,
       agencyId: fixture.agency.id,
       firstName: "Live",
       lastName: "Guest",
-      fields: {},
-      credentials: {},
     });
 
     const payload = await getClassRosterRefresh(
@@ -139,11 +169,11 @@ describeDatabase("live roster refresh", () => {
     ).rejects.toThrow(/unavailable/i);
   });
 
-  it("reports the new status once the class leaves open", async () => {
+  it("reports the new status once the class leaves open so the client can refresh", async () => {
     const fixture = await createFixture();
     await fixture.db
       .update(trainingClasses)
-      .set({ status: "completed" })
+      .set({ status: "finalized" })
       .where(eq(trainingClasses.id, fixture.classRecord.id));
 
     const payload = await getClassRosterRefresh(
@@ -151,14 +181,14 @@ describeDatabase("live roster refresh", () => {
       fixture.instructor,
       fixture.classRecord.id,
     );
-    expect(payload.status).toBe("completed");
+    expect(payload.status).toBe("finalized");
   });
 
-  it("refuses a finalized class", async () => {
+  it("refuses a class that is no longer readable", async () => {
     const fixture = await createFixture();
     await fixture.db
       .update(trainingClasses)
-      .set({ status: "finalized" })
+      .set({ status: "cancelled", cancellationReason: "fixture cancellation" })
       .where(eq(trainingClasses.id, fixture.classRecord.id));
 
     await expect(

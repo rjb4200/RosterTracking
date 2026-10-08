@@ -47,7 +47,11 @@ describe("class policy", () => {
 
   it("allows only supported lifecycle transitions", () => {
     expect(() =>
-      validateClassTransition(CLASS_STATUSES.OPEN, CLASS_STATUSES.COMPLETED),
+      validateClassTransition(
+        CLASS_STATUSES.OPEN,
+        CLASS_STATUSES.CANCELLED,
+        "Cancelled",
+      ),
     ).not.toThrow();
     expect(() =>
       validateClassTransition(CLASS_STATUSES.OPEN, CLASS_STATUSES.FINALIZED),
@@ -59,6 +63,7 @@ describe("class policy", () => {
       validateClassTransition(
         CLASS_STATUSES.FINALIZED,
         CLASS_STATUSES.CANCELLED,
+        "Cancelled",
       ),
     ).toThrow(/cannot transition/i);
   });
@@ -93,13 +98,13 @@ describe("class policy", () => {
     ).toThrow(/host agency/i);
   });
 
-  it("allows finalization only after completion and requires reopen reasons", () => {
-    expect(() => validateFinalizationTransition(CLASS_STATUSES.OPEN)).toThrow(
-      /completed/i,
-    );
+  it("allows finalization only for an open class and requires reopen reasons", () => {
     expect(() =>
-      validateFinalizationTransition(CLASS_STATUSES.COMPLETED),
+      validateFinalizationTransition(CLASS_STATUSES.OPEN),
     ).not.toThrow();
+    expect(() =>
+      validateFinalizationTransition(CLASS_STATUSES.FINALIZED),
+    ).toThrow(/open/i);
     expect(() => validateReopenReason(" ")).toThrow(/reason/i);
   });
 

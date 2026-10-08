@@ -83,7 +83,7 @@ test("authorized staff can create and open a class in one pass", async ({
   await expect(page.getByText("open", { exact: true })).toBeVisible();
   await expect(page.getByText("Live class")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Finish attendance and review" }),
+    page.getByRole("link", { name: "Review and finalize" }),
   ).toBeVisible();
 });
 

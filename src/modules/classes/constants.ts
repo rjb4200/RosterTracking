@@ -10,7 +10,6 @@ export type ClassDeliveryMethod =
 
 export const CLASS_STATUSES = {
   OPEN: "open",
-  COMPLETED: "completed",
   FINALIZED: "finalized",
   CANCELLED: "cancelled",
 } as const;
@@ -35,8 +34,6 @@ export function getClassStatusTone(status: string): ClassStatusTone {
   switch (status) {
     case CLASS_STATUSES.OPEN:
       return "info";
-    case CLASS_STATUSES.COMPLETED:
-      return "warning";
     case CLASS_STATUSES.FINALIZED:
       return "success";
     case CLASS_STATUSES.CANCELLED:

@@ -35,7 +35,7 @@ test("staff can open and print the class sign-in record", async ({ page }) => {
     [`Record Agency ${suffix}`],
   );
   const klass = await pool.query<{ id: string }>(
-    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, completed_at) values ($1, $2, $3, 'classroom', 'completed', $4, $5, now()) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id) values ($1, $2, $3, 'classroom', 'open', $4, $5) returning id",
     [
       `Record Course ${suffix}`,
       site.rows[0]?.id,

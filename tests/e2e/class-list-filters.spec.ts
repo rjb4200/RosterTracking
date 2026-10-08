@@ -107,7 +107,7 @@ async function seedClassFixture(pool: Pool): Promise<ClassFixture> {
     sessionDaysAgo: 1,
   });
   const pinId = await createClass({
-    status: "completed",
+    status: "open",
     createdDaysAgo: 70,
     sessionDaysAgo: 65,
     attendance: true,
@@ -169,9 +169,13 @@ test("class list defaults to current work and widens with filters", async ({
     await page.goto("/staff/classes");
     await expect(page.locator(".class-list-filters")).toBeVisible();
 
+    // Open rows link to the class page; finalized rows link to the review
+    // record, so match either target.
     const rowFor = (id: string) =>
       page.locator("tr", {
-        has: page.locator(`a[href="/staff/classes/${id}"]`),
+        has: page.locator(
+          `a[href="/staff/classes/${id}"], a[href="/staff/classes/${id}/review"]`,
+        ),
       });
 
     await expect(
@@ -185,7 +189,7 @@ test("class list defaults to current work and widens with filters", async ({
     await expect(
       rowFor(pinId).getByText("overdue", { exact: false }),
     ).toBeVisible();
-    await expect(rowFor(pinId).getByText("completed")).toBeVisible();
+    await expect(rowFor(pinId).getByText("open")).toBeVisible();
 
     await expect(
       page.getByRole("heading", { name: /Recently finalized/i }),

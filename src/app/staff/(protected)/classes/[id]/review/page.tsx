@@ -16,14 +16,12 @@ import {
 import {
   getClassRoster,
   getRosterReadiness,
-  listRosterFormOptions,
 } from "@/modules/instructor-roster/services";
 import { TEMPLATE_MAPPINGS } from "@/modules/official-roster-pdfs/mappings";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { isAdministrator } from "@/modules/staff-auth/workspaces";
-import { resolveClassRequirements } from "@/modules/student-sign-in/requirements";
 import { getDatabase } from "@/server/db/client";
 
 import {
@@ -35,17 +33,19 @@ import {
   updateClassAction,
 } from "../../actions";
 import { ClassForm } from "../../class-form";
+import { ClassSummary } from "../../class-summary";
 import { ComponentForm } from "../../component-form";
 import {
   FinalizationControls,
   ReopenControl,
 } from "../../finalization-controls";
+import { MtuUsageForm } from "../../mtu-usage-form";
 import {
   CompletionCertificateControls,
   OfficialRosterControls,
   RosterDocumentActions,
 } from "../../official-roster-controls";
-import { AddAttendanceForms, AttendanceControls } from "../../roster-controls";
+import { AttendanceControls } from "../../roster-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +61,7 @@ function DocumentLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-export default async function CompletedClassReviewPage({
+export default async function ClassReviewPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -79,29 +79,21 @@ export default async function CompletedClassReviewPage({
   } catch {
     notFound();
   }
-  const isCompleted = classRecord.status === "completed";
+  const isOpen = classRecord.status === "open";
   const isFinalized = classRecord.status === "finalized";
-  if (!isCompleted && !isFinalized) notFound();
+  if (!isOpen && !isFinalized) notFound();
 
   const [reviewData, classOptions, revisionHistory] = await Promise.all([
-    isCompleted
-      ? Promise.all([
-          listRosterFormOptions(db),
-          resolveClassRequirements(db, id),
-          getRosterReadiness(db, actor, id),
-        ]).then(([options, requirements, readiness]) => ({
-          options,
-          requirements,
-          readiness,
-        }))
+    isOpen
+      ? getRosterReadiness(db, actor, id).then((readiness) => ({ readiness }))
       : Promise.resolve(null),
-    isCompleted ? listClassFormOptions(db, actor) : Promise.resolve(null),
+    isOpen ? listClassFormOptions(db, actor) : Promise.resolve(null),
     isFinalized ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
   ]);
   const staff = await getCurrentStaff();
   const canManageOfficialRosters = isFinalized ? Boolean(staff) : false;
   const isLeadInstructor =
-    isCompleted &&
+    isOpen &&
     Boolean(
       staff &&
         classRecord.instructors.some(
@@ -149,7 +141,7 @@ export default async function CompletedClassReviewPage({
       <div className="admin-heading">
         <div>
           <p className="eyebrow">
-            {isFinalized ? "Finalized class review" : "Completed class review"}
+            {isFinalized ? "Finalized class review" : "Review and finalize"}
           </p>
           <h1 className="staff-title">{classRecord.name ?? "Class roster"}</h1>
           <p>
@@ -162,13 +154,18 @@ export default async function CompletedClassReviewPage({
             {classRecord.status}
           </Badge>
           <Link
-            href={`/staff/classes/${id}`}
+            href={isFinalized ? "/staff/classes" : `/staff/classes/${id}`}
             className={buttonVariants({ variant: "outline" })}
           >
-            Back to class
+            {isFinalized ? "Back to classes" : "Back to class"}
           </Link>
         </div>
       </div>
+
+      <section className="admin-section">
+        <h2>Class details</h2>
+        <ClassSummary classRecord={classRecord} />
+      </section>
 
       <section className="admin-section">
         <p className="eyebrow">Finalization</p>
@@ -326,7 +323,7 @@ export default async function CompletedClassReviewPage({
         </section>
       ) : null}
 
-      {isCompleted && classOptions ? (
+      {isOpen && classOptions ? (
         <details className="admin-section">
           <summary>Correct class details, sessions, and instructors</summary>
           <section className="admin-section">
@@ -341,6 +338,10 @@ export default async function CompletedClassReviewPage({
                 hostAgencyId: classRecord.hostAgencyId,
                 deliveryMethod: classRecord.deliveryMethod,
                 accessPinEnabled: classRecord.accessPinEnabled,
+                objectives: classRecord.objectives,
+                courseType: classRecord.courseType,
+                courseNumber: classRecord.courseNumber,
+                mtuUsage: classRecord.mtuUsage,
                 reportingSystemIds: classRecord.reportingSystems.map(
                   (system) => system.id,
                 ),
@@ -433,24 +434,24 @@ export default async function CompletedClassReviewPage({
         </ul>
       </section>
 
-      {isCompleted && reviewData ? (
-        <section className="admin-section">
-          <h2>Manual attendance correction</h2>
-          <AddAttendanceForms
-            classId={id}
-            students={reviewData.options.students}
-            agencies={reviewData.options.agencies}
-            requirements={reviewData.requirements}
-          />
-        </section>
-      ) : null}
-
       <section className="admin-section">
         <h2>Removed attendance ({roster.removed.length})</h2>
         <ul className="roster-list">
           {roster.removed.map((entry) => renderEntry(entry, true))}
         </ul>
       </section>
+
+      {classRecord.reportingSystems.some((system) => system.code === "mtu") ||
+      classRecord.mtuUsage ? (
+        <section className="admin-section">
+          <h2>MTU usage</h2>
+          <p className="roster-note">
+            Operational usage can be updated after finalization without changing
+            the signed roster.
+          </p>
+          <MtuUsageForm classId={id} usage={classRecord.mtuUsage} />
+        </section>
+      ) : null}
 
       {isFinalized && canReopen ? (
         <section className="admin-section">

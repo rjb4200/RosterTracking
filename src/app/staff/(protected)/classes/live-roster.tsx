@@ -22,20 +22,17 @@ export function LiveRoster({
   hostAgencyName,
   initialRoster,
   tokenPanel,
-  children,
 }: {
   classId: string;
   hostAgencyName: string;
   initialRoster: RosterRefreshPayload;
   tokenPanel: ReactNode;
-  children: ReactNode;
 }) {
   const router = useRouter();
   const [roster, setRoster] = useState(initialRoster);
   const refreshDeadline = initialRoster.refreshDeadline;
 
-  // Re-sync when the server re-renders, for example after a manual attendance
-  // entry revalidates this path.
+  // Re-sync when the server re-renders after a roster correction.
   useEffect(() => {
     setRoster(initialRoster);
   }, [initialRoster]);
@@ -148,7 +145,6 @@ export function LiveRoster({
             ))}
           </ul>
         </div>
-        {children}
       </div>
     </>
   );

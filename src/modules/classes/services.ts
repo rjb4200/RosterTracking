@@ -48,7 +48,12 @@ import {
   type ClassStatus,
 } from "./constants";
 import { defaultComponentMethod } from "./fire-subjects";
-import { hasMtuUsage, type MtuUsage, normalizeMtuUsage } from "./mtu";
+import {
+  hasMtuUsage,
+  type MtuUsage,
+  type MtuUsageInput,
+  normalizeMtuUsage,
+} from "./mtu";
 import {
   assertClassEditable,
   calculateComponentEndTime,
@@ -82,7 +87,6 @@ export function getOperationalClassAction(
   status: string,
 ): OperationalClassAction {
   if (status === CLASS_STATUSES.OPEN) return "roster";
-  if (status === CLASS_STATUSES.COMPLETED) return "finalize";
   return "view";
 }
 
@@ -92,7 +96,7 @@ export function isOverdueRoster(
   now = new Date(),
 ): boolean {
   return (
-    (status === CLASS_STATUSES.OPEN || status === CLASS_STATUSES.COMPLETED) &&
+    status === CLASS_STATUSES.OPEN &&
     finalSessionEndsAt !== null &&
     now.getTime() > finalSessionEndsAt.getTime() + 24 * 60 * 60 * 1000
   );
@@ -370,6 +374,28 @@ async function replaceMtuUsage(
   } else {
     await transaction.delete(mtuUsage).where(eq(mtuUsage.classId, classId));
   }
+}
+
+export async function updateClassMtuUsage(
+  db: Database,
+  actor: ClassActor,
+  classId: string,
+  input: MtuUsageInput,
+) {
+  const usage = normalizeMtuUsage(input);
+  return db.transaction(async (transaction) => {
+    // Class access is required, but operational usage is not a signed fact.
+    await requireClassAccess(transaction, actor, classId);
+    await replaceMtuUsage(transaction, classId, usage);
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.mtu_usage.updated",
+      entityType: "class",
+      entityId: classId,
+      details: { fields: ["equipmentUsed", "mileage", "usedSupplies"] },
+    });
+  });
 }
 
 async function findAvailablePublicCode(transaction: DatabaseTransaction) {
@@ -757,9 +783,6 @@ export async function transitionClass(
       nextStatus,
       cancellationReason,
     );
-    // Completing closes public sign-in and enters roster review. Roster
-    // readiness is enforced once, at finalization, so an operator can complete
-    // a class and then correct it on the review screen.
     const publicCode = current.publicCode;
     const now = new Date();
     const [updated] = await transaction
@@ -771,8 +794,6 @@ export async function transitionClass(
             ? cancellationReason?.trim()
             : null,
         openedAt: current.openedAt,
-        completedAt:
-          nextStatus === CLASS_STATUSES.COMPLETED ? now : current.completedAt,
         cancelledAt:
           nextStatus === CLASS_STATUSES.CANCELLED ? now : current.cancelledAt,
         publicCode,
@@ -809,7 +830,6 @@ export async function rotateClassSignInToken(
   await db.transaction(async (transaction) => {
     const current = await requireClassAccess(transaction, actor, classId);
     if (
-      current.status === CLASS_STATUSES.COMPLETED ||
       current.status === CLASS_STATUSES.FINALIZED ||
       current.status === CLASS_STATUSES.CANCELLED
     ) {
@@ -1104,7 +1124,6 @@ export async function listClasses(
 
   const defaultScope = or(
     eq(trainingClasses.status, CLASS_STATUSES.OPEN),
-    eq(trainingClasses.status, CLASS_STATUSES.COMPLETED),
     filters.includeFinalized
       ? eq(trainingClasses.status, CLASS_STATUSES.FINALIZED)
       : and(
@@ -1117,10 +1136,7 @@ export async function listClasses(
   );
 
   const workInFlight = and(
-    or(
-      eq(trainingClasses.status, CLASS_STATUSES.OPEN),
-      eq(trainingClasses.status, CLASS_STATUSES.COMPLETED),
-    ),
+    eq(trainingClasses.status, CLASS_STATUSES.OPEN),
     gt(attendanceCount, 0),
   );
 
@@ -1232,10 +1248,7 @@ export async function listOperationalClasses(
     )
     .where(
       and(
-        inArray(trainingClasses.status, [
-          CLASS_STATUSES.OPEN,
-          CLASS_STATUSES.COMPLETED,
-        ]),
+        eq(trainingClasses.status, CLASS_STATUSES.OPEN),
         scope === "assigned" ? assigned : undefined,
       ),
     )

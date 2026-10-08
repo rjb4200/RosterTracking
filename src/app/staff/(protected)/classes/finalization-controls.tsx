@@ -26,7 +26,7 @@ export function FinalizationControls({
     finalizeAction,
     undefined,
   );
-  if (status !== "completed") return null;
+  if (status !== "open") return null;
   return (
     <div className="stack-form">
       {finalizeState?.error ? (

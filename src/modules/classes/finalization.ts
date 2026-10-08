@@ -34,7 +34,6 @@ import {
   finalizationReopens,
   finalizationReportingStatuses,
   finalizationRevisions,
-  mtuUsage,
   reportingSystems,
   roles,
   students,
@@ -182,6 +181,7 @@ async function requireReportingAccess(
 async function buildSnapshot(
   transaction: DatabaseTransaction,
   classId: string,
+  finalizedAt: Date,
 ) {
   const [classRow] = await transaction
     .select({
@@ -191,7 +191,6 @@ async function buildSnapshot(
       objectives: trainingClasses.objectives,
       courseType: trainingClasses.courseType,
       courseNumber: trainingClasses.courseNumber,
-      completedAt: trainingClasses.completedAt,
       courseName: sql<string>`coalesce(${trainingClasses.name}, '')`,
       siteName: trainingSites.name,
     })
@@ -284,19 +283,11 @@ async function buildSnapshot(
       eq(attendance.id, attendanceCredentialSnapshots.attendanceId),
     )
     .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
-  const [mtu] = await transaction
-    .select({
-      equipmentUsed: mtuUsage.equipmentUsed,
-      mileage: mtuUsage.mileage,
-      usedSupplies: mtuUsage.usedSupplies,
-    })
-    .from(mtuUsage)
-    .where(eq(mtuUsage.classId, classId))
-    .limit(1);
   if (!classRow) throw new Error("Class not found.");
   return {
-    class: classRow,
-    mtuUsage: mtu ?? null,
+    // Keep the historical snapshot key used by official PDF date fields;
+    // completion now occurs at the same instant as finalization.
+    class: { ...classRow, status: "finalized", completedAt: finalizedAt },
     instructors,
     components: await transaction
       .select({
@@ -356,7 +347,8 @@ export async function finalizeClass(
       .from(finalizationRevisions)
       .where(eq(finalizationRevisions.classId, classId));
     const next = nextRevision?.next ?? 1;
-    const snapshot = await buildSnapshot(transaction, classId);
+    const finalizedAt = new Date();
+    const snapshot = await buildSnapshot(transaction, classId, finalizedAt);
     const revisionRows = await transaction
       .select({
         attendanceId: attendance.id,
@@ -403,9 +395,10 @@ export async function finalizeClass(
         classId,
         revisionNumber: next,
         finalizedByUserId: actor.id,
+        finalizedAt,
         signedByUserId: actor.id,
         signedByName: typedName,
-        signedAt: new Date(),
+        signedAt: finalizedAt,
         attestationVersion: ROSTER_ATTESTATION_VERSION,
         encryptedSnapshot: encryptCredential(
           JSON.stringify({
@@ -413,7 +406,7 @@ export async function finalizeClass(
             signInRecord,
             signature: {
               name: typedName,
-              signedAt: new Date().toISOString(),
+              signedAt: finalizedAt.toISOString(),
               attestationVersion: ROSTER_ATTESTATION_VERSION,
             },
           }),
@@ -436,11 +429,11 @@ export async function finalizeClass(
       );
     await transaction
       .update(trainingClasses)
-      .set({ status: "finalized", updatedAt: new Date() })
+      .set({ status: "finalized", updatedAt: finalizedAt })
       .where(
         and(
           eq(trainingClasses.id, classId),
-          eq(trainingClasses.status, "completed"),
+          eq(trainingClasses.status, "open"),
         ),
       );
     await writeAuditLog(transaction, {

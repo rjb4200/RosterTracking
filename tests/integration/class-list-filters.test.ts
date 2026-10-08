@@ -180,14 +180,14 @@ describeDatabase("class list filters", () => {
       createdAt: daysAgo(4),
       sessionAt: daysAgo(3),
     });
-    const inFlightCompleted = await createClass({
-      status: CLASS_STATUSES.COMPLETED,
+    const inFlightOpen = await createClass({
+      status: CLASS_STATUSES.OPEN,
       createdAt: daysAgo(70),
       sessionAt: daysAgo(65),
       attendance: true,
     });
-    const emptyOldCompleted = await createClass({
-      status: CLASS_STATUSES.COMPLETED,
+    const staleEmptyOpen = await createClass({
+      status: CLASS_STATUSES.OPEN,
       createdAt: daysAgo(70),
       sessionAt: daysAgo(66),
     });
@@ -195,10 +195,10 @@ describeDatabase("class list filters", () => {
     const defaultIds = (await listClasses(db, actor)).map((row) => row.id);
     expect(defaultIds).toContain(openClass);
     expect(defaultIds).toContain(recentFinalized);
-    expect(defaultIds).toContain(inFlightCompleted);
+    expect(defaultIds).toContain(inFlightOpen);
     expect(defaultIds).not.toContain(oldFinalized);
     expect(defaultIds).not.toContain(cancelled);
-    expect(defaultIds).not.toContain(emptyOldCompleted);
+    expect(defaultIds).not.toContain(staleEmptyOpen);
 
     const finalizedDefaultWindow = (
       await listClasses(db, actor, { includeFinalized: true })
@@ -235,7 +235,7 @@ describeDatabase("class list filters", () => {
       })
     ).map((row) => row.id);
     expect(oldWindow).toContain(oldFinalized);
-    expect(oldWindow).toContain(inFlightCompleted);
+    expect(oldWindow).toContain(inFlightOpen);
 
     const searched = (
       await listClasses(db, actor, { query: `Class List Course ${suffix}` })

@@ -16,12 +16,10 @@ function ClassCard({ classRecord }: { classRecord: OperationalClass }) {
   const action =
     classRecord.action === "roster"
       ? {
-          href: detailHref,
-          label: classRecord.isOverdue ? "Review roster" : "Open class",
+          href: classRecord.isOverdue ? reviewHref : detailHref,
+          label: classRecord.isOverdue ? "Review and finalize" : "Open class",
         }
-      : classRecord.action === "finalize"
-        ? { href: reviewHref, label: "Review and finalize" }
-        : { href: detailHref, label: "View class" };
+      : { href: reviewHref, label: "View class" };
 
   return (
     <article className="operational-class-card">

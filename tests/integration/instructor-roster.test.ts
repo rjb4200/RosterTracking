@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
-  addManualGuestAttendance,
   adjustCreditedHours,
   getClassRoster,
   getRosterReadiness,
@@ -17,6 +16,7 @@ import {
   agencies,
   attendance,
   classComponents,
+  classGuests,
   classInstructors,
   finalizationRevisions,
   trainingClasses,
@@ -44,8 +44,44 @@ afterAll(async () => {
   await pool?.end();
 });
 
+async function addGuestAttendance(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  input: {
+    classId: string;
+    agencyId: string;
+    firstName: string;
+    lastName: string;
+  },
+) {
+  const [guest] = await db
+    .insert(classGuests)
+    .values({
+      classId: input.classId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    })
+    .returning({ id: classGuests.id });
+  if (!guest) throw new Error("Guest creation failed.");
+  const [record] = await db
+    .insert(attendance)
+    .values({
+      classId: input.classId,
+      guestId: guest.id,
+      agencyId: input.agencyId,
+      idempotencyKey: crypto.randomUUID(),
+      payloadFingerprint: "fixture",
+      // Pin the sign-in in the past so a later removal passes the
+      // attendance_removed_after_sign_in check regardless of clock skew.
+      signedInAt: new Date("2026-09-10T13:00:00Z"),
+      creditedHours: "4",
+    })
+    .returning({ id: attendance.id });
+  if (!record) throw new Error("Attendance creation failed.");
+  return record.id;
+}
+
 describeDatabase("instructor roster transactions", () => {
-  it("supports completed review corrections and retains finalized snapshots", async () => {
+  it("supports open-class corrections and retains finalized snapshots", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
@@ -88,21 +124,15 @@ describeDatabase("instructor roster transactions", () => {
       endsAt: new Date("2026-09-10T17:00:00Z"),
       creditedHours: "4",
     });
-    const attendanceId = await addManualGuestAttendance(db, actor, {
+    const attendanceId = await addGuestAttendance(db, {
       classId: classRecord.id,
       agencyId: agency.id,
       firstName: "Guest",
       lastName: "Roster",
-      fields: {},
-      credentials: {},
     });
     await expect(
       adjustCreditedHours(db, actor, attendanceId, 4.1, "Too high"),
     ).rejects.toThrow(/between zero/i);
-    await db
-      .update(trainingClasses)
-      .set({ status: "completed" })
-      .where(eq(trainingClasses.id, classRecord.id));
     await adjustCreditedHours(db, actor, attendanceId, 3.5, "Left early");
     await removeAttendance(db, actor, attendanceId, "Entered in error");
     const [stored] = await db
@@ -112,16 +142,12 @@ describeDatabase("instructor roster transactions", () => {
     expect(stored).toMatchObject({
       creditedHours: "3.50",
       removalReason: "Entered in error",
-      isManual: true,
-      manualRecordedByUserId: actor.id,
     });
-    const finalAttendanceId = await addManualGuestAttendance(db, actor, {
+    const finalAttendanceId = await addGuestAttendance(db, {
       classId: classRecord.id,
       agencyId: agency.id,
       firstName: "Final",
       lastName: "Roster",
-      fields: {},
-      credentials: {},
     });
     await expect(
       getRosterReadiness(db, actor, classRecord.id),
@@ -146,6 +172,6 @@ describeDatabase("instructor roster transactions", () => {
     expect(revision?.summary).toMatchObject({ attendanceCount: 1 });
     await expect(
       adjustCreditedHours(db, actor, finalAttendanceId, 3, "Left Early"),
-    ).rejects.toThrow(/open or under completed review/i);
+    ).rejects.toThrow(/while the class is open/i);
   });
 });

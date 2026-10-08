@@ -231,9 +231,7 @@ export async function canAccessOpenClassRecord(
 }
 
 export function recordStatusFor(classStatus: string): boolean {
-  return [
-    CLASS_STATUSES.OPEN,
-    CLASS_STATUSES.COMPLETED,
-    CLASS_STATUSES.FINALIZED,
-  ].includes(classStatus as typeof CLASS_STATUSES.OPEN);
+  return [CLASS_STATUSES.OPEN, CLASS_STATUSES.FINALIZED].includes(
+    classStatus as typeof CLASS_STATUSES.OPEN,
+  );
 }

@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { expect, test } from "@playwright/test";
 import { Pool } from "pg";
 
@@ -19,10 +21,10 @@ function skipUnlessEnabled() {
   );
 }
 
-async function createOpenClass() {
+async function createOpenClass(options: { attendance?: boolean } = {}) {
   if (!connectionString) throw new Error("E2E_DATABASE_URL is required.");
   const pool = new Pool({ connectionString, max: 1 });
-  const suffix = crypto.randomUUID();
+  const suffix = randomUUID();
   const actor = await pool.query<{ id: string }>(
     "select id from users where username = $1",
     [username],
@@ -42,7 +44,7 @@ async function createOpenClass() {
       `Confirm Course ${suffix}`,
       site.rows[0]?.id,
       actor.rows[0].id,
-      crypto.randomUUID(),
+      randomUUID(),
       agency.rows[0]?.id,
     ],
   );
@@ -57,6 +59,18 @@ async function createOpenClass() {
     "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, 4)",
     [classId, "2026-09-10T13:00:00Z", "2026-09-10T17:00:00Z"],
   );
+  if (options.attendance) {
+    // Attendance now comes from a valid sign-in; fixture it directly because
+    // manual staff entry is retired.
+    const guest = await pool.query<{ id: string }>(
+      "insert into class_guests (class_id, first_name, last_name) values ($1, 'Confirmed', 'Guest') returning id",
+      [classId],
+    );
+    await pool.query(
+      "insert into attendance (class_id, guest_id, agency_id, idempotency_key, payload_fingerprint, credited_hours) values ($1, $2, $3, $4, 'fixture', 4)",
+      [classId, guest.rows[0]?.id, agency.rows[0].id, randomUUID()],
+    );
+  }
   await pool.end();
   return { classId, agencyId: agency.rows[0].id };
 }
@@ -72,19 +86,19 @@ async function classStatus(classId: string) {
   return result.rows[0]?.status;
 }
 
-test("finishing attendance lands on the review screen", async ({ page }) => {
+test("the open class primary action opens the review screen", async ({
+  page,
+}) => {
   skipUnlessEnabled();
   if (!username || !password || !connectionString) return;
   const { classId } = await createOpenClass();
 
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}`);
-  await page
-    .getByRole("button", { name: "Finish attendance and review" })
-    .click();
+  await page.getByRole("link", { name: "Review and finalize" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/staff/classes/${classId}/review$`));
-  await expect(page.getByText("Completed class review")).toBeVisible();
+  await expect(page.getByText("Review and finalize")).toBeVisible();
 });
 
 test("class command controls stay reachable on a narrow viewport", async ({
@@ -104,9 +118,7 @@ test("class command controls stay reachable on a narrow viewport", async ({
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto(`/staff/classes/${classId}`);
 
-  const finish = page.getByRole("button", {
-    name: "Finish attendance and review",
-  });
+  const finish = page.getByRole("link", { name: "Review and finalize" });
   await finish.scrollIntoViewIfNeeded();
 
   const overflow = await page.evaluate(
@@ -116,14 +128,14 @@ test("class command controls stay reachable on a narrow viewport", async ({
   );
   expect(overflow).toBeLessThanOrEqual(0);
 
-  const reachable = await finish.evaluate((button) => {
-    const rect = button.getBoundingClientRect();
+  const reachable = await finish.evaluate((control) => {
+    const rect = control.getBoundingClientRect();
     const topElement = document.elementFromPoint(
       rect.left + rect.width / 2,
       rect.top + rect.height / 2,
     );
     return Boolean(
-      topElement && (topElement === button || button.contains(topElement)),
+      topElement && (topElement === control || control.contains(topElement)),
     );
   });
   expect(reachable).toBe(true);
@@ -151,31 +163,21 @@ test("correct the roster on the review screen and finalize from it", async ({
 }) => {
   skipUnlessEnabled();
   if (!username || !password || !connectionString) return;
-  const { classId, agencyId } = await createOpenClass();
+  const { classId } = await createOpenClass({ attendance: true });
 
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}`);
-
-  const guestForm = page
-    .getByRole("heading", { name: "Add class guest" })
-    .locator("..");
-  await guestForm.getByLabel("First name").fill("Confirmed");
-  await guestForm.getByLabel("Last name").fill("Guest");
-  await guestForm.getByLabel("Represented agency").selectOption(agencyId);
-  await page.getByRole("button", { name: "Add guest attendance" }).click();
-  await expect(page.getByText("Confirmed Guest")).toBeVisible();
-
-  await page
-    .getByRole("button", { name: "Finish attendance and review" })
-    .click();
+  await page.getByRole("link", { name: "Review and finalize" }).click();
   await expect(page).toHaveURL(new RegExp(`/staff/classes/${classId}/review$`));
-  await expect(page.getByText("Completed class review")).toBeVisible();
+  await expect(page.getByText("Review and finalize")).toBeVisible();
 
   await page.getByLabel("Credit", { exact: true }).fill("3.5");
   await page.getByLabel("Adjustment reason").selectOption("Left Early");
   await page.getByRole("button", { name: "Update credit" }).click();
   await expect(page.getByText("Roster updated.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Finalize roster" }).click();
+  await page.getByRole("checkbox", { name: /I certify/i }).check();
+  await page.getByLabel("Sign with your name").fill("E2E Lead");
+  await page.getByRole("button", { name: "Finalize and sign roster" }).click();
   await expect.poll(() => classStatus(classId)).toBe("finalized");
 });

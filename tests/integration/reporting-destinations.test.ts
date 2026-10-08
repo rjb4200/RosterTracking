@@ -12,6 +12,7 @@ import {
   createOpenClass,
   getClassDetail,
   updateClass,
+  updateClassMtuUsage,
 } from "../../src/modules/classes/services";
 import { decryptCredential } from "../../src/modules/reference/crypto";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
@@ -253,7 +254,7 @@ describeDatabase("reporting destinations", () => {
     ).rejects.toThrow(/cannot be edited/i);
   });
 
-  it("preserves MTU usage in the finalization snapshot", async () => {
+  it("treats MTU usage as operational: editable after finalization and not in the revision", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
@@ -268,10 +269,6 @@ describeDatabase("reporting destinations", () => {
       agencyId: agency.id,
       requirementSetId: setId,
     });
-    await db
-      .update(trainingClasses)
-      .set({ status: "completed" })
-      .where(eq(trainingClasses.id, classId));
 
     const revision = await finalizeClass(db, instructor, classId, {
       certified: true,
@@ -283,10 +280,19 @@ describeDatabase("reporting destinations", () => {
       .where(eq(finalizationRevisions.id, revision.id));
     if (!row) throw new Error("Finalization revision was not stored.");
     const snapshot = JSON.parse(decryptCredential(row.encryptedSnapshot));
-    expect(snapshot.mtuUsage).toMatchObject({
-      equipmentUsed: "Trailer 4",
-      mileage: "120",
-      usedSupplies: "Gloves",
+    expect(snapshot.mtuUsage).toBeUndefined();
+
+    // MTU is operational: it changes after finalization without reopening.
+    await updateClassMtuUsage(db, instructor, classId, {
+      equipmentUsed: "",
+      mileage: "175",
+      usedSupplies: "",
+    });
+    const detail = await getClassDetail(db, instructor, classId);
+    expect(detail.mtuUsage).toMatchObject({
+      equipmentUsed: null,
+      mileage: "175",
+      usedSupplies: null,
     });
     await retireRevision(db, revision.id);
   });
@@ -308,7 +314,7 @@ describeDatabase("reporting destinations", () => {
     });
     await db
       .update(trainingClasses)
-      .set({ status: "completed" })
+      .set({ status: "open" })
       .where(eq(trainingClasses.id, classId));
     const revision = await finalizeClass(db, instructor, classId, {
       certified: true,

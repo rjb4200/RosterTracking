@@ -21,6 +21,7 @@ import {
   saveClassComponent,
   transitionClass,
   updateClass,
+  updateClassMtuUsage,
 } from "@/modules/classes/services";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { createAgency, createSite } from "@/modules/reference/services";
@@ -31,6 +32,7 @@ import { getDatabase } from "@/server/db/client";
 
 export interface ActionState {
   error?: string;
+  success?: string;
   classId?: string;
   signInUrl?: string;
   qrDataUrl?: string;
@@ -284,13 +286,31 @@ export async function transitionClassAction(
   }
   revalidatePath(`/staff/classes/${classId}`);
   revalidatePath("/staff/classes");
-  // Finishing attendance hands the operator to the review step, which is where
-  // the class and its roster are confirmed and corrected. The redirect is
-  // raised outside the try/catch because it works by throwing.
-  if (status === CLASS_STATUSES.COMPLETED) {
-    redirect(`/staff/classes/${classId}/review`);
-  }
   return { classId };
+}
+
+export async function updateMtuUsageAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await updateClassMtuUsage(getDatabase(), actor, classId, {
+      equipmentUsed: read(formData, "equipmentUsed"),
+      mileage: read(formData, "mileage"),
+      usedSupplies: read(formData, "usedSupplies"),
+    });
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    revalidatePath(`/staff/classes/${classId}/edit`);
+    return { success: "MTU usage saved." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not update MTU usage.",
+    };
+  }
 }
 
 export async function rotateTokenAction(
@@ -332,6 +352,9 @@ export async function finalizeClassAction(
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
     revalidatePath("/staff/reporting");
+    revalidatePath("/staff/classes");
+    revalidatePath("/staff/instructor");
+    revalidatePath("/staff/admin");
     return { classId };
   } catch (error) {
     return {

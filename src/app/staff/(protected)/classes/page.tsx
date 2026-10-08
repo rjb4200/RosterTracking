@@ -33,7 +33,6 @@ const statusOptions = Object.values(CLASS_STATUSES);
 
 const statusLabels: Record<ClassStatus, string> = {
   open: "Open",
-  completed: "Completed",
   finalized: "Finalized",
   cancelled: "Cancelled",
 };
@@ -98,7 +97,7 @@ function ClassTable({ rows, empty }: { rows: ClassListRow[]; empty: string }) {
             </TableCell>
             <TableCell>
               <Link
-                href={`/staff/classes/${classRecord.id}`}
+                href={`/staff/classes/${classRecord.id}${classRecord.status === CLASS_STATUSES.FINALIZED ? "/review" : ""}`}
                 className="row-link"
               >
                 {classRecord.courseName}

@@ -65,10 +65,7 @@ export function validateClassTransition(
   cancellationReason?: string,
 ): void {
   const allowed =
-    (current === CLASS_STATUSES.OPEN && next === CLASS_STATUSES.COMPLETED) ||
-    (current !== CLASS_STATUSES.FINALIZED &&
-      current !== CLASS_STATUSES.CANCELLED &&
-      next === CLASS_STATUSES.CANCELLED);
+    current === CLASS_STATUSES.OPEN && next === CLASS_STATUSES.CANCELLED;
 
   if (!allowed) {
     throw new Error(`Class cannot transition from ${current} to ${next}.`);
@@ -88,8 +85,8 @@ export function assertClassEditable(status: string): void {
 }
 
 export function validateFinalizationTransition(status: string): void {
-  if (status !== CLASS_STATUSES.COMPLETED) {
-    throw new Error("Only completed classes can be finalized.");
+  if (status !== CLASS_STATUSES.OPEN) {
+    throw new Error("Only open classes can be finalized.");
   }
 }
 

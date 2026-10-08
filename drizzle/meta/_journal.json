@@ -183,6 +183,13 @@
       "when": 1791485640108,
       "tag": "0025_lying_korath",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791500136401,
+      "tag": "0026_retire_completed_class_state",
+      "breakpoints": true
     }
   ]
 }

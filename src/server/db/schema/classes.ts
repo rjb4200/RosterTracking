@@ -65,7 +65,6 @@ export const trainingClasses = pgTable(
     accessPinEncrypted: text("access_pin_encrypted"),
     cancellationReason: text("cancellation_reason"),
     openedAt: timestamp("opened_at", { withTimezone: true }),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -100,7 +99,7 @@ export const trainingClasses = pgTable(
     ),
     check(
       "classes_status",
-      sql`${table.status} in ('open', 'completed', 'finalized', 'cancelled')`,
+      sql`${table.status} in ('open', 'finalized', 'cancelled')`,
     ),
     check(
       "classes_site_required",

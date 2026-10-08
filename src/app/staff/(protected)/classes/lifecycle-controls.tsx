@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 import type { ActionState } from "./actions";
 
@@ -24,13 +25,12 @@ export function LifecycleControls({
       {state?.error ? <p className="form-error">{state.error}</p> : null}
       <div className="admin-actions">
         {status === "open" ? (
-          <form action={formAction}>
-            <input type="hidden" name="classId" value={classId} />
-            <input type="hidden" name="status" value="completed" />
-            <Button type="submit" disabled={pending}>
-              Finish attendance and review
-            </Button>
-          </form>
+          <Link
+            href={`/staff/classes/${classId}/review`}
+            className={buttonVariants()}
+          >
+            Review and finalize
+          </Link>
         ) : null}
         {!["cancelled", "finalized"].includes(status) ? (
           <form action={formAction} className="inline-form">

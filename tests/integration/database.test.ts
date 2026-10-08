@@ -359,21 +359,17 @@ describeDatabase("database foundation", () => {
       )[0]?.status,
     ).toBe(CLASS_STATUSES.OPEN);
 
-    // Completing no longer depends on roster readiness. It closes public
-    // sign-in and enters roster review, where corrections are made.
-    await transitionClass(
-      database,
-      actor,
-      created.classRecord.id,
-      CLASS_STATUSES.COMPLETED,
-    );
-    expect(await resolveOpenClassToken(database, rotated)).toBeNull();
+    // There is no completed step; public sign-in stays open until the lead
+    // finalizes the class in the same action that locks the roster.
+    expect(await resolveOpenClassToken(database, rotated)).toMatchObject({
+      id: created.classRecord.id,
+    });
     expect(
       await resolveOpenClassPublicCode(
         database,
         created.classRecord.publicCode ?? "",
       ),
-    ).toBeNull();
+    ).toMatchObject({ id: created.classRecord.id });
     expect(
       (
         await database
@@ -381,7 +377,7 @@ describeDatabase("database foundation", () => {
           .from(trainingClasses)
           .where(eq(trainingClasses.id, created.classRecord.id))
       )[0]?.status,
-    ).toBe(CLASS_STATUSES.COMPLETED);
+    ).toBe(CLASS_STATUSES.OPEN);
 
     // Readiness still gates the irreversible step. Only the current lead
     // instructor can finalize, so the readiness error surfaces for the lead.
@@ -390,10 +386,10 @@ describeDatabase("database foundation", () => {
         certified: true,
         typedName: "Test Instructor",
       }),
-    ).rejects.toThrow(/active attendance/i);
+    ).rejects.toThrow(/sign in before finalizing/i);
 
     // Class details, sessions, and instructors stay editable while the class
-    // is under completed review.
+    // is open and awaiting finalization.
     await updateClass(database, actor, created.classRecord.id, {
       name: `Class Course ${suffix}`,
       trainingSiteId: site.id,
@@ -436,7 +432,6 @@ describeDatabase("database foundation", () => {
         "class.reporting_systems.changed",
         "class.component.saved",
         "class.instructor.assigned",
-        "class.status.changed",
         "class.sign_in.rotated",
       ]),
     );

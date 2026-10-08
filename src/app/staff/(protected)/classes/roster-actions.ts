@@ -3,8 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  addManualGuestAttendance,
-  addManualRegularAttendance,
   adjustCreditedHours,
   CREDIT_ADJUSTMENT_REASONS,
   removeAttendance,
@@ -20,14 +18,6 @@ export interface RosterActionState {
 
 function read(formData: FormData, key: string) {
   return formData.get(key)?.toString() ?? "";
-}
-
-function record(formData: FormData, prefix: string) {
-  return Object.fromEntries(
-    [...formData.entries()]
-      .filter(([key]) => key.startsWith(prefix))
-      .map(([key, value]) => [key.slice(prefix.length), value.toString()]),
-  );
 }
 
 function creditReason(formData: FormData) {
@@ -55,24 +45,7 @@ export async function rosterAction(
   const classId = read(formData, "classId");
   try {
     const operation = read(formData, "operation");
-    if (operation === "regular") {
-      await addManualRegularAttendance(getDatabase(), actor, {
-        classId,
-        studentId: read(formData, "studentId"),
-        agencyId: read(formData, "agencyId"),
-        fields: record(formData, "field:"),
-        credentials: record(formData, "credential:"),
-      });
-    } else if (operation === "guest") {
-      await addManualGuestAttendance(getDatabase(), actor, {
-        classId,
-        firstName: read(formData, "firstName"),
-        lastName: read(formData, "lastName"),
-        agencyId: read(formData, "agencyId"),
-        fields: record(formData, "field:"),
-        credentials: record(formData, "credential:"),
-      });
-    } else if (operation === "credit") {
+    if (operation === "credit") {
       await adjustCreditedHours(
         getDatabase(),
         actor,
