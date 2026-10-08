@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import * as reference from "@/modules/reference/services";
 import { requireActor } from "@/modules/staff-auth/guards";
@@ -26,8 +27,6 @@ export async function createTrainingCodeAction(
       title: read(formData, "title"),
       sourceRevision: read(formData, "sourceRevision"),
     });
-    revalidatePath("/staff/training-codes");
-    return {};
   } catch (error) {
     return {
       error:
@@ -36,6 +35,8 @@ export async function createTrainingCodeAction(
           : "Could not create training code.",
     };
   }
+  revalidatePath("/staff/training-codes");
+  redirect("/staff/training-codes");
 }
 
 export async function updateTrainingCodeAction(
@@ -50,6 +51,7 @@ export async function updateTrainingCodeAction(
       title: read(formData, "title"),
       sourceRevision: read(formData, "sourceRevision"),
     });
+    revalidatePath(`/staff/training-codes/${id}`);
     revalidatePath("/staff/training-codes");
     return {};
   } catch (error) {
@@ -73,6 +75,7 @@ export async function setTrainingCodeActiveAction(
     id,
     read(formData, "isActive") === "true",
   );
+  revalidatePath(`/staff/training-codes/${id}`);
   revalidatePath("/staff/training-codes");
 }
 
@@ -82,5 +85,7 @@ export async function archiveTrainingCodeAction(
   const actor = await requireActor(PERMISSIONS.TRAINING_CODES_MANAGE);
   const id = read(formData, "id");
   await reference.archiveTrainingCode(getDatabase(), actor, id);
+  revalidatePath(`/staff/training-codes/${id}`);
   revalidatePath("/staff/training-codes");
+  redirect("/staff/training-codes");
 }

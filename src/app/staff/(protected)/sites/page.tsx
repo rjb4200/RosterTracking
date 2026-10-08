@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,9 +14,6 @@ import { listSites } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
-
-import { createSiteAction } from "./actions";
-import { SiteForm } from "./site-form";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +33,14 @@ export default async function SitesPage({
           <p className="eyebrow">Reference data</p>
           <h1 className="staff-title">Training sites</h1>
         </div>
+        <div className="admin-actions">
+          <Link
+            href="/staff/sites/new"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            New site
+          </Link>
+        </div>
       </div>
 
       <form className="search-bar" action="/staff/sites">
@@ -45,7 +53,7 @@ export default async function SitesPage({
         />
       </form>
 
-      <Table>
+      <Table className="reference-table">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -81,13 +89,6 @@ export default async function SitesPage({
           )}
         </TableBody>
       </Table>
-
-      <section className="admin-section">
-        <h2>New site</h2>
-        <SiteForm action={createSiteAction} />
-      </section>
     </main>
   );
 }
-
-import Link from "next/link";

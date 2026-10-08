@@ -1,5 +1,7 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -12,14 +14,6 @@ import { listCurricula } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
-
-import {
-  archiveCurriculumAction,
-  createCurriculumAction,
-  setCurriculumActiveAction,
-  updateCurriculumAction,
-} from "./actions";
-import { CurriculumForm } from "./curriculum-form";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +32,14 @@ export default async function CurriculaPage({
         <div>
           <p className="eyebrow">Reference data</p>
           <h1 className="staff-title">Curricula</h1>
+        </div>
+        <div className="admin-actions">
+          <Link
+            href="/staff/curricula/new"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            New curriculum
+          </Link>
         </div>
       </div>
 
@@ -59,22 +61,27 @@ export default async function CurriculaPage({
             <TableHead>Version</TableHead>
             <TableHead>Source revision</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {curricula.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground">
-                No curricula found. Add one below or import the approved
-                curriculum list.
+              <TableCell colSpan={5} className="text-muted-foreground">
+                No curricula found.
               </TableCell>
             </TableRow>
           ) : (
             curricula.map((curriculum) => (
               <TableRow key={curriculum.id}>
                 <TableCell>{curriculum.publisher}</TableCell>
-                <TableCell>{curriculum.programTitle}</TableCell>
+                <TableCell>
+                  <Link
+                    href={`/staff/curricula/${curriculum.id}`}
+                    className="row-link"
+                  >
+                    {curriculum.programTitle}
+                  </Link>
+                </TableCell>
                 <TableCell>{curriculum.version ?? "—"}</TableCell>
                 <TableCell>{curriculum.sourceRevision}</TableCell>
                 <TableCell>
@@ -84,58 +91,11 @@ export default async function CurriculaPage({
                     <Badge variant="outline">Inactive</Badge>
                   )}
                 </TableCell>
-                <TableCell>
-                  <div className="inline-form">
-                    <form action={setCurriculumActiveAction}>
-                      <input type="hidden" name="id" value={curriculum.id} />
-                      <input
-                        type="hidden"
-                        name="isActive"
-                        value={curriculum.isActive ? "false" : "true"}
-                      />
-                      <Button
-                        type="submit"
-                        variant={
-                          curriculum.isActive ? "destructive" : "secondary"
-                        }
-                      >
-                        {curriculum.isActive ? "Deactivate" : "Reactivate"}
-                      </Button>
-                    </form>
-                    <form action={archiveCurriculumAction}>
-                      <input type="hidden" name="id" value={curriculum.id} />
-                      <Button type="submit" variant="destructive">
-                        Archive
-                      </Button>
-                    </form>
-                  </div>
-                  <details className="admin-section">
-                    <summary>Edit</summary>
-                    <CurriculumForm
-                      action={updateCurriculumAction}
-                      submitLabel="Save changes"
-                      values={{
-                        id: curriculum.id,
-                        publisher: curriculum.publisher,
-                        programTitle: curriculum.programTitle,
-                        version: curriculum.version,
-                        additionalRequirements:
-                          curriculum.additionalRequirements,
-                        sourceRevision: curriculum.sourceRevision,
-                      }}
-                    />
-                  </details>
-                </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
-
-      <section className="admin-section">
-        <h2>Add curriculum</h2>
-        <CurriculumForm action={createCurriculumAction} />
-      </section>
     </main>
   );
 }

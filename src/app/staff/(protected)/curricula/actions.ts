@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import * as reference from "@/modules/reference/services";
 import { requireActor } from "@/modules/staff-auth/guards";
@@ -28,14 +29,14 @@ export async function createCurriculumAction(
       additionalRequirements: read(formData, "additionalRequirements"),
       sourceRevision: read(formData, "sourceRevision"),
     });
-    revalidatePath("/staff/curricula");
-    return {};
   } catch (error) {
     return {
       error:
         error instanceof Error ? error.message : "Could not create curriculum.",
     };
   }
+  revalidatePath("/staff/curricula");
+  redirect("/staff/curricula");
 }
 
 export async function updateCurriculumAction(
@@ -52,6 +53,7 @@ export async function updateCurriculumAction(
       additionalRequirements: read(formData, "additionalRequirements"),
       sourceRevision: read(formData, "sourceRevision"),
     });
+    revalidatePath(`/staff/curricula/${id}`);
     revalidatePath("/staff/curricula");
     return {};
   } catch (error) {
@@ -73,6 +75,7 @@ export async function setCurriculumActiveAction(
     id,
     read(formData, "isActive") === "true",
   );
+  revalidatePath(`/staff/curricula/${id}`);
   revalidatePath("/staff/curricula");
 }
 
@@ -82,5 +85,7 @@ export async function archiveCurriculumAction(
   const actor = await requireActor(PERMISSIONS.CURRICULA_MANAGE);
   const id = read(formData, "id");
   await reference.archiveCurriculum(getDatabase(), actor, id);
+  revalidatePath(`/staff/curricula/${id}`);
   revalidatePath("/staff/curricula");
+  redirect("/staff/curricula");
 }

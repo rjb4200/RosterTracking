@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,9 +14,6 @@ import { listAgencies } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
-
-import { createAgencyAction } from "./actions";
-import { AgencyForm } from "./agency-form";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +33,14 @@ export default async function AgenciesPage({
           <p className="eyebrow">Reference data</p>
           <h1 className="staff-title">Agencies</h1>
         </div>
+        <div className="admin-actions">
+          <Link
+            href="/staff/agencies/new"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            New agency
+          </Link>
+        </div>
       </div>
 
       <form className="search-bar" action="/staff/agencies">
@@ -45,7 +53,7 @@ export default async function AgenciesPage({
         />
       </form>
 
-      <Table>
+      <Table className="reference-table">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -86,13 +94,6 @@ export default async function AgenciesPage({
           )}
         </TableBody>
       </Table>
-
-      <section className="admin-section">
-        <h2>New agency</h2>
-        <AgencyForm action={createAgencyAction} />
-      </section>
     </main>
   );
 }
-
-import Link from "next/link";

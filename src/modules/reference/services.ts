@@ -630,6 +630,15 @@ export async function listTrainingCodes(db: Database, query: string) {
     .limit(100);
 }
 
+export async function getTrainingCode(db: Database, id: string) {
+  const [code] = await db
+    .select()
+    .from(trainingCodes)
+    .where(eq(trainingCodes.id, id))
+    .limit(1);
+  return code ?? null;
+}
+
 export async function listSites(db: Database, query: string) {
   const term = `%${query.trim()}%`;
   return db
@@ -920,6 +929,15 @@ export async function listCurricula(db: Database, query: string) {
     )
     .orderBy(curricula.publisher, curricula.programTitle)
     .limit(200);
+}
+
+export async function getCurriculum(db: Database, id: string) {
+  const [curriculum] = await db
+    .select()
+    .from(curricula)
+    .where(eq(curricula.id, id))
+    .limit(1);
+  return curriculum ?? null;
 }
 
 // ── Reference record lifecycle ────────────────────────────────────────────

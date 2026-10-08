@@ -29,13 +29,13 @@ export async function createSiteAction(
       state: read(formData, "state"),
       zip: read(formData, "zip"),
     });
-    revalidatePath("/staff/sites");
-    return {};
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Could not create site.",
     };
   }
+  revalidatePath("/staff/sites");
+  redirect("/staff/sites");
 }
 
 export async function updateSiteAction(

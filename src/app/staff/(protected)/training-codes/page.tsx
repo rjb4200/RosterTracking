@@ -1,5 +1,7 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -12,14 +14,6 @@ import { listTrainingCodes } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
-
-import {
-  archiveTrainingCodeAction,
-  createTrainingCodeAction,
-  setTrainingCodeActiveAction,
-  updateTrainingCodeAction,
-} from "./actions";
-import { TrainingCodeForm } from "./training-code-form";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +32,14 @@ export default async function TrainingCodesPage({
         <div>
           <p className="eyebrow">Reference data</p>
           <h1 className="staff-title">Training codes</h1>
+        </div>
+        <div className="admin-actions">
+          <Link
+            href="/staff/training-codes/new"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            New training code
+          </Link>
         </div>
       </div>
 
@@ -58,21 +60,26 @@ export default async function TrainingCodesPage({
             <TableHead>Title</TableHead>
             <TableHead>Source revision</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {codes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
-                No training codes found. Add one below or import a structured
-                JSON file.
+              <TableCell colSpan={4} className="text-muted-foreground">
+                No training codes found.
               </TableCell>
             </TableRow>
           ) : (
             codes.map((code) => (
               <TableRow key={code.id}>
-                <TableCell>{code.code}</TableCell>
+                <TableCell>
+                  <Link
+                    href={`/staff/training-codes/${code.id}`}
+                    className="row-link"
+                  >
+                    {code.code}
+                  </Link>
+                </TableCell>
                 <TableCell>{code.title}</TableCell>
                 <TableCell>{code.sourceRevision}</TableCell>
                 <TableCell>
@@ -82,53 +89,11 @@ export default async function TrainingCodesPage({
                     <Badge variant="outline">Inactive</Badge>
                   )}
                 </TableCell>
-                <TableCell>
-                  <div className="inline-form">
-                    <form action={setTrainingCodeActiveAction}>
-                      <input type="hidden" name="id" value={code.id} />
-                      <input
-                        type="hidden"
-                        name="isActive"
-                        value={code.isActive ? "false" : "true"}
-                      />
-                      <Button
-                        type="submit"
-                        variant={code.isActive ? "destructive" : "secondary"}
-                      >
-                        {code.isActive ? "Deactivate" : "Reactivate"}
-                      </Button>
-                    </form>
-                    <form action={archiveTrainingCodeAction}>
-                      <input type="hidden" name="id" value={code.id} />
-                      <Button type="submit" variant="destructive">
-                        Archive
-                      </Button>
-                    </form>
-                  </div>
-                  <details className="admin-section">
-                    <summary>Edit</summary>
-                    <TrainingCodeForm
-                      action={updateTrainingCodeAction}
-                      submitLabel="Save changes"
-                      values={{
-                        id: code.id,
-                        code: code.code,
-                        title: code.title,
-                        sourceRevision: code.sourceRevision,
-                      }}
-                    />
-                  </details>
-                </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
-
-      <section className="admin-section">
-        <h2>Add training code</h2>
-        <TrainingCodeForm action={createTrainingCodeAction} />
-      </section>
     </main>
   );
 }

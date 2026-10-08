@@ -33,14 +33,14 @@ export async function createAgencyAction(
       phone: read(formData, "phone"),
       email: read(formData, "email"),
     });
-    revalidatePath("/staff/agencies");
-    return {};
   } catch (error) {
     return {
       error:
         error instanceof Error ? error.message : "Could not create agency.",
     };
   }
+  revalidatePath("/staff/agencies");
+  redirect("/staff/agencies");
 }
 
 export async function updateAgencyAction(
