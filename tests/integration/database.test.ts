@@ -199,7 +199,11 @@ describeDatabase("database foundation", () => {
       .insert(agencies)
       .values({ name: `Class Agency ${suffix}` })
       .returning({ id: agencies.id });
-    const [system] = await database.select().from(reportingSystems).limit(1);
+    const [system] = await database
+      .select()
+      .from(reportingSystems)
+      .where(eq(reportingSystems.code, "fire"))
+      .limit(1);
     if (!actor || !site || !agency || !system) {
       throw new Error("Class integration fixtures were not created.");
     }
@@ -549,7 +553,11 @@ describeDatabase("database foundation", () => {
       .insert(agencies)
       .values({ name: `Dashboard Agency ${suffix}` })
       .returning({ id: agencies.id });
-    const [system] = await database.select().from(reportingSystems).limit(1);
+    const [system] = await database
+      .select()
+      .from(reportingSystems)
+      .where(eq(reportingSystems.code, "fire"))
+      .limit(1);
     const [trainingMajor] = await database
       .select({ id: roles.id })
       .from(roles)
