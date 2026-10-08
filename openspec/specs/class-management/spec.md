@@ -5,10 +5,10 @@
 Allow authorized staff to create, schedule, open, complete, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
 ## Requirements
 ### Requirement: Class records use reference data
-The system SHALL let authorized staff create an open class with a required course, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. A class SHALL retain references to its selected catalog records rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
+The system SHALL let authorized staff create an open class with a class name, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, the EMS course name when KBEMS is selected, or a class name entered on the class-and-schedule step when neither is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
 
 #### Scenario: Create a classroom class
-- **WHEN** authorized staff select a course, Classroom delivery, a training site, a scheduled session, a lead instructor, and reporting systems
+- **WHEN** authorized staff enter a class name, select Classroom delivery, a training site, a scheduled session, a lead instructor, and reporting systems
 - **THEN** the system creates an open class with those selections
 
 #### Scenario: Require a site for site-based delivery
@@ -39,7 +39,7 @@ The system SHALL require every class to reference one active host agency from th
 - **THEN** the system still requires a host agency
 
 ### Requirement: Class components retain scheduled sessions
-The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class course name when no title is provided for official roster output.
+The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
 
 #### Scenario: Add multiple sessions
 - **WHEN** staff add separate morning and afternoon components to a draft class
@@ -71,7 +71,7 @@ The system SHALL let authorized staff add one or more components to a draft clas
 
 #### Scenario: Fall back when a session title is omitted
 - **WHEN** staff leave a session title blank and finalize a class
-- **THEN** official roster output uses the class course name for the session-specific field
+- **THEN** official roster output uses the class name for the session-specific field
 
 #### Scenario: Reject invalid component time range
 - **WHEN** staff enter a component whose end time is not after its start time
@@ -183,7 +183,7 @@ The system SHALL display the current four-digit student access PIN only to autho
 - **THEN** the student access PIN is not displayed to staff or public visitors
 
 ### Requirement: Class list defaults to current operational work
-The system SHALL present the staff class list scoped by default to current operational work: classes whose scheduled sessions fall on or after the default lookback of 30 days, whose lifecycle state is draft, open, or completed, and classes finalized within the last seven days. The system SHALL exclude cancelled classes and finalized classes older than that grace window unless the operator includes them. The system SHALL let authorized staff widen the list through a session date range, a lifecycle status selection, and explicit inclusion of finalized and cancelled classes, while keeping the existing course and site search.
+The system SHALL present the staff class list scoped by default to current operational work: classes whose scheduled sessions fall on or after the default lookback of 30 days, whose lifecycle state is draft, open, or completed, and classes finalized within the last seven days. The system SHALL exclude cancelled classes and finalized classes older than that grace window unless the operator includes them. The system SHALL let authorized staff widen the list through a session date range, a lifecycle status selection, and explicit inclusion of finalized and cancelled classes, while keeping the existing class and site search.
 
 #### Scenario: Show current work by default
 - **WHEN** an authorized staff member opens the class list without changing any filter

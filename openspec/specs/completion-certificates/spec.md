@@ -26,7 +26,7 @@ The system SHALL produce a separate certificate for each active participant of t
 - **THEN** no certificate is produced for that participant
 
 ### Requirement: Certificate content
-Each certificate SHALL show the participant name, the class hours, the course type, the course number, the course-completion date, and the instructor name, and SHALL render the instructor title and course on the signature line. The certificate SHALL leave the instructor signature blank for physical signing.
+Each certificate SHALL show the participant name, the class hours, the course type, the course number, the course-completion date, and the instructor name, and SHALL render the instructor title and the class name on the signature line. The certificate SHALL leave the instructor signature blank for physical signing.
 
 #### Scenario: Populate certificate fields
 - **WHEN** a certificate is generated

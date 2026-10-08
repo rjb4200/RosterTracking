@@ -5,7 +5,7 @@
 Give authorized instructors a fast, reviewable guided path to create a scheduled class that is open for sign-in as soon as it is created, without exposing all setup choices at once.
 ## Requirements
 ### Requirement: Guided class creation
-The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select any combination of Fire, KBEMS, and MTU and SHALL NOT offer FEMA. The class-and-schedule step SHALL collect the course, delivery method, training site when required, scheduled start and duration, lead instructor, host agency, and optional student access PIN. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
+The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select any combination of Fire, KBEMS, and MTU and SHALL NOT offer FEMA. The class-and-schedule step SHALL collect the delivery method, training site when required, scheduled start and duration, lead instructor, host agency, and optional student access PIN. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -32,7 +32,7 @@ The system SHALL present class creation as a Destinations step first, then one s
 - **THEN** they can select an active agency or add a new one inline before continuing
 
 ### Requirement: Final review creates an open class
-The system SHALL show a concise summary of the selected course, site, scheduled details, delivery method, host agency, instructor, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, and assigned lead instructor, ready to accept student sign-in.
+The system SHALL show a concise summary of the class name, site, scheduled details, delivery method, host agency, instructor, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, and assigned lead instructor, ready to accept student sign-in.
 
 #### Scenario: Create and open from the review step
 - **WHEN** authorized staff submit a valid reviewed wizard
@@ -103,7 +103,11 @@ When Fire is a selected destination, the system SHALL provide a Fire step that c
 - **THEN** the system blocks the step and identifies the missing field
 
 ### Requirement: KBEMS destination step collects EMS course details
-When KBEMS is a selected destination, the system SHALL collect a Course type from a selectable set and a Course number as free text on the KBEMS step, in addition to the course description or objectives.
+When KBEMS is a selected destination, the system SHALL collect the EMS course name as free text, a Course type from a selectable set, and a Course number as free text on the KBEMS step, in addition to the course description or objectives.
+
+#### Scenario: Enter the EMS course name
+- **WHEN** staff enter the EMS course name on the KBEMS step
+- **THEN** the system retains the course name for the class name and the certificate
 
 #### Scenario: Select a course type
 - **WHEN** KBEMS is selected and staff choose a course type
@@ -200,4 +204,26 @@ The system SHALL present the approved-curricula selection and the not-listed fre
 #### Scenario: Choose an approved curriculum
 - **WHEN** staff choose an approved curriculum
 - **THEN** any typed curriculum name is cleared and the free-text name field is hidden
+
+### Requirement: Class name comes from the destination
+The system SHALL set the class name from the first Fire subject's class name when Fire is selected, from the EMS course name when KBEMS is selected, and from a class name entered on the class-and-schedule step when neither Fire nor KBEMS is selected.
+
+#### Scenario: Name a Fire class
+- **WHEN** Fire is selected and staff enter a class name on the first Fire subject row
+- **THEN** the class name is that first subject's class name
+
+#### Scenario: Name an EMS class
+- **WHEN** KBEMS is selected and staff enter the EMS course name
+- **THEN** the class name is the EMS course name
+
+#### Scenario: Name an MTU-only class
+- **WHEN** only MTU is selected
+- **THEN** the class-and-schedule step collects a class name and the class uses it
+
+### Requirement: Class duration defaults to two hours
+The class-and-schedule step SHALL default the scheduled duration to two hours and SHALL let staff change it.
+
+#### Scenario: Default the scheduled duration
+- **WHEN** staff reach the class-and-schedule step
+- **THEN** the scheduled duration is two hours unless staff change it
 

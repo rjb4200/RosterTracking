@@ -7,7 +7,7 @@ Give instructors and elevated staff one focused, responsive screen for operating
 ## Requirements
 
 ### Requirement: Live class command screen
-The system SHALL show authorized class operators one class page that adapts to the class state with a single state-appropriate primary action: finish attendance and review while the class is open, review and finalize the roster when the class is completed, and no mutating action once the class is finalized. It SHALL show the course, schedule, site, delivery method, plain-language status, and active attendance count. Assigned instructors SHALL operate their assigned classes; elevated staff SHALL operate department classes.
+The system SHALL show authorized class operators one class page that adapts to the class state with a single state-appropriate primary action: finish attendance and review while the class is open, review and finalize the roster when the class is completed, and no mutating action once the class is finalized. It SHALL show the class name, schedule, site, delivery method, plain-language status, and active attendance count. Assigned instructors SHALL operate their assigned classes; elevated staff SHALL operate department classes.
 
 #### Scenario: Operate an open class
 - **WHEN** an authorized operator opens an open class
