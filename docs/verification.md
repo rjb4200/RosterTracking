@@ -105,9 +105,7 @@ template's AcroForm and asserts that every field name referenced in the mapping
 and every intentionally blank field is present. A mapping typo therefore fails
 rather than silently leaving a box empty.
 
-**Signature and initial fields are never populated electronically.** The mapping
-lists them as `blankFields`, and the rendered output is asserted to carry no
-AcroForm field values.
+**The KFS-1A signature and initials are populated from the finalized revision.** The lead instructor's typed-name signature, the instructor's derived initials, and each attendee's derived initials are written into the KFS-1A fields (`Text1`, `Instructor Initials`, and `INITIALSRow1..25`) and then flattened. The KBEMS-E16 student and instructor signatures and the completion-certificate instructor signature remain blank for physical signing.
 
 **Output is generated from real data end to end.** With a finalized class in the
 end-to-end database, authorized staff downloaded a real `kfs-1a-*.pdf` through

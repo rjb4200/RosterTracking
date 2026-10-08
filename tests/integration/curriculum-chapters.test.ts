@@ -324,7 +324,10 @@ describeDatabase("curriculum chapters", () => {
       .update(trainingClasses)
       .set({ status: "completed" })
       .where(eq(trainingClasses.id, classId));
-    const revision = await finalizeClass(db, fixture.instructor, classId);
+    const revision = await finalizeClass(db, fixture.instructor, classId, {
+      certified: true,
+      typedName: "Test Instructor",
+    });
     const [row] = await db
       .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
       .from(finalizationRevisions)

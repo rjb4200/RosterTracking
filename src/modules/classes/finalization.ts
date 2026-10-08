@@ -56,9 +56,16 @@ export interface FinalizationActor {
   username: string;
 }
 
-async function hasElevatedRole(
+// The lead instructor's certification statement, versioned so a later wording
+// change is a new version rather than a silent edit of retained revisions.
+export const ROSTER_ATTESTATION_VERSION = "roster-attestation-001";
+export const ROSTER_ATTESTATION_TEXT =
+  "I certify that this roster is complete and accurate to the best of my knowledge.";
+
+async function hasRole(
   transaction: DatabaseTransaction,
   userId: string,
+  codes: string[],
 ) {
   const rows = await transaction
     .select({ id: roles.id })
@@ -68,14 +75,70 @@ async function hasElevatedRole(
       and(
         eq(userRoles.userId, userId),
         eq(roles.isActive, true),
-        inArray(roles.code, [
-          ROLE_CODES.ADMINISTRATOR,
-          ROLE_CODES.TRAINING_MAJOR,
-        ]),
+        inArray(roles.code, codes),
       ),
     )
     .limit(1);
   return rows.length > 0;
+}
+
+async function hasElevatedRole(
+  transaction: DatabaseTransaction,
+  userId: string,
+) {
+  return hasRole(transaction, userId, [
+    ROLE_CODES.ADMINISTRATOR,
+    ROLE_CODES.TRAINING_MAJOR,
+  ]);
+}
+
+async function requireLeadInstructorAccess(
+  transaction: DatabaseTransaction,
+  actor: FinalizationActor,
+  classId: string,
+) {
+  const [classRecord] = await transaction
+    .select()
+    .from(trainingClasses)
+    .where(eq(trainingClasses.id, classId))
+    .limit(1)
+    .for("update");
+  if (!classRecord) throw new Error("Class not found.");
+  const [lead] = await transaction
+    .select({ classId: classInstructors.classId })
+    .from(classInstructors)
+    .where(
+      and(
+        eq(classInstructors.classId, classId),
+        eq(classInstructors.userId, actor.id),
+        eq(classInstructors.isLead, true),
+      ),
+    )
+    .limit(1);
+  if (!lead) {
+    throw new Error(
+      "Only the class's lead instructor can finalize the roster.",
+    );
+  }
+  return classRecord;
+}
+
+async function requireReopenAccess(
+  transaction: DatabaseTransaction,
+  actor: FinalizationActor,
+  classId: string,
+) {
+  const [classRecord] = await transaction
+    .select()
+    .from(trainingClasses)
+    .where(eq(trainingClasses.id, classId))
+    .limit(1)
+    .for("update");
+  if (!classRecord) throw new Error("Class not found.");
+  if (!(await hasRole(transaction, actor.id, [ROLE_CODES.ADMINISTRATOR]))) {
+    throw new Error("Only an Administrator can reopen a finalized class.");
+  }
+  return classRecord;
 }
 
 async function requireFinalizationAccess(
@@ -271,9 +334,15 @@ export async function finalizeClass(
   db: Database,
   actor: FinalizationActor,
   classId: string,
+  attestation: { certified: boolean; typedName: string },
 ) {
+  if (!attestation.certified) {
+    throw new Error("Certify the roster before finalizing.");
+  }
+  const typedName = attestation.typedName.trim();
+  if (!typedName) throw new Error("Type your name to sign the roster.");
   return db.transaction(async (transaction) => {
-    const classRecord = await requireFinalizationAccess(
+    const classRecord = await requireLeadInstructorAccess(
       transaction,
       actor,
       classId,
@@ -334,8 +403,20 @@ export async function finalizeClass(
         classId,
         revisionNumber: next,
         finalizedByUserId: actor.id,
+        signedByUserId: actor.id,
+        signedByName: typedName,
+        signedAt: new Date(),
+        attestationVersion: ROSTER_ATTESTATION_VERSION,
         encryptedSnapshot: encryptCredential(
-          JSON.stringify({ ...snapshot, signInRecord }),
+          JSON.stringify({
+            ...snapshot,
+            signInRecord,
+            signature: {
+              name: typedName,
+              signedAt: new Date().toISOString(),
+              attestationVersion: ROSTER_ATTESTATION_VERSION,
+            },
+          }),
         ),
         summary: {
           courseName: snapshot.class.courseName,
@@ -382,11 +463,7 @@ export async function reopenFinalizedClass(
 ) {
   validateReopenReason(reason);
   return db.transaction(async (transaction) => {
-    const classRecord = await requireFinalizationAccess(
-      transaction,
-      actor,
-      classId,
-    );
+    const classRecord = await requireReopenAccess(transaction, actor, classId);
     if (classRecord.status !== "finalized")
       throw new Error("Only finalized classes can be reopened.");
     const [revision] = await transaction
@@ -507,6 +584,8 @@ export async function getFinalizationHistory(
         revisionNumber: finalizationRevisions.revisionNumber,
         finalizedAt: finalizationRevisions.finalizedAt,
         finalizedBy: users.displayName,
+        signedByName: finalizationRevisions.signedByName,
+        signedAt: finalizationRevisions.signedAt,
         summary: finalizationRevisions.summary,
         reopenReason: finalizationReopens.reason,
         reopenedAt: finalizationReopens.reopenedAt,

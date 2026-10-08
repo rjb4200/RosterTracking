@@ -325,7 +325,10 @@ export async function finalizeClassAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
   try {
-    await finalizeClass(getDatabase(), actor, classId);
+    await finalizeClass(getDatabase(), actor, classId, {
+      certified: read(formData, "certified") === "true",
+      typedName: read(formData, "typedName"),
+    });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
     revalidatePath("/staff/reporting");

@@ -14,6 +14,7 @@ import {
   generateOfficialRoster,
   hasOfficialRosterAuthority,
   renderOfficialRoster,
+  renderRosterPage,
   snapshotIdentifier,
   UnreadableRevisionSnapshotError,
   validateOfficialRosterRecipient,
@@ -75,7 +76,7 @@ describe("official roster PDF templates", () => {
     }
   });
 
-  it("paginates every attendee and leaves no electronic signature values", async () => {
+  it("paginates every attendee and flattens the form", async () => {
     const kfs = await renderOfficialRoster("kfs-1a", snapshot);
     const kbems = await renderOfficialRoster("kbems-e16", snapshot);
     expect((await PDFDocument.load(kfs)).getPageCount()).toBe(2);
@@ -90,6 +91,101 @@ describe("official roster PDF templates", () => {
     await expect(renderOfficialRoster("kfs-1a", snapshot)).resolves.toEqual(
       await renderOfficialRoster("kfs-1a", snapshot),
     );
+  });
+
+  const zoeZeta = {
+    attendanceId: "attendance-unique",
+    agencyName: "Example Fire",
+    creditedHours: "4",
+    firstName: "Zoe",
+    lastName: "Zeta",
+    guestFirstName: null,
+    guestLastName: null,
+  };
+
+  it("populates the KFS-1A signature and initials from revision facts", async () => {
+    const signed: FinalizationSnapshot = {
+      ...snapshot,
+      signature: {
+        name: "Xavier Quinn",
+        signedAt: "2026-09-05T18:00:00.000Z",
+        attestationVersion: "roster-attestation-001",
+      },
+      attendance: [zoeZeta],
+    };
+    const page = await renderRosterPage("kfs-1a", signed, signed.attendance, {
+      flatten: false,
+    });
+    const form = page.getForm();
+    expect(form.getTextField("Text1").getText()).toBe("Xavier Quinn");
+    expect(form.getTextField("Instructor Initials").getText()).toBe("XQ");
+    expect(form.getTextField("INITIALSRow1").getText()).toBe("ZZ");
+  });
+
+  it("leaves the KFS-1A signature blank without signing facts but still prints initials", async () => {
+    const unsigned: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: [zoeZeta],
+    };
+    const page = await renderRosterPage(
+      "kfs-1a",
+      unsigned,
+      unsigned.attendance,
+      {
+        flatten: false,
+      },
+    );
+    const form = page.getForm();
+    expect(form.getTextField("Text1").getText() ?? "").toBe("");
+    expect(form.getTextField("Instructor Initials").getText() ?? "").toBe("");
+    expect(form.getTextField("INITIALSRow1").getText()).toBe("ZZ");
+  });
+
+  it("does not place an electronic signature on the KBEMS-E16", async () => {
+    const signed: FinalizationSnapshot = {
+      ...snapshot,
+      signature: {
+        name: "Xavier Quinn",
+        signedAt: "2026-09-05T18:00:00.000Z",
+        attestationVersion: "roster-attestation-001",
+      },
+      attendance: [zoeZeta],
+    };
+    const page = await renderRosterPage(
+      "kbems-e16",
+      signed,
+      signed.attendance,
+      {
+        flatten: false,
+      },
+    );
+    const names = page
+      .getForm()
+      .getFields()
+      .map((field) => field.getName());
+    // The KBEMS-E16 has no signature fields; those are physically signed.
+    expect(names.some((name) => /signature/i.test(name))).toBe(false);
+    // The signer's name never appears on the KBEMS-E16.
+    expect(
+      page.getForm().getTextField("Instructor Name").getText() ?? "",
+    ).not.toContain("Xavier Quinn");
+  });
+
+  it("provides the signature, instructor-initials, and attendee-initials fields", async () => {
+    const bytes = await readFile(
+      new URL("./kfs-1a-october-2023.pdf", import.meta.url),
+    );
+    const fields = new Set(
+      (await PDFDocument.load(bytes))
+        .getForm()
+        .getFields()
+        .map((field) => field.getName()),
+    );
+    expect(fields.has("Text1")).toBe(true);
+    expect(fields.has("Instructor Initials")).toBe(true);
+    for (let row = 1; row <= 25; row += 1) {
+      expect(fields.has(`INITIALSRow${row}`)).toBe(true);
+    }
   });
 
   it("uses the course name when a session title is omitted", async () => {

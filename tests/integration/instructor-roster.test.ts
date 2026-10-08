@@ -129,7 +129,10 @@ describeDatabase("instructor roster transactions", () => {
       ready: true,
       issues: [],
     });
-    await finalizeClass(db, actor, classRecord.id);
+    await finalizeClass(db, actor, classRecord.id, {
+      certified: true,
+      typedName: "Test Instructor",
+    });
     const finalizedRoster = await getClassRoster(db, actor, classRecord.id);
     expect(finalizedRoster.classRecord.status).toBe("finalized");
     expect(finalizedRoster.active).toHaveLength(1);

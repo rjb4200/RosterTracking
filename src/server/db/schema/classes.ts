@@ -228,6 +228,13 @@ export const finalizationRevisions = pgTable(
     finalizedAt: timestamp("finalized_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    // Electronic attestation captured when the lead instructor finalizes.
+    signedByUserId: uuid("signed_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    signedByName: text("signed_by_name"),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    attestationVersion: text("attestation_version"),
     // The encrypted payload keeps historical roster facts out of normal reads.
     encryptedSnapshot: text("encrypted_snapshot").notNull(),
     summary: jsonb("summary").notNull(),

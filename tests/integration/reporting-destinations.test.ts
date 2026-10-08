@@ -273,7 +273,10 @@ describeDatabase("reporting destinations", () => {
       .set({ status: "completed" })
       .where(eq(trainingClasses.id, classId));
 
-    const revision = await finalizeClass(db, instructor, classId);
+    const revision = await finalizeClass(db, instructor, classId, {
+      certified: true,
+      typedName: "Test Instructor",
+    });
     const [row] = await db
       .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
       .from(finalizationRevisions)
@@ -307,7 +310,10 @@ describeDatabase("reporting destinations", () => {
       .update(trainingClasses)
       .set({ status: "completed" })
       .where(eq(trainingClasses.id, classId));
-    const revision = await finalizeClass(db, instructor, classId);
+    const revision = await finalizeClass(db, instructor, classId, {
+      certified: true,
+      typedName: "Test Instructor",
+    });
 
     const [fema] = await db
       .select({ id: reportingSystems.id })

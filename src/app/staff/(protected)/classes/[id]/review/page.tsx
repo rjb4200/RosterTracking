@@ -21,6 +21,7 @@ import {
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { resolveClassRequirements } from "@/modules/student-sign-in/requirements";
 import { getDatabase } from "@/server/db/client";
 
@@ -92,9 +93,17 @@ export default async function CompletedClassReviewPage({
     isCompleted ? listClassFormOptions(db, actor) : Promise.resolve(null),
     isFinalized ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
   ]);
-  const canManageOfficialRosters = isFinalized
-    ? Boolean(await getCurrentStaff())
-    : false;
+  const staff = await getCurrentStaff();
+  const canManageOfficialRosters = isFinalized ? Boolean(staff) : false;
+  const isLeadInstructor =
+    isCompleted &&
+    Boolean(
+      staff &&
+        classRecord.instructors.some(
+          (instructor) => instructor.isLead && instructor.userId === staff.id,
+        ),
+    );
+  const canReopen = staff ? isAdministrator(staff.roleCodes) : false;
   const latestRevision = revisionHistory[0] ?? null;
 
   const renderEntry = (
@@ -186,6 +195,8 @@ export default async function CompletedClassReviewPage({
           finalizeAction={finalizeClassAction}
           reopenAction={reopenClassAction}
           canFinalize={reviewData?.readiness.ready ?? false}
+          isLeadInstructor={isLeadInstructor}
+          canReopen={canReopen}
         />
       </section>
 
@@ -254,6 +265,14 @@ export default async function CompletedClassReviewPage({
                       Finalized by {revision.finalizedBy} on{" "}
                       {formatDepartmentDateTime(revision.finalizedAt)}
                     </span>
+                    {revision.signedByName ? (
+                      <span className="text-muted-foreground">
+                        Signed by {revision.signedByName} on{" "}
+                        {revision.signedAt
+                          ? formatDepartmentDateTime(revision.signedAt)
+                          : "—"}
+                      </span>
+                    ) : null}
                     <span className="text-muted-foreground">
                       {revision.reopenReason
                         ? `Reopened: ${revision.reopenReason}`

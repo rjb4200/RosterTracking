@@ -132,7 +132,10 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     .set({ status: "completed" })
     .where(eq(trainingClasses.id, classId));
 
-  const revision = await finalizeClass(db, instructor, classId);
+  const revision = await finalizeClass(db, instructor, classId, {
+    certified: true,
+    typedName: "Test Instructor",
+  });
   return { instructor, classId, revisionId: revision.id };
 }
 

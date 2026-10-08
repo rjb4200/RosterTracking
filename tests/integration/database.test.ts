@@ -212,6 +212,7 @@ describeDatabase("database foundation", () => {
       startsAt: "2026-09-10T13:00:00Z",
       creditedHours: 4,
       leadInstructorId: actor.id,
+      reportingSystemIds: [system.id],
     });
     await updateClass(database, actor, created.classRecord.id, {
       name: `Class Course ${suffix}`,
@@ -227,7 +228,7 @@ describeDatabase("database foundation", () => {
         displayName: "Replacement Lead",
         passwordHash: "not-a-real-hash",
       })
-      .returning({ id: users.id });
+      .returning({ id: users.id, username: users.username });
     if (!replacementLead) throw new Error("Replacement lead was not created.");
     await assignClassInstructor(
       database,
@@ -378,9 +379,13 @@ describeDatabase("database foundation", () => {
       )[0]?.status,
     ).toBe(CLASS_STATUSES.COMPLETED);
 
-    // Readiness still gates the irreversible step.
+    // Readiness still gates the irreversible step. Only the current lead
+    // instructor can finalize, so the readiness error surfaces for the lead.
     await expect(
-      finalizeClass(database, actor, created.classRecord.id),
+      finalizeClass(database, replacementLead, created.classRecord.id, {
+        certified: true,
+        typedName: "Test Instructor",
+      }),
     ).rejects.toThrow(/active attendance/i);
 
     // Class details, sessions, and instructors stay editable while the class

@@ -310,7 +310,10 @@ describeDatabase("fire roster fields", () => {
       .set({ status: "completed" })
       .where(eq(trainingClasses.id, classId));
 
-    const revision = await finalizeClass(db, instructor, classId);
+    const revision = await finalizeClass(db, instructor, classId, {
+      certified: true,
+      typedName: "Fire Instructor",
+    });
     const [row] = await db
       .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
       .from(finalizationRevisions)

@@ -28,9 +28,11 @@ export interface TemplateMapping {
   >;
   fields: Record<string, string>;
   blankFields: readonly string[];
+  // Field-name prefix for the per-attendee initials column (for example
+  // "INITIALSRow", used as INITIALSRow1..N). Absent when the form has none.
+  attendeeInitialsField?: string;
 }
 
-const kfsRows = Array.from({ length: 25 }, (_, index) => index + 1);
 const kbemsRows = Array.from({ length: 16 }, (_, index) => index + 1);
 
 export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
@@ -39,7 +41,7 @@ export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
     templateVersion: "kfs-1a-october-2023",
     assetName: "kfs-1a-october-2023.pdf",
     sourceChecksum:
-      "1c986b7c39f4754317508e42a9a466f1df6993139a0a83a28e876dce626d6874",
+      "2c94a782633a85a74cebce99a486a93da6ff011053f725f18cab0d52537d0451",
     pageCapacity: 25,
     pageSize: { width: 612, height: 792 },
     typography: { font: "Helvetica", fontSize: 8 },
@@ -86,17 +88,14 @@ export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
       // Left blank: the roster is generated before external reporting.
       dateEntered: "Date Entered",
       enteredBy: "Entered By",
+      // The lead instructor's typed-name signature line and derived initials.
+      leadSignature: "Text1",
+      instructorInitials: "Instructor Initials",
     },
-    // These form controls are intentionally never populated electronically.
-    blankFields: [
-      ...kfsRows.flatMap((row) => [
-        `InitialRow${row}`,
-        `InitialsRow${row}`,
-        `SignatureRow${row}`,
-      ]),
-      "Lead Instructor Signature",
-      "Assisting Instructor Signature",
-    ],
+    // Everything approved is populated: the lead instructor signs and both
+    // instructor and attendee initials are printed. Nothing is left blank.
+    blankFields: [],
+    attendeeInitialsField: "INITIALSRow",
   },
   "kbems-e16": {
     formType: "kbems-e16",

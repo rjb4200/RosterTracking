@@ -21,6 +21,7 @@ import {
   userRoles,
 } from "@/server/db/schema";
 
+import { attendeeInitials } from "./initials";
 import {
   getTemplateMapping,
   type OfficialRosterForm,
@@ -32,7 +33,7 @@ export interface OfficialRosterActor {
   username: string;
 }
 
-interface SnapshotAttendance {
+export interface SnapshotAttendance {
   attendanceId: string;
   agencyName: string;
   creditedHours: string;
@@ -55,6 +56,13 @@ export interface FinalizationSnapshot {
   };
   // Reporting destinations selected for the class at finalization.
   destinations?: Array<{ code: string; name: string }>;
+  // The lead instructor's electronic attestation captured at finalization.
+  // Optional because revisions finalized before signing have none.
+  signature?: {
+    name: string;
+    signedAt: string | null;
+    attestationVersion: string | null;
+  };
   // Optional because revisions written before MTU tracking have no usage facts.
   mtuUsage?: {
     equipmentUsed: string | null;
@@ -232,19 +240,35 @@ export async function readSnapshot(
     .select({
       classId: finalizationRevisions.classId,
       encryptedSnapshot: finalizationRevisions.encryptedSnapshot,
+      signedByName: finalizationRevisions.signedByName,
+      signedAt: finalizationRevisions.signedAt,
+      attestationVersion: finalizationRevisions.attestationVersion,
     })
     .from(finalizationRevisions)
     .where(eq(finalizationRevisions.id, revisionId))
     .limit(1);
   if (!revision) throw new Error("Finalization revision not found.");
   await assertRosterAuthority(db, actor, revision.classId);
+  let parsed: FinalizationSnapshot;
   try {
-    return JSON.parse(
+    parsed = JSON.parse(
       decryptCredential(revision.encryptedSnapshot),
     ) as FinalizationSnapshot;
   } catch {
     throw new UnreadableRevisionSnapshotError();
   }
+  // Prefer the signing facts stored on the revision row so the printed
+  // signature reflects the signer at finalization, not a later profile edit.
+  return {
+    ...parsed,
+    signature: revision.signedByName
+      ? {
+          name: revision.signedByName,
+          signedAt: revision.signedAt ? revision.signedAt.toISOString() : null,
+          attestationVersion: revision.attestationVersion,
+        }
+      : parsed.signature,
+  };
 }
 
 function setText(pdf: PDFDocument, name: string | undefined, value: string) {
@@ -364,7 +388,21 @@ function fillKfsPage(
     setText(pdf, `LAST NAMERow${row}`, lastName.join(" "));
     setText(pdf, `FIRST NAMERow${row}`, firstName);
     setText(pdf, `HOURSRow${row}`, attendee.creditedHours);
+    if (mapping.attendeeInitialsField) {
+      setText(
+        pdf,
+        `${mapping.attendeeInitialsField}${row}`,
+        attendeeInitials(attendeeName(attendee)),
+      );
+    }
   });
+
+  setText(pdf, mapping.fields.leadSignature, snapshot.signature?.name ?? "");
+  setText(
+    pdf,
+    mapping.fields.instructorInitials,
+    snapshot.signature?.name ? attendeeInitials(snapshot.signature.name) : "",
+  );
 }
 
 function fillKbemsPage(
@@ -409,6 +447,7 @@ function fillKbemsPage(
 export async function renderPage(
   mapping: TemplateMapping,
   fill: (pdf: PDFDocument) => void,
+  options: { flatten?: boolean } = {},
 ): Promise<PDFDocument> {
   const source = await readFile(
     join(
@@ -424,8 +463,37 @@ export async function renderPage(
   pdf
     .getForm()
     .updateFieldAppearances(await pdf.embedFont(StandardFonts.Helvetica));
-  pdf.getForm().flatten();
+  if (options.flatten ?? true) pdf.getForm().flatten();
   return pdf;
+}
+
+/**
+ * Renders a single official-roster page. Exposed so verification tests can
+ * inspect populated form fields before flattening; production generation uses
+ * `renderOfficialRoster`, which flattens every page.
+ */
+export async function renderRosterPage(
+  formType: OfficialRosterForm,
+  snapshot: FinalizationSnapshot,
+  attendees: SnapshotAttendance[],
+  options: { flatten?: boolean; page?: number; pageCount?: number } = {},
+): Promise<PDFDocument> {
+  const mapping = getTemplateMapping(formType);
+  return renderPage(
+    mapping,
+    (pdf) => {
+      if (formType === "kfs-1a") fillKfsPage(pdf, snapshot, attendees);
+      else
+        fillKbemsPage(
+          pdf,
+          snapshot,
+          attendees,
+          options.page ?? 1,
+          options.pageCount ?? 1,
+        );
+    },
+    { flatten: options.flatten ?? true },
+  );
 }
 
 export async function renderOfficialRoster(
@@ -437,9 +505,9 @@ export async function renderOfficialRoster(
   if (!pages.length) pages.push([]);
   const output = await PDFDocument.create();
   for (const [index, attendees] of pages.entries()) {
-    const page = await renderPage(mapping, (pdf) => {
-      if (formType === "kfs-1a") fillKfsPage(pdf, snapshot, attendees);
-      else fillKbemsPage(pdf, snapshot, attendees, index + 1, pages.length);
+    const page = await renderRosterPage(formType, snapshot, attendees, {
+      page: index + 1,
+      pageCount: pages.length,
     });
     const copied = await output.copyPages(page, [0]);
     output.addPage(copied[0]);
