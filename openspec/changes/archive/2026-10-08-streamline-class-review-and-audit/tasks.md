@@ -27,5 +27,5 @@
 ## 5. Verification
 
 - [x] 5.1 Run `npm run check`, `npm run test`, and `npm run test:integration`
-- [ ] 5.2 Manually verify a finalized class review: one documents list, progressive email, no certificates row without KBEMS, and reopen only at the bottom for admins
+- [x] 5.2 Manually verify a finalized class review: one documents list, progressive email, no certificates row without KBEMS, and reopen only at the bottom for admins
 - [x] 5.3 Manually verify the audit log shows one generation row per actor per revision per form, and one per actor per revision for certificates

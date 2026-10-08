@@ -28,7 +28,7 @@ The system SHALL provide authorized instructors and elevated staff a dedicated c
 - **WHEN** an authorized operator opens the review screen for a finalized class
 - **THEN** the system presents the class summary and roster as read-only, omits roster-editing actions, and offers the reopen path
 
-#### Scenario: Reopen from the end of the review screen
+#### Scenario: Reopen from the review screen
 - **WHEN** an authorized operator who may reopen opens the review screen for a finalized class
 - **THEN** the screen presents a dedicated reopening section after the attendance sections at the end of the screen
 

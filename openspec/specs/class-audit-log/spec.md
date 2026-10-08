@@ -3,12 +3,10 @@
 ## Purpose
 
 Provide a detailed, printable audit trail for a class so authorized staff can see who changed the class, its attendance, its finalization, and its official outputs, and can keep that trail as a record for Fire Commission and KBEMS reporting.
-
 ## Requirements
-
 ### Requirement: Class audit log is class-scoped and detailed
 
-The system SHALL produce a class audit log from the append-only audit records associated with the class. The log SHALL include class lifecycle changes, attendance additions, removals, credit adjustments, and public sign-ins, finalization and reopen actions, and reporting and official-output generation events. The system SHALL order entries chronologically and SHALL identify each entry by its department timestamp, actor, action, and affected entity.
+The system SHALL produce a class audit log from the append-only audit records associated with the class. The log SHALL include class lifecycle changes, attendance additions, removals, credit adjustments, and public sign-ins, finalization and reopen actions, and reporting and official-output generation events. The system SHALL order entries chronologically and SHALL identify each entry by its department timestamp, actor, action, and affected entity. The log SHALL represent repeated official-output generation by the same actor for the same revision once rather than once per generation: one entry per actor per revision per form for official rosters, and one entry per actor per revision for completion certificates. Official-roster email deliveries SHALL remain represented per send.
 
 #### Scenario: Include class lifecycle changes
 - **WHEN** an authorized user views the audit log for a class that has been created, edited, scheduled, assigned, opened, completed, and finalized
@@ -25,6 +23,18 @@ The system SHALL produce a class audit log from the append-only audit records as
 #### Scenario: Include reporting and output events
 - **WHEN** an official roster was generated or emailed, a completion certificate was generated, or a reporting destination status was updated for the class
 - **THEN** those events appear in the class audit log
+
+#### Scenario: Collapse repeated official-roster generation by one actor
+- **WHEN** the same actor generates the same official roster form for the same revision more than once
+- **THEN** the class audit log presents a single generation entry for that actor, revision, and form
+
+#### Scenario: Keep a generation entry for each actor
+- **WHEN** two different actors generate the same official roster form for the same revision
+- **THEN** the class audit log presents a generation entry for each actor
+
+#### Scenario: Collapse repeated certificate generation by one actor
+- **WHEN** the same actor generates completion certificates for the same revision more than once
+- **THEN** the class audit log presents a single certificate-generation entry for that actor and revision
 
 #### Scenario: Order chronologically
 - **WHEN** the class audit log is produced
@@ -89,3 +99,4 @@ The class audit log SHALL NOT display values the audit system excludes from stor
 #### Scenario: Omit protected values
 - **WHEN** the class audit log is rendered
 - **THEN** no password, token, secret, raw phone number, or full credential value appears in the document
+
