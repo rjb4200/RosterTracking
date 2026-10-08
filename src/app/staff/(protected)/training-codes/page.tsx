@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -10,6 +12,11 @@ import { listTrainingCodes } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
+
+import {
+  archiveTrainingCodeAction,
+  setTrainingCodeActiveAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +54,14 @@ export default async function TrainingCodesPage({
             <TableHead>Code</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Source revision</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {codes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={3} className="text-muted-foreground">
+              <TableCell colSpan={5} className="text-muted-foreground">
                 No training codes found. Import a structured JSON file to add
                 the catalog.
               </TableCell>
@@ -63,6 +72,37 @@ export default async function TrainingCodesPage({
                 <TableCell>{code.code}</TableCell>
                 <TableCell>{code.title}</TableCell>
                 <TableCell>{code.sourceRevision}</TableCell>
+                <TableCell>
+                  {code.isActive ? (
+                    <Badge variant="secondary">Active</Badge>
+                  ) : (
+                    <Badge variant="outline">Inactive</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="inline-form">
+                    <form action={setTrainingCodeActiveAction}>
+                      <input type="hidden" name="id" value={code.id} />
+                      <input
+                        type="hidden"
+                        name="isActive"
+                        value={code.isActive ? "false" : "true"}
+                      />
+                      <Button
+                        type="submit"
+                        variant={code.isActive ? "destructive" : "secondary"}
+                      >
+                        {code.isActive ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </form>
+                    <form action={archiveTrainingCodeAction}>
+                      <input type="hidden" name="id" value={code.id} />
+                      <Button type="submit" variant="destructive">
+                        Archive
+                      </Button>
+                    </form>
+                  </div>
+                </TableCell>
               </TableRow>
             ))
           )}

@@ -28,4 +28,4 @@
 
 - [x] 5.1 Update official-roster and sign-in-record tests for the consolidated View behavior
 - [x] 5.2 Run `npm run check` and `npm run test` and `npm run test:integration`
-- [ ] 5.3 Manually verify the review screen for a completed-not-finalized class and a finalized class, including each View document
+- [x] 5.3 Manually verify the review screen for a completed-not-finalized class and a finalized class, including each View document

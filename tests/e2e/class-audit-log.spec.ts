@@ -30,10 +30,15 @@ test("staff can view and download the class audit log", async ({ page }) => {
     "insert into agencies (name) values ($1) returning id",
     [`Audit Agency ${suffix}`],
   );
+  const site = await pool.query<{ id: string }>(
+    "insert into training_sites (name) values ($1) returning id",
+    [`Audit Site ${suffix}`],
+  );
   const klass = await pool.query<{ id: string }>(
-    "insert into classes (name, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, opened_at) values ($1, $2, 'classroom', 'open', $3, $4, now()) returning id",
+    "insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, opened_at) values ($1, $2, $3, 'classroom', 'open', $4, $5, now()) returning id",
     [
       `Audit Course ${suffix}`,
+      site.rows[0]?.id,
       actor.rows[0].id,
       crypto.randomUUID(),
       agency.rows[0]?.id,

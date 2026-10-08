@@ -36,6 +36,11 @@ const navItems: Array<{ href: string; label: string; permission: string }> = [
     permission: PERMISSIONS.TRAINING_CODES_MANAGE,
   },
   {
+    href: "/staff/curricula",
+    label: "Curricula",
+    permission: PERMISSIONS.CURRICULA_MANAGE,
+  },
+  {
     href: "/staff/sites",
     label: "Sites",
     permission: PERMISSIONS.SITES_MANAGE,

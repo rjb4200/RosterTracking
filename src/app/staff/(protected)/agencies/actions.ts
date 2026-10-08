@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import * as reference from "@/modules/reference/services";
 import { requireActor } from "@/modules/staff-auth/guards";
@@ -82,4 +83,12 @@ export async function setAgencyActiveAction(formData: FormData): Promise<void> {
   );
   revalidatePath(`/staff/agencies/${id}`);
   revalidatePath("/staff/agencies");
+}
+
+export async function archiveAgencyAction(formData: FormData): Promise<void> {
+  const actor = await requireActor(PERMISSIONS.AGENCIES_MANAGE);
+  const id = read(formData, "id");
+  await reference.archiveAgency(getDatabase(), actor, id);
+  revalidatePath("/staff/agencies");
+  redirect("/staff/agencies");
 }

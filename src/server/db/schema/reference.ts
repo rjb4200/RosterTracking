@@ -57,11 +57,16 @@ export const agencies = pgTable(
     phone: text("phone"),
     email: text("email"),
     isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
     index("agencies_name_idx").on(table.name),
     uniqueIndex("agencies_name_unique").on(sql`lower(btrim(${table.name}))`),
+    check(
+      "agencies_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
   ],
 );
 
@@ -204,6 +209,7 @@ export const trainingCodes = pgTable(
     title: text("title").notNull(),
     sourceRevision: text("source_revision").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -212,6 +218,10 @@ export const trainingCodes = pgTable(
       table.sourceRevision,
     ),
     index("training_codes_code_idx").on(table.code),
+    check(
+      "training_codes_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
   ],
 );
 
@@ -225,6 +235,7 @@ export const curricula = pgTable(
     additionalRequirements: text("additional_requirements"),
     sourceRevision: text("source_revision").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -234,6 +245,10 @@ export const curricula = pgTable(
       table.sourceRevision,
     ),
     index("curricula_publisher_idx").on(table.publisher),
+    check(
+      "curricula_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
   ],
 );
 
@@ -278,7 +293,14 @@ export const trainingSites = pgTable(
     state: text("state"),
     zip: text("zip"),
     isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [index("training_sites_name_idx").on(table.name)],
+  (table) => [
+    index("training_sites_name_idx").on(table.name),
+    check(
+      "training_sites_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
+  ],
 );

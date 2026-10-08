@@ -116,8 +116,8 @@ describeDatabase("database foundation", () => {
     await database.transaction(seedFoundation);
 
     expect((await database.select().from(roles)).length).toBe(3);
-    expect((await database.select().from(permissions)).length).toBe(10);
-    expect((await database.select().from(rolePermissions)).length).toBe(23);
+    expect((await database.select().from(permissions)).length).toBe(11);
+    expect((await database.select().from(rolePermissions)).length).toBe(25);
   });
 
   it("seeds reference data idempotently and supports reference CRUD", async () => {

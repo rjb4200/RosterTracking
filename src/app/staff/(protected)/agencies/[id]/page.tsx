@@ -7,7 +7,11 @@ import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
-import { setAgencyActiveAction, updateAgencyAction } from "../actions";
+import {
+  archiveAgencyAction,
+  setAgencyActiveAction,
+  updateAgencyAction,
+} from "../actions";
 import { AgencyForm } from "../agency-form";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +54,14 @@ export default async function AgencyDetailPage({
               {agency.isActive ? "Deactivate" : "Reactivate"}
             </Button>
           </form>
+          {!agency.archivedAt ? (
+            <form action={archiveAgencyAction}>
+              <input type="hidden" name="id" value={agency.id} />
+              <Button type="submit" variant="destructive">
+                Archive
+              </Button>
+            </form>
+          ) : null}
         </div>
       </div>
       <section className="admin-section">

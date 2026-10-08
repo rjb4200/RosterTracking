@@ -7,7 +7,11 @@ import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
-import { setSiteActiveAction, updateSiteAction } from "../actions";
+import {
+  archiveSiteAction,
+  setSiteActiveAction,
+  updateSiteAction,
+} from "../actions";
 import { SiteForm } from "../site-form";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +54,14 @@ export default async function SiteDetailPage({
               {site.isActive ? "Deactivate" : "Reactivate"}
             </Button>
           </form>
+          {!site.archivedAt ? (
+            <form action={archiveSiteAction}>
+              <input type="hidden" name="id" value={site.id} />
+              <Button type="submit" variant="destructive">
+                Archive
+              </Button>
+            </form>
+          ) : null}
         </div>
       </div>
       <section className="admin-section">

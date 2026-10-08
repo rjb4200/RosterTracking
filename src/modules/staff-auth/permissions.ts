@@ -4,6 +4,7 @@ export const PERMISSIONS = {
   STUDENTS_MANAGE: "students.manage",
   AGENCIES_MANAGE: "agencies.manage",
   TRAINING_CODES_MANAGE: "training-codes.manage",
+  CURRICULA_MANAGE: "curricula.manage",
   SITES_MANAGE: "sites.manage",
   SITES_CREATE: "sites.create",
   REPORTING_MANAGE: "reporting.manage",

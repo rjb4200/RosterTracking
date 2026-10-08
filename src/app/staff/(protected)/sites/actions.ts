@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import * as reference from "@/modules/reference/services";
 import { requireActor } from "@/modules/staff-auth/guards";
@@ -72,4 +73,12 @@ export async function setSiteActiveAction(formData: FormData): Promise<void> {
   );
   revalidatePath(`/staff/sites/${id}`);
   revalidatePath("/staff/sites");
+}
+
+export async function archiveSiteAction(formData: FormData): Promise<void> {
+  const actor = await requireActor(PERMISSIONS.SITES_MANAGE);
+  const id = read(formData, "id");
+  await reference.archiveSite(getDatabase(), actor, id);
+  revalidatePath("/staff/sites");
+  redirect("/staff/sites");
 }

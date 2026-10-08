@@ -1,4 +1,15 @@
-import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -352,7 +363,7 @@ export async function listAgencies(db: Database, query: string) {
   return db
     .select()
     .from(agencies)
-    .where(ilike(agencies.name, term))
+    .where(and(isNull(agencies.archivedAt), ilike(agencies.name, term)))
     .orderBy(agencies.name)
     .limit(100);
 }
@@ -372,21 +383,51 @@ export async function createAgency(
   input: z.infer<typeof agencyInput>,
 ) {
   const parsed = agencyInput.parse(input);
+  const details = {
+    name: parsed.name,
+    type: nullable(parsed.type ?? ""),
+    address: nullable(parsed.address ?? ""),
+    city: nullable(parsed.city ?? ""),
+    state: nullable(parsed.state ?? ""),
+    zip: nullable(parsed.zip ?? ""),
+    contactName: nullable(parsed.contactName ?? ""),
+    phone: nullable(parsed.phone ?? ""),
+    email: nullable(parsed.email ?? ""),
+  };
   return db.transaction(async (transaction) => {
+    // An agency name is unique, so re-adding an archived or inactive agency
+    // revives or reactivates it instead of failing as a duplicate.
+    const [existing] = await transaction
+      .select()
+      .from(agencies)
+      .where(sql`lower(btrim(${agencies.name})) = lower(btrim(${parsed.name}))`)
+      .limit(1);
+    if (existing && (existing.archivedAt || !existing.isActive)) {
+      const [agency] = await transaction
+        .update(agencies)
+        .set({
+          ...details,
+          isActive: true,
+          archivedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(agencies.id, existing.id))
+        .returning();
+      if (!agency) throw new Error("Agency was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: existing.archivedAt ? "agency.revived" : "agency.reactivated",
+        entityType: "agency",
+        entityId: agency.id,
+        details: { name: agency.name },
+      });
+      return agency;
+    }
     try {
       const [agency] = await transaction
         .insert(agencies)
-        .values({
-          name: parsed.name,
-          type: nullable(parsed.type ?? ""),
-          address: nullable(parsed.address ?? ""),
-          city: nullable(parsed.city ?? ""),
-          state: nullable(parsed.state ?? ""),
-          zip: nullable(parsed.zip ?? ""),
-          contactName: nullable(parsed.contactName ?? ""),
-          phone: nullable(parsed.phone ?? ""),
-          email: nullable(parsed.email ?? ""),
-        })
+        .values(details)
         .returning();
       if (!agency) throw new Error("Agency was not created.");
       await writeAuditLog(transaction, {
@@ -461,6 +502,25 @@ export async function setAgencyActive(
       actorUserId: actor.id,
       actorType: "user",
       action: isActive ? "agency.activated" : "agency.deactivated",
+      entityType: "agency",
+      entityId: agency.id,
+    });
+    return agency;
+  });
+}
+
+export async function archiveAgency(db: Database, actor: Actor, id: string) {
+  return db.transaction(async (transaction) => {
+    const [agency] = await transaction
+      .update(agencies)
+      .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+      .where(eq(agencies.id, id))
+      .returning();
+    if (!agency) throw new Error("Agency not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "agency.archived",
       entityType: "agency",
       entityId: agency.id,
     });
@@ -561,7 +621,10 @@ export async function listTrainingCodes(db: Database, query: string) {
     .select()
     .from(trainingCodes)
     .where(
-      or(ilike(trainingCodes.code, term), ilike(trainingCodes.title, term)),
+      and(
+        isNull(trainingCodes.archivedAt),
+        or(ilike(trainingCodes.code, term), ilike(trainingCodes.title, term)),
+      ),
     )
     .orderBy(trainingCodes.code)
     .limit(100);
@@ -572,7 +635,9 @@ export async function listSites(db: Database, query: string) {
   return db
     .select()
     .from(trainingSites)
-    .where(ilike(trainingSites.name, term))
+    .where(
+      and(isNull(trainingSites.archivedAt), ilike(trainingSites.name, term)),
+    )
     .orderBy(trainingSites.name)
     .limit(100);
 }
@@ -592,16 +657,55 @@ export async function createSite(
   input: z.infer<typeof siteInput>,
 ) {
   const parsed = siteInput.parse(input);
+  const details = {
+    name: parsed.name,
+    address: nullable(parsed.address ?? ""),
+    city: nullable(parsed.city ?? ""),
+    state: nullable(parsed.state ?? ""),
+    zip: nullable(parsed.zip ?? ""),
+  };
   return db.transaction(async (transaction) => {
+    // Re-adding an archived or inactive site with the same name revives or
+    // reactivates the most recent one instead of creating another copy.
+    const [existing] = await transaction
+      .select()
+      .from(trainingSites)
+      .where(
+        and(
+          sql`lower(btrim(${trainingSites.name})) = lower(btrim(${parsed.name}))`,
+          or(
+            isNotNull(trainingSites.archivedAt),
+            eq(trainingSites.isActive, false),
+          ),
+        ),
+      )
+      .orderBy(desc(trainingSites.updatedAt))
+      .limit(1);
+    if (existing) {
+      const [site] = await transaction
+        .update(trainingSites)
+        .set({
+          ...details,
+          isActive: true,
+          archivedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(trainingSites.id, existing.id))
+        .returning();
+      if (!site) throw new Error("Site was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: existing.archivedAt ? "site.revived" : "site.reactivated",
+        entityType: "site",
+        entityId: site.id,
+        details: { name: site.name },
+      });
+      return site;
+    }
     const [site] = await transaction
       .insert(trainingSites)
-      .values({
-        name: parsed.name,
-        address: nullable(parsed.address ?? ""),
-        city: nullable(parsed.city ?? ""),
-        state: nullable(parsed.state ?? ""),
-        zip: nullable(parsed.zip ?? ""),
-      })
+      .values(details)
       .returning();
     if (!site) throw new Error("Site was not created.");
     await writeAuditLog(transaction, {
@@ -673,6 +777,25 @@ export async function setSiteActive(
   });
 }
 
+export async function archiveSite(db: Database, actor: Actor, id: string) {
+  return db.transaction(async (transaction) => {
+    const [site] = await transaction
+      .update(trainingSites)
+      .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+      .where(eq(trainingSites.id, id))
+      .returning();
+    if (!site) throw new Error("Site not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "site.archived",
+      entityType: "site",
+      entityId: site.id,
+    });
+    return site;
+  });
+}
+
 // ── Training code import ──────────────────────────────────────────────────
 
 export async function importTrainingCodes(
@@ -682,7 +805,7 @@ export async function importTrainingCodes(
 ) {
   const parsed = rows.map((row) => trainingCodeInput.parse(row));
   return db.transaction(async (transaction) => {
-    let inserted = 0;
+    const importedIds: string[] = [];
     for (const row of parsed) {
       const result = await transaction
         .insert(trainingCodes)
@@ -692,22 +815,29 @@ export async function importTrainingCodes(
           set: {
             title: sql`excluded.title`,
             isActive: true,
+            archivedAt: null,
             updatedAt: new Date(),
           },
         })
         .returning({ id: trainingCodes.id });
-      if (result[0]) inserted += 1;
+      if (result[0]) importedIds.push(result[0].id);
     }
-    if (inserted > 0) {
+    // Retire entries dropped from the approved list. This assumes a full-list
+    // import; a partial import would archive the rest of the catalog.
+    if (importedIds.length > 0) {
+      await transaction
+        .update(trainingCodes)
+        .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+        .where(notInArray(trainingCodes.id, importedIds));
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
         action: "training_code.imported",
         entityType: "training_code",
-        details: { count: inserted },
+        details: { count: importedIds.length },
       });
     }
-    return inserted;
+    return importedIds.length;
   });
 }
 
@@ -728,7 +858,7 @@ export async function importCurricula(
 ) {
   const parsed = rows.map((row) => curriculumInput.parse(row));
   return db.transaction(async (transaction) => {
-    let upserted = 0;
+    const importedIds: string[] = [];
     for (const row of parsed) {
       const result = await transaction
         .insert(curricula)
@@ -749,22 +879,28 @@ export async function importCurricula(
             version: sql`excluded.version`,
             additionalRequirements: sql`excluded.additional_requirements`,
             isActive: true,
+            archivedAt: null,
             updatedAt: new Date(),
           },
         })
         .returning({ id: curricula.id });
-      if (result[0]) upserted += 1;
+      if (result[0]) importedIds.push(result[0].id);
     }
-    if (upserted > 0) {
+    // Retire entries dropped from the approved list (full-list import).
+    if (importedIds.length > 0) {
+      await transaction
+        .update(curricula)
+        .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+        .where(notInArray(curricula.id, importedIds));
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
         action: "curriculum.imported",
         entityType: "curriculum",
-        details: { count: upserted },
+        details: { count: importedIds.length },
       });
     }
-    return upserted;
+    return importedIds.length;
   });
 }
 
@@ -775,7 +911,7 @@ export async function listCurricula(db: Database, query: string) {
     .from(curricula)
     .where(
       and(
-        eq(curricula.isActive, true),
+        isNull(curricula.archivedAt),
         or(
           ilike(curricula.publisher, term),
           ilike(curricula.programTitle, term),
@@ -784,6 +920,104 @@ export async function listCurricula(db: Database, query: string) {
     )
     .orderBy(curricula.publisher, curricula.programTitle)
     .limit(200);
+}
+
+// ── Reference record lifecycle ────────────────────────────────────────────
+
+export async function setTrainingCodeActive(
+  db: Database,
+  actor: Actor,
+  id: string,
+  isActive: boolean,
+) {
+  return db.transaction(async (transaction) => {
+    const [code] = await transaction
+      .update(trainingCodes)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(trainingCodes.id, id))
+      .returning();
+    if (!code) throw new Error("Training code not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: isActive
+        ? "training_code.activated"
+        : "training_code.deactivated",
+      entityType: "training_code",
+      entityId: code.id,
+    });
+    return code;
+  });
+}
+
+export async function archiveTrainingCode(
+  db: Database,
+  actor: Actor,
+  id: string,
+) {
+  return db.transaction(async (transaction) => {
+    const [code] = await transaction
+      .update(trainingCodes)
+      .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+      .where(eq(trainingCodes.id, id))
+      .returning();
+    if (!code) throw new Error("Training code not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "training_code.archived",
+      entityType: "training_code",
+      entityId: code.id,
+    });
+    return code;
+  });
+}
+
+export async function setCurriculumActive(
+  db: Database,
+  actor: Actor,
+  id: string,
+  isActive: boolean,
+) {
+  return db.transaction(async (transaction) => {
+    const [curriculum] = await transaction
+      .update(curricula)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(curricula.id, id))
+      .returning();
+    if (!curriculum) throw new Error("Curriculum not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: isActive ? "curriculum.activated" : "curriculum.deactivated",
+      entityType: "curriculum",
+      entityId: curriculum.id,
+    });
+    return curriculum;
+  });
+}
+
+export async function archiveCurriculum(
+  db: Database,
+  actor: Actor,
+  id: string,
+) {
+  return db.transaction(async (transaction) => {
+    const [curriculum] = await transaction
+      .update(curricula)
+      .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+      .where(eq(curricula.id, id))
+      .returning();
+    if (!curriculum) throw new Error("Curriculum not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "curriculum.archived",
+      entityType: "curriculum",
+      entityId: curriculum.id,
+    });
+    return curriculum;
+  });
 }
 
 // ── Approved curriculum chapters ──────────────────────────────────────────
