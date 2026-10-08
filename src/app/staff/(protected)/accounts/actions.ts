@@ -44,6 +44,7 @@ export async function accountAction(
     } else if (read(formData, "operation") === "update") {
       await updateStaffAccount(getDatabase(), actor.id, {
         userId: read(formData, "userId"),
+        displayName: read(formData, "displayName") || undefined,
         roleCode: read(formData, "roleCode") || undefined,
         isActive: read(formData, "isActive") === "true",
         password: read(formData, "password") || undefined,

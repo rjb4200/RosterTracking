@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { writeAuditLog } from "@/server/db/audit";
@@ -95,28 +95,34 @@ async function ensureNotFinalAdministrator(
   }
 }
 
-export async function listStaffAccounts(db: Database, actorId: string) {
-  return db.transaction(async (transaction) => {
-    await requireAdministrator(transaction, actorId);
-    const rows = await transaction
-      .select({
-        id: users.id,
-        username: users.username,
-        displayName: users.displayName,
-        isActive: users.isActive,
-        ffn: users.ffn,
-        instructorLevel: users.instructorLevel,
-        emsProviderNumber: users.emsProviderNumber,
-        roleCode: roles.code,
-      })
-      .from(users)
-      .leftJoin(userRoles, eq(userRoles.userId, users.id))
-      .leftJoin(roles, eq(roles.id, userRoles.roleId))
-      .where(isNull(users.archivedAt));
-    return Object.values(
-      rows.reduce<
-        Record<string, (typeof rows)[number] & { roleCodes: string[] }>
-      >((accounts, row) => {
+const accountColumns = {
+  id: users.id,
+  username: users.username,
+  displayName: users.displayName,
+  isActive: users.isActive,
+  lastLoginAt: users.lastLoginAt,
+  ffn: users.ffn,
+  instructorLevel: users.instructorLevel,
+  emsProviderNumber: users.emsProviderNumber,
+  roleCode: roles.code,
+};
+
+type AccountRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  isActive: boolean;
+  lastLoginAt: Date | null;
+  ffn: string | null;
+  instructorLevel: number | null;
+  emsProviderNumber: string | null;
+  roleCode: string | null;
+};
+
+function groupAccounts(rows: AccountRow[]) {
+  return Object.values(
+    rows.reduce<Record<string, AccountRow & { roleCodes: string[] }>>(
+      (accounts, row) => {
         let account = accounts[row.id];
         if (!account) {
           account = { ...row, roleCodes: [] };
@@ -124,8 +130,51 @@ export async function listStaffAccounts(db: Database, actorId: string) {
         }
         if (row.roleCode) account.roleCodes.push(row.roleCode);
         return accounts;
-      }, {}),
-    );
+      },
+      {},
+    ),
+  );
+}
+
+export async function listStaffAccounts(
+  db: Database,
+  actorId: string,
+  query = "",
+) {
+  const term = `%${query.trim()}%`;
+  return db.transaction(async (transaction) => {
+    await requireAdministrator(transaction, actorId);
+    const rows = await transaction
+      .select(accountColumns)
+      .from(users)
+      .leftJoin(userRoles, eq(userRoles.userId, users.id))
+      .leftJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(
+        and(
+          isNull(users.archivedAt),
+          query.trim()
+            ? or(ilike(users.username, term), ilike(users.displayName, term))
+            : undefined,
+        ),
+      );
+    return groupAccounts(rows);
+  });
+}
+
+export async function getStaffAccount(
+  db: Database,
+  actorId: string,
+  id: string,
+) {
+  return db.transaction(async (transaction) => {
+    await requireAdministrator(transaction, actorId);
+    const rows = await transaction
+      .select(accountColumns)
+      .from(users)
+      .leftJoin(userRoles, eq(userRoles.userId, users.id))
+      .leftJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(and(eq(users.id, id), isNull(users.archivedAt)));
+    return groupAccounts(rows)[0] ?? null;
   });
 }
 
@@ -244,6 +293,7 @@ export async function updateStaffAccount(
   actorId: string,
   input: {
     userId: string;
+    displayName?: string;
     roleCode?: string;
     isActive?: boolean;
     password?: string;
@@ -252,6 +302,7 @@ export async function updateStaffAccount(
   const parsed = z
     .object({
       userId: z.string().uuid(),
+      displayName: z.string().trim().min(1).max(100).optional(),
       roleCode: roleSchema.optional(),
       isActive: z.boolean().optional(),
       password: z.string().optional(),
@@ -279,15 +330,22 @@ export async function updateStaffAccount(
         assignedByUserId: actorId,
       });
     }
-    if (parsed.isActive !== undefined || passwordHash || parsed.roleCode) {
+    const invalidatesSessions =
+      parsed.isActive !== undefined ||
+      Boolean(passwordHash) ||
+      Boolean(parsed.roleCode);
+    if (parsed.displayName || invalidatesSessions) {
       await transaction
         .update(users)
         .set({
+          ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
           ...(parsed.isActive === undefined
             ? {}
             : { isActive: parsed.isActive }),
           ...(passwordHash ? { passwordHash } : {}),
-          sessionVersion: sql`${users.sessionVersion} + 1`,
+          ...(invalidatesSessions
+            ? { sessionVersion: sql`${users.sessionVersion} + 1` }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(users.id, parsed.userId));
@@ -299,6 +357,7 @@ export async function updateStaffAccount(
       entityType: "user",
       entityId: parsed.userId,
       details: {
+        displayNameChanged: Boolean(parsed.displayName),
         roleCode: parsed.roleCode,
         isActive: parsed.isActive,
         passwordReset: Boolean(passwordHash),
