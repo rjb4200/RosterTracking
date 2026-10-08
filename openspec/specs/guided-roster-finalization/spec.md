@@ -10,7 +10,7 @@ The system SHALL provide authorized instructors and elevated staff a review scre
 
 While the class is open the review screen SHALL present a read-only Class details summary near the top, the class summary, scheduled hours, active and removed attendance, credited hours and adjustment reasons, reporting readiness, the finalization action, and editing affordances for the class details, sessions, instructors, credited hours, and attendance removal. It SHALL withhold finalization until the roster is ready. It SHALL NOT offer manual attendance entry.
 
-While the class is finalized the review screen SHALL present the class and roster as read-only, SHALL omit editing affordances, and SHALL present the reopen path in a dedicated reopening section placed after the attendance sections at the end of the screen.
+While the class is finalized the review screen SHALL present the signed class and roster as read-only and omit their editing affordances. A separate operational MTU section SHALL remain editable by authorized staff without reopening. The reopen path SHALL appear in a dedicated reopening section placed after the attendance sections at the end of the screen.
 
 The review screen SHALL organize its content into distinct sections for the class details, finalization, documents, revision history, corrections, attendance, and reopening. The documents section SHALL present the class sign-in record, the class audit log, the KFS-1A roster, the KBEMS-E16 roster, and the completion certificates as peer rows in one list, each with a View action that opens the rendered PDF inline; the sign-in record and audit log SHALL be available at any reviewed status, and the rosters and certificates SHALL be available when a finalized revision exists. The completion-certificates row SHALL appear only when the latest finalized revision reported to KBEMS. Each roster row SHALL additionally offer an Email action whose recipient field is revealed only when the action is chosen and is hidden otherwise. The reopening section SHALL be presented only to operators who may reopen the class. While the class is open the documents section SHALL indicate that official rosters and certificates require finalization.
 
@@ -96,3 +96,4 @@ The system SHALL present the finalize-and-sign action on the review screen only 
 #### Scenario: Show the recorded signature
 - **WHEN** an authorized operator opens the review screen for a finalized class
 - **THEN** the screen presents the recorded signer and signed timestamp for the latest revision
+
