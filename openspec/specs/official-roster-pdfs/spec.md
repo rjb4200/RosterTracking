@@ -45,7 +45,8 @@ The system SHALL generate each official roster PDF from the selected finalized r
 - **THEN** the system generates another PDF from the same preserved revision without retaining either generated copy
 
 ### Requirement: Official roster access is controlled
-The system SHALL allow Training Majors and Administrators to generate, view, print, download, and email official rosters for any finalized revision. The system SHALL allow an instructor to perform those actions only for a revision belonging to a class to which the instructor is assigned.
+
+The system SHALL allow Training Majors and Administrators to generate, view, and email official rosters for any finalized revision. The system SHALL allow an instructor to perform those actions only for a revision belonging to a class to which the instructor is assigned. Viewing SHALL present the rendered PDF inline, from which the user may print or download it through the browser; the system SHALL not offer separate print and download actions.
 
 #### Scenario: Permit an assigned instructor
 - **WHEN** an instructor requests an official roster for a finalized class to which they are assigned
@@ -54,6 +55,10 @@ The system SHALL allow Training Majors and Administrators to generate, view, pri
 #### Scenario: Prevent unrelated instructor access
 - **WHEN** an instructor requests an official roster for a finalized class to which they are not assigned
 - **THEN** the system denies access without disclosing generated roster content
+
+#### Scenario: View, print, and download through one action
+- **WHEN** authorized staff choose View for a form
+- **THEN** the system presents the same rendered PDF inline and the browser provides the print and download workflow
 
 ### Requirement: All roster delivery methods use one rendered document
 The system SHALL render a selected form from the same finalization revision and approved template for view, print, download, and email. The rendered form content and layout SHALL be identical across delivery methods for the same revision, form type, and template version.
