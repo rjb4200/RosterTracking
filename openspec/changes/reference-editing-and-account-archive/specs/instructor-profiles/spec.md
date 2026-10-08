@@ -17,7 +17,7 @@ The system SHALL store an optional Fire Commission firefighter number (FFN), an 
 - **THEN** the system leaves that attribute empty without blocking other profile values
 
 #### Scenario: Accept a digits-only firefighter number
-- **WHEN** an editor saves a firefighter number of digits without a dash, such as 063446
+- **WHEN** an editor saves a firefighter number of digits without a dash, such as 123456
 - **THEN** the system stores it
 
 #### Scenario: Reject a non-digit firefighter number

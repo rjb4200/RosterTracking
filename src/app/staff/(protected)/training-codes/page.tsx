@@ -51,7 +51,7 @@ export default async function TrainingCodesPage({
         />
       </form>
 
-      <Table>
+      <Table className="reference-table">
         <TableHeader>
           <TableRow>
             <TableHead>Code</TableHead>

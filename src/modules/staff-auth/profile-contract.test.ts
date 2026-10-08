@@ -8,7 +8,7 @@ function input(ffn: string) {
 
 describe("profile firefighter number", () => {
   it("accepts a digits-only firefighter number", () => {
-    expect(parseProfileInput(input("063446")).ffn).toBe("063446");
+    expect(parseProfileInput(input("123456")).ffn).toBe("123456");
   });
 
   it("rejects a dashed firefighter number", () => {

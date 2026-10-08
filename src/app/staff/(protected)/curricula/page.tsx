@@ -51,7 +51,7 @@ export default async function CurriculaPage({
         />
       </form>
 
-      <Table>
+      <Table className="reference-table">
         <TableHeader>
           <TableRow>
             <TableHead>Publisher</TableHead>

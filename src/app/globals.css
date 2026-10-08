@@ -832,6 +832,19 @@ h1 {
   padding: clamp(2rem, 5vw, 4rem) clamp(1.2rem, 5vw, 4rem);
 }
 
+/* The content area is a grid, and a grid item's automatic minimum width would
+   let a wide table expand the track and scroll the whole page. Zeroing it lets
+   the table's own overflow container scroll instead. */
+.admin-content [data-slot="table-container"] {
+  min-width: 0;
+}
+
+/* Reference tables wrap their text so they fit the content width. */
+.reference-table th,
+.reference-table td {
+  white-space: normal;
+}
+
 .admin-heading,
 .admin-actions,
 .inline-form,

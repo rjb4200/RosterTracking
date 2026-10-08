@@ -45,7 +45,7 @@ export function ProfileForm({
         <Input
           id={`${idPrefix}-ffn`}
           name="ffn"
-          placeholder="e.g. 063446"
+          placeholder="e.g. 123456"
           value={ffn}
           onChange={(event) => setFfn(event.target.value)}
         />
