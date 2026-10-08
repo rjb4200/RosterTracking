@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { TEMPLATE_MAPPINGS } from "@/modules/official-roster-pdfs/mappings";
@@ -21,7 +21,23 @@ function EmailControl({
   ) => Promise<OfficialRosterEmailActionState>;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
+  const label = formType.toUpperCase();
+  useEffect(() => {
+    if (state?.success) setOpen(false);
+  }, [state?.success]);
+
+  if (!open) {
+    return (
+      <div className="inline-form">
+        <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+          Email {label}
+        </Button>
+        {state?.success ? <p aria-live="polite">{state.success}</p> : null}
+      </div>
+    );
+  }
+
   return (
     <form action={formAction} className="inline-form">
       <input type="hidden" name="revisionId" value={revisionId} />
@@ -30,7 +46,7 @@ function EmailControl({
         className="sr-only"
         htmlFor={`${formType}-${revisionId}-recipient`}
       >
-        Email recipient for {formType.toUpperCase()}
+        Email recipient for {label}
       </label>
       <input
         id={`${formType}-${revisionId}-recipient`}
@@ -38,38 +54,52 @@ function EmailControl({
         type="email"
         className="search-input"
         placeholder="recipient@example.com"
-        readOnly={confirming}
         required
       />
-      {confirming ? (
-        <>
-          <Button type="submit" variant="secondary" disabled={pending}>
-            Confirm send {formType.toUpperCase()}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setConfirming(false)}
-          >
-            Cancel
-          </Button>
-        </>
-      ) : (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setConfirming(true)}
-        >
-          Email {formType.toUpperCase()}
-        </Button>
-      )}
+      <Button type="submit" variant="secondary" disabled={pending}>
+        Send {label}
+      </Button>
+      <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+        Cancel
+      </Button>
       {state?.error ? (
         <p className="form-error" aria-live="polite">
           {state.error}
         </p>
       ) : null}
-      {state?.success ? <p aria-live="polite">{state.success}</p> : null}
     </form>
+  );
+}
+
+/** View and progressive Email actions for one official roster form. */
+export function RosterDocumentActions({
+  revisionId,
+  formType,
+  emailAction,
+}: {
+  revisionId: string;
+  formType: string;
+  emailAction: (
+    previous: OfficialRosterEmailActionState | undefined,
+    formData: FormData,
+  ) => Promise<OfficialRosterEmailActionState>;
+}) {
+  const href = `/api/staff/official-rosters/${revisionId}/${formType}`;
+  return (
+    <div className="member-actions">
+      <Link
+        href={`${href}?disposition=inline`}
+        target="_blank"
+        className={buttonVariants({ variant: "outline" })}
+      >
+        View {formType.toUpperCase()}
+      </Link>
+      <EmailControl
+        revisionId={revisionId}
+        formType={formType}
+        action={emailAction}
+      />
+    </div>
   );
 }
 

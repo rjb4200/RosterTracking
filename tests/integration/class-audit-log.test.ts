@@ -196,6 +196,67 @@ describeDatabase("class audit log", () => {
     expect(log.className).toContain("Audit Course primary");
   });
 
+  it("collapses repeated official-output generation by one actor", async () => {
+    const fixture = await createFixture();
+    const base = {
+      actorUserId: fixture.actor.id,
+      actorType: "user" as const,
+      ipAddress: null,
+    };
+    await fixture.db.insert(auditLogs).values([
+      {
+        ...base,
+        action: "official_roster.generated",
+        entityType: "finalization_revision",
+        entityId: fixture.revisionId,
+        details: { formType: "kfs-1a" },
+      },
+      {
+        ...base,
+        action: "official_roster.generated",
+        entityType: "finalization_revision",
+        entityId: fixture.revisionId,
+        details: { formType: "kfs-1a" },
+      },
+      {
+        ...base,
+        action: "official_roster.generated",
+        entityType: "finalization_revision",
+        entityId: fixture.revisionId,
+        details: { formType: "kbems-e16" },
+      },
+      {
+        ...base,
+        action: "completion_certificate.generated",
+        entityType: "finalization_revision",
+        entityId: fixture.revisionId,
+        details: { participantCount: 1 },
+      },
+      {
+        ...base,
+        action: "completion_certificate.generated",
+        entityType: "finalization_revision",
+        entityId: fixture.revisionId,
+        details: { participantCount: 1 },
+      },
+    ]);
+
+    const log = await getClassAuditLog(
+      fixture.db,
+      fixture.actor,
+      fixture.classId,
+    );
+    const rosters = log.entries.filter(
+      (entry) => entry.action === "official_roster.generated",
+    );
+    const certificates = log.entries.filter(
+      (entry) => entry.action === "completion_certificate.generated",
+    );
+    // One row per form (kfs-1a, kbems-e16) and one for the repeated certificate.
+    expect(rosters).toHaveLength(2);
+    expect(certificates).toHaveLength(1);
+  });
+
   it("denies an unrelated instructor", async () => {
     const fixture = await createFixture();
     await expect(

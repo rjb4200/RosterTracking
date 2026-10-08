@@ -24,12 +24,11 @@ import { resolveClassRequirements } from "@/modules/student-sign-in/requirements
 import { getDatabase } from "@/server/db/client";
 
 import {
-  finalizeClassAction,
   reopenClassAction,
   sendOfficialRosterEmailAction,
   transitionClassAction,
 } from "../actions";
-import { FinalizationControls } from "../finalization-controls";
+import { ReopenControl } from "../finalization-controls";
 import { LifecycleControls } from "../lifecycle-controls";
 import { LiveRoster } from "../live-roster";
 import { OfficialRosterControls } from "../official-roster-controls";
@@ -205,10 +204,8 @@ export default async function ClassDetailPage({
             ) : null}
           </div>
           {isFinalized ? (
-            <FinalizationControls
+            <ReopenControl
               classId={classRecord.id}
-              status={classRecord.status}
-              finalizeAction={finalizeClassAction}
               reopenAction={reopenClassAction}
             />
           ) : null}

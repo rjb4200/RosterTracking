@@ -18,6 +18,7 @@ import {
   getRosterReadiness,
   listRosterFormOptions,
 } from "@/modules/instructor-roster/services";
+import { TEMPLATE_MAPPINGS } from "@/modules/official-roster-pdfs/mappings";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -35,10 +36,14 @@ import {
 } from "../../actions";
 import { ClassForm } from "../../class-form";
 import { ComponentForm } from "../../component-form";
-import { FinalizationControls } from "../../finalization-controls";
+import {
+  FinalizationControls,
+  ReopenControl,
+} from "../../finalization-controls";
 import {
   CompletionCertificateControls,
   OfficialRosterControls,
+  RosterDocumentActions,
 } from "../../official-roster-controls";
 import { AddAttendanceForms, AttendanceControls } from "../../roster-controls";
 
@@ -176,7 +181,9 @@ export default async function CompletedClassReviewPage({
         </h2>
         {isFinalized ? (
           <p>
-            This roster is locked. Reopen it with a reason to make corrections.
+            {canReopen
+              ? "This roster is locked. Reopen it from the bottom of this page to make corrections."
+              : "This roster is locked."}
           </p>
         ) : reviewData && !reviewData.readiness.ready ? (
           <ul className="member-list">
@@ -193,10 +200,8 @@ export default async function CompletedClassReviewPage({
           classId={id}
           status={classRecord.status}
           finalizeAction={finalizeClassAction}
-          reopenAction={reopenClassAction}
           canFinalize={reviewData?.readiness.ready ?? false}
           isLeadInstructor={isLeadInstructor}
-          canReopen={canReopen}
         />
       </section>
 
@@ -221,31 +226,38 @@ export default async function CompletedClassReviewPage({
               label="audit log"
             />
           </li>
-        </ul>
-        {isFinalized ? (
-          latestRevision && canManageOfficialRosters ? (
-            <div className="admin-section">
-              <p className="roster-note">
-                Official rosters and certificates for revision{" "}
-                {latestRevision.revisionNumber}.
-              </p>
-              <OfficialRosterControls
-                revisionId={latestRevision.id}
-                emailAction={sendOfficialRosterEmailAction}
-              />
+          {isFinalized && latestRevision && canManageOfficialRosters ? (
+            <>
+              {Object.values(TEMPLATE_MAPPINGS).map((mapping) => (
+                <li key={mapping.formType} className="member-row">
+                  <span>{mapping.formType.toUpperCase()} roster</span>
+                  <RosterDocumentActions
+                    revisionId={latestRevision.id}
+                    formType={mapping.formType}
+                    emailAction={sendOfficialRosterEmailAction}
+                  />
+                </li>
+              ))}
               {latestRevision.destinations.some(
                 (destination) => destination.systemCode === "kbems",
               ) ? (
-                <CompletionCertificateControls revisionId={latestRevision.id} />
+                <li className="member-row">
+                  <span>Completion certificates</span>
+                  <DocumentLink
+                    href={`/api/staff/completion-certificates/${latestRevision.id}?disposition=inline`}
+                    label="certificates"
+                  />
+                </li>
               ) : null}
-            </div>
-          ) : null
-        ) : (
+            </>
+          ) : null}
+        </ul>
+        {!isFinalized ? (
           <p className="roster-note">
             Finalize the roster to produce official rosters and completion
             certificates.
           </p>
-        )}
+        ) : null}
       </section>
 
       {isFinalized && revisionHistory.length ? (
@@ -439,6 +451,17 @@ export default async function CompletedClassReviewPage({
           {roster.removed.map((entry) => renderEntry(entry, true))}
         </ul>
       </section>
+
+      {isFinalized && canReopen ? (
+        <section className="admin-section">
+          <h2>Reopen roster</h2>
+          <p className="roster-note">
+            Reopening unlocks the class for corrections and retains this
+            revision. Only an Administrator can reopen.
+          </p>
+          <ReopenControl classId={id} reopenAction={reopenClassAction} />
+        </section>
+      ) : null}
     </main>
   );
 }

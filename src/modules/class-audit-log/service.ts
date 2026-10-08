@@ -12,6 +12,8 @@ import {
   users,
 } from "@/server/db/schema";
 
+import { collapseRepeatedGeneration } from "./collapse";
+
 export interface ClassAuditLogActor {
   id: string;
   username: string;
@@ -75,6 +77,7 @@ export async function getClassAuditLog(
         action: auditLogs.action,
         entityType: auditLogs.entityType,
         entityId: auditLogs.entityId,
+        actorUserId: auditLogs.actorUserId,
         ipAddress: auditLogs.ipAddress,
         details: auditLogs.details,
       })
@@ -97,7 +100,7 @@ export async function getClassAuditLog(
     return {
       ...classRow,
       generatedAt: new Date(),
-      entries: rows.map((row) => ({
+      entries: collapseRepeatedGeneration(rows).map((row) => ({
         id: row.id,
         occurredAt: row.occurredAt,
         actorType: row.actorType,
