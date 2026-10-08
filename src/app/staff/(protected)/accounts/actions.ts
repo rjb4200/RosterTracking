@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import type { ProfileActionState } from "@/modules/staff-auth/profile-contract";
@@ -67,6 +68,7 @@ export async function archiveAccountAction(formData: FormData): Promise<void> {
   if (!actor || !isAdministrator(actor.roleCodes)) return;
   await archiveStaffAccount(getDatabase(), actor.id, read(formData, "userId"));
   revalidatePath("/staff/accounts");
+  redirect("/staff/accounts");
 }
 
 export async function profileAction(
