@@ -468,6 +468,7 @@ describeDatabase("database foundation", () => {
     const [system] = await database
       .select({ id: reportingSystems.id })
       .from(reportingSystems)
+      .where(eq(reportingSystems.code, "fire"))
       .limit(1);
     if (!system) throw new Error("Reporting system fixture missing.");
 
