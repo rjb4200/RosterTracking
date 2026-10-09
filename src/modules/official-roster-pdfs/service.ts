@@ -10,7 +10,9 @@ import {
   composeCurriculumLabel,
   parseComponentMethod,
 } from "@/modules/classes/fire-subjects";
+import { loadLogoAttachment } from "@/modules/notifications/assets";
 import { sendEmail } from "@/modules/notifications/client";
+import { BRAND, emailShell, FONT_STACK } from "@/modules/notifications/layout";
 import { decryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
@@ -501,12 +503,18 @@ async function sendWithResend(input: {
     throw new Error("Official roster email is not configured.");
   }
   try {
+    const logo = await loadLogoAttachment();
+    const body = `
+      <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Official Roster</p>
+      <h1 style="margin:0 0 16px;font-family:${FONT_STACK};color:#111827;font-size:22px;font-weight:700;">Training roster</h1>
+      <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">An official training roster is attached to this message.</p>
+      <p style="margin:0;font-family:${FONT_STACK};color:${BRAND.muted};font-size:13px;line-height:1.6;">Winchester Fire Department<br />Training Division</p>`;
     await sendEmail({
       recipient: input.recipient,
       subject: "Official training roster",
-      html: "<p>An official training roster PDF is attached.</p>",
+      html: emailShell(body),
       text: "An official training roster PDF is attached.",
-      attachments: [{ filename: input.filename, bytes: input.bytes }],
+      attachments: [logo, { filename: input.filename, bytes: input.bytes }],
     });
   } catch {
     throw new Error("Official roster email could not be sent.");

@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { loadLogoAttachment } from "@/modules/notifications/assets";
 import {
   EMAIL_SENDER,
   sendEmail,
@@ -407,7 +408,7 @@ export async function queueCertificateDeliveries(
   return result;
 }
 
-function certificateMessage(
+async function certificateMessage(
   snapshot: FinalizationSnapshot,
   participant: CertificateParticipant,
   recipient: string,
@@ -418,13 +419,19 @@ function certificateMessage(
     courseName: snapshot.class.courseName,
     completedAt: formatDate(snapshot.class.completedAt) || null,
     classHours: certificateClassHours(snapshot),
+    instructors: snapshot.instructors.map((instructor) => ({
+      name: instructor.name,
+      isLead: instructor.isLead,
+    })),
+    agencyName: participant.agencyName || null,
   });
+  const logo = await loadLogoAttachment();
   return {
     recipient,
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    attachments: [{ filename: certificateFilename(), bytes }],
+    attachments: [logo, { filename: certificateFilename(), bytes }],
   };
 }
 
@@ -456,7 +463,12 @@ export async function dispatchCertificateDeliveries(
     );
     if (!participant) return null;
     const bytes = await renderCertificateForParticipant(snapshot, participant);
-    return certificateMessage(snapshot, participant, delivery.recipient, bytes);
+    return await certificateMessage(
+      snapshot,
+      participant,
+      delivery.recipient,
+      bytes,
+    );
   });
 }
 
@@ -528,7 +540,7 @@ export async function resendParticipantCertificate(
   let state: CertificateResendResult["state"] = "failed";
   try {
     const result = await sendEmail(
-      certificateMessage(snapshot, participant, recipient, bytes),
+      await certificateMessage(snapshot, participant, recipient, bytes),
     );
     await markDeliverySent(db, delivery.id, result.providerMessageId);
     state = "delivered";

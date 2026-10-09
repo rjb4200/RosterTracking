@@ -29,7 +29,7 @@ KFS-1A October 2023 is the only approved official roster PDF output; the KBEMS-E
 
 EMS (KBEMS) classes produce a completion-certificate batch: a generated student-list cover page followed by one electronically signed certificate per active participant. A participant can be sent their own certificate by email, or staff can resend one to a different address.
 
-Official roster and certificate email delivery uses Resend with a verified `noreply@winchesterfireems.com` sender and the server-only `RESEND_API_KEY` environment variable. The application validates the recipient and records deliveries in a durable outbox, dispatched after finalization commits so a mail failure never blocks the class. It never retains attachment bytes in audit records. Resend and the recipient may retain the attachment under their own retention policies.
+Official roster and certificate email delivery uses Resend with a verified `noreply@winchesterfireems.com` sender and the server-only `RESEND_API_KEY` environment variable. Every outbound email renders inside one shared Winchester Fire Department brand shell (`src/modules/notifications/layout.ts`): a department-red masthead carrying the inline logo, wordmark, and tagline, and a contact footer. The logo is embedded as an inline `cid:wfd-logo` image rather than hosted remotely. The application validates the recipient and records deliveries in a durable outbox, dispatched after finalization commits so a mail failure never blocks the class. It never retains attachment bytes in audit records. Resend and the recipient may retain the attachment under their own retention policies.
 
 The migration, seed, and admin scripts load `.env` from the project root automatically. Next.js also reads `.env` for the running application.
 

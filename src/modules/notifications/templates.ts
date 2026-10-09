@@ -1,12 +1,21 @@
+import { BRAND, emailShell, FONT_STACK } from "./layout";
+
 export const CERTIFICATE_EMAIL_TEMPLATE = "completion-certificate";
 export const CERTIFICATE_EMAIL_TEMPLATE_VERSION =
-  "completion-certificate-email-001";
+  "completion-certificate-email-002";
+
+export interface CertificateEmailInstructor {
+  name: string;
+  isLead: boolean;
+}
 
 export interface CertificateEmailInput {
   participantName: string;
   courseName: string;
   completedAt: string | null;
   classHours: string;
+  instructors: CertificateEmailInstructor[];
+  agencyName: string | null;
 }
 
 export interface RenderedEmail {
@@ -25,77 +34,87 @@ function escapeHtml(value: string): string {
 }
 
 function detailRow(label: string, value: string): string {
-  return `<tr><td style="padding:6px 12px 6px 0;color:#4b5563;font-size:14px;">${label}</td><td style="padding:6px 0;color:#111827;font-size:14px;font-weight:600;">${value}</td></tr>`;
+  return `<tr><td style="padding:8px 16px 8px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:8px 0;color:${BRAND.ink};font-size:14px;font-weight:600;">${value}</td></tr>`;
 }
 
-/** Renders the branded per-participant certificate message template. */
+/** Lead instructor first, then assisting instructors, each labelled. */
+export function instructorLabel(
+  instructors: CertificateEmailInstructor[],
+): string {
+  const lead = instructors.find((instructor) => instructor.isLead);
+  const assisting = instructors.filter((instructor) => !instructor.isLead);
+  const parts: string[] = [];
+  if (lead) parts.push(`${escapeHtml(lead.name)} (Lead)`);
+  for (const instructor of assisting) {
+    parts.push(`${escapeHtml(instructor.name)} (Assisting)`);
+  }
+  return parts.join("<br />");
+}
+
+/** Renders the formal per-participant certificate message. */
 export function renderCertificateEmail(
   input: CertificateEmailInput,
 ): RenderedEmail {
   const course = escapeHtml(input.courseName);
   const participant = escapeHtml(input.participantName);
   const hours = escapeHtml(input.classHours);
-  const completed = input.completedAt
-    ? escapeHtml(input.completedAt)
-    : "&mdash;";
+  const completed = input.completedAt ? escapeHtml(input.completedAt) : null;
+  const agency = input.agencyName ? escapeHtml(input.agencyName) : null;
+  const instructors = instructorLabel(input.instructors);
+
   const rows = [
     detailRow("Course", course),
-    detailRow("Completion date", completed),
+    completed ? detailRow("Completion date", completed) : "",
     input.classHours ? detailRow("Class hours", hours) : "",
+    instructors ? detailRow("Instructor", instructors) : "",
+    agency ? detailRow("Agency", agency) : "",
   ].join("");
-  const html = `<!doctype html>
-<html lang="en">
-  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-            <tr>
-              <td style="background:#7f1d1d;padding:20px 28px;">
-                <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.3px;">Winchester Fire-EMS</span>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:28px;">
-                <h1 style="margin:0 0 4px;font-size:20px;color:#111827;">Certificate of Completion</h1>
-                <p style="margin:0 0 20px;font-size:15px;color:#374151;">Hello ${participant},</p>
-                <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.5;">
-                  Your course-completion certificate is attached to this email. It is signed by the class's lead instructor.
-                </p>
-                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin:0 0 20px;">
-                  ${rows}
-                </table>
-                <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">
-                  Keep this certificate for your records. Reply to this message if you have any questions.
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td style="background:#f9fafb;padding:16px 28px;">
-                <p style="margin:0;font-size:12px;color:#9ca3af;">
-                  Winchester Fire-EMS &middot; noreply@winchesterfireems.com
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
+
+  const body = `
+    <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Certificate of Completion</p>
+    <h1 style="margin:0 0 16px;font-family:${FONT_STACK};color:#111827;font-size:24px;font-weight:700;">${participant}</h1>
+    <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
+      This certifies that the named participant has satisfactorily completed the following course.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ${BRAND.border};border-bottom:1px solid ${BRAND.border};margin:0 0 20px;">
+      ${rows}
     </table>
-  </body>
-</html>`;
+    <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
+      Your signed certificate is attached to this message. Keep it for your records.
+    </p>
+    <p style="margin:0;font-family:${FONT_STACK};color:${BRAND.muted};font-size:13px;line-height:1.6;">
+      Winchester Fire Department<br />Training Division
+    </p>`;
+
   const text = [
-    `Certificate of Completion`,
-    `Hello ${input.participantName},`,
-    `Your course-completion certificate for ${input.courseName} is attached.`,
-    input.completedAt ? `Completion date: ${input.completedAt}` : "",
-    input.classHours ? `Class hours: ${input.classHours}` : "",
-    `Keep this certificate for your records.`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    "Winchester Fire Department",
+    "CERTIFICATE OF COMPLETION",
+    "",
+    input.participantName,
+    "This certifies that the named participant has satisfactorily completed the following course.",
+    "",
+    `Course: ${input.courseName}`,
+    ...(input.completedAt ? [`Completion date: ${input.completedAt}`] : []),
+    ...(input.classHours ? [`Class hours: ${input.classHours}`] : []),
+    ...(input.instructors.length
+      ? [
+          `Instructor: ${input.instructors
+            .map(
+              (instructor) =>
+                `${instructor.name} (${instructor.isLead ? "Lead" : "Assisting"})`,
+            )
+            .join(", ")}`,
+        ]
+      : []),
+    ...(input.agencyName ? [`Agency: ${input.agencyName}`] : []),
+    "",
+    "Your signed certificate is attached to this message. Keep it for your records.",
+    "Training Division",
+  ].join("\n");
+
   return {
-    subject: `Your completion certificate — ${input.courseName}`,
-    html,
+    subject: `Certificate of Completion — ${input.courseName}`,
+    html: emailShell(body),
     text,
   };
 }
