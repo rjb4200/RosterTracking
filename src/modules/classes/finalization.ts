@@ -17,6 +17,10 @@ import {
   queueCertificateDeliveries,
   revisionReportsToKbems,
 } from "@/modules/completion-certificates/service";
+import {
+  isFireClass,
+  queueTrainingNoticeDeliveries,
+} from "@/modules/individual-training-notices/service";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { encryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
@@ -197,6 +201,10 @@ async function buildSnapshot(
       courseNumber: trainingClasses.courseNumber,
       courseName: sql<string>`coalesce(${trainingClasses.name}, '')`,
       siteName: trainingSites.name,
+      hostAgencyId: trainingClasses.hostAgencyId,
+      hostAgencyName: sql<
+        string | null
+      >`(select name from ${agencies} where ${agencies.id} = ${trainingClasses.hostAgencyId})`,
     })
     .from(trainingClasses)
     .leftJoin(
@@ -221,6 +229,7 @@ async function buildSnapshot(
       attendanceId: attendance.id,
       studentId: attendance.studentId,
       guestId: attendance.guestId,
+      agencyId: attendance.agencyId,
       agencyName: agencies.name,
       signedInAt: attendance.signedInAt,
       creditedHours: attendance.creditedHours,
@@ -332,6 +341,7 @@ async function buildSnapshot(
     attendance: roster.map((entry) => ({
       attendanceId: entry.attendanceId,
       agencyName: entry.agencyName,
+      agencyId: entry.agencyId,
       creditedHours: entry.creditedHours,
       firstName: entry.firstName,
       lastName: entry.lastName,
@@ -457,6 +467,18 @@ export async function finalizeClass(
     // mail failure can never block or roll back finalization.
     if (revisionReportsToKbems(snapshot)) {
       await queueCertificateDeliveries(transaction, revision.id, {
+        ...snapshot,
+        signature: {
+          name: typedName,
+          signedAt: finalizedAt.toISOString(),
+          attestationVersion: ROSTER_ATTESTATION_VERSION,
+        },
+      });
+    }
+    // Fire classes deliver an individual training notice to each participant
+    // whose agency differs from the host agency.
+    if (isFireClass(snapshot)) {
+      await queueTrainingNoticeDeliveries(transaction, revision.id, {
         ...snapshot,
         signature: {
           name: typedName,

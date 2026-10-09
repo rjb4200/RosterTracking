@@ -30,6 +30,7 @@ function ResendControl({
   classId,
   participant,
   action,
+  sendLabel,
 }: {
   revisionId: string;
   classId: string;
@@ -38,6 +39,7 @@ function ResendControl({
     previous: CertificateResendActionState | undefined,
     formData: FormData,
   ) => Promise<CertificateResendActionState>;
+  sendLabel: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [open, setOpen] = useState(false);
@@ -82,7 +84,7 @@ function ResendControl({
         required
       />
       <Button type="submit" variant="secondary" disabled={pending}>
-        Send certificate
+        {sendLabel}
       </Button>
       <Button type="button" variant="outline" onClick={() => setOpen(false)}>
         Cancel
@@ -102,6 +104,7 @@ export function CertificateDeliveryControls({
   classId,
   participants,
   action,
+  sendLabel = "Send certificate",
 }: {
   revisionId: string;
   classId: string;
@@ -110,6 +113,7 @@ export function CertificateDeliveryControls({
     previous: CertificateResendActionState | undefined,
     formData: FormData,
   ) => Promise<CertificateResendActionState>;
+  sendLabel?: string;
 }) {
   return (
     <ul className="member-list">
@@ -131,6 +135,7 @@ export function CertificateDeliveryControls({
             classId={classId}
             participant={participant}
             action={action}
+            sendLabel={sendLabel}
           />
         </li>
       ))}

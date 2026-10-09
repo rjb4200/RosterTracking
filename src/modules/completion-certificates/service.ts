@@ -544,6 +544,7 @@ export async function dispatchCertificateDeliveries(
     db,
     EMAIL_REFERENCE_TYPES.FINALIZATION_REVISION,
     revisionId,
+    CERTIFICATE_EMAIL_TEMPLATE,
   );
   if (!deliveries.length) return;
   let snapshot: FinalizationSnapshot;

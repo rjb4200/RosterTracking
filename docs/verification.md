@@ -98,6 +98,8 @@ template asset against the `sourceChecksum` recorded in `mappings.ts`, so a
 substituted or edited template fails the suite:
 
 - `kfs-1a-october-2023.pdf`
+- `kfs-1b-light-yellow.pdf`
+- `kfs-1b-white.pdf`
 
 **Every mapped field exists in the approved template.** The same test loads the
 template's AcroForm and asserts that every field name referenced in the mapping

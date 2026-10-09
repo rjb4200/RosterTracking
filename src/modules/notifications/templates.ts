@@ -118,3 +118,72 @@ export function renderCertificateEmail(
     text,
   };
 }
+
+export const TRAINING_NOTICE_EMAIL_TEMPLATE = "individual-training-notice";
+export const TRAINING_NOTICE_EMAIL_TEMPLATE_VERSION =
+  "individual-training-notice-email-001";
+
+export interface TrainingNoticeEmailInput {
+  participantName: string;
+  courseName: string;
+  completedAt: string | null;
+  totalHours: string;
+  agencyName: string | null;
+}
+
+/** Renders the per-firefighter individual training notice message. */
+export function renderTrainingNoticeEmail(
+  input: TrainingNoticeEmailInput,
+): RenderedEmail {
+  const participant = escapeHtml(input.participantName);
+  const course = escapeHtml(input.courseName);
+  const completed = input.completedAt ? escapeHtml(input.completedAt) : null;
+  const agency = input.agencyName ? escapeHtml(input.agencyName) : null;
+
+  const rows = [
+    detailRow("Course", course),
+    completed ? detailRow("Date", completed) : "",
+    input.totalHours
+      ? detailRow("Total hours", escapeHtml(input.totalHours))
+      : "",
+    agency ? detailRow("Agency", agency) : "",
+  ].join("");
+
+  const body = `
+    <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Individual Training Notice</p>
+    <h1 style="margin:0 0 16px;font-family:${FONT_STACK};color:#111827;font-size:24px;font-weight:700;">${participant}</h1>
+    <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
+      This records training you completed through Winchester Fire Department for the agency you represent.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ${BRAND.border};border-bottom:1px solid ${BRAND.border};margin:0 0 20px;">
+      ${rows}
+    </table>
+    <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
+      Your signed individual training notice is attached to this message.
+    </p>
+    <p style="margin:0;font-family:${FONT_STACK};color:${BRAND.muted};font-size:13px;line-height:1.6;">
+      Winchester Fire Department<br />Training Division
+    </p>`;
+
+  const text = [
+    "Winchester Fire Department",
+    "INDIVIDUAL TRAINING NOTICE",
+    "",
+    input.participantName,
+    "This records training you completed through Winchester Fire Department for the agency you represent.",
+    "",
+    `Course: ${input.courseName}`,
+    ...(input.completedAt ? [`Date: ${input.completedAt}`] : []),
+    ...(input.totalHours ? [`Total hours: ${input.totalHours}`] : []),
+    ...(input.agencyName ? [`Agency: ${input.agencyName}`] : []),
+    "",
+    "Your signed individual training notice is attached to this message.",
+    "Training Division",
+  ].join("\n");
+
+  return {
+    subject: `Individual training notice — ${input.courseName}`,
+    html: emailShell(body),
+    text,
+  };
+}

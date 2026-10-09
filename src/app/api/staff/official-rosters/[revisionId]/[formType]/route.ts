@@ -1,7 +1,5 @@
-import {
-  generateOfficialRoster,
-  UnreadableRevisionSnapshotError,
-} from "@/modules/official-roster-pdfs/service";
+import { generateFireRosterWithNotices } from "@/modules/individual-training-notices/service";
+import { UnreadableRevisionSnapshotError } from "@/modules/official-roster-pdfs/service";
 import { requireStaff } from "@/modules/staff-auth/authorization";
 import { writeAuditLog } from "@/server/db/audit";
 import { getDatabase } from "@/server/db/client";
@@ -28,12 +26,7 @@ export async function GET(
       throw new Error("Unknown official roster form.");
     }
     const db = getDatabase();
-    const roster = await generateOfficialRoster(
-      db,
-      actor,
-      revisionId,
-      formType,
-    );
+    const roster = await generateFireRosterWithNotices(db, actor, revisionId);
     // The roster is generated before external reporting, so the entry fields
     // are left blank; record who generated it and that the fields were blank.
     await db.transaction(async (transaction) => {

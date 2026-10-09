@@ -28,6 +28,10 @@ import {
   dispatchCertificateDeliveries,
   resendParticipantCertificate,
 } from "@/modules/completion-certificates/service";
+import {
+  dispatchTrainingNoticeDeliveries,
+  resendParticipantNotice,
+} from "@/modules/individual-training-notices/service";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { createAgency, createSite } from "@/modules/reference/services";
 import { requireStaff } from "@/modules/staff-auth/authorization";
@@ -363,6 +367,7 @@ export async function finalizeClassAction(
     // on its delivery row and never affects the finalized class.
     after(async () => {
       await dispatchCertificateDeliveries(getDatabase(), actor, revision.id);
+      await dispatchTrainingNoticeDeliveries(getDatabase(), actor, revision.id);
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
@@ -460,6 +465,37 @@ export async function resendParticipantCertificateAction(
         error instanceof Error
           ? error.message
           : "Could not send the certificate.",
+    };
+  }
+}
+
+export async function resendParticipantNoticeAction(
+  _prev: CertificateResendActionState | undefined,
+  formData: FormData,
+): Promise<CertificateResendActionState> {
+  const classId = read(formData, "classId");
+  try {
+    const actor = await requireStaff();
+    const result = await resendParticipantNotice(
+      getDatabase(),
+      actor,
+      read(formData, "revisionId"),
+      read(formData, "attendanceId"),
+      read(formData, "recipient"),
+    );
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return {
+      success:
+        result.state === "delivered"
+          ? `Training notice sent to ${result.recipient}.`
+          : `Could not send the training notice to ${result.recipient}.`,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not send the training notice.",
     };
   }
 }

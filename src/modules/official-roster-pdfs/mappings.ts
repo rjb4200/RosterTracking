@@ -8,6 +8,7 @@ export type OfficialRosterForm =
 export const DOCUMENT_TYPES = {
   ...OFFICIAL_ROSTER_FORMS,
   COMPLETION_CERTIFICATE: "completion-certificate",
+  INDIVIDUAL_TRAINING_NOTICE: "individual-training-notice",
 } as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[keyof typeof DOCUMENT_TYPES];
@@ -134,6 +135,57 @@ export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {
   // revision attestation; nothing is left permanently blank.
   blankFields: [],
 };
+
+// The KFS-1B individual training notice. The Light-Yellow and White forms are
+// field-identical and differ only by background colour, so they share one field
+// map and select their asset by variant.
+const KFS_1B_FIELDS: Record<string, string> = {
+  studentName: "FF_Name",
+  studentFfn: "FFN",
+  instructorName: "Instructor_Name",
+  instructorFfn: "Instructor_FFN",
+  date: "Date",
+  startTime: "Start_Time",
+  location: "Location",
+  agencySelection: "Agency_Selection",
+  totalHours: "Total_Hours",
+  instructorSignature: "Instructor_Signature",
+};
+
+function kfs1bTemplate(
+  templateVersion: string,
+  assetName: string,
+  sourceChecksum: string,
+): TemplateMapping {
+  return {
+    formType: "individual-training-notice",
+    templateVersion,
+    assetName,
+    sourceChecksum,
+    pageCapacity: 1,
+    pageSize: { width: 612, height: 396 },
+    typography: { font: "Helvetica", fontSize: 9 },
+    fieldCoordinates: {},
+    fields: KFS_1B_FIELDS,
+    // Agency selection is intentionally left blank pending confirmation.
+    blankFields: ["Agency_Selection"],
+  };
+}
+
+export const KFS_1B_TEMPLATES = {
+  lightYellow: kfs1bTemplate(
+    "kfs-1b-light-yellow",
+    "kfs-1b-light-yellow.pdf",
+    "0414660c84fbcd98fd3716bfd40a3dd3d4582dcf2dd495eb4bde991fecc55f83",
+  ),
+  white: kfs1bTemplate(
+    "kfs-1b-white",
+    "kfs-1b-white.pdf",
+    "2b78edc125eb22871f3aa59c2585352f5cc0e8908c5b6a86ce547331c81bf530",
+  ),
+} satisfies Record<string, TemplateMapping>;
+
+export type Kfs1bVariant = keyof typeof KFS_1B_TEMPLATES;
 
 export function getTemplateMapping(
   formType: OfficialRosterForm,

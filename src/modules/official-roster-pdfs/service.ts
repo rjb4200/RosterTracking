@@ -39,6 +39,8 @@ export interface OfficialRosterActor {
 export interface SnapshotAttendance {
   attendanceId: string;
   agencyName: string;
+  // The represented agency identity, used to decide training-notice eligibility.
+  agencyId?: string | null;
   creditedHours: string;
   firstName: string | null;
   lastName: string | null;
@@ -54,6 +56,9 @@ export interface FinalizationSnapshot {
   class: {
     courseName: string;
     siteName: string | null;
+    // The class host agency, used to decide which participants are outside it.
+    hostAgencyId?: string | null;
+    hostAgencyName?: string | null;
     // Course description or objectives captured for the KBEMS-E16 roster.
     objectives?: string | null;
     // EMS course details printed on the completion certificate.
@@ -123,7 +128,7 @@ export function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-function formatTime(value: string | undefined): string {
+export function formatTime(value: string | undefined): string {
   if (!value) return "";
   return new Intl.DateTimeFormat("en-US", {
     timeZone: process.env.DEPARTMENT_TIME_ZONE ?? "America/New_York",

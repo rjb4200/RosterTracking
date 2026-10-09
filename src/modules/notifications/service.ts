@@ -149,20 +149,21 @@ export async function listQueuedDeliveries(
   db: Database,
   referenceType: string,
   referenceId: string,
+  template?: string,
 ): Promise<EmailDelivery[]> {
+  const filters = [
+    eq(emailDeliveries.referenceType, referenceType),
+    eq(emailDeliveries.referenceId, referenceId),
+    inArray(emailDeliveries.status, [
+      EMAIL_DELIVERY_STATUSES.QUEUED,
+      EMAIL_DELIVERY_STATUSES.FAILED,
+    ]),
+  ];
+  if (template) filters.push(eq(emailDeliveries.template, template));
   return db
     .select()
     .from(emailDeliveries)
-    .where(
-      and(
-        eq(emailDeliveries.referenceType, referenceType),
-        eq(emailDeliveries.referenceId, referenceId),
-        inArray(emailDeliveries.status, [
-          EMAIL_DELIVERY_STATUSES.QUEUED,
-          EMAIL_DELIVERY_STATUSES.FAILED,
-        ]),
-      ),
-    );
+    .where(and(...filters));
 }
 
 const incrementAttempt = sql`attempt_count + 1`;

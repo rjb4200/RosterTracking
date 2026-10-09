@@ -14,6 +14,7 @@ import {
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
 import { getCertificateDeliveryOverview } from "@/modules/completion-certificates/service";
+import { getTrainingNoticeDeliveryOverview } from "@/modules/individual-training-notices/service";
 import {
   getClassRoster,
   getRosterReadiness,
@@ -30,6 +31,7 @@ import {
   finalizeClassAction,
   reopenClassAction,
   resendParticipantCertificateAction,
+  resendParticipantNoticeAction,
   saveComponentAction,
   sendOfficialRosterEmailAction,
   updateClassAction,
@@ -127,6 +129,30 @@ export default async function ClassReviewPage({
       );
     } catch {
       certificateDeliveries = [];
+    }
+  }
+  const latestReportsToFire = Boolean(
+    latestRevision?.destinations.some(
+      (destination) => destination.systemCode === "fire",
+    ),
+  );
+  let noticeDeliveries: Awaited<
+    ReturnType<typeof getTrainingNoticeDeliveryOverview>
+  > = [];
+  if (
+    isFinalized &&
+    latestRevision &&
+    canManageOfficialRosters &&
+    latestReportsToFire
+  ) {
+    try {
+      noticeDeliveries = await getTrainingNoticeDeliveryOverview(
+        db,
+        actor,
+        latestRevision.id,
+      );
+    } catch {
+      noticeDeliveries = [];
     }
   }
 
@@ -300,6 +326,28 @@ export default async function ClassReviewPage({
             classId={id}
             participants={certificateDeliveries}
             action={resendParticipantCertificateAction}
+          />
+        </section>
+      ) : null}
+
+      {isFinalized &&
+      latestRevision &&
+      canManageOfficialRosters &&
+      latestReportsToFire &&
+      noticeDeliveries.length ? (
+        <section className="admin-section">
+          <h2>Training notice delivery</h2>
+          <p className="roster-note">
+            Each participant from outside the host agency is emailed their own
+            individual training notice when the class is finalized. Resend one,
+            or send to a different address.
+          </p>
+          <CertificateDeliveryControls
+            revisionId={latestRevision.id}
+            classId={id}
+            participants={noticeDeliveries}
+            action={resendParticipantNoticeAction}
+            sendLabel="Send notice"
           />
         </section>
       ) : null}
