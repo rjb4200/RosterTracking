@@ -5,15 +5,11 @@
 Generate the printable KFS-1A roster PDF on demand from an immutable finalization revision.
 ## Requirements
 ### Requirement: Official rosters use finalized revision facts
-The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster revision. Each form SHALL use the class, instructor, component, participant, agency, credit, and required credential facts preserved by that revision rather than mutable current records. Operational MTU edits SHALL NOT change either roster PDF; the forms SHALL retain their existing approved fields without adding MTU usage.
+The system SHALL generate the KFS-1A PDF only from a finalized roster revision. The form SHALL use the class, instructor, component, participant, agency, credit, and required credential facts preserved by that revision rather than mutable current records. Operational MTU edits SHALL NOT change the roster PDF; the form SHALL retain its existing approved fields without adding MTU usage.
 
 #### Scenario: Generate a Fire roster
 - **WHEN** a Training Major or Administrator generates a KFS-1A roster for a finalized revision
 - **THEN** the PDF contains the approved Fire roster fields derived from that revision
-
-#### Scenario: Generate a KBEMS roster
-- **WHEN** a Training Major or Administrator generates a KBEMS-E16 roster for a finalized revision
-- **THEN** the PDF contains the approved KBEMS roster fields derived from that revision
 
 #### Scenario: Block non-finalized source data
 - **WHEN** staff attempt to generate an official roster for a class without a finalized revision
@@ -24,15 +20,15 @@ The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster
 - **THEN** the roster retains the same revision-based facts and layout without rendering MTU usage
 
 ### Requirement: Form fields preserve official-signature boundaries
-The system SHALL populate the KFS-1A lead-instructor signature area and each attendee's initials cell from the finalization revision's signing facts, and SHALL leave the KFS-1A assisting-instructor signature, the KBEMS-E16 student and instructor signature fields, and all other signature fields blank for the required physical signing process. It SHALL populate only approved fields otherwise.
+The system SHALL populate the KFS-1A lead-instructor signature area and each attendee's initials cell from the finalization revision's signing facts, and SHALL leave the KFS-1A assisting-instructor signature blank for the required physical signing process. It SHALL populate only approved fields otherwise.
 
 #### Scenario: Populate the Fire signature and initials
 - **WHEN** the system generates a KFS-1A roster for a signed revision
 - **THEN** the lead-instructor signature area shows the electronic signature and each attendee row shows the attendee's derived initials
 
-#### Scenario: Leave the other signature fields blank
-- **WHEN** the system generates a KFS-1A or KBEMS-E16 roster
-- **THEN** no electronic attestation is rendered for the assisting instructor, KBEMS students, or KBEMS instructors
+#### Scenario: Leave the assisting signature blank
+- **WHEN** the system generates a KFS-1A roster
+- **THEN** no electronic attestation is rendered for the assisting instructor
 
 ### Requirement: Multi-page rosters retain form context
 The system SHALL paginate attendees without omitting any finalized attendee and SHALL repeat the form context and page count required for each generated form.
@@ -87,11 +83,11 @@ The system SHALL record the actor, finalization revision, form type, plaintext r
 - **THEN** the system writes the required email-delivery audit record
 
 ### Requirement: Initial official-form scope is limited
-The system SHALL support KFS-1A (October 2023) and KBEMS-E16 (September 2012) only. The system SHALL not generate KFS-1B individual Training Notices or FEMA roster PDFs in this capability.
+The system SHALL support KFS-1A (October 2023) only. The KBEMS-E16 form SHALL NOT be offered as an output. The system SHALL not generate KFS-1B individual Training Notices or FEMA roster PDFs in this capability.
 
-#### Scenario: Exclude deferred forms
+#### Scenario: Exclude deferred and retired forms
 - **WHEN** staff view available official roster types
-- **THEN** KFS-1B and FEMA are not offered as generation options
+- **THEN** KFS-1B, FEMA, and KBEMS-E16 are not offered as generation options
 
 ### Requirement: KFS-1A populates every approved non-signature field
 The system SHALL populate the KFS-1A subject rows with each finalized subject's Category, Class Name, Curriculum, Lesson Plan, Start, End, method indication, and Hours, up to the form's supported number of subject rows. It SHALL populate the Lead and Assisting instructor FFN and certification-level fields from the finalized revision facts.
@@ -141,7 +137,7 @@ The system SHALL print each finalized subject's curriculum in the KFS-1A Curricu
 
 ### Requirement: KFS-1A subject cells wrap long values
 
-The system SHALL render each KFS-1A subject row's Class Name, Curriculum, and Lesson Plan value across up to two lines within its cell when the value does not fit on one line at a legible size. For those values the system SHALL use the largest text size that fits within the cell across the available lines rather than shrinking the value onto a single line. Values that fit on one line at a legible size SHALL render unchanged. This SHALL apply only to the KFS-1A subject rows; the KBEMS-E16 roster and all other fields SHALL be unaffected.
+The system SHALL render each KFS-1A subject row's Class Name, Curriculum, and Lesson Plan value across up to two lines within its cell when the value does not fit on one line at a legible size. For those values the system SHALL use the largest text size that fits within the cell across the available lines rather than shrinking the value onto a single line. Values that fit on one line at a legible size SHALL render unchanged. This SHALL apply only to the KFS-1A subject rows.
 
 #### Scenario: Wrap a long curriculum label
 - **WHEN** a finalized subject's Curriculum value is longer than one line at a legible size
@@ -156,5 +152,5 @@ The system SHALL render each KFS-1A subject row's Class Name, Curriculum, and Le
 - **THEN** the generated KFS-1A renders it on a single line as before
 
 #### Scenario: Leave other documents unchanged
-- **WHEN** the system generates a KBEMS-E16 roster or a completion certificate
-- **THEN** its layout and field rendering are unchanged by this behavior
+- **WHEN** the system generates a completion certificate
+- **THEN** its layout and field rendering are unaffected by this behavior

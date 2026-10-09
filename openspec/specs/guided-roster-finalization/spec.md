@@ -12,7 +12,7 @@ While the class is open the review screen SHALL present a read-only Class detail
 
 While the class is finalized the review screen SHALL present the signed class and roster as read-only and omit their editing affordances. A separate operational MTU section SHALL remain editable by authorized staff without reopening. The reopen path SHALL appear in a dedicated reopening section placed after the attendance sections at the end of the screen.
 
-The review screen SHALL organize its content into distinct sections for the class details, finalization, documents, revision history, corrections, attendance, and reopening. The documents section SHALL present the class sign-in record, the class audit log, the KFS-1A roster, the KBEMS-E16 roster, and the completion certificates as peer rows in one list, each with a View action that opens the rendered PDF inline; the sign-in record and audit log SHALL be available at any reviewed status, and the rosters and certificates SHALL be available when a finalized revision exists. The completion-certificates row SHALL appear only when the latest finalized revision reported to KBEMS. Each roster row SHALL additionally offer an Email action whose recipient field is revealed only when the action is chosen and is hidden otherwise. The reopening section SHALL be presented only to operators who may reopen the class. While the class is open the documents section SHALL indicate that official rosters and certificates require finalization.
+The review screen SHALL organize its content into distinct sections for the class details, finalization, documents, revision history, corrections, attendance, and reopening. The documents section SHALL present the class sign-in record, the class audit log, the KFS-1A roster, and the completion-certificate batch as peer rows in one list, each with a View action that opens the rendered PDF inline; the sign-in record and audit log SHALL be available at any reviewed status, and the roster and certificate batch SHALL be available when a finalized revision exists. The completion-certificate batch row SHALL appear only when the latest finalized revision reported to KBEMS. The KFS-1A roster row SHALL additionally offer an Email action whose recipient field is revealed only when the action is chosen and is hidden otherwise. The reopening section SHALL be presented only to operators who may reopen the class. While the class is open the documents section SHALL indicate that the official roster and certificates require finalization.
 
 #### Scenario: Review an open class
 - **WHEN** an authorized operator opens the review screen for an open class
@@ -48,7 +48,7 @@ The review screen SHALL organize its content into distinct sections for the clas
 
 #### Scenario: Present class documents
 - **WHEN** an authorized operator opens the review screen for a finalized class
-- **THEN** the documents section lists the sign-in record, the audit log, the KFS-1A roster, the KBEMS-E16 roster, and the completion certificates as peer rows, each with a View action
+- **THEN** the documents section lists the sign-in record, the audit log, the KFS-1A roster, and the completion-certificate batch as peer rows, each with a View action
 
 #### Scenario: Reveal the roster email recipient on demand
 - **WHEN** an authorized operator chooses the Email action for a roster row
@@ -56,11 +56,11 @@ The review screen SHALL organize its content into distinct sections for the clas
 
 #### Scenario: Hide certificates when the revision did not report to KBEMS
 - **WHEN** the latest finalized revision did not report to KBEMS
-- **THEN** the documents section does not present a completion-certificates row
+- **THEN** the documents section does not present a completion-certificate batch row
 
 #### Scenario: Withhold official outputs before finalization
 - **WHEN** an authorized operator opens the review screen for an open class
-- **THEN** the documents section offers the sign-in record and audit log and indicates that official rosters and certificates require finalization
+- **THEN** the documents section offers the sign-in record and audit log and indicates that the official roster and certificates require finalization
 
 #### Scenario: Target the latest revision
 - **WHEN** a class has more than one finalization revision
@@ -96,4 +96,24 @@ The system SHALL present the finalize-and-sign action on the review screen only 
 #### Scenario: Show the recorded signature
 - **WHEN** an authorized operator opens the review screen for a finalized class
 - **THEN** the screen presents the recorded signer and signed timestamp for the latest revision
+
+### Requirement: The review screen manages certificate delivery
+
+The review screen SHALL present, for a finalized EMS class, the certificate delivery state of each active participant: delivered, undeliverable, or failed. It SHALL offer authorized staff a resend action for an individual participant, optionally with a different address, and SHALL list participants without a deliverable email as delivery exceptions with an action to provide an address and send. It SHALL present these controls only to operators who may generate certificates.
+
+#### Scenario: Show participant delivery state
+- **WHEN** an authorized operator opens the review screen for a finalized EMS class
+- **THEN** the screen shows each active participant's certificate delivery state
+
+#### Scenario: Resend an individual certificate
+- **WHEN** an authorized operator chooses to resend a participant's certificate
+- **THEN** the system sends that participant's certificate and updates the shown delivery state
+
+#### Scenario: Resolve a delivery exception
+- **WHEN** an authorized operator provides an address for a participant listed as a delivery exception
+- **THEN** the system sends that participant's certificate to the supplied address
+
+#### Scenario: Hide delivery controls from other operators
+- **WHEN** an operator who may not generate certificates opens the review screen for a finalized EMS class
+- **THEN** the screen does not present the resend or delivery-exception actions
 
