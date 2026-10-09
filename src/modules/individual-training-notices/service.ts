@@ -106,6 +106,15 @@ export async function renderTrainingNoticePage(
     mapping,
     (pdf) => {
       const form = pdf.getForm();
+      // Align the affected fields to their printed cells before filling.
+      for (const [fieldName, rect] of Object.entries(
+        mapping.fieldCoordinates,
+      )) {
+        form
+          .getTextField(fieldName)
+          .acroField.getWidgets()[0]
+          ?.setRectangle(rect);
+      }
       const set = (name: string | undefined, value: string) => {
         if (!name) return;
         form.getTextField(name).setText(String(value ?? "").slice(0, 500));
@@ -284,6 +293,7 @@ async function trainingNoticeMessage(
   participant: NoticeParticipant,
   recipient: string,
   bytes: Uint8Array,
+  filename: string,
 ) {
   const rendered = renderTrainingNoticeEmail({
     participantName: participantName(participant),
@@ -298,10 +308,7 @@ async function trainingNoticeMessage(
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    attachments: [
-      logo,
-      { filename: `${KFS_1B_TEMPLATES.white.templateVersion}.pdf`, bytes },
-    ],
+    attachments: [logo, { filename, bytes }],
   };
 }
 
@@ -339,6 +346,7 @@ export async function dispatchTrainingNoticeDeliveries(
       participant,
       delivery.recipient,
       bytes,
+      `${KFS_1B_TEMPLATES.white.templateVersion}.pdf`,
     );
   });
 }
@@ -410,7 +418,13 @@ export async function resendParticipantNotice(
   let state: NoticeResendResult["state"] = "failed";
   try {
     const result = await sendEmail(
-      await trainingNoticeMessage(snapshot, participant, recipient, bytes),
+      await trainingNoticeMessage(
+        snapshot,
+        participant,
+        recipient,
+        bytes,
+        `${KFS_1B_TEMPLATES.white.templateVersion}.pdf`,
+      ),
     );
     await markDeliverySent(db, delivery.id, result.providerMessageId);
     state = "delivered";
@@ -432,16 +446,154 @@ export async function resendParticipantNotice(
   return { recipient, state };
 }
 
+/** The variant an operator chooses for an on-demand notice. */
+export type NoticeVariant = "yellow" | "white";
+
+function kfsVariant(variant: NoticeVariant): Kfs1bVariant {
+  return variant === "yellow" ? "lightYellow" : "white";
+}
+
+function variantFilename(variant: NoticeVariant): string {
+  return `${KFS_1B_TEMPLATES[kfsVariant(variant)].templateVersion}.pdf`;
+}
+
+export interface RenderedNotice {
+  bytes: Uint8Array;
+  filename: string;
+}
+
+/**
+ * Renders one participant's notice in the chosen variant for a finalized
+ * revision. Un-gated by host-agency eligibility so any participant qualifies.
+ */
+export async function renderParticipantNotice(
+  db: Database,
+  actor: OfficialRosterActor,
+  revisionId: string,
+  attendanceId: string,
+  variant: NoticeVariant,
+): Promise<RenderedNotice> {
+  const snapshot = await readSnapshot(db, actor, revisionId);
+  const participant = snapshot.attendance.find(
+    (entry) => entry.attendanceId === attendanceId,
+  );
+  if (!participant) throw new Error("Participant not found on this revision.");
+  const bytes = await renderTrainingNotice(
+    kfsVariant(variant),
+    snapshot,
+    participant,
+  );
+  return { bytes, filename: variantFilename(variant) };
+}
+
+/**
+ * Emails one participant's notice on demand, in the chosen variant, to an
+ * optional operator-entered address. Updates the participant's delivery record
+ * and audits the send.
+ */
+export async function sendParticipantNoticeOnDemand(
+  db: Database,
+  actor: OfficialRosterActor,
+  revisionId: string,
+  attendanceId: string,
+  variant: NoticeVariant,
+  recipientInput: string,
+): Promise<NoticeResendResult> {
+  const snapshot = await readSnapshot(db, actor, revisionId);
+  const participant = snapshot.attendance.find(
+    (entry) => entry.attendanceId === attendanceId,
+  );
+  if (!participant) throw new Error("Participant not found on this revision.");
+  const supplied = recipientInput.trim();
+  const recipient = supplied
+    ? validateEmailRecipient(supplied)
+    : validateEmailRecipient(participant.email ?? "");
+  const bytes = await renderTrainingNotice(
+    kfsVariant(variant),
+    snapshot,
+    participant,
+  );
+  const fingerprint = trainingNoticeContentFingerprint(snapshot, participant);
+
+  let delivery = await findDeliveryForParticipant(
+    db,
+    revisionId,
+    attendanceId,
+    TRAINING_NOTICE_EMAIL_TEMPLATE,
+  );
+  if (!delivery) {
+    const [inserted] = await db
+      .insert(emailDeliveries)
+      .values({
+        template: TRAINING_NOTICE_EMAIL_TEMPLATE,
+        templateVersion: TRAINING_NOTICE_EMAIL_TEMPLATE_VERSION,
+        referenceType: EMAIL_REFERENCE_TYPES.FINALIZATION_REVISION,
+        referenceId: revisionId,
+        attendanceId,
+        recipient,
+        sender: EMAIL_SENDER,
+        status: EMAIL_DELIVERY_STATUSES.QUEUED,
+        contentFingerprint: fingerprint,
+      })
+      .onConflictDoNothing()
+      .returning();
+    delivery =
+      inserted ??
+      (await findDeliveryForParticipant(
+        db,
+        revisionId,
+        attendanceId,
+        TRAINING_NOTICE_EMAIL_TEMPLATE,
+      ));
+  }
+  if (!delivery) throw new Error("Notice delivery could not be recorded.");
+  if (delivery.recipient !== recipient) {
+    await updateDeliveryRecipient(db, delivery.id, recipient);
+  }
+
+  let state: NoticeResendResult["state"] = "failed";
+  try {
+    const result = await sendEmail(
+      await trainingNoticeMessage(
+        snapshot,
+        participant,
+        recipient,
+        bytes,
+        variantFilename(variant),
+      ),
+    );
+    await markDeliverySent(db, delivery.id, result.providerMessageId);
+    state = "delivered";
+  } catch {
+    await markDeliveryFailed(db, delivery.id, "Send failed.");
+    state = "failed";
+  }
+
+  await db.transaction(async (transaction) => {
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "individual_training_notice.emailed",
+      entityType: "finalization_revision",
+      entityId: revisionId,
+      details: { attendanceId, variant, recipient, state },
+    });
+  });
+  return { recipient, state };
+}
+
 export type NoticeDeliveryState =
   | "delivered"
   | "queued"
   | "failed"
   | "skipped"
-  | "undeliverable";
+  | "undeliverable"
+  | "not_sent";
 
 export interface NoticeDeliveryParticipant {
   attendanceId: string;
   name: string;
+  agencyName: string;
   email: string | null;
   state: NoticeDeliveryState;
 }
@@ -453,6 +605,9 @@ export async function getTrainingNoticeDeliveryOverview(
   revisionId: string,
 ): Promise<NoticeDeliveryParticipant[]> {
   const snapshot = await readSnapshot(db, actor, revisionId);
+  const qualifying = new Set(
+    qualifyingParticipants(snapshot).map((p) => p.attendanceId),
+  );
   const deliveries = await listDeliveriesForReference(
     db,
     EMAIL_REFERENCE_TYPES.FINALIZATION_REVISION,
@@ -466,19 +621,24 @@ export async function getTrainingNoticeDeliveryOverview(
       .filter((delivery) => delivery.attendanceId)
       .map((delivery) => [delivery.attendanceId as string, delivery]),
   );
-  return qualifyingParticipants(snapshot).map((participant) => {
+  return snapshot.attendance.map((participant) => {
     const email = participant.email?.trim() || null;
     const delivery = byAttendance.get(participant.attendanceId);
     let state: NoticeDeliveryState;
-    if (!email) state = "undeliverable";
-    else if (!delivery) state = "queued";
-    else if (delivery.status === "sent") state = "delivered";
-    else if (delivery.status === "skipped") state = "skipped";
-    else if (delivery.status === "failed") state = "failed";
-    else state = "queued";
+    if (delivery) {
+      if (delivery.status === "sent") state = "delivered";
+      else if (delivery.status === "skipped") state = "skipped";
+      else if (delivery.status === "failed") state = "failed";
+      else state = "queued";
+    } else if (qualifying.has(participant.attendanceId)) {
+      state = email ? "queued" : "undeliverable";
+    } else {
+      state = "not_sent";
+    }
     return {
       attendanceId: participant.attendanceId,
       name: participantName(participant),
+      agencyName: participant.agencyName,
       email,
       state,
     };

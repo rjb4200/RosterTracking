@@ -30,7 +30,9 @@ import {
 } from "@/modules/completion-certificates/service";
 import {
   dispatchTrainingNoticeDeliveries,
+  type NoticeVariant,
   resendParticipantNotice,
+  sendParticipantNoticeOnDemand,
 } from "@/modules/individual-training-notices/service";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { createAgency, createSite } from "@/modules/reference/services";
@@ -481,6 +483,40 @@ export async function resendParticipantNoticeAction(
       actor,
       read(formData, "revisionId"),
       read(formData, "attendanceId"),
+      read(formData, "recipient"),
+    );
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return {
+      success:
+        result.state === "delivered"
+          ? `Training notice sent to ${result.recipient}.`
+          : `Could not send the training notice to ${result.recipient}.`,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not send the training notice.",
+    };
+  }
+}
+
+export async function emailTrainingNoticeAction(
+  _prev: CertificateResendActionState | undefined,
+  formData: FormData,
+): Promise<CertificateResendActionState> {
+  const classId = read(formData, "classId");
+  const variant: NoticeVariant =
+    read(formData, "variant") === "white" ? "white" : "yellow";
+  try {
+    const actor = await requireStaff();
+    const result = await sendParticipantNoticeOnDemand(
+      getDatabase(),
+      actor,
+      read(formData, "revisionId"),
+      read(formData, "attendanceId"),
+      variant,
       read(formData, "recipient"),
     );
     revalidatePath(`/staff/classes/${classId}/review`);

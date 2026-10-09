@@ -165,7 +165,23 @@ function kfs1bTemplate(
     pageCapacity: 1,
     pageSize: { width: 612, height: 396 },
     typography: { font: "Helvetica", fontSize: 9 },
-    fieldCoordinates: {},
+    // The supplied form's fields overhang the printed cells to the left. These
+    // entries align the affected fields to their cells (PDF user space); the
+    // renderer applies them before filling. Y/height are unchanged.
+    fieldCoordinates: {
+      FF_Name: { x: 72, y: 255, width: 238.5, height: 28 },
+      Instructor_Name: { x: 72, y: 208, width: 238.5, height: 18 },
+      Row_1_Hours: { x: 108, y: 157, width: 40.5, height: 17 },
+      Row_2_Hours: { x: 108, y: 136, width: 40.5, height: 17 },
+      Row_3_Hours: { x: 108, y: 116, width: 40.5, height: 17 },
+      Row_4_Hours: { x: 108, y: 96, width: 40.5, height: 17 },
+      Row_5_Hours: { x: 108, y: 76, width: 40.5, height: 17 },
+      Row_1_Category_Code: { x: 148.5, y: 157, width: 67.5, height: 17 },
+      Row_2_Category_Code: { x: 148.5, y: 136, width: 67.5, height: 17 },
+      Row_3_Category_Code: { x: 148.5, y: 116, width: 67.5, height: 17 },
+      Row_4_Category_Code: { x: 148.5, y: 96, width: 67.5, height: 17 },
+      Row_5_Category_Code: { x: 148.5, y: 76, width: 67.5, height: 17 },
+    },
     fields: KFS_1B_FIELDS,
     // Agency selection is intentionally left blank pending confirmation.
     blankFields: ["Agency_Selection"],

@@ -28,10 +28,10 @@ import { getDatabase } from "@/server/db/client";
 
 import {
   assignInstructorAction,
+  emailTrainingNoticeAction,
   finalizeClassAction,
   reopenClassAction,
   resendParticipantCertificateAction,
-  resendParticipantNoticeAction,
   saveComponentAction,
   sendOfficialRosterEmailAction,
   updateClassAction,
@@ -51,6 +51,7 @@ import {
   RosterDocumentActions,
 } from "../../official-roster-controls";
 import { AttendanceControls } from "../../roster-controls";
+import { TrainingNoticeControls } from "../../training-notice-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -333,23 +334,20 @@ export default async function ClassReviewPage({
       {isFinalized &&
       latestRevision &&
       canManageOfficialRosters &&
-      latestReportsToFire &&
-      noticeDeliveries.length ? (
-        <section className="admin-section">
-          <h2>Training notice delivery</h2>
+      latestReportsToFire ? (
+        <details className="admin-section">
+          <summary>Training notices</summary>
           <p className="roster-note">
-            Each participant from outside the host agency is emailed their own
-            individual training notice when the class is finalized. Resend one,
-            or send to a different address.
+            View or email an individual training notice for any participant.
+            Yellow is the department copy; White is the participant copy.
           </p>
-          <CertificateDeliveryControls
+          <TrainingNoticeControls
             revisionId={latestRevision.id}
             classId={id}
             participants={noticeDeliveries}
-            action={resendParticipantNoticeAction}
-            sendLabel="Send notice"
+            action={emailTrainingNoticeAction}
           />
-        </section>
+        </details>
       ) : null}
 
       {isFinalized && revisionHistory.length ? (

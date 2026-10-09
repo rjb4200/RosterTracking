@@ -133,6 +133,22 @@ describe("individual training notices", () => {
     delete process.env.CREDENTIAL_ENCRYPTION_KEY;
   });
 
+  it("renders a notice for a host-agency participant", async () => {
+    const hostParticipant = snapshot.attendance[1];
+    if (!hostParticipant) throw new Error("fixture participant is missing");
+    expect(
+      qualifyingParticipants(snapshot).some(
+        (p) => p.attendanceId === hostParticipant.attendanceId,
+      ),
+    ).toBe(false);
+    const bytes = await renderTrainingNotice(
+      "lightYellow",
+      snapshot,
+      hostParticipant,
+    );
+    expect(bytes.byteLength).toBeGreaterThan(0);
+  });
+
   it("renders the yellow and white variants as different documents", async () => {
     const participant = snapshot.attendance[0];
     if (!participant) throw new Error("fixture participant is missing");
@@ -142,5 +158,25 @@ describe("individual training notices", () => {
     ]);
     expect(yellow.byteLength).toBeGreaterThan(0);
     expect(Buffer.from(yellow).equals(Buffer.from(white))).toBe(false);
+  });
+
+  it("aligns the flagged fields to their printed cells", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderTrainingNoticePage(
+      "white",
+      snapshot,
+      participant,
+      {
+        flatten: false,
+      },
+    );
+    const form = page.getForm();
+    const x = (name: string) =>
+      form.getTextField(name).acroField.getWidgets()[0]?.getRectangle().x;
+    expect(x("FF_Name")).toBeCloseTo(72, 1);
+    expect(x("Instructor_Name")).toBeCloseTo(72, 1);
+    expect(x("Row_1_Hours")).toBeCloseTo(108, 1);
+    expect(x("Row_1_Category_Code")).toBeCloseTo(148.5, 1);
   });
 });

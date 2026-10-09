@@ -3,11 +3,14 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { PDFDocument } from "pdf-lib";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { finalizeClass } from "../../src/modules/classes/finalization";
 import { createOpenClass } from "../../src/modules/classes/services";
-import { generateFireRosterWithNotices } from "../../src/modules/individual-training-notices/service";
+import {
+  generateFireRosterWithNotices,
+  sendParticipantNoticeOnDemand,
+} from "../../src/modules/individual-training-notices/service";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
@@ -15,6 +18,7 @@ import {
   agencies,
   attendance,
   attendanceReportingContexts,
+  auditLogs,
   curricula,
   emailDeliveries,
   finalizationReportingStatuses,
@@ -171,6 +175,7 @@ async function addAttendance(
     attendanceId: record.id,
     requirementSetId: input.requirementSetId,
   });
+  return record.id;
 }
 
 async function retireRevision(db: Db, revisionId: string) {
@@ -289,6 +294,78 @@ describeDatabase("individual training notices", () => {
       revision.id,
     );
     expect((await PDFDocument.load(roster.bytes)).getPageCount()).toBe(1);
+    await retireRevision(db, revision.id);
+  });
+
+  it("emails an on-demand notice for a host-agency participant", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const { instructor, hostAgency, classId, setId } = await createFireClass(
+      db,
+      suffix,
+    );
+    const attendanceId = await addAttendance(db, {
+      classId,
+      agencyId: hostAgency.id,
+      requirementSetId: setId,
+      email: `host3-${suffix.slice(0, 6)}@example.com`,
+    });
+    await db
+      .update(trainingClasses)
+      .set({ status: "open" })
+      .where(eq(trainingClasses.id, classId));
+    const revision = await finalizeClass(db, instructor, classId, {
+      certified: true,
+      typedName: "Notice Instructor",
+    });
+
+    vi.stubEnv("RESEND_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: "m1" }) }),
+    );
+    try {
+      const result = await sendParticipantNoticeOnDemand(
+        db,
+        instructor,
+        revision.id,
+        attendanceId,
+        "yellow",
+        "custom@example.com",
+      );
+      expect(result).toEqual({
+        recipient: "custom@example.com",
+        state: "delivered",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+
+    const rows = await db
+      .select()
+      .from(emailDeliveries)
+      .where(
+        and(
+          eq(emailDeliveries.referenceId, revision.id),
+          eq(emailDeliveries.template, NOTICE_TEMPLATE),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe("sent");
+    expect(rows[0]?.recipient).toBe("custom@example.com");
+
+    const events = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityId, revision.id),
+          eq(auditLogs.action, "individual_training_notice.emailed"),
+        ),
+      );
+    expect(events).toHaveLength(1);
     await retireRevision(db, revision.id);
   });
 });
