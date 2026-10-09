@@ -100,6 +100,7 @@ describeDatabase("database foundation", () => {
       "finalization_revisions",
       "finalization_reopens",
       "finalization_reporting_statuses",
+      "email_deliveries",
     ]) {
       expect(tables.has(table)).toBe(true);
     }
@@ -158,7 +159,7 @@ describeDatabase("database foundation", () => {
       phone: `859${Math.floor(Math.random() * 10_000_000)
         .toString()
         .padStart(7, "0")}`,
-      email: "",
+      email: `reference-${suffix.slice(0, 8)}@example.com`,
       studentNumber: `student-${suffix}`,
     });
     await setStudentMembership(database, actor, student.id, agency.id, {

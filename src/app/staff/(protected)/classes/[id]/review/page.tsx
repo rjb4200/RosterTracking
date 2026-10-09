@@ -13,6 +13,7 @@ import {
   formatDepartmentDateTimeInput,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
+import { getCertificateDeliveryOverview } from "@/modules/completion-certificates/service";
 import {
   getClassRoster,
   getRosterReadiness,
@@ -28,10 +29,12 @@ import {
   assignInstructorAction,
   finalizeClassAction,
   reopenClassAction,
+  resendParticipantCertificateAction,
   saveComponentAction,
   sendOfficialRosterEmailAction,
   updateClassAction,
 } from "../../actions";
+import { CertificateDeliveryControls } from "../../certificate-delivery-controls";
 import { ClassForm } from "../../class-form";
 import { ClassSummary } from "../../class-summary";
 import { ComponentForm } from "../../component-form";
@@ -102,6 +105,30 @@ export default async function ClassReviewPage({
     );
   const canReopen = staff ? isAdministrator(staff.roleCodes) : false;
   const latestRevision = revisionHistory[0] ?? null;
+  const latestReportsToKbems = Boolean(
+    latestRevision?.destinations.some(
+      (destination) => destination.systemCode === "kbems",
+    ),
+  );
+  let certificateDeliveries: Awaited<
+    ReturnType<typeof getCertificateDeliveryOverview>
+  > = [];
+  if (
+    isFinalized &&
+    latestRevision &&
+    canManageOfficialRosters &&
+    latestReportsToKbems
+  ) {
+    try {
+      certificateDeliveries = await getCertificateDeliveryOverview(
+        db,
+        actor,
+        latestRevision.id,
+      );
+    } catch {
+      certificateDeliveries = [];
+    }
+  }
 
   const renderEntry = (
     entry: (typeof roster.active)[number],
@@ -251,11 +278,31 @@ export default async function ClassReviewPage({
         </ul>
         {!isFinalized ? (
           <p className="roster-note">
-            Finalize the roster to produce official rosters and completion
+            Finalize the roster to produce the official roster and completion
             certificates.
           </p>
         ) : null}
       </section>
+
+      {isFinalized &&
+      latestRevision &&
+      canManageOfficialRosters &&
+      latestReportsToKbems &&
+      certificateDeliveries.length ? (
+        <section className="admin-section">
+          <h2>Certificate delivery</h2>
+          <p className="roster-note">
+            Each participant is emailed their own certificate when the class is
+            finalized. Resend one, or send to a different address.
+          </p>
+          <CertificateDeliveryControls
+            revisionId={latestRevision.id}
+            classId={id}
+            participants={certificateDeliveries}
+            action={resendParticipantCertificateAction}
+          />
+        </section>
+      ) : null}
 
       {isFinalized && revisionHistory.length ? (
         <section className="admin-section">

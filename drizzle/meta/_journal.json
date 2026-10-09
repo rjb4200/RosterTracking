@@ -190,6 +190,13 @@
       "when": 1791500136401,
       "tag": "0026_retire_completed_class_state",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791503421778,
+      "tag": "0027_solid_speedball",
+      "breakpoints": true
     }
   ]
 }

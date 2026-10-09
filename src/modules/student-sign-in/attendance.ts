@@ -33,6 +33,7 @@ import {
 import {
   type ClassRequirements,
   getRegularRequirementValues,
+  requiredRegistrationFields,
   resolveClassRequirements,
 } from "./requirements";
 import type { RegularWorkflowParticipant, SignInWorkflowState } from "./types";
@@ -228,7 +229,7 @@ async function prepareRegularFacts(
   } = {
     updatedAt: now,
   };
-  for (const field of requirements.studentFields) {
+  for (const field of requiredRegistrationFields(requirements)) {
     const existing = studentFieldValue(loaded.student, field);
     const staged = participant.fields[field];
     if (existing && staged) {
@@ -284,7 +285,7 @@ function prepareGuestFacts(
   requirements: ClassRequirements,
 ) {
   const fields: Record<string, string> = {};
-  for (const field of requirements.studentFields) {
+  for (const field of requiredRegistrationFields(requirements)) {
     const value = participant.fields[field];
     if (!value)
       throw new AttendanceConfirmationError("Required data is missing.");
@@ -620,6 +621,7 @@ export async function confirmAttendance(
             classId: context.classId,
             firstName: participant.firstName,
             lastName: participant.lastName,
+            email: participant.fields.email ?? null,
           })
           .returning({ id: classGuests.id });
         if (!guest)

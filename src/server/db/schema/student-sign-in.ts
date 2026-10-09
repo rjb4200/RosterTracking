@@ -202,6 +202,9 @@ export const classGuests = pgTable(
       .references(() => trainingClasses.id, { onDelete: "restrict" }),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
+    // Collected so the guest can receive a completion certificate. Nullable for
+    // rows created before guest email was required.
+    email: text("email"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

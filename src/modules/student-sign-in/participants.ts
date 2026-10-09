@@ -170,7 +170,7 @@ export async function stageRegularRequirements(
     throw new Error("The selected student or agency is unavailable.");
   }
 
-  const requiredFields = new Set(requirements.studentFields);
+  const requiredFields = new Set(requiredRegistrationFields(requirements));
   const stagedFields: Record<string, string> = {};
   for (const [field, value] of Object.entries(input.fields)) {
     if (!requiredFields.has(field)) throw new Error("Field is not required.");
@@ -179,9 +179,12 @@ export async function stageRegularRequirements(
       throw new Error("Existing student values cannot be replaced.");
     const normalized = value.trim();
     if (!normalized) throw new Error("Required fields cannot be blank.");
+    if (field === "email" && !emailSchema.safeParse(normalized).success) {
+      throw new Error("Enter a valid email address.");
+    }
     stagedFields[field] = normalized;
   }
-  for (const field of requirements.studentFields) {
+  for (const field of requiredFields) {
     if (!studentFieldValue(studentRows, field) && !stagedFields[field]) {
       throw new Error("All required student fields are required.");
     }
@@ -255,9 +258,12 @@ export async function stageGuestParticipant(
     throw new Error("The selected agency is unavailable.");
   }
   const fields: Record<string, string> = {};
-  for (const field of requirements.studentFields) {
+  for (const field of requiredRegistrationFields(requirements)) {
     const value = input.fields[field]?.trim();
     if (!value) throw new Error("All required student fields are required.");
+    if (field === "email" && !emailSchema.safeParse(value).success) {
+      throw new Error("Enter a valid email address.");
+    }
     fields[field] = value;
   }
   const participant: GuestWorkflowParticipant = {

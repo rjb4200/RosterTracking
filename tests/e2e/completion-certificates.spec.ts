@@ -104,6 +104,11 @@ test("staff download completion certificates for a finalized KBEMS class", async
       completedAt: "2026-09-05T14:00:00.000Z",
     },
     destinations: [{ code: "kbems", name: "KBEMS / KEMSIS" }],
+    signature: {
+      name: "E2E Cert Instructor",
+      signedAt: "2026-09-05T15:00:00.000Z",
+      attestationVersion: "roster-attestation-001",
+    },
     instructors: [
       { name: "E2E Cert Instructor", isLead: true, ffn: null, level: null },
     ],
@@ -124,6 +129,7 @@ test("staff download completion certificates for a finalized KBEMS class", async
         lastName: "Lovelace",
         guestFirstName: null,
         guestLastName: null,
+        email: "ada.lovelace@example.com",
       },
     ],
     fieldSnapshots: [],
@@ -149,7 +155,7 @@ test("staff download completion certificates for a finalized KBEMS class", async
   await page.goto(`/staff/classes/${classId}/review`);
 
   const view = page.getByRole("link", {
-    name: "View certificates PDF",
+    name: "View certificates",
   });
   await expect(view).toBeVisible();
 
@@ -158,4 +164,14 @@ test("staff download completion certificates for a finalized KBEMS class", async
   );
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toContain("application/pdf");
+
+  // The review screen exposes per-participant delivery with a resend control
+  // whose recipient field is revealed on demand.
+  await expect(
+    page.getByRole("heading", { name: "Certificate delivery" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Resend" }).first().click();
+  await expect(
+    page.getByLabel(/email recipient for ada lovelace/i),
+  ).toBeVisible();
 });

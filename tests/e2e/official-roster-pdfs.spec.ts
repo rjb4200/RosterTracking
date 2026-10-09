@@ -31,9 +31,6 @@ test("authorized staff can download an on-demand official roster", async ({
   await expect(kfsView).toHaveAttribute("target", "_blank");
   await expect(kfsView).toHaveAttribute("href", /disposition=inline/);
   await expect(
-    controls.getByRole("link", { name: /view kbems-e16 pdf/i }),
-  ).toHaveAttribute("target", "_blank");
-  await expect(
     controls.getByLabel(/email recipient for kfs-1a/i),
   ).toBeVisible();
   const viewHref = await kfsView.getAttribute("href");

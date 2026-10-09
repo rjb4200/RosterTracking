@@ -24,7 +24,7 @@ export async function GET(
   try {
     const actor = await requireStaff();
     const { revisionId, formType } = await params;
-    if (formType !== "kfs-1a" && formType !== "kbems-e16") {
+    if (formType !== "kfs-1a") {
       throw new Error("Unknown official roster form.");
     }
     const db = getDatabase();

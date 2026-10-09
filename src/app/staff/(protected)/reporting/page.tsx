@@ -22,7 +22,6 @@ const statuses = [
 
 const rosterFormBySystem = {
   fire: "kfs-1a",
-  kbems: "kbems-e16",
 } as const;
 
 function readSearchParam(

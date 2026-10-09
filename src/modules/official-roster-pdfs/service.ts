@@ -10,6 +10,7 @@ import {
   composeCurriculumLabel,
   parseComponentMethod,
 } from "@/modules/classes/fire-subjects";
+import { sendEmail } from "@/modules/notifications/client";
 import { decryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
@@ -41,6 +42,10 @@ export interface SnapshotAttendance {
   lastName: string | null;
   guestFirstName: string | null;
   guestLastName: string | null;
+  // Recipient email captured at finalization for certificate delivery. Null
+  // when the participant has no deliverable address (a legacy student or a
+  // guest recorded before guest email was required).
+  email?: string | null;
 }
 
 export interface FinalizationSnapshot {
@@ -143,20 +148,15 @@ function attendeeName(attendee: SnapshotAttendance): string {
 export function snapshotIdentifier(
   snapshot: FinalizationSnapshot,
   attendanceId: string,
-  formType: OfficialRosterForm,
 ): string {
-  const expectedFields =
-    formType === "kfs-1a" ? ["ffn", "studentNumber"] : ["kemsisId"];
-  const expectedCredentialCode = formType === "kfs-1a" ? "ffn" : "kemsis";
   const field = snapshot.fieldSnapshots.find(
     (value) =>
       value.attendanceId === attendanceId &&
-      expectedFields.includes(value.studentField),
+      ["ffn", "studentNumber"].includes(value.studentField),
   );
   const credential = snapshot.credentialSnapshots.find(
     (value) =>
-      value.attendanceId === attendanceId &&
-      value.credentialTypeCode === expectedCredentialCode,
+      value.attendanceId === attendanceId && value.credentialTypeCode === "ffn",
   );
   const legacyCredentials = snapshot.credentialSnapshots.filter(
     (value) =>
@@ -383,7 +383,7 @@ function fillKfsPage(
     setText(
       pdf,
       `FFNRow${row}`,
-      snapshotIdentifier(snapshot, attendee.attendanceId, "kfs-1a"),
+      snapshotIdentifier(snapshot, attendee.attendanceId),
     );
     setText(pdf, `LAST NAMERow${row}`, lastName.join(" "));
     setText(pdf, `FIRST NAMERow${row}`, firstName);
@@ -403,45 +403,6 @@ function fillKfsPage(
     mapping.fields.instructorInitials,
     snapshot.signature?.name ? attendeeInitials(snapshot.signature.name) : "",
   );
-}
-
-function fillKbemsPage(
-  pdf: PDFDocument,
-  snapshot: FinalizationSnapshot,
-  attendees: SnapshotAttendance[],
-  page: number,
-  pageCount: number,
-) {
-  const mapping = getTemplateMapping("kbems-e16");
-  const component = snapshot.components?.[0];
-  setText(pdf, mapping.fields.courseName, snapshot.class.courseName);
-  setText(
-    pdf,
-    mapping.fields.instructor,
-    snapshot.instructors.map((instructor) => instructor.name).join(", "),
-  );
-  setText(pdf, mapping.fields.location, snapshot.class.siteName ?? "");
-  setText(pdf, mapping.fields.date, formatDate(snapshot.class.completedAt));
-  setText(pdf, mapping.fields.startTime, formatTime(component?.startsAt));
-  setText(pdf, mapping.fields.endTime, formatTime(component?.endsAt));
-  setText(pdf, mapping.fields.totalHours, component?.creditedHours ?? "");
-  setText(
-    pdf,
-    mapping.fields.objectives,
-    snapshot.class.objectives ?? component?.title ?? snapshot.class.courseName,
-  );
-  setText(pdf, mapping.fields.page, String(page));
-  setText(pdf, mapping.fields.pageCount, String(pageCount));
-  attendees.forEach((attendee, index) => {
-    const row = index + 1;
-    setText(pdf, `Student Name PrintRow${row}`, attendeeName(attendee));
-    setText(
-      pdf,
-      `KEMSIS IDRow${row}`,
-      snapshotIdentifier(snapshot, attendee.attendanceId, "kbems-e16"),
-    );
-    setText(pdf, `Affiliated ServiceRow${row}`, attendee.agencyName);
-  });
 }
 
 export async function renderPage(
@@ -481,21 +442,9 @@ export async function renderRosterPage(
   options: { flatten?: boolean; page?: number; pageCount?: number } = {},
 ): Promise<PDFDocument> {
   const mapping = getTemplateMapping(formType);
-  return renderPage(
-    mapping,
-    (pdf) => {
-      if (formType === "kfs-1a") fillKfsPage(pdf, snapshot, attendees);
-      else
-        fillKbemsPage(
-          pdf,
-          snapshot,
-          attendees,
-          options.page ?? 1,
-          options.pageCount ?? 1,
-        );
-    },
-    { flatten: options.flatten ?? true },
-  );
+  return renderPage(mapping, (pdf) => fillKfsPage(pdf, snapshot, attendees), {
+    flatten: options.flatten ?? true,
+  });
 }
 
 export async function renderOfficialRoster(
@@ -548,28 +497,20 @@ async function sendWithResend(input: {
   filename: string;
   bytes: Uint8Array;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("Official roster email is not configured.");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "noreply@winchesterfireems.com",
-      to: [input.recipient],
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("Official roster email is not configured.");
+  }
+  try {
+    await sendEmail({
+      recipient: input.recipient,
       subject: "Official training roster",
+      html: "<p>An official training roster PDF is attached.</p>",
       text: "An official training roster PDF is attached.",
-      attachments: [
-        {
-          filename: input.filename,
-          content: Buffer.from(input.bytes).toString("base64"),
-        },
-      ],
-    }),
-  });
-  if (!response.ok) throw new Error("Official roster email could not be sent.");
+      attachments: [{ filename: input.filename, bytes: input.bytes }],
+    });
+  } catch {
+    throw new Error("Official roster email could not be sent.");
+  }
 }
 
 export async function emailOfficialRoster(

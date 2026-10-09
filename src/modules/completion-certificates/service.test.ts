@@ -9,9 +9,12 @@ import type { FinalizationSnapshot } from "@/modules/official-roster-pdfs/servic
 
 import {
   certificateClassHours,
+  certificateContentFingerprint,
   courseTypeLabel,
   instructorTitleCourse,
   participantName,
+  renderCertificatePage,
+  renderCompletionCertificateBatch,
   renderCompletionCertificates,
   revisionReportsToKbems,
 } from "./service";
@@ -132,5 +135,66 @@ describe("completion certificates", () => {
     await expect(renderCompletionCertificates(snapshot)).resolves.toEqual(
       await renderCompletionCertificates(snapshot),
     );
+  });
+
+  it("renders the attested signer on the certificate signature field", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const signed: FinalizationSnapshot = {
+      ...snapshot,
+      signature: {
+        name: "Lead Medic",
+        signedAt: "2026-09-05T18:00:00.000Z",
+        attestationVersion: "roster-attestation-001",
+      },
+    };
+    const page = await renderCertificatePage(signed, participant, {
+      flatten: false,
+    });
+    expect(page.getForm().getTextField("Instructor_Signature").getText()).toBe(
+      "Lead Medic",
+    );
+  });
+
+  it("leaves the certificate signature blank without an attestation", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    expect(
+      page.getForm().getTextField("Instructor_Signature").getText() ?? "",
+    ).toBe("");
+  });
+
+  it("builds a batch with a cover page and one certificate per participant", async () => {
+    const bytes = await renderCompletionCertificateBatch(snapshot);
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.getPageCount()).toBe(snapshot.attendance.length + 1);
+  });
+
+  it("excludes removed participants from the batch", async () => {
+    // A finalized snapshot only carries active attendance, so a removed
+    // participant is absent and the batch is a cover plus active pages only.
+    const activeOnly: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: snapshot.attendance.slice(0, 1),
+    };
+    const bytes = await renderCompletionCertificateBatch(activeOnly);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
+  });
+
+  it("fingerprints the certificate values and ignores the template version", () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const fingerprint = certificateContentFingerprint(snapshot, participant);
+    expect(fingerprint).toBe(
+      certificateContentFingerprint(snapshot, participant),
+    );
+    const changed = certificateContentFingerprint(
+      { ...snapshot, class: { ...snapshot.class, courseNumber: "NEW" } },
+      participant,
+    );
+    expect(changed).not.toBe(fingerprint);
   });
 });

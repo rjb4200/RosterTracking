@@ -1,6 +1,5 @@
 export const OFFICIAL_ROSTER_FORMS = {
   KFS_1A: "kfs-1a",
-  KBEMS_E16: "kbems-e16",
 } as const;
 
 export type OfficialRosterForm =
@@ -35,8 +34,6 @@ export interface TemplateMapping {
   // "INITIALSRow", used as INITIALSRow1..N). Absent when the form has none.
   attendeeInitialsField?: string;
 }
-
-const kbemsRows = Array.from({ length: 16 }, (_, index) => index + 1);
 
 export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
   "kfs-1a": {
@@ -110,48 +107,6 @@ export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
     blankFields: [],
     attendeeInitialsField: "INITIALSRow",
   },
-  "kbems-e16": {
-    formType: "kbems-e16",
-    templateVersion: "kbems-e16-september-2012",
-    assetName: "kbems-e16-september-2012.pdf",
-    sourceChecksum:
-      "5c56ffcd9b6481ce9019a9fdecd827ecaefc7bc63b9dc6d5f4d5fd0021796416",
-    pageCapacity: 16,
-    pageSize: { width: 792, height: 612 },
-    typography: { font: "Helvetica", fontSize: 8 },
-    fieldCoordinates: {
-      courseName: { x: 228.36, y: 567.12, width: 286.68, height: 12.84 },
-      attendeeNameRow1: { x: 31.56, y: 445.68, width: 180.96, height: 21.12 },
-      attendeeKemsisIdRow1: {
-        x: 214.32,
-        y: 445.68,
-        width: 95.4,
-        height: 21.12,
-      },
-      attendeeServiceRow1: {
-        x: 518.52,
-        y: 445.68,
-        width: 242.04,
-        height: 21.12,
-      },
-    },
-    fields: {
-      courseName: "Course Name",
-      instructor: "Instructor Name",
-      location: "Location",
-      date: "Date",
-      startTime: "Start Time",
-      endTime: "End Time",
-      totalHours: "Total Hours",
-      objectives: "Course Description or Objectives",
-      page: "Please mark out blank lines at the conclusion of the course",
-      pageCount: "of",
-    },
-    blankFields: [
-      ...kbemsRows.flatMap((row) => [`Student SignatureRow${row}`]),
-      "Instructor Signature",
-    ],
-  },
 };
 
 export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {
@@ -175,8 +130,9 @@ export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {
     instructorTitleCourse: "Instructor_Title_Course",
     instructorSignature: "Instructor_Signature",
   },
-  // The certificate is physically signed; never rendered electronically.
-  blankFields: ["Instructor_Signature"],
+  // The lead instructor's typed-name electronic signature is rendered from the
+  // revision attestation; nothing is left permanently blank.
+  blankFields: [],
 };
 
 export function getTemplateMapping(

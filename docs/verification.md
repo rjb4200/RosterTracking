@@ -98,14 +98,15 @@ template asset against the `sourceChecksum` recorded in `mappings.ts`, so a
 substituted or edited template fails the suite:
 
 - `kfs-1a-october-2023.pdf`
-- `kbems-e16-september-2012.pdf`
 
-**Every mapped field exists in the approved template.** The same test loads each
+**Every mapped field exists in the approved template.** The same test loads the
 template's AcroForm and asserts that every field name referenced in the mapping
 and every intentionally blank field is present. A mapping typo therefore fails
 rather than silently leaving a box empty.
 
-**The KFS-1A signature and initials are populated from the finalized revision.** The lead instructor's typed-name signature, the instructor's derived initials, and each attendee's derived initials are written into the KFS-1A fields (`Text1`, `Instructor Initials`, and `INITIALSRow1..25`) and then flattened. The KBEMS-E16 student and instructor signatures and the completion-certificate instructor signature remain blank for physical signing.
+**The KFS-1A signature and initials are populated from the finalized revision.** The lead instructor's typed-name signature, the instructor's derived initials, and each attendee's derived initials are written into the KFS-1A fields (`Text1`, `Instructor Initials`, and `INITIALSRow1..25`) and then flattened. The completion certificate renders the lead instructor's typed-name signature from the same revision attestation. The KBEMS-E16 form is retired.
+
+**Certificate delivery is outbox-backed.** Finalizing an EMS class writes one delivery row per active participant in the same transaction, and the rows are dispatched after the response so a mail failure is recorded and retryable rather than blocking finalization. An unchanged certificate is recorded as skipped and not re-sent.
 
 **Output is generated from real data end to end.** With a finalized class in the
 end-to-end database, authorized staff downloaded a real `kfs-1a-*.pdf` through

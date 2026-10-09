@@ -135,7 +135,7 @@ async function resolveRegularDetails(
   );
   return {
     fields: fieldsForForm(
-      requirements.studentFields.filter(
+      requiredRegistrationFields(requirements).filter(
         (field) => !studentFieldValue(student, field),
       ),
     ),
@@ -212,7 +212,7 @@ export async function buildSignInPageModel(
     ]);
     return {
       step: "guest-details",
-      fields: fieldsForForm(requirements.studentFields),
+      fields: fieldsForForm(requiredRegistrationFields(requirements)),
       credentials: requirements.credentials,
       agencies,
     };

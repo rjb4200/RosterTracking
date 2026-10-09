@@ -115,6 +115,7 @@ describeDatabase("class sign-in record", () => {
         phone: `+1859${Math.floor(Math.random() * 10_000_000)
           .toString()
           .padStart(7, "0")}`,
+        email: `record-${crypto.randomUUID().slice(0, 8)}@example.com`,
       })
       .returning({ id: students.id });
     if (!student) throw new Error("Student fixture was not created.");
@@ -152,7 +153,7 @@ describeDatabase("class sign-in record", () => {
       firstName: "Guest",
       lastName: "Record",
       agencyId: fixture.agency.id,
-      fields: {},
+      fields: { email: "guest.record@example.com" },
       credentials: [],
     });
     await confirmAttendance(fixture.db, guestWorkflow.token, {
@@ -192,7 +193,7 @@ describeDatabase("class sign-in record", () => {
       firstName: "Removed",
       lastName: "Guest",
       agencyId: fixture.agency.id,
-      fields: {},
+      fields: { email: "removed.guest@example.com" },
       credentials: [],
     });
     const created = await confirmAttendance(fixture.db, workflow.token, {

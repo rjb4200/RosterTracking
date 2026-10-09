@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Generate printable KFS-1A and KBEMS-E16 roster PDFs on demand from immutable finalization revisions.
+Generate the printable KFS-1A roster PDF on demand from an immutable finalization revision.
 ## Requirements
 ### Requirement: Official rosters use finalized revision facts
 The system SHALL generate KFS-1A and KBEMS-E16 PDFs only from a finalized roster revision. Each form SHALL use the class, instructor, component, participant, agency, credit, and required credential facts preserved by that revision rather than mutable current records. Operational MTU edits SHALL NOT change either roster PDF; the forms SHALL retain their existing approved fields without adding MTU usage.

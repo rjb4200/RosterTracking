@@ -2,11 +2,16 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { finalizeClass } from "../../src/modules/classes/finalization";
 import { createOpenClass } from "../../src/modules/classes/services";
-import { generateCompletionCertificates } from "../../src/modules/completion-certificates/service";
+import {
+  dispatchCertificateDeliveries,
+  generateCompletionCertificates,
+  queueCertificateDeliveries,
+} from "../../src/modules/completion-certificates/service";
+import { readSnapshot } from "../../src/modules/official-roster-pdfs/service";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
@@ -15,6 +20,7 @@ import {
   attendance,
   attendanceReportingContexts,
   auditLogs,
+  emailDeliveries,
   finalizationReportingStatuses,
   reportingRequirementSets,
   reportingSystems,
@@ -109,7 +115,12 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     .slice(0, 10);
   const [student] = await db
     .insert(students)
-    .values({ firstName: "Ada", lastName: "Lovelace", phone: `+1${digits}` })
+    .values({
+      firstName: "Ada",
+      lastName: "Lovelace",
+      phone: `+1${digits}`,
+      email: `ada-${suffix.slice(0, 8)}@example.com`,
+    })
     .returning({ id: students.id });
   if (!student) throw new Error("Certificate fixture student failed.");
   const [record] = await db
@@ -160,7 +171,7 @@ afterAll(async () => {
 });
 
 describeDatabase("completion certificates", () => {
-  it("generates certificates for a finalized revision and audits the blank signature", async () => {
+  it("generates certificates for a finalized revision and audits the signing", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const { instructor, revisionId } = await createFinalizedKbemsClass(
@@ -189,8 +200,78 @@ describeDatabase("completion certificates", () => {
     expect(events).toHaveLength(1);
     expect(events[0]?.details).toMatchObject({
       participantCount: 1,
-      signatureBlank: true,
+      signed: true,
     });
+    await retireRevision(db, revisionId);
+  });
+
+  it("queues one delivery per participant when an EMS class is finalized", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+    );
+
+    const deliveries = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.referenceId, revisionId));
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.status).toBe("queued");
+    expect(deliveries[0]?.recipient).toMatch(/@example\.com$/);
+    await retireRevision(db, revisionId);
+  });
+
+  it("suppresses an unchanged certificate when the class is finalized again", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+    );
+    const snapshot = await readSnapshot(db, instructor, revisionId);
+    // Treat the first delivery as sent so it counts as a prior certificate.
+    await db
+      .update(emailDeliveries)
+      .set({ status: "sent", sentAt: new Date() })
+      .where(eq(emailDeliveries.referenceId, revisionId));
+
+    const nextRevisionId = crypto.randomUUID();
+    const result = await db.transaction((transaction) =>
+      queueCertificateDeliveries(transaction, nextRevisionId, snapshot),
+    );
+    expect(result.skipped).toBe(1);
+    expect(result.queued).toBe(0);
+    await retireRevision(db, revisionId);
+  });
+
+  it("records a failed delivery without affecting finalization", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId, revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+    );
+    vi.stubEnv("RESEND_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    try {
+      await dispatchCertificateDeliveries(db, instructor, revisionId);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+
+    const [delivery] = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.referenceId, revisionId));
+    expect(delivery?.status).toBe("failed");
+    const [classRecord] = await db
+      .select({ status: trainingClasses.status })
+      .from(trainingClasses)
+      .where(eq(trainingClasses.id, classId));
+    expect(classRecord?.status).toBe("finalized");
     await retireRevision(db, revisionId);
   });
 

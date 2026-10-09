@@ -180,13 +180,8 @@ describe("official roster PDF templates", () => {
 
   it("paginates every attendee and flattens the form", async () => {
     const kfs = await renderOfficialRoster("kfs-1a", snapshot);
-    const kbems = await renderOfficialRoster("kbems-e16", snapshot);
     expect((await PDFDocument.load(kfs)).getPageCount()).toBe(2);
-    expect((await PDFDocument.load(kbems)).getPageCount()).toBe(2);
     expect((await PDFDocument.load(kfs)).getForm().getFields()).toHaveLength(0);
-    expect((await PDFDocument.load(kbems)).getForm().getFields()).toHaveLength(
-      0,
-    );
   });
 
   it("renders the same finalized inputs deterministically", async () => {
@@ -243,36 +238,6 @@ describe("official roster PDF templates", () => {
     expect(form.getTextField("INITIALSRow1").getText()).toBe("ZZ");
   });
 
-  it("does not place an electronic signature on the KBEMS-E16", async () => {
-    const signed: FinalizationSnapshot = {
-      ...snapshot,
-      signature: {
-        name: "Xavier Quinn",
-        signedAt: "2026-09-05T18:00:00.000Z",
-        attestationVersion: "roster-attestation-001",
-      },
-      attendance: [zoeZeta],
-    };
-    const page = await renderRosterPage(
-      "kbems-e16",
-      signed,
-      signed.attendance,
-      {
-        flatten: false,
-      },
-    );
-    const names = page
-      .getForm()
-      .getFields()
-      .map((field) => field.getName());
-    // The KBEMS-E16 has no signature fields; those are physically signed.
-    expect(names.some((name) => /signature/i.test(name))).toBe(false);
-    // The signer's name never appears on the KBEMS-E16.
-    expect(
-      page.getForm().getTextField("Instructor Name").getText() ?? "",
-    ).not.toContain("Xavier Quinn");
-  });
-
   it("provides the signature, instructor-initials, and attendee-initials fields", async () => {
     const bytes = await readFile(
       new URL("./kfs-1a-october-2023.pdf", import.meta.url),
@@ -317,30 +282,6 @@ describe("official roster PDF templates", () => {
     await expect(renderOfficialRoster("kfs-1a", untitled)).resolves.toEqual(
       await renderOfficialRoster("kfs-1a", titledWithCourseName),
     );
-    await expect(renderOfficialRoster("kbems-e16", untitled)).resolves.toEqual(
-      await renderOfficialRoster("kbems-e16", titledWithCourseName),
-    );
-  });
-
-  it("renders a KBEMS roster when objectives and MTU usage are absent", async () => {
-    // Older revisions predate both the KBEMS objectives field and MTU usage;
-    // both must be optional so an existing revision still renders.
-    const legacy: FinalizationSnapshot = {
-      ...snapshot,
-      class: { ...snapshot.class, objectives: null },
-      mtuUsage: undefined,
-    };
-    const withObjectives: FinalizationSnapshot = {
-      ...snapshot,
-      class: { ...snapshot.class, objectives: "Airway management" },
-    };
-
-    await expect(
-      renderOfficialRoster("kbems-e16", legacy),
-    ).resolves.toBeInstanceOf(Uint8Array);
-    await expect(
-      renderOfficialRoster("kbems-e16", withObjectives),
-    ).resolves.toBeInstanceOf(Uint8Array);
   });
 
   it("limits authority to Training Majors and Administrators", () => {
@@ -349,7 +290,7 @@ describe("official roster PDF templates", () => {
     expect(hasOfficialRosterAuthority(["instructor"])).toBe(false);
   });
 
-  it("selects the identifier required by each official form", () => {
+  it("selects the Fire identifier for the official form", () => {
     vi.stubEnv(
       "CREDENTIAL_ENCRYPTION_KEY",
       "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
@@ -371,12 +312,7 @@ describe("official roster PDF templates", () => {
       ],
     };
 
-    expect(snapshotIdentifier(identifiers, "attendance-0", "kfs-1a")).toBe(
-      "FFN-123",
-    );
-    expect(snapshotIdentifier(identifiers, "attendance-0", "kbems-e16")).toBe(
-      "KEMSIS-456",
-    );
+    expect(snapshotIdentifier(identifiers, "attendance-0")).toBe("FFN-123");
   });
 
   it("renders a direct download without database metadata writes", async () => {
@@ -545,7 +481,7 @@ describe("official roster PDF templates", () => {
       db,
       { id: "staff-id", username: "major" },
       "revision-id",
-      "kbems-e16",
+      "kfs-1a",
       "recipient@example.com",
     );
 

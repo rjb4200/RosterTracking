@@ -133,7 +133,7 @@ describeDatabase("student sign-in transaction", () => {
       firstName: "Guest",
       lastName: "Participant",
       agencyId: fixture.agency.id,
-      fields: {},
+      fields: { email: "guest.participant@example.com" },
       credentials: [],
     });
 
@@ -159,12 +159,29 @@ describeDatabase("student sign-in transaction", () => {
       status: "idempotent",
     });
     expect(afterCount.value).toBe(beforeCount.value);
-    expect(
-      await fixture.db
-        .select()
-        .from(classGuests)
-        .where(eq(classGuests.classId, fixture.classRecord.id)),
-    ).toHaveLength(1);
+    const [guestRecord] = await fixture.db
+      .select()
+      .from(classGuests)
+      .where(eq(classGuests.classId, fixture.classRecord.id));
+    expect(guestRecord?.email).toBe("guest.participant@example.com");
+  });
+
+  it("requires an email from a guest before confirming", async () => {
+    const fixture = await createOpenClassFixture();
+    const workflow = await createWorkflowFromClassToken(
+      fixture.db,
+      fixture.rawToken,
+    );
+    if (!workflow) throw new Error("Workflow was not created.");
+    await expect(
+      stageGuestParticipant(fixture.db, workflow.token, {
+        firstName: "No",
+        lastName: "Email",
+        agencyId: fixture.agency.id,
+        fields: {},
+        credentials: [],
+      }),
+    ).rejects.toThrow(/required/i);
   });
 
   it("retains removed regular attendance and permits one new active record", async () => {
@@ -177,6 +194,7 @@ describeDatabase("student sign-in transaction", () => {
         phone: `+1859${Math.floor(Math.random() * 10_000_000)
           .toString()
           .padStart(7, "0")}`,
+        email: `regular-${crypto.randomUUID().slice(0, 8)}@example.com`,
       })
       .returning({ id: students.id });
     if (!student) throw new Error("Student fixture was not created.");
@@ -249,6 +267,7 @@ describeDatabase("student sign-in transaction", () => {
         phone: `+1859${Math.floor(Math.random() * 10_000_000)
           .toString()
           .padStart(7, "0")}`,
+        email: `outside-${crypto.randomUUID().slice(0, 8)}@example.com`,
       })
       .returning({ id: students.id });
     if (!student) throw new Error("Student fixture was not created.");

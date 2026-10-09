@@ -223,7 +223,7 @@ describeDatabase("class audit log", () => {
         action: "official_roster.generated",
         entityType: "finalization_revision",
         entityId: fixture.revisionId,
-        details: { formType: "kbems-e16" },
+        details: { formType: "kfs-1a" },
       },
       {
         ...base,
@@ -252,8 +252,8 @@ describeDatabase("class audit log", () => {
     const certificates = log.entries.filter(
       (entry) => entry.action === "completion_certificate.generated",
     );
-    // One row per form (kfs-1a, kbems-e16) and one for the repeated certificate.
-    expect(rosters).toHaveLength(2);
+    // One row for the repeated Fire roster and one for the repeated certificate.
+    expect(rosters).toHaveLength(1);
     expect(certificates).toHaveLength(1);
   });
 

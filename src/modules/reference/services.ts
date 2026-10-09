@@ -65,7 +65,7 @@ const studentInput = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   phone: z.string().trim().min(1).max(32),
-  email: z.string().trim().email().max(254).optional().or(z.literal("")),
+  email: z.string().trim().email().max(254),
   studentNumber: z.string().trim().max(50).optional().or(z.literal("")),
 });
 

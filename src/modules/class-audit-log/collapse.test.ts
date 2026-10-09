@@ -45,7 +45,7 @@ describe("collapseRepeatedGeneration", () => {
       }),
       generation({
         action: "official_roster.generated",
-        details: { formType: "kbems-e16" },
+        details: { formType: "completion-certificate" },
       }),
       generation({
         action: "official_roster.generated",

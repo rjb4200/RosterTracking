@@ -13,6 +13,10 @@ import {
   sql,
 } from "drizzle-orm";
 import { buildClassSignInRecord } from "@/modules/class-sign-in-record/service";
+import {
+  queueCertificateDeliveries,
+  revisionReportsToKbems,
+} from "@/modules/completion-certificates/service";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { encryptCredential } from "@/modules/reference/crypto";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
@@ -226,6 +230,8 @@ async function buildSnapshot(
       lastName: students.lastName,
       guestFirstName: classGuests.firstName,
       guestLastName: classGuests.lastName,
+      studentEmail: students.email,
+      guestEmail: classGuests.email,
     })
     .from(attendance)
     .innerJoin(agencies, eq(agencies.id, attendance.agencyId))
@@ -287,33 +293,52 @@ async function buildSnapshot(
   return {
     // Keep the historical snapshot key used by official PDF date fields;
     // completion now occurs at the same instant as finalization.
-    class: { ...classRow, status: "finalized", completedAt: finalizedAt },
+    class: {
+      ...classRow,
+      status: "finalized",
+      completedAt: finalizedAt.toISOString(),
+    },
     instructors,
-    components: await transaction
-      .select({
-        title: classComponents.title,
-        category: trainingCodes.code,
-        className: classComponents.className,
-        curriculumPublisher: curricula.publisher,
-        curriculumProgramTitle: curricula.programTitle,
-        curriculumVersion: curricula.version,
-        curriculumName: classComponents.curriculumName,
-        curriculumChapter: classComponents.curriculumChapter,
-        lessonPlan: classComponents.lessonPlan,
-        method: classComponents.method,
-        startsAt: classComponents.startsAt,
-        endsAt: classComponents.endsAt,
-        creditedHours: classComponents.creditedHours,
-      })
-      .from(classComponents)
-      .leftJoin(
-        trainingCodes,
-        eq(trainingCodes.id, classComponents.trainingCodeId),
-      )
-      .leftJoin(curricula, eq(curricula.id, classComponents.curriculumId))
-      .where(eq(classComponents.classId, classId))
-      .orderBy(asc(classComponents.position)),
-    attendance: roster,
+    components: (
+      await transaction
+        .select({
+          title: classComponents.title,
+          category: trainingCodes.code,
+          className: classComponents.className,
+          curriculumPublisher: curricula.publisher,
+          curriculumProgramTitle: curricula.programTitle,
+          curriculumVersion: curricula.version,
+          curriculumName: classComponents.curriculumName,
+          curriculumChapter: classComponents.curriculumChapter,
+          lessonPlan: classComponents.lessonPlan,
+          method: classComponents.method,
+          startsAt: classComponents.startsAt,
+          endsAt: classComponents.endsAt,
+          creditedHours: classComponents.creditedHours,
+        })
+        .from(classComponents)
+        .leftJoin(
+          trainingCodes,
+          eq(trainingCodes.id, classComponents.trainingCodeId),
+        )
+        .leftJoin(curricula, eq(curricula.id, classComponents.curriculumId))
+        .where(eq(classComponents.classId, classId))
+        .orderBy(asc(classComponents.position))
+    ).map((component) => ({
+      ...component,
+      startsAt: component.startsAt.toISOString(),
+      endsAt: component.endsAt.toISOString(),
+    })),
+    attendance: roster.map((entry) => ({
+      attendanceId: entry.attendanceId,
+      agencyName: entry.agencyName,
+      creditedHours: entry.creditedHours,
+      firstName: entry.firstName,
+      lastName: entry.lastName,
+      guestFirstName: entry.guestFirstName,
+      guestLastName: entry.guestLastName,
+      email: entry.studentEmail ?? entry.guestEmail ?? null,
+    })),
     destinations,
     requirements,
     fieldSnapshots,
@@ -427,6 +452,19 @@ export async function finalizeClass(
           reportingSystemId: destination.reportingSystemId,
         })),
       );
+    // EMS classes deliver a personal certificate to each participant. The rows
+    // are written in this transaction and dispatched after it commits, so a
+    // mail failure can never block or roll back finalization.
+    if (revisionReportsToKbems(snapshot)) {
+      await queueCertificateDeliveries(transaction, revision.id, {
+        ...snapshot,
+        signature: {
+          name: typedName,
+          signedAt: finalizedAt.toISOString(),
+          attestationVersion: ROSTER_ATTESTATION_VERSION,
+        },
+      });
+    }
     await transaction
       .update(trainingClasses)
       .set({ status: "finalized", updatedAt: finalizedAt })

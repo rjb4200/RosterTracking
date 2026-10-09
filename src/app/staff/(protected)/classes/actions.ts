@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
 import { CLASS_STATUSES, type ClassStatus } from "@/modules/classes/constants";
 import {
@@ -23,6 +24,10 @@ import {
   updateClass,
   updateClassMtuUsage,
 } from "@/modules/classes/services";
+import {
+  dispatchCertificateDeliveries,
+  resendParticipantCertificate,
+} from "@/modules/completion-certificates/service";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { createAgency, createSite } from "@/modules/reference/services";
 import { requireStaff } from "@/modules/staff-auth/authorization";
@@ -50,6 +55,11 @@ export interface CreateAgencyActionState {
 }
 
 export interface OfficialRosterEmailActionState {
+  error?: string;
+  success?: string;
+}
+
+export interface CertificateResendActionState {
   error?: string;
   success?: string;
 }
@@ -345,9 +355,14 @@ export async function finalizeClassAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
   try {
-    await finalizeClass(getDatabase(), actor, classId, {
+    const revision = await finalizeClass(getDatabase(), actor, classId, {
       certified: read(formData, "certified") === "true",
       typedName: read(formData, "typedName"),
+    });
+    // Deliver certificates after the response; a delivery failure is recorded
+    // on its delivery row and never affects the finalized class.
+    after(async () => {
+      await dispatchCertificateDeliveries(getDatabase(), actor, revision.id);
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
@@ -397,7 +412,7 @@ export async function sendOfficialRosterEmailAction(
   try {
     const actor = await requireStaff();
     const formType = read(formData, "formType");
-    if (formType !== "kfs-1a" && formType !== "kbems-e16") {
+    if (formType !== "kfs-1a") {
       return { error: "Select an official roster form." };
     }
     await emailOfficialRoster(
@@ -414,6 +429,37 @@ export async function sendOfficialRosterEmailAction(
         error instanceof Error
           ? error.message
           : "Could not send the official roster email.",
+    };
+  }
+}
+
+export async function resendParticipantCertificateAction(
+  _prev: CertificateResendActionState | undefined,
+  formData: FormData,
+): Promise<CertificateResendActionState> {
+  const classId = read(formData, "classId");
+  try {
+    const actor = await requireStaff();
+    const result = await resendParticipantCertificate(
+      getDatabase(),
+      actor,
+      read(formData, "revisionId"),
+      read(formData, "attendanceId"),
+      read(formData, "recipient"),
+    );
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return {
+      success:
+        result.state === "delivered"
+          ? `Certificate sent to ${result.recipient}.`
+          : `Could not send the certificate to ${result.recipient}.`,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not send the certificate.",
     };
   }
 }

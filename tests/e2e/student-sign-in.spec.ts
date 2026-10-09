@@ -61,8 +61,8 @@ async function createRememberedFixture(
     ],
   );
   const student = await pool.query<{ id: string }>(
-    "insert into students (first_name, last_name, phone) values ($1, $2, $3) returning id",
-    [firstName, lastName, phone],
+    "insert into students (first_name, last_name, phone, email) values ($1, $2, $3, $4) returning id",
+    [firstName, lastName, phone, `remembered-${suffix}@example.com`],
   );
   await pool.query(
     "insert into class_components (class_id, starts_at, ends_at, credited_hours, position) values ($1, now(), now() + interval '4 hours', 4, 0)",
@@ -147,8 +147,8 @@ test("regular student without agency memberships can complete sign-in", async ({
     ],
   );
   const student = await pool.query<{ id: string }>(
-    "insert into students (first_name, last_name, phone) values ('No', 'Membership', $1) returning id",
-    [phone],
+    "insert into students (first_name, last_name, phone, email) values ('No', 'Membership', $1, $2) returning id",
+    [phone, `no-membership-${crypto.randomUUID().slice(0, 8)}@example.com`],
   );
   await pool.query(
     "insert into class_components (class_id, starts_at, ends_at, credited_hours, position) values ($1, now(), now() + interval '4 hours', 4, 0)",
@@ -298,6 +298,7 @@ test("guest completes attendance without creating a remembered student", async (
   await page.getByRole("link", { name: "Sign in as a guest" }).click();
   await page.getByLabel("First name").fill("Guest");
   await page.getByLabel("Last name").fill("Attendee");
+  await page.getByLabel("Email address").fill("guest.attendee@example.com");
   await page
     .getByLabel("Agency represented today")
     .selectOption({ label: fixture.agencyName });
