@@ -5,7 +5,7 @@
 Preserve a finalized class as immutable historical roster revisions and track each reporting destination independently before official roster files are generated.
 ## Requirements
 ### Requirement: Finalization creates an immutable roster revision
-The system SHALL allow only the class's lead instructor to finalize an open class, and only after revalidating its roster. The review screen SHALL show finalization readiness before the lead instructor confirms finalization. Finalization SHALL require the lead instructor's certification and typed name, and SHALL create a numbered immutable revision containing class, instructor, attendance, agency, credit, attestation, signature, and reporting-requirement snapshot facts. Authorized official-roster view, print, download, and email actions SHALL use these preserved facts without modifying the revision.
+The system SHALL allow only the class's lead instructor to finalize an open class, and only after revalidating its roster. The review screen SHALL show finalization readiness before the lead instructor confirms finalization. Finalization SHALL require the lead instructor's certification and typed name, and SHALL create a numbered immutable revision containing class, instructor, attendance, represented agency, class host agency, credit, attestation, signature, and reporting-requirement snapshot facts. Authorized official-roster view, print, download, and email actions SHALL use these preserved facts without modifying the revision.
 
 #### Scenario: Finalize an open class
 - **WHEN** the class's lead instructor finalizes a roster-ready open class from its review screen
@@ -22,6 +22,10 @@ The system SHALL allow only the class's lead instructor to finalize an open clas
 #### Scenario: Preserve historical facts
 - **WHEN** current class, student, agency, or credential data changes after finalization
 - **THEN** the existing finalization revision retains the facts captured at finalization
+
+#### Scenario: Retain the host and represented agencies
+- **WHEN** a class is finalized
+- **THEN** the revision retains the class host agency and each attendee's represented agency so an outside-agency participant can be identified from the revision alone
 
 ### Requirement: Reopening retains prior revisions
 The system SHALL allow only an Administrator to reopen a finalized class, and only with a non-empty note. Reopening SHALL retain prior revisions and allow a later finalization to create a higher-numbered revision.
