@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { hashClassSignInToken } from "../../src/modules/classes/token";
 import { confirmAttendance } from "../../src/modules/student-sign-in/attendance";
 import { establishSignInContext } from "../../src/modules/student-sign-in/establish-context";
+import { buildSignInPageModel } from "../../src/modules/student-sign-in/page-model";
 import {
   stageGuestParticipant,
   stageNewStudentParticipant,
@@ -476,5 +477,45 @@ describeDatabase("sign-in context hand-off", () => {
         .from(students)
         .where(eq(students.firstName, "Duplicate")),
     ).toHaveLength(0);
+  });
+
+  it("surfaces the certificate email on the confirmation model", async () => {
+    const fixture = await createOpenClassFixture();
+    const [student] = await fixture.db
+      .insert(students)
+      .values({
+        firstName: "Confirm",
+        lastName: "Email",
+        phone: `+1859${Math.floor(Math.random() * 10_000_000)
+          .toString()
+          .padStart(7, "0")}`,
+        email: "confirm.email@example.com",
+      })
+      .returning({ id: students.id });
+    if (!student) throw new Error("Student fixture was not created.");
+
+    const workflow = await createWorkflowFromClassToken(
+      fixture.db,
+      fixture.rawToken,
+      {
+        participant: {
+          kind: "regular",
+          studentId: student.id,
+          signInMethod: "current_phone",
+          profileConfirmed: true,
+          fields: {},
+          credentials: [],
+        },
+        selectedAgencyId: null,
+        pendingNewPhone: null,
+        requirementSets: [],
+      },
+    );
+    if (!workflow) throw new Error("Workflow was not created.");
+
+    const model = await buildSignInPageModel(fixture.db, workflow.token);
+    expect(model.step).toBe("regular-details");
+    if (model.step !== "regular-details") return;
+    expect(model.email).toBe("confirm.email@example.com");
   });
 });

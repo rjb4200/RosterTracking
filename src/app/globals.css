@@ -1438,6 +1438,17 @@ h1 {
   line-height: 1;
 }
 
+.recognized-email {
+  margin: -0.75rem 0 1.25rem;
+  color: #3d4b53;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.recognized-email strong {
+  color: var(--ink);
+}
+
 .recovered-credentials {
   display: grid;
   gap: 0.45rem;

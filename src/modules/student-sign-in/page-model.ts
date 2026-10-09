@@ -35,6 +35,7 @@ export type SignInPageModel =
       participantName: string;
       recovered: boolean;
       maskedCredentials: { code: string; maskedSuffix: string }[];
+      email: string | null;
     }
   | {
       step: "recognized";
@@ -45,6 +46,7 @@ export type SignInPageModel =
       agencies: { id: string; name: string }[];
       preselectedAgencyId: string | null;
       attestation: string;
+      email: string | null;
     }
   | {
       step: "regular-details";
@@ -53,6 +55,7 @@ export type SignInPageModel =
       credentials: { id: string; code: string }[];
       agencies: { id: string; name: string }[];
       preselectedAgencyId: string | null;
+      email: string | null;
     }
   | {
       step: "guest-details";
@@ -267,6 +270,7 @@ export async function buildSignInPageModel(
     return {
       step: "regular-details",
       participantName,
+      email: student.email,
       ...(await resolveRegularDetails(
         db,
         loaded.context.classId,
@@ -290,6 +294,7 @@ export async function buildSignInPageModel(
       step: "recognized",
       participantName,
       maskedCredentials,
+      email: student.email,
       ...details,
       attestation: renderAttendanceAttestation(participantName),
     };
@@ -300,6 +305,7 @@ export async function buildSignInPageModel(
     participantName,
     recovered: participant.signInMethod === "recovery",
     maskedCredentials: participant.maskedCredentials ?? [],
+    email: student.email,
   };
 }
 

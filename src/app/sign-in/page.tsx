@@ -39,6 +39,20 @@ const NOTICES: Record<string, string> = {
   unable: "We could not continue sign-in. Check your entries and try again.",
 };
 
+/**
+ * Shows the address the completion certificate will be emailed to so the
+ * participant can confirm it before signing in. The certificate is the reason
+ * the email must be right, so it is surfaced with the identity at the top.
+ */
+function CertificateEmail({ email }: { email: string | null }) {
+  if (!email) return null;
+  return (
+    <p className="recognized-email">
+      Completion certificate emailed to <strong>{email}</strong>
+    </p>
+  );
+}
+
 function Unavailable() {
   return (
     <SignInShell eyebrow="Class access" title="Class sign-in unavailable">
@@ -262,6 +276,7 @@ function Wizard({
       <>
         <p className="sign-in-kicker">Is this you?</p>
         <p className="recognized-name">{model.participantName}</p>
+        <CertificateEmail email={model.email} />
         <p className="sign-in-copy">
           {model.recovered
             ? "Confirm this profile before the new phone number is staged. It changes only after attendance succeeds."
@@ -301,6 +316,7 @@ function Wizard({
       <>
         <p className="sign-in-kicker">Is this you?</p>
         <p className="recognized-name">{model.participantName}</p>
+        <CertificateEmail email={model.email} />
         {model.maskedCredentials.length > 0 ? (
           <ul
             className="recovered-credentials"
@@ -343,6 +359,7 @@ function Wizard({
       <>
         <p className="sign-in-kicker">Signing in as</p>
         <p className="recognized-name">{model.participantName}</p>
+        <CertificateEmail email={model.email} />
         <p className="sign-in-copy">
           Complete any class-required details and select the agency you
           represent.
