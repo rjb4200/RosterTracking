@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-
+import type { PDFFont } from "pdf-lib";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadLogoAttachment } from "@/modules/notifications/assets";
 import {
@@ -45,6 +45,10 @@ const COURSE_TYPE_LABELS: Record<string, string> = {
   initial_certification: "Initial Certification",
   refresher: "Refresher",
 };
+
+// The smallest size a certificate value may shrink to before it is allowed to
+// overflow (used to decide when the signature line drops the course type).
+const CERTIFICATE_MIN_FONT_SIZE = 6;
 
 /** Human label for a stored course type; falls back to a title-cased value. */
 export function courseTypeLabel(value: string | null | undefined): string {
@@ -111,48 +115,139 @@ export function certificateContentFingerprint(
   return createHash("sha256").update(JSON.stringify(values)).digest("hex");
 }
 
-function setText(pdf: PDFDocument, name: string | undefined, value: string) {
-  if (!name) throw new Error("Certificate template mapping is incomplete.");
-  pdf
-    .getForm()
-    .getTextField(name)
-    .setText(String(value ?? "").slice(0, 500));
+/** The usable width of a template field, with a small margin for the box. */
+function fieldWidth(pdf: PDFDocument, name: string): number {
+  const widget = pdf.getForm().getTextField(name).acroField.getWidgets()[0];
+  return (widget?.getRectangle().width ?? 0) * 0.98;
 }
 
-function fillCertificate(
+/** The largest size (down to `floor`) at which `value` fits `width`. */
+export function fitFontSize(
+  font: PDFFont,
+  value: string,
+  width: number,
+  start: number,
+  floor: number,
+): number {
+  let size = start;
+  while (size > floor && font.widthOfTextAtSize(value, size) > width) {
+    size -= 0.5;
+  }
+  return size;
+}
+
+/**
+ * Writes a value into a certificate field, shrinking its font size so the value
+ * fits the field's box rather than overflowing (the template uses fixed sizes).
+ */
+function setFittedText(
+  pdf: PDFDocument,
+  font: PDFFont,
+  name: string | undefined,
+  value: string,
+  start: number,
+  floor = 6,
+) {
+  if (!name) throw new Error("Certificate template mapping is incomplete.");
+  const field = pdf.getForm().getTextField(name);
+  // The template stores the default appearance with an escaped leading slash
+  // ("\057Helv ..."), which pdf-lib's setFontSize cannot parse; normalize it.
+  const current = field.acroField.getDefaultAppearance();
+  if (current) {
+    field.acroField.setDefaultAppearance(current.replaceAll("\\057", "/"));
+  }
+  const text = String(value ?? "").slice(0, 500);
+  const width = fieldWidth(pdf, name);
+  field.setFontSize(
+    text ? fitFontSize(font, text, width, start, floor) : start,
+  );
+  field.setText(text);
+}
+
+async function fillCertificate(
   pdf: PDFDocument,
   snapshot: FinalizationSnapshot,
   participant: CertificateParticipant,
 ) {
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
   const lead =
     snapshot.instructors.find((instructor) => instructor.isLead) ??
     snapshot.instructors[0];
-  setText(pdf, mapping.fields.studentName, participantName(participant));
-  setText(pdf, mapping.fields.classHours, certificateClassHours(snapshot));
-  setText(
-    pdf,
-    mapping.fields.courseType,
+
+  // The completion sentence is "[blank] hours [blank] Course [blank]": the class
+  // hours and course type share the first blank, the class name is the second,
+  // and the course number (when present) is the third.
+  const firstBlank = [
+    certificateClassHours(snapshot),
     courseTypeLabel(snapshot.class.courseType),
-  );
-  setText(pdf, mapping.fields.courseNumber, snapshot.class.courseNumber ?? "");
-  setText(
+  ]
+    .filter(Boolean)
+    .join(" ");
+  setFittedText(
     pdf,
+    font,
+    mapping.fields.studentName,
+    participantName(participant),
+    22,
+    12,
+  );
+  setFittedText(pdf, font, mapping.fields.classHours, firstBlank, 9);
+  setFittedText(
+    pdf,
+    font,
+    mapping.fields.courseType,
+    snapshot.class.courseName,
+    9,
+  );
+  setFittedText(
+    pdf,
+    font,
+    mapping.fields.courseNumber,
+    snapshot.class.courseNumber ?? "",
+    9,
+  );
+  setFittedText(
+    pdf,
+    font,
     mapping.fields.completionDate,
     formatDate(snapshot.class.completedAt),
+    11,
+    7,
   );
-  setText(pdf, mapping.fields.instructorName, lead?.name ?? "");
-  setText(
+  setFittedText(
     pdf,
-    mapping.fields.instructorTitleCourse,
-    instructorTitleCourse(snapshot),
+    font,
+    mapping.fields.instructorName,
+    lead?.name ?? "",
+    10,
+    7,
   );
+
+  // The signature line shows the course type and class name, dropping the type
+  // when a very long class name cannot fit even at the smallest size.
+  const titleFieldName = mapping.fields.instructorTitleCourse;
+  if (!titleFieldName) {
+    throw new Error("Certificate template mapping is incomplete.");
+  }
+  const titleWidth = fieldWidth(pdf, titleFieldName);
+  const fullTitle = instructorTitleCourse(snapshot);
+  const title =
+    fullTitle &&
+    font.widthOfTextAtSize(fullTitle, CERTIFICATE_MIN_FONT_SIZE) <= titleWidth
+      ? fullTitle
+      : snapshot.class.courseName;
+  setFittedText(pdf, font, titleFieldName, title, 9);
+
   // The lead instructor's typed-name electronic signature, taken from the
   // revision's attestation. Blank only when the revision has no attestation.
-  setText(
+  setFittedText(
     pdf,
+    font,
     mapping.fields.instructorSignature,
     snapshot.signature?.name ?? "",
+    11,
+    7,
   );
 }
 

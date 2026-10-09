@@ -409,7 +409,7 @@ function fillKfsPage(
 
 export async function renderPage(
   mapping: TemplateMapping,
-  fill: (pdf: PDFDocument) => void,
+  fill: (pdf: PDFDocument) => void | Promise<void>,
   options: { flatten?: boolean } = {},
 ): Promise<PDFDocument> {
   const source = await readFile(
@@ -422,7 +422,7 @@ export async function renderPage(
     ),
   );
   const pdf = await PDFDocument.load(source);
-  fill(pdf);
+  await fill(pdf);
   const form = pdf.getForm();
   for (const name of mapping.wrapFields ?? []) {
     form.getTextField(name).enableMultiline();

@@ -197,4 +197,86 @@ describe("completion certificates", () => {
     );
     expect(changed).not.toBe(fingerprint);
   });
+
+  it("maps the sentence blanks to the hours, type, class name, and number", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    const form = page.getForm();
+    // "2 Continuing Education hours Airway Management Course CE-2026-14"
+    expect(form.getTextField("Class_Hours").getText()).toBe(
+      "2 Continuing Education",
+    );
+    expect(form.getTextField("Course_Type").getText()).toBe(
+      "Airway Management",
+    );
+    expect(form.getTextField("Course_Number").getText()).toBe("CE-2026-14");
+  });
+
+  it("leaves the number blank when the class has none", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const noNumber: FinalizationSnapshot = {
+      ...snapshot,
+      class: { ...snapshot.class, courseNumber: null },
+    };
+    const page = await renderCertificatePage(noNumber, participant, {
+      flatten: false,
+    });
+    expect(page.getForm().getTextField("Course_Number").getText() ?? "").toBe(
+      "",
+    );
+  });
+
+  it("composes the signature line from the type and class name", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    expect(
+      page.getForm().getTextField("Instructor_Title_Course").getText(),
+    ).toBe("Continuing Education – Airway Management");
+  });
+
+  it("drops the type from the signature line for a very long class name", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const longName =
+      "Advanced Prehospital Emergency Cardiovascular Care and Resuscitation Certification";
+    const long: FinalizationSnapshot = {
+      ...snapshot,
+      class: { ...snapshot.class, courseName: longName },
+    };
+    const page = await renderCertificatePage(long, participant, {
+      flatten: false,
+    });
+    expect(
+      page.getForm().getTextField("Instructor_Title_Course").getText(),
+    ).toBe(longName);
+    expect(page.getForm().getTextField("Course_Type").getText()).toBe(longName);
+  });
+
+  it("shrinks a value that is too wide for its field", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const longName =
+      "Advanced Prehospital Emergency Cardiovascular Care and Resuscitation Certification";
+    const long: FinalizationSnapshot = {
+      ...snapshot,
+      class: { ...snapshot.class, courseName: longName },
+    };
+    const page = await renderCertificatePage(long, participant, {
+      flatten: false,
+    });
+    const appearance = page
+      .getForm()
+      .getTextField("Course_Type")
+      .acroField.getDefaultAppearance();
+    const size = Number(/([\d.]+)\s+Tf/.exec(appearance ?? "")?.[1] ?? 0);
+    expect(size).toBeGreaterThanOrEqual(6);
+    expect(size).toBeLessThan(9);
+  });
 });
