@@ -25,6 +25,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Next generates the PageProps/route types that tsc needs; without this a
+      # clean checkout fails typecheck because .next/types does not exist yet.
+      - run: npx next typegen
       - run: npm run check
       - run: npm test
       - run: npm run build
