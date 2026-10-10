@@ -42,6 +42,9 @@ export default async function AgencyDetailPage({
     contactName: agency.contactName,
     phone: agency.phone,
     email: agency.email,
+    trainingCoordinatorName: agency.trainingCoordinatorName,
+    trainingCoordinatorPhone: agency.trainingCoordinatorPhone,
+    trainingCoordinatorEmail: agency.trainingCoordinatorEmail,
     tagIds: agency.tags.map((tag) => tag.id),
     otherSubtype:
       agency.tags.find((tag) => tag.code === AGENCY_TAG_CODES.OTHER)?.subtype ??

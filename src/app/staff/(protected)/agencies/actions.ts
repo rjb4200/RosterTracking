@@ -33,6 +33,9 @@ export async function createAgencyAction(
       contactName: read(formData, "contactName"),
       phone: read(formData, "phone"),
       email: read(formData, "email"),
+      trainingCoordinatorName: read(formData, "trainingCoordinatorName"),
+      trainingCoordinatorPhone: read(formData, "trainingCoordinatorPhone"),
+      trainingCoordinatorEmail: read(formData, "trainingCoordinatorEmail"),
     });
   } catch (error) {
     return {
@@ -62,6 +65,9 @@ export async function updateAgencyAction(
       contactName: read(formData, "contactName"),
       phone: read(formData, "phone"),
       email: read(formData, "email"),
+      trainingCoordinatorName: read(formData, "trainingCoordinatorName"),
+      trainingCoordinatorPhone: read(formData, "trainingCoordinatorPhone"),
+      trainingCoordinatorEmail: read(formData, "trainingCoordinatorEmail"),
     });
     revalidatePath(`/staff/agencies/${id}`);
     revalidatePath("/staff/agencies");

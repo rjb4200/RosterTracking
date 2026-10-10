@@ -37,6 +37,9 @@ export function AgencyForm({
     contactName?: string | null;
     phone?: string | null;
     email?: string | null;
+    trainingCoordinatorName?: string | null;
+    trainingCoordinatorPhone?: string | null;
+    trainingCoordinatorEmail?: string | null;
     tagIds: string[];
     otherSubtype: string | null;
   };
@@ -110,6 +113,37 @@ export function AgencyForm({
             defaultValue={values?.email ?? ""}
           />
         </div>
+        <fieldset className="field field-wide">
+          <legend>Training coordinator</legend>
+          <div className="form-grid">
+            <div className="field">
+              <Label htmlFor="trainingCoordinatorName">Coordinator name</Label>
+              <Input
+                id="trainingCoordinatorName"
+                name="trainingCoordinatorName"
+                defaultValue={values?.trainingCoordinatorName ?? ""}
+              />
+            </div>
+            <div className="field">
+              <Label htmlFor="trainingCoordinatorPhone">Phone</Label>
+              <Input
+                id="trainingCoordinatorPhone"
+                name="trainingCoordinatorPhone"
+                type="tel"
+                defaultValue={values?.trainingCoordinatorPhone ?? ""}
+              />
+            </div>
+            <div className="field">
+              <Label htmlFor="trainingCoordinatorEmail">Email</Label>
+              <Input
+                id="trainingCoordinatorEmail"
+                name="trainingCoordinatorEmail"
+                type="email"
+                defaultValue={values?.trainingCoordinatorEmail ?? ""}
+              />
+            </div>
+          </div>
+        </fieldset>
         <fieldset className="field field-wide">
           <legend>Service tags</legend>
           <div className="checkbox-list">

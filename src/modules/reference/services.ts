@@ -89,6 +89,25 @@ const agencyInput = z.object({
   contactName: z.string().trim().max(200).optional().or(z.literal("")),
   phone: z.string().trim().max(32).optional().or(z.literal("")),
   email: z.string().trim().email().max(254).optional().or(z.literal("")),
+  trainingCoordinatorName: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .or(z.literal("")),
+  trainingCoordinatorPhone: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .or(z.literal("")),
+  trainingCoordinatorEmail: z
+    .string()
+    .trim()
+    .email()
+    .max(254)
+    .optional()
+    .or(z.literal("")),
 });
 
 export interface AgencyTagView {
@@ -214,6 +233,12 @@ const trainingCodeInput = z.object({
 
 function nullable(value: string): string | null {
   return value === "" ? null : value;
+}
+
+/** Normalizes a US phone number, leaving a blank value as null. */
+function optionalPhone(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : normalizePhone(trimmed);
 }
 
 // ── Students ──────────────────────────────────────────────────────────────
@@ -520,6 +545,11 @@ export async function createAgency(
     contactName: nullable(parsed.contactName ?? ""),
     phone: nullable(parsed.phone ?? ""),
     email: nullable(parsed.email ?? ""),
+    trainingCoordinatorName: nullable(parsed.trainingCoordinatorName ?? ""),
+    trainingCoordinatorPhone: optionalPhone(
+      parsed.trainingCoordinatorPhone ?? "",
+    ),
+    trainingCoordinatorEmail: nullable(parsed.trainingCoordinatorEmail ?? ""),
   };
   const tagIds = parsed.tagIds ?? [];
   const otherSubtype = parsed.otherSubtype ?? "";
@@ -600,6 +630,13 @@ export async function updateAgency(
         contactName: nullable(parsed.contactName ?? ""),
         phone: nullable(parsed.phone ?? ""),
         email: nullable(parsed.email ?? ""),
+        trainingCoordinatorName: nullable(parsed.trainingCoordinatorName ?? ""),
+        trainingCoordinatorPhone: optionalPhone(
+          parsed.trainingCoordinatorPhone ?? "",
+        ),
+        trainingCoordinatorEmail: nullable(
+          parsed.trainingCoordinatorEmail ?? "",
+        ),
         updatedAt: new Date(),
       })
       .where(eq(agencies.id, id))
