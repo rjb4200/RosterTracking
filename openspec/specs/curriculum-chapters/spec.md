@@ -76,7 +76,7 @@ The system SHALL let staff record a curriculum that is not in the approved catal
 
 ### Requirement: A curriculum's chapters are managed from its record page
 
-The system SHALL let authorized staff add, edit, archive, and reactivate a curriculum's chapters from the curriculum's record page. Authoring a chapter SHALL capture a section (optional), a number, a title, and a source revision, defaulting the source revision to `manual` when it is left blank. The system SHALL derive each chapter's position from its number rather than accepting a position, and SHALL list a curriculum's chapters ordered by section and then position.
+The system SHALL let authorized staff add, edit, archive, and reactivate a curriculum's chapters from the curriculum's record page. Authoring a chapter SHALL capture a section (optional), a number, and a title, and the system SHALL store the chapter's source revision as `manual`. The system SHALL derive each chapter's position from its number rather than accepting a position, and SHALL list a curriculum's chapters ordered by section and then position.
 
 #### Scenario: Add a chapter
 - **WHEN** authorized staff add a chapter with a section, number, and title
@@ -90,9 +90,9 @@ The system SHALL let authorized staff add, edit, archive, and reactivate a curri
 - **WHEN** a chapter is authored with a number that does not begin with an integer, such as "Appendix A"
 - **THEN** the chapter is placed at the end of its section in catalog order
 
-#### Scenario: Default the source revision
-- **WHEN** a chapter is authored without a source revision
-- **THEN** the system stores the source revision as `manual`
+#### Scenario: Store the source revision as manual
+- **WHEN** a chapter is authored
+- **THEN** the system stores the chapter's source revision as `manual` without asking staff for it
 
 #### Scenario: Edit a chapter
 - **WHEN** authorized staff change a chapter's section, number, or title
