@@ -73,7 +73,6 @@ export default async function TrainingCodeDetailPage({
             id: code.id,
             code: code.code,
             title: code.title,
-            sourceRevision: code.sourceRevision,
           }}
         />
       </section>

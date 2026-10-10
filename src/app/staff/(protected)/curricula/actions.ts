@@ -27,7 +27,6 @@ export async function createCurriculumAction(
       programTitle: read(formData, "programTitle"),
       version: read(formData, "version"),
       additionalRequirements: read(formData, "additionalRequirements"),
-      sourceRevision: read(formData, "sourceRevision"),
     });
   } catch (error) {
     return {
@@ -51,7 +50,6 @@ export async function updateCurriculumAction(
       programTitle: read(formData, "programTitle"),
       version: read(formData, "version"),
       additionalRequirements: read(formData, "additionalRequirements"),
-      sourceRevision: read(formData, "sourceRevision"),
     });
     revalidatePath(`/staff/curricula/${id}`);
     revalidatePath("/staff/curricula");
@@ -105,7 +103,6 @@ export async function createChapterAction(
         part: read(formData, "part"),
         number: read(formData, "number"),
         title: read(formData, "title"),
-        sourceRevision: read(formData, "sourceRevision"),
       },
     );
     revalidatePath(`/staff/curricula/${curriculumId}`);
@@ -132,7 +129,6 @@ export async function updateChapterAction(
         part: read(formData, "part"),
         number: read(formData, "number"),
         title: read(formData, "title"),
-        sourceRevision: read(formData, "sourceRevision"),
       },
     );
     revalidatePath(`/staff/curricula/${curriculumId}`);

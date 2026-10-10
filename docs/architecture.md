@@ -16,4 +16,4 @@ Template mappings are owned with their checked-in source PDF in `src/modules/off
 
 ## Reference data
 
-Host agencies, training sites, training codes, and approved curricula share one management-screen pattern. A curriculum's chapters are managed from the curriculum's record page — add, edit, archive, and reactivate — with each chapter's position derived from its number. `scripts/import-curriculum-chapters.ts` remains as a legacy seed script, but the chapter catalog is admin-owned going forward.
+Host agencies, training sites, training codes, and approved curricula share one management-screen pattern. A curriculum's chapters are managed from the curriculum's record page — add, edit, archive, and reactivate — with each chapter's position derived from its number. Curricula, training codes, and chapters are authored without a source revision; admin-authored records store `manual`. The `source_revision` columns, their unique indexes, and the import scripts remain in place for the legacy imports. `scripts/import-curriculum-chapters.ts` remains as a legacy seed script, but the chapter catalog is admin-owned going forward.

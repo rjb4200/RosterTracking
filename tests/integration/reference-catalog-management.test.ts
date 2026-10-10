@@ -55,8 +55,8 @@ describeDatabase("reference catalog management lookups", () => {
     const created = await createTrainingCode(db, actor, {
       code: `TC-${revision}`,
       title: "Lookup Code",
-      sourceRevision: revision,
     });
+    expect(created.sourceRevision).toBe("manual");
 
     const loaded = await getTrainingCode(db, created.id);
     expect(loaded?.code).toBe(`TC-${revision}`);
@@ -71,8 +71,8 @@ describeDatabase("reference catalog management lookups", () => {
     const created = await createCurriculum(db, actor, {
       publisher: "Lookup Publisher",
       programTitle: `Lookup Program ${revision}`,
-      sourceRevision: revision,
     });
+    expect(created.sourceRevision).toBe("manual");
 
     const loaded = await getCurriculum(db, created.id);
     expect(loaded?.programTitle).toBe(`Lookup Program ${revision}`);

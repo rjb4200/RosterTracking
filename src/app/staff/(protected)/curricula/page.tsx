@@ -59,14 +59,13 @@ export default async function CurriculaPage({
             <TableHead>Publisher</TableHead>
             <TableHead>Program title</TableHead>
             <TableHead>Version</TableHead>
-            <TableHead>Source revision</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {curricula.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
+              <TableCell colSpan={4} className="text-muted-foreground">
                 No curricula found.
               </TableCell>
             </TableRow>
@@ -83,7 +82,6 @@ export default async function CurriculaPage({
                   </Link>
                 </TableCell>
                 <TableCell>{curriculum.version ?? "—"}</TableCell>
-                <TableCell>{curriculum.sourceRevision}</TableCell>
                 <TableCell>
                   {curriculum.isActive ? (
                     <Badge variant="secondary">Active</Badge>

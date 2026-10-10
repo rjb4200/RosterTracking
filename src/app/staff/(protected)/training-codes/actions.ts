@@ -25,7 +25,6 @@ export async function createTrainingCodeAction(
     await reference.createTrainingCode(getDatabase(), actor, {
       code: read(formData, "code"),
       title: read(formData, "title"),
-      sourceRevision: read(formData, "sourceRevision"),
     });
   } catch (error) {
     return {
@@ -49,7 +48,6 @@ export async function updateTrainingCodeAction(
     await reference.updateTrainingCode(getDatabase(), actor, id, {
       code: read(formData, "code"),
       title: read(formData, "title"),
-      sourceRevision: read(formData, "sourceRevision"),
     });
     revalidatePath(`/staff/training-codes/${id}`);
     revalidatePath("/staff/training-codes");

@@ -58,14 +58,13 @@ export default async function TrainingCodesPage({
           <TableRow>
             <TableHead>Code</TableHead>
             <TableHead>Title</TableHead>
-            <TableHead>Source revision</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {codes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
+              <TableCell colSpan={3} className="text-muted-foreground">
                 No training codes found.
               </TableCell>
             </TableRow>
@@ -81,7 +80,6 @@ export default async function TrainingCodesPage({
                   </Link>
                 </TableCell>
                 <TableCell>{code.title}</TableCell>
-                <TableCell>{code.sourceRevision}</TableCell>
                 <TableCell>
                   {code.isActive ? (
                     <Badge variant="secondary">Active</Badge>

@@ -89,7 +89,6 @@ export default async function CurriculumDetailPage({
             programTitle: curriculum.programTitle,
             version: curriculum.version,
             additionalRequirements: curriculum.additionalRequirements,
-            sourceRevision: curriculum.sourceRevision,
           }}
         />
       </section>
@@ -131,7 +130,6 @@ export default async function CurriculumDetailPage({
                           part: chapter.part,
                           number: chapter.number,
                           title: chapter.title,
-                          sourceRevision: chapter.sourceRevision,
                         }}
                       />
                     </details>
