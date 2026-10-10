@@ -18,7 +18,7 @@ The system SHALL record regular attendance against one active student and one op
 - **THEN** the system returns the existing successful attendance result instead of creating a duplicate
 
 ### Requirement: Guest attendance remains class-specific
-The system SHALL provide a secondary guest workflow that collects the participant name, a valid email address, the attendance agency, and class-required roster fields and credentials without creating or modifying a permanent student record. The email SHALL be required so the guest can receive a completion certificate.
+The system SHALL provide a secondary guest workflow that collects the participant name, a valid email address, the attendance agency, and any prompted optional roster fields and credentials without creating or modifying a permanent student record. The email SHALL be required so the guest can receive a completion certificate.
 
 #### Scenario: Sign in a guest
 - **WHEN** a visitor cannot use a regular student pathway and completes the guest workflow with a name, email, and agency
@@ -33,11 +33,11 @@ The system SHALL provide a secondary guest workflow that collects the participan
 - **THEN** the system does not issue a regular-student remembered-device token or create a reusable student profile
 
 ### Requirement: Self-registration creates the student record at confirmation
-The system SHALL create a new regular student, that student's class-required credentials, and their represented-agency membership inside the same attendance transaction that records attendance. The student SHALL be created only after the class state, phone availability, credential availability, agency, class requirements, and attestation all validate. The transaction SHALL retain the same requirement-version and snapshot facts as any other regular attendance, and a retry with the same idempotency key SHALL return the original result without creating a second student.
+The system SHALL create a new regular student, that student's captured credentials, and their represented-agency membership inside the same attendance transaction that records attendance. The student SHALL be created only after the class state, phone availability, credential availability, agency, and attestation all validate. The transaction SHALL retain the same inclusion-rule-version and snapshot facts as any other regular attendance, and a retry with the same idempotency key SHALL return the original result without creating a second student.
 
 #### Scenario: Create the student with attendance
 - **WHEN** a visitor completes new-student registration and confirms the attestation
-- **THEN** the system creates exactly one student, their required credentials, their membership, and one attendance record for the class
+- **THEN** the system creates exactly one student, their captured credentials, their membership, and one attendance record for the class
 
 #### Scenario: Roll back on a conflict
 - **WHEN** the phone number or a credential value becomes unavailable before the transaction commits
@@ -78,11 +78,11 @@ The system SHALL show the text `I confirm that I am [Student Name] and attended 
 - **THEN** the system does not create attendance
 
 ### Requirement: Reporting context is retained with attendance
-The system SHALL retain the effective reporting requirement-set versions, every required student-field value, and the credential values used for each reporting system at sign-in so later profile edits do not change the attendance's reporting facts. Sensitive snapshots SHALL remain protected from public display and plaintext logs.
+The system SHALL retain the effective reporting inclusion-rule versions, every captured student-field value, the credential values supplied at sign-in, and each attendee's resolved reporting inclusion so later profile edits do not change the attendance's reporting facts. Sensitive snapshots SHALL remain protected from public display and plaintext logs.
 
 #### Scenario: Preserve sign-in credentials
-- **WHEN** a participant signs in with credentials required by the class reporting systems
-- **THEN** the attendance retains the requirement versions plus protected student-field and credential snapshots used for that submission
+- **WHEN** a participant signs in on a class with one or more reporting systems selected
+- **THEN** the attendance retains the inclusion-rule versions, the supplied credential and student-field snapshots, and the reporting-inclusion resolution used for that submission
 
 ### Requirement: Attendance submission is transactional and idempotent
 The system SHALL validate class state, identity or guest data, agency, requirements, and attestation and persist all attendance facts in one transaction. Each confirmation SHALL carry an unpredictable server-issued idempotency key bound to the class workflow, participant, and submitted payload. All guest confirmations, including successful submissions, SHALL be subject to per-class and request-source volume limits.

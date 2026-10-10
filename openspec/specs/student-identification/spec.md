@@ -7,7 +7,7 @@ Identify regular students through privacy-preserving public pathways and collect
 ## Requirements
 
 ### Requirement: Regular identification follows a defined priority
-The system SHALL attempt regular student identification in this order: a valid remembered device, normalized current-phone lookup, changed-number recovery using the prior phone plus an existing FFN or KEMSIS ID, and then new-student registration. Identification SHALL use only active student records. A successful regular sign-in SHALL remember the device by default.
+The system SHALL attempt regular student identification in this order: a valid remembered device, normalized current-phone lookup, changed-number recovery using the prior phone plus the stored email, and then new-student registration. Identification SHALL use only active student records. A successful regular sign-in SHALL remember the device by default.
 
 #### Scenario: Recognize a remembered student
 - **WHEN** a visitor enters an open class with a valid remembered-device token for an active student
@@ -33,46 +33,27 @@ The system SHALL normalize a submitted phone number before exact-match lookup. A
 - **THEN** the workflow starts new-student registration with that phone prefilled, and offers `My phone number changed` and guest options without suggesting partial matches or exposing student data
 
 ### Requirement: An unknown phone number can register a new student
-When a submitted phone number does not identify an active student, the system SHALL allow the visitor to register a new regular student in the same class workflow. Registration SHALL collect the first name, last name, the normalized phone number, an email address, every class-required student field, every class-required credential, and one active agency before attendance confirmation. The system SHALL create the student record, its credentials, and its agency membership only inside the successful attendance transaction, and SHALL remember the new device by default. The system SHALL reject a phone number or credential value already in use with the same generic failure and SHALL create no partial records.
+When a submitted phone number does not identify an active student, the system SHALL allow the visitor to register a new regular student in the same class workflow. Registration SHALL collect the first name, last name, the normalized phone number, an email address, any prompted optional field, any prompted credential, and one active agency before attendance confirmation. The system SHALL create the student record, its credentials, and its agency membership only inside the successful attendance transaction, and SHALL remember the new device by default. The system SHALL reject a phone number or credential value already in use with the same generic failure and SHALL create no partial records.
 
 #### Scenario: Register and sign in with an unknown phone
-- **WHEN** a visitor submits a phone number that does not resolve and completes the registration details with every class-required value and an active agency
+- **WHEN** a visitor submits a phone number that does not resolve and completes the registration details with an email and an active agency
 - **THEN** the system creates the student, records attendance linked to that student, and remembers the device
+
+#### Scenario: Register without a prompted credential
+- **WHEN** a visitor completes registration and leaves every prompted credential blank
+- **THEN** the system still creates the student and records attendance
 
 #### Scenario: Reject an already-registered phone
 - **WHEN** the submitted phone number is already stored on a student record at confirmation time
 - **THEN** the transaction creates no student or attendance data and returns a generic failure
 
 #### Scenario: Reject a duplicate credential value
-- **WHEN** a class-required credential value is already stored for another student
+- **WHEN** a supplied credential value is already stored for another student
 - **THEN** the transaction creates no student or attendance data and returns a generic failure
 
 #### Scenario: Keep recovery and guest available
 - **WHEN** a returning student's phone number changed or a visitor does not want to register
 - **THEN** the registration screen still offers `My phone number changed` and guest entry
-
-### Requirement: A prior phone and stored credential recover a changed number
-When a new phone number does not identify a regular student, the system SHALL allow changed-number recovery by exact matching a submitted prior phone to one active student and then exact matching a student-selected FFN or KEMSIS ID already stored for that student. The challenge SHALL offer the same supported credential choices without revealing which types the matched record stores. When both supported credential types are present, either matching credential SHALL be accepted. The workflow SHALL never display the stored credential value. After a match, the student SHALL affirmatively confirm the displayed profile before a unique, available new phone is staged. The new phone SHALL be revalidated and applied only if class attendance confirmation succeeds.
-
-#### Scenario: Recover after a phone change
-- **WHEN** a new phone does not match, and the student supplies the exact prior phone plus a matching stored FFN or KEMSIS ID
-- **THEN** the system shows the student's profile and masked credentials, requires affirmative verification, stages the available new phone, and updates the record only in the successful attendance transaction
-
-#### Scenario: Reject invalid recovery generically
-- **WHEN** the prior phone is unknown, the credential is absent or incorrect, the student is inactive, or the new phone is unavailable
-- **THEN** the system returns the same generic recovery failure and offers guest entry without revealing which value failed
-
-#### Scenario: Use guest entry without regular recovery data
-- **WHEN** a visitor cannot use a remembered device, current phone, valid changed-number recovery, or new-student registration
-- **THEN** the workflow offers class-scoped guest entry that saves no permanent student record
-
-#### Scenario: Reject the recovered profile
-- **WHEN** the visitor selects `Not me` instead of affirmatively confirming the recovered profile
-- **THEN** the system clears the recovery state, does not stage or apply the new phone, and offers regular or guest entry
-
-#### Scenario: Recheck the new phone at confirmation
-- **WHEN** a staged new phone becomes unavailable before attendance confirmation
-- **THEN** the transaction applies no student or attendance changes and returns a generic recovery-restart response
 
 ### Requirement: Remembered devices use revocable opaque tokens
 The system SHALL issue an unpredictable remembered-device token after a successful regular sign-in, store only its cryptographic hash, and associate it with one student, expiration, and revocation state. A remembered device SHALL identify a student but SHALL NOT itself prove attendance. Device recognition SHALL apply on every class entry path, including the public short code and a raw token link.
@@ -96,21 +77,6 @@ The system SHALL issue an unpredictable remembered-device token after a successf
 #### Scenario: Update recognized information
 - **WHEN** the recognized student selects `Update my information`
 - **THEN** the workflow collects the missing or corrected class-required fields and credentials before confirmation
-
-### Requirement: Class reporting requirements are resolved at sign-in
-The system SHALL resolve the effective versioned requirement set for every reporting system selected on the class. Before attendance confirmation, the workflow SHALL collect any missing required student fields or credentials and SHALL retain which requirement-set versions were used.
-
-#### Scenario: Request a missing credential
-- **WHEN** an identified student lacks a credential required by an effective class reporting requirement
-- **THEN** the workflow requests that credential before allowing attendance confirmation
-
-#### Scenario: Reuse an existing credential
-- **WHEN** the student already has every required field and credential
-- **THEN** the workflow proceeds without requesting duplicate profile data
-
-#### Scenario: Do not overwrite an existing permanent value
-- **WHEN** a public regular sign-in submits a value that conflicts with an existing student field or credential
-- **THEN** the system does not overwrite the permanent value and requires later staff correction when necessary
 
 ### Requirement: Public identification resists enumeration and abuse
 The system SHALL rate-limit workflow creation, staging writes, current-phone lookup, prior-phone lookup, and credential recovery attempts using class context, request source, and one-way identifier fingerprints. Responses and logs SHALL exclude student lists, partial matches, raw phones, raw remembered tokens, and full credential values.
@@ -137,3 +103,70 @@ The system SHALL require an identified regular student who lacks an email addres
 #### Scenario: Do not overwrite an existing email
 - **WHEN** a regular student already has an email
 - **THEN** the workflow does not request or replace it
+
+### Requirement: A prior phone and stored email recover a changed number
+When a new phone number does not identify a regular student, the system SHALL allow changed-number recovery by exact matching a submitted prior phone to one active student and then matching a submitted email to that student's stored email, compared case-insensitively and with surrounding whitespace ignored. The workflow SHALL never display the stored email or any credential value. After a match, the student SHALL affirmatively confirm the displayed profile before a unique, available new phone is staged. The new phone SHALL be revalidated and applied only if class attendance confirmation succeeds. When the matched record has no stored email, the system SHALL return the same generic recovery failure as any other non-match.
+
+#### Scenario: Recover after a phone change
+- **WHEN** a new phone does not match, and the student supplies the exact prior phone plus the email stored on that record
+- **THEN** the system shows the student's profile and masked credentials, requires affirmative verification, stages the available new phone, and updates the record only in the successful attendance transaction
+
+#### Scenario: Reject invalid recovery generically
+- **WHEN** the prior phone is unknown, the email does not match, the matched record has no stored email, the student is inactive, or the new phone is unavailable
+- **THEN** the system returns the same generic recovery failure and offers guest entry without revealing which value failed
+
+#### Scenario: Reject the recovered profile
+- **WHEN** the visitor selects `Not me` instead of affirmatively confirming the recovered profile
+- **THEN** the system clears the recovery state, does not stage or apply the new phone, and offers regular or guest entry
+
+#### Scenario: Recheck the new phone at confirmation
+- **WHEN** a staged new phone becomes unavailable before attendance confirmation
+- **THEN** the transaction applies no student or attendance changes and returns a generic recovery-restart response
+
+#### Scenario: Use guest entry without regular recovery data
+- **WHEN** a visitor cannot use a remembered device, current phone, valid changed-number recovery, or new-student registration
+- **THEN** the workflow offers class-scoped guest entry that saves no permanent student record
+
+### Requirement: Sign-in prompts follow the selected reporting systems
+The system SHALL prompt for credentials based on the reporting systems selected on the class. When Fire is selected, the workflow SHALL prompt for the FFN. When KBEMS is selected, the workflow SHALL prompt for the KEMSIS ID and the NREMT number. When both are selected, the workflow SHALL prompt for all three. The FEMA SID SHALL NOT be prompted. No prompted credential SHALL be required to confirm attendance.
+
+#### Scenario: Prompt for the FFN on a Fire class
+- **WHEN** an identified student enters a class with the Fire reporting system selected
+- **THEN** the workflow prompts for the FFN and allows confirmation without it
+
+#### Scenario: Prompt for KEMSIS and NREMT on an EMS class
+- **WHEN** an identified student enters a class with the KBEMS reporting system selected
+- **THEN** the workflow prompts for the KEMSIS ID and the NREMT number and allows confirmation without them
+
+#### Scenario: Prompt for all credentials on a combined class
+- **WHEN** a class selects both Fire and KBEMS
+- **THEN** the workflow prompts for the FFN, the KEMSIS ID, and the NREMT number
+
+#### Scenario: Never prompt for FEMA SID
+- **WHEN** any class prompts for credentials
+- **THEN** the FEMA SID is not requested
+
+### Requirement: Credential capture affects report inclusion only
+The system SHALL store a supplied credential and SHALL NOT block attendance confirmation when a prompted credential is absent or left blank. A missing credential SHALL only exclude the attendee from the reporting output whose inclusion rule requires it.
+
+#### Scenario: Proceed without a prompted credential
+- **WHEN** a student leaves a prompted credential blank
+- **THEN** the workflow still allows attendance confirmation
+
+#### Scenario: Missing FFN excludes only the Fire output
+- **WHEN** a student confirms attendance on a Fire-selected class without a valid FFN
+- **THEN** the attendance is recorded and the attendee is excluded from the Fire output only
+
+### Requirement: A malformed FFN is rejected at sign-in
+The system SHALL reject an FFN value submitted at sign-in that does not match the `0000-0000` format and SHALL allow the student to correct it or leave it blank.
+
+#### Scenario: Reject a misformatted FFN entry
+- **WHEN** a student submits an FFN that is not in the `0000-0000` format at sign-in
+- **THEN** the system rejects the value, stores no FFN, and allows the student to correct it or leave it blank
+
+### Requirement: A student is warned when Fire credit will be withheld
+When a class has the Fire reporting system selected and the student has no valid FFN, the workflow SHALL inform the student before confirmation that they can still sign in and receive a certificate, but their training hours will not be credited on the Fire roster without a valid FFN in the `0000-0000` format.
+
+#### Scenario: Warn before confirming without a valid FFN
+- **WHEN** a student reaches attendance confirmation on a Fire-selected class without a valid FFN
+- **THEN** the workflow shows the Fire-credit warning before confirmation

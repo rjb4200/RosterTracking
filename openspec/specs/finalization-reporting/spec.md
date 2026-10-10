@@ -66,7 +66,7 @@ The system SHALL allow only Training Majors and Administrators to manage Fire, K
 - **THEN** the system preserves its actor, timestamp, reference number, and notes while representing its status as entered
 
 ### Requirement: Reporting work is queued by status
-The system SHALL provide a Training Major reporting work queue for finalized revisions with reporting destinations that require staff action. The queue SHALL show workload counts by destination and status, support filtering by reporting destination, status, and a date range, and show each queue item's class date, class name, lead instructor, active student count, reporting destination, and current status. A queue item whose class has an earlier finalization revision SHALL be marked as revised work and SHALL identify the revision it supersedes together with that revision's status for the same destination, so a destination that was already reported cannot be mistaken for first-time work. The queue SHALL provide authorized staff a direct Mark entered action and a Mark not required action. Where the Fire destination has an approved official roster form, the queue SHALL provide its download action; the system SHALL not offer a PDF action for any other reporting destination.
+The system SHALL provide a Training Major reporting work queue for finalized revisions with reporting destinations that require staff action. The queue SHALL show workload counts by destination and status, support filtering by reporting destination, status, and a date range, and show each queue item's class date, class name, lead instructor, included attendee count for that destination, reporting destination, and current status. A queue item whose class has an earlier finalization revision SHALL be marked as revised work and SHALL identify the revision it supersedes together with that revision's status for the same destination, so a destination that was already reported cannot be mistaken for first-time work. The queue SHALL provide authorized staff a direct Mark entered action and a Mark not required action. Where the Fire destination has an approved official roster form, the queue SHALL provide its download action; the system SHALL not offer a PDF action for any other reporting destination.
 
 #### Scenario: View pending workload
 - **WHEN** an authorized Training Major views the reporting queue
@@ -99,3 +99,14 @@ The system SHALL provide a Training Major reporting work queue for finalized rev
 #### Scenario: Exclude unsupported roster forms
 - **WHEN** staff view a KBEMS or MTU reporting queue item
 - **THEN** the system does not offer an official roster PDF download
+
+### Requirement: Fire reporting scope is the valid-FFN subset
+The Fire reporting destination SHALL cover only the attendees with a valid FFN. The finalization revision SHALL record each attendee's resolved Fire inclusion so the Fire output and its queue count can be derived without re-evaluating mutable credentials.
+
+#### Scenario: Fire destination counts only valid-FFN attendees
+- **WHEN** a finalized class is reported to Fire and some attendees lack a valid FFN
+- **THEN** the Fire queue item's included attendee count excludes those attendees
+
+#### Scenario: Revision preserves Fire inclusion
+- **WHEN** a class with a mixed roster is finalized
+- **THEN** the revision records which attendees are Fire-eligible
