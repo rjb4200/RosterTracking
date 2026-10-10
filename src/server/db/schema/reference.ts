@@ -268,6 +268,7 @@ export const curriculumChapters = pgTable(
     position: integer("position").default(0).notNull(),
     sourceRevision: text("source_revision").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -279,6 +280,10 @@ export const curriculumChapters = pgTable(
     index("curriculum_chapters_curriculum_position_idx").on(
       table.curriculumId,
       table.position,
+    ),
+    check(
+      "curriculum_chapters_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
     ),
   ],
 );

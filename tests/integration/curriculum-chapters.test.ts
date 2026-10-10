@@ -13,8 +13,13 @@ import {
 import { renderOfficialRoster } from "../../src/modules/official-roster-pdfs/service";
 import { decryptCredential } from "../../src/modules/reference/crypto";
 import {
+  archiveCurriculumChapter,
+  createCurriculumChapter,
   importCurriculumChapters,
   listCurriculumChapters,
+  listCurriculumChaptersForAdmin,
+  reactivateCurriculumChapter,
+  updateCurriculumChapter,
 } from "../../src/modules/reference/services";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
@@ -379,5 +384,121 @@ describeDatabase("curriculum chapters", () => {
       curriculumName: "A Book We Do Not Track",
       curriculumChapter: "Chapter 1. Whatever",
     });
+  });
+
+  it("authors, edits, archives, and reactivates chapters with derived positions", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const [actorRow] = await db
+      .insert(users)
+      .values({
+        username: `chapter-author-${suffix}`,
+        displayName: "Author",
+        passwordHash: "fixture-password-hash",
+      })
+      .returning({ id: users.id, username: users.username });
+    const [curriculum] = await db
+      .insert(curricula)
+      .values({
+        publisher: "IFSTA",
+        programTitle: `Authored ${suffix}`,
+        version: "8th Edition",
+        sourceRevision: "test",
+      })
+      .returning({ id: curricula.id });
+    if (!actorRow || !curriculum) throw new Error("Author fixture failed.");
+    const actor = { id: actorRow.id, username: actorRow.username };
+
+    const numeric = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "Firefighter I",
+      number: "3",
+      title: "Communications",
+      sourceRevision: "",
+    });
+    expect(numeric.position).toBe(3);
+    expect(numeric.sourceRevision).toBe("manual");
+
+    const appended = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "Firefighter I",
+      number: "Appendix A",
+      title: "Appendix",
+    });
+    expect(appended.position).toBe(4);
+
+    await expect(
+      createCurriculumChapter(db, actor, curriculum.id, {
+        part: "Firefighter I",
+        number: "3",
+        title: "Duplicate",
+      }),
+    ).rejects.toThrow(/already exists/i);
+
+    const edited = await updateCurriculumChapter(db, actor, numeric.id, {
+      part: "Firefighter I",
+      number: "4",
+      title: "Communications II",
+    });
+    expect(edited.position).toBe(4);
+
+    await archiveCurriculumChapter(db, actor, numeric.id);
+    expect(
+      (await listCurriculumChapters(db, [curriculum.id])).some(
+        (chapter) => chapter.id === numeric.id,
+      ),
+    ).toBe(false);
+    const adminList = await listCurriculumChaptersForAdmin(db, curriculum.id);
+    expect(
+      adminList.some(
+        (chapter) => chapter.id === numeric.id && chapter.archivedAt !== null,
+      ),
+    ).toBe(true);
+
+    await reactivateCurriculumChapter(db, actor, numeric.id);
+    expect(
+      (await listCurriculumChapters(db, [curriculum.id])).some(
+        (chapter) => chapter.id === numeric.id,
+      ),
+    ).toBe(true);
+  });
+
+  it("revives an archived chapter when its section and number are re-added", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const [actorRow] = await db
+      .insert(users)
+      .values({
+        username: `chapter-revive-${suffix}`,
+        displayName: "Reviver",
+        passwordHash: "fixture-password-hash",
+      })
+      .returning({ id: users.id, username: users.username });
+    const [curriculum] = await db
+      .insert(curricula)
+      .values({
+        publisher: "IFSTA",
+        programTitle: `Revived ${suffix}`,
+        version: "8th Edition",
+        sourceRevision: "test",
+      })
+      .returning({ id: curricula.id });
+    if (!actorRow || !curriculum) throw new Error("Revive fixture failed.");
+    const actor = { id: actorRow.id, username: actorRow.username };
+
+    const first = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "",
+      number: "5",
+      title: "Original",
+    });
+    await archiveCurriculumChapter(db, actor, first.id);
+    const revived = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "",
+      number: "5",
+      title: "Renamed",
+    });
+    expect(revived.id).toBe(first.id);
+    expect(revived.archivedAt).toBeNull();
+    expect(revived.title).toBe("Renamed");
   });
 });

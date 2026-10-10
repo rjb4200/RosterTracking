@@ -1,0 +1,2 @@
+ALTER TABLE "curriculum_chapters" ADD COLUMN "archived_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "curriculum_chapters" ADD CONSTRAINT "curriculum_chapters_archived_state" CHECK ("curriculum_chapters"."archived_at" is null or not "curriculum_chapters"."is_active");

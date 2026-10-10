@@ -1281,3 +1281,241 @@ export async function listCurriculumChapters(
     )
     .orderBy(curriculumChapters.curriculumId, curriculumChapters.position);
 }
+
+// ── Chapter authoring ─────────────────────────────────────────────────────
+
+const curriculumChapterWriteInput = z.object({
+  part: z.string().trim().max(200).optional().default(""),
+  number: z.string().trim().min(1).max(50),
+  title: z.string().trim().min(1).max(300),
+  sourceRevision: z.string().trim().max(100).optional().default(""),
+});
+
+const MANUAL_SOURCE_REVISION = "manual";
+
+/** A chapter's position is derived from a leading integer in its number. */
+function deriveChapterPosition(number: string): number | null {
+  const match = /^\s*(\d+)/.exec(number);
+  return match ? Number(match[1]) : null;
+}
+
+async function nextChapterPosition(
+  transaction: DatabaseTransaction,
+  curriculumId: string,
+): Promise<number> {
+  const [row] = await transaction
+    .select({
+      next: sql<number>`coalesce(max(${curriculumChapters.position}), 0) + 1`,
+    })
+    .from(curriculumChapters)
+    .where(eq(curriculumChapters.curriculumId, curriculumId));
+  return row?.next ?? 1;
+}
+
+/** Chapters for a curriculum's record page, including archived ones. */
+export async function listCurriculumChaptersForAdmin(
+  db: Database,
+  curriculumId: string,
+) {
+  return db
+    .select({
+      id: curriculumChapters.id,
+      part: curriculumChapters.part,
+      number: curriculumChapters.number,
+      title: curriculumChapters.title,
+      position: curriculumChapters.position,
+      sourceRevision: curriculumChapters.sourceRevision,
+      isActive: curriculumChapters.isActive,
+      archivedAt: curriculumChapters.archivedAt,
+    })
+    .from(curriculumChapters)
+    .where(eq(curriculumChapters.curriculumId, curriculumId))
+    .orderBy(
+      curriculumChapters.part,
+      curriculumChapters.position,
+      curriculumChapters.number,
+    );
+}
+
+/**
+ * Authors a chapter for a curriculum. A number's leading integer sets its
+ * position; otherwise it is appended. Re-adding a section and number that match
+ * an archived chapter reactivates it; matching an active chapter is an error.
+ */
+export async function createCurriculumChapter(
+  db: Database,
+  actor: Actor,
+  curriculumId: string,
+  input: z.input<typeof curriculumChapterWriteInput>,
+) {
+  const parsed = curriculumChapterWriteInput.parse(input);
+  return db.transaction(async (transaction) => {
+    const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
+    const position =
+      deriveChapterPosition(parsed.number) ??
+      (await nextChapterPosition(transaction, curriculumId));
+    const [existing] = await transaction
+      .select()
+      .from(curriculumChapters)
+      .where(
+        and(
+          eq(curriculumChapters.curriculumId, curriculumId),
+          eq(curriculumChapters.part, parsed.part),
+          eq(curriculumChapters.number, parsed.number),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (existing) {
+      if (!existing.archivedAt) {
+        throw new Error(
+          "A chapter with that section and number already exists for this curriculum.",
+        );
+      }
+      const [revived] = await transaction
+        .update(curriculumChapters)
+        .set({
+          title: parsed.title,
+          position,
+          sourceRevision,
+          isActive: true,
+          archivedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(curriculumChapters.id, existing.id))
+        .returning();
+      if (!revived) throw new Error("Chapter was not reactivated.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "curriculum.chapter.reactivated",
+        entityType: "curriculum",
+        entityId: curriculumId,
+        details: { chapterId: existing.id, number: parsed.number },
+      });
+      return revived;
+    }
+    const [chapter] = await transaction
+      .insert(curriculumChapters)
+      .values({
+        curriculumId,
+        part: parsed.part,
+        number: parsed.number,
+        title: parsed.title,
+        position,
+        sourceRevision,
+      })
+      .returning();
+    if (!chapter) throw new Error("Chapter was not created.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "curriculum.chapter.created",
+      entityType: "curriculum",
+      entityId: curriculumId,
+      details: { chapterId: chapter.id, number: chapter.number },
+    });
+    return chapter;
+  });
+}
+
+export async function updateCurriculumChapter(
+  db: Database,
+  actor: Actor,
+  id: string,
+  input: z.input<typeof curriculumChapterWriteInput>,
+) {
+  const parsed = curriculumChapterWriteInput.parse(input);
+  return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(curriculumChapters)
+      .where(eq(curriculumChapters.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Chapter not found.");
+    const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
+    const position =
+      deriveChapterPosition(parsed.number) ??
+      (await nextChapterPosition(transaction, current.curriculumId));
+    try {
+      const [chapter] = await transaction
+        .update(curriculumChapters)
+        .set({
+          part: parsed.part,
+          number: parsed.number,
+          title: parsed.title,
+          position,
+          sourceRevision,
+          updatedAt: new Date(),
+        })
+        .where(eq(curriculumChapters.id, id))
+        .returning();
+      if (!chapter) throw new Error("Chapter not found.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "curriculum.chapter.updated",
+        entityType: "curriculum",
+        entityId: chapter.curriculumId,
+        details: { chapterId: chapter.id, number: chapter.number },
+      });
+      return chapter;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error(
+          "Another chapter already uses that section and number.",
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+export async function archiveCurriculumChapter(
+  db: Database,
+  actor: Actor,
+  id: string,
+) {
+  return db.transaction(async (transaction) => {
+    const [chapter] = await transaction
+      .update(curriculumChapters)
+      .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+      .where(eq(curriculumChapters.id, id))
+      .returning();
+    if (!chapter) throw new Error("Chapter not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "curriculum.chapter.archived",
+      entityType: "curriculum",
+      entityId: chapter.curriculumId,
+      details: { chapterId: chapter.id, number: chapter.number },
+    });
+    return chapter;
+  });
+}
+
+export async function reactivateCurriculumChapter(
+  db: Database,
+  actor: Actor,
+  id: string,
+) {
+  return db.transaction(async (transaction) => {
+    const [chapter] = await transaction
+      .update(curriculumChapters)
+      .set({ archivedAt: null, isActive: true, updatedAt: new Date() })
+      .where(eq(curriculumChapters.id, id))
+      .returning();
+    if (!chapter) throw new Error("Chapter not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "curriculum.chapter.reactivated",
+      entityType: "curriculum",
+      entityId: chapter.curriculumId,
+      details: { chapterId: chapter.id, number: chapter.number },
+    });
+    return chapter;
+  });
+}

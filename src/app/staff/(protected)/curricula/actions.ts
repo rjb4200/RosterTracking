@@ -89,3 +89,81 @@ export async function archiveCurriculumAction(
   revalidatePath("/staff/curricula");
   redirect("/staff/curricula");
 }
+
+export async function createChapterAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CURRICULA_MANAGE);
+  const curriculumId = read(formData, "curriculumId");
+  try {
+    await reference.createCurriculumChapter(
+      getDatabase(),
+      actor,
+      curriculumId,
+      {
+        part: read(formData, "part"),
+        number: read(formData, "number"),
+        title: read(formData, "title"),
+        sourceRevision: read(formData, "sourceRevision"),
+      },
+    );
+    revalidatePath(`/staff/curricula/${curriculumId}`);
+    return {};
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not add chapter.",
+    };
+  }
+}
+
+export async function updateChapterAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CURRICULA_MANAGE);
+  const curriculumId = read(formData, "curriculumId");
+  try {
+    await reference.updateCurriculumChapter(
+      getDatabase(),
+      actor,
+      read(formData, "id"),
+      {
+        part: read(formData, "part"),
+        number: read(formData, "number"),
+        title: read(formData, "title"),
+        sourceRevision: read(formData, "sourceRevision"),
+      },
+    );
+    revalidatePath(`/staff/curricula/${curriculumId}`);
+    return {};
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not save chapter.",
+    };
+  }
+}
+
+export async function archiveChapterAction(formData: FormData): Promise<void> {
+  const actor = await requireActor(PERMISSIONS.CURRICULA_MANAGE);
+  const curriculumId = read(formData, "curriculumId");
+  await reference.archiveCurriculumChapter(
+    getDatabase(),
+    actor,
+    read(formData, "id"),
+  );
+  revalidatePath(`/staff/curricula/${curriculumId}`);
+}
+
+export async function reactivateChapterAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await requireActor(PERMISSIONS.CURRICULA_MANAGE);
+  const curriculumId = read(formData, "curriculumId");
+  await reference.reactivateCurriculumChapter(
+    getDatabase(),
+    actor,
+    read(formData, "id"),
+  );
+  revalidatePath(`/staff/curricula/${curriculumId}`);
+}
