@@ -198,10 +198,12 @@ const siteInput = z.object({
   zip: z.string().trim().max(20).optional().or(z.literal("")),
 });
 
+const MANUAL_SOURCE_REVISION = "manual";
+
 const trainingCodeInput = z.object({
   code: z.string().trim().min(1).max(50),
   title: z.string().trim().min(1).max(300),
-  sourceRevision: z.string().trim().min(1).max(50),
+  sourceRevision: z.string().trim().max(50).optional().default(""),
 });
 
 function nullable(value: string): string | null {
@@ -982,7 +984,7 @@ const curriculumInput = z.object({
   programTitle: z.string().trim().min(1).max(300),
   version: z.string().trim().max(100).optional().default(""),
   additionalRequirements: z.string().trim().max(500).optional().default(""),
-  sourceRevision: z.string().trim().min(1).max(100),
+  sourceRevision: z.string().trim().max(100).optional().default(""),
 });
 
 export async function importCurricula(
@@ -1169,11 +1171,16 @@ export async function createTrainingCode(
   input: z.input<typeof trainingCodeInput>,
 ) {
   const parsed = trainingCodeInput.parse(input);
+  const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
   return db.transaction(async (transaction) => {
     try {
       const [code] = await transaction
         .insert(trainingCodes)
-        .values(parsed)
+        .values({
+          code: parsed.code,
+          title: parsed.title,
+          sourceRevision,
+        })
         .returning();
       if (!code) throw new Error("Training code was not created.");
       await writeAuditLog(transaction, {
@@ -1203,6 +1210,7 @@ export async function updateTrainingCode(
   input: z.input<typeof trainingCodeInput>,
 ) {
   const parsed = trainingCodeInput.parse(input);
+  const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
   return db.transaction(async (transaction) => {
     try {
       const [code] = await transaction
@@ -1210,7 +1218,7 @@ export async function updateTrainingCode(
         .set({
           code: parsed.code,
           title: parsed.title,
-          sourceRevision: parsed.sourceRevision,
+          sourceRevision,
           updatedAt: new Date(),
         })
         .where(eq(trainingCodes.id, id))
@@ -1242,6 +1250,7 @@ export async function createCurriculum(
   input: z.input<typeof curriculumInput>,
 ) {
   const parsed = curriculumInput.parse(input);
+  const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
   return db.transaction(async (transaction) => {
     try {
       const [curriculum] = await transaction
@@ -1251,7 +1260,7 @@ export async function createCurriculum(
           programTitle: parsed.programTitle,
           version: parsed.version || null,
           additionalRequirements: parsed.additionalRequirements || null,
-          sourceRevision: parsed.sourceRevision,
+          sourceRevision,
         })
         .returning();
       if (!curriculum) throw new Error("Curriculum was not created.");
@@ -1282,6 +1291,7 @@ export async function updateCurriculum(
   input: z.input<typeof curriculumInput>,
 ) {
   const parsed = curriculumInput.parse(input);
+  const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
   return db.transaction(async (transaction) => {
     try {
       const [curriculum] = await transaction
@@ -1291,7 +1301,7 @@ export async function updateCurriculum(
           programTitle: parsed.programTitle,
           version: parsed.version || null,
           additionalRequirements: parsed.additionalRequirements || null,
-          sourceRevision: parsed.sourceRevision,
+          sourceRevision,
           updatedAt: new Date(),
         })
         .where(eq(curricula.id, id))
@@ -1415,8 +1425,6 @@ const curriculumChapterWriteInput = z.object({
   title: z.string().trim().min(1).max(300),
   sourceRevision: z.string().trim().max(100).optional().default(""),
 });
-
-const MANUAL_SOURCE_REVISION = "manual";
 
 /** A chapter's position is derived from a leading integer in its number. */
 function deriveChapterPosition(number: string): number | null {

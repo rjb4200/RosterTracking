@@ -22,7 +22,6 @@ export function TrainingCodeForm({
     id: string;
     code: string;
     title: string;
-    sourceRevision: string;
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -46,15 +45,6 @@ export function TrainingCodeForm({
             id={`title-${suffix}`}
             name="title"
             defaultValue={values?.title}
-            required
-          />
-        </div>
-        <div className="field">
-          <Label htmlFor={`sourceRevision-${suffix}`}>Source revision</Label>
-          <Input
-            id={`sourceRevision-${suffix}`}
-            name="sourceRevision"
-            defaultValue={values?.sourceRevision}
             required
           />
         </div>

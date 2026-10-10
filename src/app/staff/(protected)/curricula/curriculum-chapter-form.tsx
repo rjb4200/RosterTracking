@@ -27,7 +27,6 @@ export function ChapterForm({
     part: string;
     number: string;
     title: string;
-    sourceRevision: string;
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -71,15 +70,6 @@ export function ChapterForm({
             name="title"
             defaultValue={values?.title}
             required
-          />
-        </div>
-        <div className="field">
-          <Label htmlFor={`sourceRevision-${suffix}`}>Source revision</Label>
-          <Input
-            id={`sourceRevision-${suffix}`}
-            name="sourceRevision"
-            defaultValue={values?.sourceRevision ?? ""}
-            placeholder="manual"
           />
         </div>
       </div>
