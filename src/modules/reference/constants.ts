@@ -20,6 +20,7 @@ export const REPORTING_REQUIREMENT_KINDS = {
 export const MTU_CATALOG_KINDS = {
   EQUIPMENT: "equipment",
   SUPPLIES: "supplies",
+  TRANSPORT: "transport",
 } as const;
 
 export const MTU_ROUNDING_MODES = {
@@ -33,8 +34,10 @@ export type MtuRoundingMode =
   (typeof MTU_ROUNDING_MODES)[keyof typeof MTU_ROUNDING_MODES];
 
 /** The initial Mobile Training Unit catalog. Mirrors the one-off seed
- * migration (`drizzle/0032_seed_mtu_catalog.sql`) and documents the canonical
- * starting list; the database is admin-managed after that seed. */
+ * migrations (`drizzle/0032_seed_mtu_catalog.sql`,
+ * `drizzle/0038_mtu_transport_seed.sql`) and documents the canonical starting
+ * list; the database is admin-managed after that seed. Only transport entries
+ * set `requiresMileage`; equipment and supplies leave it unset (null). */
 export const MTU_CATALOG_SEED: readonly {
   kind: MtuCatalogKind;
   name: string;
@@ -42,6 +45,7 @@ export const MTU_CATALOG_SEED: readonly {
   perClassQty: number | null;
   perStudentQty: number | null;
   rounding: MtuRoundingMode | null;
+  requiresMileage?: boolean;
   sortOrder: number;
 }[] = [
   {
@@ -198,13 +202,34 @@ export const MTU_CATALOG_SEED: readonly {
     sortOrder: 17,
   },
   {
-    kind: "equipment",
+    kind: "transport",
     name: "Ford Transit Van 15 passenger",
     unitLabel: null,
     perClassQty: null,
     perStudentQty: null,
     rounding: null,
-    sortOrder: 18,
+    requiresMileage: true,
+    sortOrder: 1,
+  },
+  {
+    kind: "transport",
+    name: "Department vehicle",
+    unitLabel: null,
+    perClassQty: null,
+    perStudentQty: null,
+    rounding: null,
+    requiresMileage: true,
+    sortOrder: 2,
+  },
+  {
+    kind: "transport",
+    name: "POV",
+    unitLabel: null,
+    perClassQty: null,
+    perStudentQty: null,
+    rounding: null,
+    requiresMileage: false,
+    sortOrder: 3,
   },
   {
     kind: "supplies",

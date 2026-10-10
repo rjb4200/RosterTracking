@@ -8,6 +8,7 @@ import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   createOpenClass,
   getClassDetail,
+  updateClass,
   updateClassMtuUsage,
 } from "../../src/modules/classes/services";
 import {
@@ -102,6 +103,8 @@ async function createMtuClass(
   selections: {
     mtuEquipmentIds?: string[];
     mtuSupplyItems?: { itemId: string; quantity?: string | number }[];
+    mtuTransportIds?: string[];
+    mtuMileage?: string;
   } = {},
 ) {
   const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
@@ -191,8 +194,9 @@ describeDatabase("MTU catalog and structured usage", () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const items = await db.select().from(mtuCatalogItems);
-    expect(items.filter((item) => item.kind === "equipment")).toHaveLength(18);
+    expect(items.filter((item) => item.kind === "equipment")).toHaveLength(17);
     expect(items.filter((item) => item.kind === "supplies")).toHaveLength(7);
+    expect(items.filter((item) => item.kind === "transport")).toHaveLength(3);
   });
 
   it("manages catalog items and revives a retired name", async () => {
@@ -376,6 +380,11 @@ describeDatabase("MTU catalog and structured usage", () => {
     const suffix = crypto.randomUUID();
     const { systemId, setId } = await activeSetId(db, "fire");
     const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
+    // Fire classes require an FFN-format number for every instructor.
+    await db
+      .update(users)
+      .set({ ffn: "1234-5678" })
+      .where(eq(users.id, instructor.id));
     const [site] = await db
       .insert(trainingSites)
       .values({ name: `Non MTU Site ${suffix}` })
@@ -412,6 +421,110 @@ describeDatabase("MTU catalog and structured usage", () => {
       { certified: true, typedName: "Test Instructor" },
     );
     expect(revision.revisionNumber).toBe(1);
+    await retireRevision(db, revision.id);
+  });
+
+  it("requires mileage at creation only for a driving transport", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const van = await catalogItemId(db, "Ford Transit Van 15 passenger");
+    const pov = await catalogItemId(db, "POV");
+
+    // Van without a mileage estimate is rejected at creation.
+    await expect(
+      createMtuClass(db, `${suffix}-a`, {
+        mtuTransportIds: [van],
+        mtuMileage: "",
+      }),
+    ).rejects.toThrow(/mileage/i);
+
+    // Van with a mileage estimate is accepted.
+    const withVan = await createMtuClass(db, `${suffix}-b`, {
+      mtuTransportIds: [van],
+      mtuMileage: "120",
+    });
+    expect(withVan.classId).toBeTruthy();
+
+    // POV alone needs no mileage.
+    const withPov = await createMtuClass(db, `${suffix}-c`, {
+      mtuTransportIds: [pov],
+      mtuMileage: "",
+    });
+    expect(withPov.classId).toBeTruthy();
+
+    // Editing is not enforced: select the van and blank the mileage.
+    const detail = await getClassDetail(
+      db,
+      withVan.instructor,
+      withVan.classId,
+    );
+    await expect(
+      updateClass(db, withVan.instructor, withVan.classId, {
+        name: detail.name ?? "",
+        trainingSiteId: detail.trainingSiteId,
+        hostAgencyId: detail.hostAgencyId,
+        deliveryMethod: "classroom",
+        reportingSystemIds: detail.reportingSystems.map((system) => system.id),
+        accessPinEnabled: false,
+        mtuEquipmentUsed: "",
+        mtuMileage: "",
+        mtuUsedSupplies: "",
+        mtuTransportIds: [van],
+      }),
+    ).resolves.toBeTruthy();
+
+    // Saving usage after the fact is not enforced either.
+    await expect(
+      updateClassMtuUsage(db, withVan.instructor, withVan.classId, {
+        equipmentUsed: "",
+        mileage: "",
+        usedSupplies: "",
+        transportIds: [van],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("stores selections without supply quantities and resolves them at finalization", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const { setId } = await activeSetId(db, "mtu");
+    const gauze = await catalogItemId(db, "Roller Gauze");
+    const { instructor, agency, classId } = await createMtuClass(db, suffix, {
+      mtuSupplyItems: [{ itemId: gauze }],
+    });
+    for (let index = 0; index < 3; index += 1) {
+      await addActiveAttendance(db, {
+        classId,
+        agencyId: agency.id,
+        requirementSetId: setId,
+      });
+    }
+
+    const detail = await getClassDetail(db, instructor, classId);
+    const created = detail.mtuUsage?.items.find(
+      (item) => item.itemId === gauze,
+    );
+    expect(created?.source).toBe("suggested");
+    expect(created?.quantity).toBe(6);
+
+    const revision = await finalizeClass(
+      db,
+      instructor,
+      classId,
+      { certified: true, typedName: "Test Instructor" },
+      {
+        confirmed: true,
+        equipmentIds: [],
+        supplies: [{ itemId: gauze }],
+        transportIds: [],
+      },
+    );
+    const after = await getClassDetail(db, instructor, classId);
+    const frozen = after.mtuUsage?.items.find((item) => item.itemId === gauze);
+    expect(frozen?.source).toBe("manual");
+    expect(frozen?.quantity).toBe(6);
     await retireRevision(db, revision.id);
   });
 });

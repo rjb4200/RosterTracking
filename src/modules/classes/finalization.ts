@@ -373,6 +373,10 @@ export async function finalizeClass(
     confirmed: boolean;
     equipmentIds: string[];
     supplies: { itemId: string; quantity?: string | number }[];
+    transportIds?: string[];
+    equipmentUsed?: string;
+    usedSupplies?: string;
+    mileage?: string;
   },
 ) {
   if (!attestation.certified) {
@@ -406,12 +410,14 @@ export async function finalizeClass(
       if (!mtu?.confirmed) {
         throw new Error("Confirm the MTU usage before finalizing.");
       }
-      await confirmMtuUsageForFinalization(
-        transaction,
-        classId,
-        mtu.equipmentIds ?? [],
-        mtu.supplies ?? [],
-      );
+      await confirmMtuUsageForFinalization(transaction, classId, {
+        equipmentIds: mtu.equipmentIds ?? [],
+        supplies: mtu.supplies ?? [],
+        transportIds: mtu.transportIds ?? [],
+        equipmentUsed: mtu.equipmentUsed,
+        usedSupplies: mtu.usedSupplies,
+        mileage: mtu.mileage,
+      });
     }
     const revisionRows = await transaction
       .select({

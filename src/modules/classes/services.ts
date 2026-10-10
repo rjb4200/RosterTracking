@@ -143,6 +143,7 @@ const draftInput = z.object({
   mtuUsedSupplies: z.string().trim().max(500).default(""),
   mtuEquipmentIds: z.array(z.string().uuid()).optional().default([]),
   mtuSupplyItems: z.array(mtuSupplySelectionInput).optional().default([]),
+  mtuTransportIds: z.array(z.string().uuid()).optional().default([]),
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
@@ -474,16 +475,24 @@ async function replaceMtuUsageItems(
   classId: string,
   equipmentIds: string[],
   supplies: { itemId: string; quantity?: string | number }[],
+  transportIds: string[] = [],
 ): Promise<void> {
   await transaction
     .delete(classMtuUsageItems)
     .where(eq(classMtuUsageItems.classId, classId));
   const uniqueEquipmentIds = [...new Set(equipmentIds)];
+  const uniqueTransportIds = [...new Set(transportIds)];
   const supplyByItem = new Map<string, number | null>();
   for (const supply of supplies) {
     supplyByItem.set(supply.itemId, parseSelectionQuantity(supply.quantity));
   }
-  const allIds = [...new Set([...uniqueEquipmentIds, ...supplyByItem.keys()])];
+  const allIds = [
+    ...new Set([
+      ...uniqueEquipmentIds,
+      ...uniqueTransportIds,
+      ...supplyByItem.keys(),
+    ]),
+  ];
   if (allIds.length === 0) return;
   const catalogRows = await transaction
     .select()
@@ -504,6 +513,18 @@ async function replaceMtuUsageItems(
     const item = byId.get(itemId);
     if (!item?.isActive || item.kind !== "equipment") {
       throw new Error("Selected MTU equipment is not available.");
+    }
+    rows.push({
+      classId,
+      itemId,
+      quantity: null,
+      source: MTU_ITEM_SOURCES.MANUAL,
+    });
+  }
+  for (const itemId of uniqueTransportIds) {
+    const item = byId.get(itemId);
+    if (!item?.isActive || item.kind !== "transport") {
+      throw new Error("Selected MTU transport is not available.");
     }
     rows.push({
       classId,
@@ -551,9 +572,35 @@ async function replaceMtuUsage(
   }
 }
 
+/**
+ * A class may only be created with a driving transport when a mileage estimate
+ * is provided. This is a create-only rule: later edits, finalization, and usage
+ * changes never enforce it, and mileage stays editable and clearable.
+ */
+async function assertCreationMileage(
+  transaction: DatabaseTransaction,
+  input: z.infer<typeof draftInput>,
+): Promise<void> {
+  const transportIds = input.mtuTransportIds ?? [];
+  if (transportIds.length === 0) return;
+  const rows = await transaction
+    .select({ requiresMileage: mtuCatalogItems.requiresMileage })
+    .from(mtuCatalogItems)
+    .where(inArray(mtuCatalogItems.id, transportIds));
+  if (
+    rows.some((row) => row.requiresMileage) &&
+    input.mtuMileage.trim() === ""
+  ) {
+    throw new Error(
+      "Enter a mileage estimate for the selected transport before creating the class.",
+    );
+  }
+}
+
 export interface MtuUsageUpdateInput extends MtuUsageInput {
   equipmentIds?: string[];
   supplies?: { itemId: string; quantity?: string | number }[];
+  transportIds?: string[];
 }
 
 export async function updateClassMtuUsage(
@@ -569,12 +616,17 @@ export async function updateClassMtuUsage(
     await replaceMtuUsage(transaction, classId, usage);
     // Only touch structured selections when the caller supplies them, so a
     // free-text-only update never wipes catalog picks.
-    if (input.equipmentIds !== undefined || input.supplies !== undefined) {
+    if (
+      input.equipmentIds !== undefined ||
+      input.supplies !== undefined ||
+      input.transportIds !== undefined
+    ) {
       await replaceMtuUsageItems(
         transaction,
         classId,
         input.equipmentIds ?? [],
         input.supplies ?? [],
+        input.transportIds ?? [],
       );
     }
     await writeAuditLog(transaction, {
@@ -650,10 +702,31 @@ export async function resolveMtuUsageItemsForFinalization(
 export async function confirmMtuUsageForFinalization(
   transaction: DatabaseTransaction,
   classId: string,
-  equipmentIds: string[],
-  supplies: { itemId: string; quantity?: string | number }[],
+  input: {
+    equipmentIds: string[];
+    supplies: { itemId: string; quantity?: string | number }[];
+    transportIds: string[];
+    equipmentUsed?: string;
+    usedSupplies?: string;
+    mileage?: string;
+  },
 ): Promise<void> {
-  await replaceMtuUsageItems(transaction, classId, equipmentIds, supplies);
+  await replaceMtuUsage(
+    transaction,
+    classId,
+    normalizeMtuUsage({
+      equipmentUsed: input.equipmentUsed ?? "",
+      mileage: input.mileage ?? "",
+      usedSupplies: input.usedSupplies ?? "",
+    }),
+  );
+  await replaceMtuUsageItems(
+    transaction,
+    classId,
+    input.equipmentIds,
+    input.supplies,
+    input.transportIds,
+  );
   await resolveMtuUsageItemsForFinalization(transaction, classId);
 }
 
@@ -816,12 +889,14 @@ export async function createOpenClass(
         details: { componentId: createdComponent.id },
       });
     }
+    await assertCreationMileage(transaction, parsed);
     await replaceMtuUsage(transaction, created.id, mtuUsageFromDraft(parsed));
     await replaceMtuUsageItems(
       transaction,
       created.id,
       parsed.mtuEquipmentIds,
       parsed.mtuSupplyItems,
+      parsed.mtuTransportIds,
     );
     validateClassReadiness({
       componentCount: createdComponents.length,
@@ -919,6 +994,7 @@ export async function updateClass(
       classId,
       parsed.mtuEquipmentIds,
       parsed.mtuSupplyItems,
+      parsed.mtuTransportIds,
     );
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
@@ -1674,18 +1750,24 @@ export async function getClassDetail(
       classId,
     );
     const items: MtuUsageItem[] = itemRows.map((row) => {
-      const isEquipment = row.kind === "equipment";
-      const suggestion = isEquipment
-        ? null
-        : estimateSupplyQuantity(
+      const isSupply = row.kind === "supplies";
+      const kind: MtuUsageItem["kind"] =
+        row.kind === "transport"
+          ? "transport"
+          : row.kind === "equipment"
+            ? "equipment"
+            : "supplies";
+      const suggestion = isSupply
+        ? estimateSupplyQuantity(
             ruleFromCatalogItem(row),
             activeParticipantCount,
-          );
+          )
+        : null;
       const source =
         row.source === MTU_ITEM_SOURCES.SUGGESTED
           ? MTU_ITEM_SOURCES.SUGGESTED
           : MTU_ITEM_SOURCES.MANUAL;
-      const quantity = isEquipment
+      const quantity = !isSupply
         ? null
         : source === MTU_ITEM_SOURCES.SUGGESTED
           ? suggestion
@@ -1694,7 +1776,7 @@ export async function getClassDetail(
             : Number(row.quantity);
       return {
         itemId: row.itemId,
-        kind: isEquipment ? "equipment" : "supplies",
+        kind,
         name: row.name,
         unitLabel: row.unitLabel,
         quantity,
@@ -1816,6 +1898,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         perClassQty: mtuCatalogItems.perClassQty,
         perStudentQty: mtuCatalogItems.perStudentQty,
         rounding: mtuCatalogItems.rounding,
+        requiresMileage: mtuCatalogItems.requiresMileage,
       })
       .from(mtuCatalogItems)
       .where(eq(mtuCatalogItems.isActive, true))

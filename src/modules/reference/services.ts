@@ -1719,8 +1719,16 @@ const mtuCatalogItemInput = z.object({
   perClassQty: z.union([z.string(), z.number()]).optional(),
   perStudentQty: z.union([z.string(), z.number()]).optional(),
   rounding: z.string().trim().max(20).optional().or(z.literal("")),
+  requiresMileage: z.union([z.boolean(), z.string()]).optional(),
   sortOrder: z.union([z.string(), z.number()]).optional(),
 });
+
+function parseBooleanFlag(value: boolean | string | undefined): boolean {
+  if (value === true) return true;
+  if (value === undefined || value === false) return false;
+  const text = String(value).trim().toLowerCase();
+  return text === "true" || text === "on" || text === "1" || text === "yes";
+}
 
 export type MtuCatalogItemInput = z.input<typeof mtuCatalogItemInput>;
 
@@ -1745,21 +1753,24 @@ interface NormalizedMtuCatalogItem {
   perClassQty: string | null;
   perStudentQty: string | null;
   rounding: string | null;
+  requiresMileage: boolean | null;
   sortOrder: number;
 }
 
 /**
  * Equipment carries no quantity rule. Supplies require a unit label and a
  * rounding mode, with non-negative per-class and per-student quantities.
+ * Transport carries no quantity rule but declares whether it requires mileage.
  */
 export function normalizeMtuCatalogItem(
   input: MtuCatalogItemInput,
 ): NormalizedMtuCatalogItem {
   const parsed = mtuCatalogItemInput.parse(input);
   if (!MTU_KIND_VALUES.includes(parsed.kind)) {
-    throw new Error("Choose equipment or supplies.");
+    throw new Error("Choose equipment, supplies, or transport.");
   }
   const name = parsed.name.trim();
+  const sortOrder = Number(parseQuantity(parsed.sortOrder, "Sort order") ?? 0);
   if (parsed.kind === MTU_CATALOG_KINDS.EQUIPMENT) {
     return {
       kind: parsed.kind,
@@ -1768,7 +1779,20 @@ export function normalizeMtuCatalogItem(
       perClassQty: null,
       perStudentQty: null,
       rounding: null,
-      sortOrder: Number(parseQuantity(parsed.sortOrder, "Sort order") ?? 0),
+      requiresMileage: null,
+      sortOrder,
+    };
+  }
+  if (parsed.kind === MTU_CATALOG_KINDS.TRANSPORT) {
+    return {
+      kind: parsed.kind,
+      name,
+      unitLabel: null,
+      perClassQty: null,
+      perStudentQty: null,
+      rounding: null,
+      requiresMileage: parseBooleanFlag(parsed.requiresMileage),
+      sortOrder,
     };
   }
   const unitLabel = (parsed.unitLabel ?? "").trim();
@@ -1789,7 +1813,8 @@ export function normalizeMtuCatalogItem(
     perClassQty: perClassQty === null ? null : perClassQty.toString(),
     perStudentQty: perStudentQty === null ? null : perStudentQty.toString(),
     rounding,
-    sortOrder: Number(parseQuantity(parsed.sortOrder, "Sort order") ?? 0),
+    requiresMileage: null,
+    sortOrder,
   };
 }
 

@@ -76,11 +76,19 @@ function read(formData: FormData, key: string): string {
 
 function readMtuSelections(formData: FormData) {
   const equipmentIds = formData.getAll("mtuEquipmentIds").map(String);
+  const transportIds = formData.getAll("mtuTransportIds").map(String);
   const supplies = formData.getAll("mtuSupplyIds").map((value) => {
     const itemId = value.toString();
     return { itemId, quantity: read(formData, `mtuSupplyQty:${itemId}`) };
   });
-  return { equipmentIds, supplies };
+  return {
+    equipmentIds,
+    transportIds,
+    supplies,
+    equipmentUsed: read(formData, "mtuEquipmentUsed"),
+    usedSupplies: read(formData, "mtuUsedSupplies"),
+    mileage: read(formData, "mtuMileage"),
+  };
 }
 
 function draftValues(formData: FormData) {
@@ -111,6 +119,7 @@ function draftValues(formData: FormData) {
     mtuUsedSupplies: read(formData, "mtuUsedSupplies"),
     mtuEquipmentIds: readMtuSelections(formData).equipmentIds,
     mtuSupplyItems: readMtuSelections(formData).supplies,
+    mtuTransportIds: readMtuSelections(formData).transportIds,
   };
 }
 
@@ -333,11 +342,12 @@ export async function updateMtuUsageAction(
   try {
     const selections = readMtuSelections(formData);
     await updateClassMtuUsage(getDatabase(), actor, classId, {
-      equipmentUsed: read(formData, "equipmentUsed"),
-      mileage: read(formData, "mileage"),
-      usedSupplies: read(formData, "usedSupplies"),
+      equipmentUsed: selections.equipmentUsed,
+      mileage: selections.mileage,
+      usedSupplies: selections.usedSupplies,
       equipmentIds: selections.equipmentIds,
       supplies: selections.supplies,
+      transportIds: selections.transportIds,
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
@@ -396,6 +406,10 @@ export async function finalizeClassAction(
         confirmed: read(formData, "mtuConfirmed") === "true",
         equipmentIds: mtuSelections.equipmentIds,
         supplies: mtuSelections.supplies,
+        transportIds: mtuSelections.transportIds,
+        equipmentUsed: mtuSelections.equipmentUsed,
+        usedSupplies: mtuSelections.usedSupplies,
+        mileage: mtuSelections.mileage,
       },
     );
     // Deliver certificates after the response; a delivery failure is recorded

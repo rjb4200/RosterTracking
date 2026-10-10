@@ -360,7 +360,8 @@ export const trainingSites = pgTable(
 
 // Department-managed Mobile Training Unit catalog. Equipment is durable and
 // carries no quantity rule; supplies are consumable and carry a rule of
-// per-class base + per-student rate, rounded by the rounding mode.
+// per-class base + per-student rate, rounded by the rounding mode; transport is
+// a vehicle and carries a mileage requirement instead.
 export const mtuCatalogItems = pgTable(
   "mtu_catalog_items",
   {
@@ -371,6 +372,7 @@ export const mtuCatalogItems = pgTable(
     perClassQty: numeric("per_class_qty", { precision: 10, scale: 2 }),
     perStudentQty: numeric("per_student_qty", { precision: 10, scale: 2 }),
     rounding: text("rounding"),
+    requiresMileage: boolean("requires_mileage"),
     isActive: boolean("is_active").default(true).notNull(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     sortOrder: integer("sort_order").default(0).notNull(),
@@ -388,11 +390,15 @@ export const mtuCatalogItems = pgTable(
     ),
     check(
       "mtu_catalog_items_kind",
-      sql`${table.kind} in ('equipment', 'supplies')`,
+      sql`${table.kind} in ('equipment', 'supplies', 'transport')`,
     ),
     check(
       "mtu_catalog_items_rule_shape",
-      sql`(${table.kind} = 'supplies' and ${table.unitLabel} is not null and ${table.rounding} in ('ceil', 'exact') and (${table.perClassQty} is null or ${table.perClassQty} >= 0) and (${table.perStudentQty} is null or ${table.perStudentQty} >= 0)) or (${table.kind} = 'equipment' and ${table.unitLabel} is null and ${table.rounding} is null and ${table.perClassQty} is null and ${table.perStudentQty} is null)`,
+      sql`(${table.kind} = 'supplies' and ${table.unitLabel} is not null and ${table.rounding} in ('ceil', 'exact') and (${table.perClassQty} is null or ${table.perClassQty} >= 0) and (${table.perStudentQty} is null or ${table.perStudentQty} >= 0)) or (${table.kind} in ('equipment', 'transport') and ${table.unitLabel} is null and ${table.rounding} is null and ${table.perClassQty} is null and ${table.perStudentQty} is null)`,
+    ),
+    check(
+      "mtu_catalog_items_mileage_shape",
+      sql`${table.requiresMileage} is null or ${table.kind} = 'transport'`,
     ),
   ],
 );

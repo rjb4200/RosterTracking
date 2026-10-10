@@ -1,12 +1,16 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { MtuUsage } from "@/modules/classes/mtu";
 
 import type { ActionState } from "./actions";
-import { type MtuCatalogOption, MtuUsageFields } from "./mtu-usage-fields";
+import {
+  type MtuCatalogOption,
+  MtuUsageFields,
+  mtuUsageValueFromDetail,
+} from "./mtu-usage-fields";
 
 export function FinalizationControls({
   classId,
@@ -36,6 +40,9 @@ export function FinalizationControls({
     finalizeAction,
     undefined,
   );
+  const [mtuValue, setMtuValue] = useState(() =>
+    mtuUsageValueFromDetail(mtuUsage),
+  );
   if (status !== "open") return null;
   return (
     <div className="stack-form">
@@ -54,7 +61,9 @@ export function FinalizationControls({
               </p>
               <MtuUsageFields
                 catalog={mtuCatalog}
-                items={mtuUsage?.items ?? []}
+                mode="confirm"
+                value={mtuValue}
+                onChange={setMtuValue}
                 activeParticipants={activeParticipants}
               />
               <label className="checkbox-row">
@@ -65,7 +74,8 @@ export function FinalizationControls({
                   required
                 />
                 <span>
-                  I confirm the MTU equipment and supplies used for this class.
+                  I confirm the MTU equipment, supplies, and transport used for
+                  this class.
                 </span>
               </label>
             </fieldset>

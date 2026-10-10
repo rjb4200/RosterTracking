@@ -260,6 +260,20 @@
       "when": 1791649762243,
       "tag": "0036_yummy_exodus",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791655551739,
+      "tag": "0037_minor_gravity",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791655577446,
+      "tag": "0038_mtu_transport_seed",
+      "breakpoints": true
     }
   ]
 }

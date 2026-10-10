@@ -21,6 +21,7 @@ export type MtuItemSource =
 export const MTU_ITEM_KINDS = {
   EQUIPMENT: "equipment",
   SUPPLIES: "supplies",
+  TRANSPORT: "transport",
 } as const;
 
 export type MtuItemKind = (typeof MTU_ITEM_KINDS)[keyof typeof MTU_ITEM_KINDS];

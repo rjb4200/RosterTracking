@@ -1,0 +1,6 @@
+ALTER TABLE "mtu_catalog_items" DROP CONSTRAINT "mtu_catalog_items_kind";--> statement-breakpoint
+ALTER TABLE "mtu_catalog_items" DROP CONSTRAINT "mtu_catalog_items_rule_shape";--> statement-breakpoint
+ALTER TABLE "mtu_catalog_items" ADD COLUMN "requires_mileage" boolean;--> statement-breakpoint
+ALTER TABLE "mtu_catalog_items" ADD CONSTRAINT "mtu_catalog_items_mileage_shape" CHECK ("mtu_catalog_items"."requires_mileage" is null or "mtu_catalog_items"."kind" = 'transport');--> statement-breakpoint
+ALTER TABLE "mtu_catalog_items" ADD CONSTRAINT "mtu_catalog_items_kind" CHECK ("mtu_catalog_items"."kind" in ('equipment', 'supplies', 'transport'));--> statement-breakpoint
+ALTER TABLE "mtu_catalog_items" ADD CONSTRAINT "mtu_catalog_items_rule_shape" CHECK (("mtu_catalog_items"."kind" = 'supplies' and "mtu_catalog_items"."unit_label" is not null and "mtu_catalog_items"."rounding" in ('ceil', 'exact') and ("mtu_catalog_items"."per_class_qty" is null or "mtu_catalog_items"."per_class_qty" >= 0) and ("mtu_catalog_items"."per_student_qty" is null or "mtu_catalog_items"."per_student_qty" >= 0)) or ("mtu_catalog_items"."kind" in ('equipment', 'transport') and "mtu_catalog_items"."unit_label" is null and "mtu_catalog_items"."rounding" is null and "mtu_catalog_items"."per_class_qty" is null and "mtu_catalog_items"."per_student_qty" is null));

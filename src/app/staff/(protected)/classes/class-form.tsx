@@ -8,7 +8,11 @@ import { Label } from "@/components/ui/label";
 import type { MtuUsageItem } from "@/modules/classes/mtu";
 
 import type { ActionState } from "./actions";
-import { type MtuCatalogOption, MtuUsageFields } from "./mtu-usage-fields";
+import {
+  type MtuCatalogOption,
+  MtuUsageFields,
+  mtuUsageValueFromDetail,
+} from "./mtu-usage-fields";
 
 interface Option {
   id: string;
@@ -55,6 +59,9 @@ export function ClassForm({
   const [state, formAction, pending] = useActionState(action, undefined);
   const [reportingSystemIds, setReportingSystemIds] = useState(
     values?.reportingSystemIds ?? [],
+  );
+  const [mtuUsage, setMtuUsage] = useState(() =>
+    mtuUsageValueFromDetail(values?.mtuUsage),
   );
 
   return (
@@ -181,41 +188,11 @@ export function ClassForm({
         </div>
         <MtuUsageFields
           catalog={mtuCatalog}
-          items={values?.mtuUsage?.items ?? []}
+          mode="select"
+          value={mtuUsage}
+          onChange={setMtuUsage}
           activeParticipants={mtuActiveParticipantCount}
         />
-        <div className="field field-wide">
-          <Label htmlFor="mtuEquipmentUsed">
-            Other MTU equipment (not listed)
-          </Label>
-          <textarea
-            id="mtuEquipmentUsed"
-            className="search-input"
-            name="mtuEquipmentUsed"
-            rows={2}
-            defaultValue={values?.mtuUsage?.equipmentUsed ?? ""}
-          />
-        </div>
-        <div className="field">
-          <Label htmlFor="mtuMileage">MTU mileage</Label>
-          <Input
-            id="mtuMileage"
-            name="mtuMileage"
-            defaultValue={values?.mtuUsage?.mileage ?? ""}
-          />
-        </div>
-        <div className="field">
-          <Label htmlFor="mtuUsedSupplies">
-            Other MTU supplies (not listed)
-          </Label>
-          <textarea
-            id="mtuUsedSupplies"
-            className="search-input"
-            name="mtuUsedSupplies"
-            rows={2}
-            defaultValue={values?.mtuUsage?.usedSupplies ?? ""}
-          />
-        </div>
         <Label className="checkbox-field field-wide">
           <Input
             defaultChecked={values?.accessPinEnabled ?? false}

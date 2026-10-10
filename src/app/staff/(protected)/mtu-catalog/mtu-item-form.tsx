@@ -30,6 +30,7 @@ export function MtuItemForm({
     perClassQty: string | null;
     perStudentQty: string | null;
     rounding: string | null;
+    requiresMileage: boolean | null;
     sortOrder: number;
   };
 }) {
@@ -51,12 +52,23 @@ export function MtuItemForm({
           >
             <option value={MTU_CATALOG_KINDS.EQUIPMENT}>Equipment</option>
             <option value={MTU_CATALOG_KINDS.SUPPLIES}>Supplies</option>
+            <option value={MTU_CATALOG_KINDS.TRANSPORT}>Transport</option>
           </select>
         </div>
         <div className="field">
           <Label htmlFor="name">Name</Label>
           <Input id="name" name="name" defaultValue={values?.name} required />
         </div>
+        {kind === MTU_CATALOG_KINDS.TRANSPORT ? (
+          <Label className="checkbox-field field-wide">
+            <Input
+              type="checkbox"
+              name="requiresMileage"
+              defaultChecked={values?.requiresMileage ?? false}
+            />
+            Requires a mileage estimate
+          </Label>
+        ) : null}
         {kind === MTU_CATALOG_KINDS.SUPPLIES ? (
           <>
             <div className="field">

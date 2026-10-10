@@ -43,6 +43,7 @@ export default async function MtuCatalogPage({
   const items = await listMtuCatalogItems(getDatabase(), q);
   const equipment = items.filter((item) => item.kind === "equipment");
   const supplies = items.filter((item) => item.kind === "supplies");
+  const transport = items.filter((item) => item.kind === "transport");
 
   return (
     <main className="admin-content">
@@ -141,6 +142,51 @@ export default async function MtuCatalogPage({
                     </Link>
                   </TableCell>
                   <TableCell>{ruleSummary(item)}</TableCell>
+                  <TableCell>
+                    {item.isActive ? (
+                      <Badge variant="secondary">Active</Badge>
+                    ) : (
+                      <Badge variant="outline">Inactive</Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </section>
+
+      <section className="admin-section">
+        <h2>Transport ({transport.length})</h2>
+        <Table className="reference-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Mileage</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transport.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className="text-muted-foreground">
+                  No transport found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              transport.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <Link
+                      href={`/staff/mtu-catalog/${item.id}`}
+                      className="row-link"
+                    >
+                      {item.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    {item.requiresMileage ? "Required" : "Optional"}
+                  </TableCell>
                   <TableCell>
                     {item.isActive ? (
                       <Badge variant="secondary">Active</Badge>

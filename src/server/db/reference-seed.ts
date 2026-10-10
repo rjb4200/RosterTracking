@@ -156,6 +156,7 @@ export async function seedReferenceData(
         perStudentQty:
           entry.perStudentQty === null ? null : String(entry.perStudentQty),
         rounding: entry.rounding,
+        requiresMileage: entry.requiresMileage ?? null,
         sortOrder: entry.sortOrder,
       })),
     )

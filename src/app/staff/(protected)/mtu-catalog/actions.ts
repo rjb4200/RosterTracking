@@ -24,6 +24,7 @@ function readItemForm(formData: FormData): reference.MtuCatalogItemInput {
     perClassQty: read(formData, "perClassQty"),
     perStudentQty: read(formData, "perStudentQty"),
     rounding: read(formData, "rounding"),
+    requiresMileage: read(formData, "requiresMileage"),
     sortOrder: read(formData, "sortOrder"),
   };
 }
