@@ -15,6 +15,8 @@ import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
+import { TagBadgeList } from "./tag-badge";
+
 export const dynamic = "force-dynamic";
 
 export default async function AgenciesPage({
@@ -57,7 +59,7 @@ export default async function AgenciesPage({
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Type</TableHead>
+            <TableHead>Tags</TableHead>
             <TableHead>City</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
@@ -80,7 +82,9 @@ export default async function AgenciesPage({
                     {agency.name}
                   </Link>
                 </TableCell>
-                <TableCell>{agency.type ?? "—"}</TableCell>
+                <TableCell>
+                  <TagBadgeList tags={agency.tags} />
+                </TableCell>
                 <TableCell>{agency.city ?? "—"}</TableCell>
                 <TableCell>
                   {agency.isActive ? (

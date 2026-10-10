@@ -24,7 +24,8 @@ export async function createAgencyAction(
   try {
     await reference.createAgency(getDatabase(), actor, {
       name: read(formData, "name"),
-      type: read(formData, "type"),
+      tagIds: formData.getAll("tagIds").map((value) => value.toString()),
+      otherSubtype: read(formData, "otherSubtype"),
       address: read(formData, "address"),
       city: read(formData, "city"),
       state: read(formData, "state"),
@@ -52,7 +53,8 @@ export async function updateAgencyAction(
   try {
     await reference.updateAgency(getDatabase(), actor, id, {
       name: read(formData, "name"),
-      type: read(formData, "type"),
+      tagIds: formData.getAll("tagIds").map((value) => value.toString()),
+      otherSubtype: read(formData, "otherSubtype"),
       address: read(formData, "address"),
       city: read(formData, "city"),
       state: read(formData, "state"),

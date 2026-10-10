@@ -15,6 +15,8 @@ import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
   agencies,
+  agencyTagLinks,
+  agencyTags,
   credentialTypes,
   curricula,
   curriculumChapters,
@@ -24,6 +26,7 @@ import {
   trainingCodes,
   trainingSites,
 } from "@/server/db/schema";
+import { AGENCY_OTHER_SUBTYPES, AGENCY_TAG_CODES } from "./constants";
 import {
   credentialLookupHash,
   encryptCredential,
@@ -71,7 +74,8 @@ const studentInput = z.object({
 
 const agencyInput = z.object({
   name: z.string().trim().min(1).max(200),
-  type: z.string().trim().max(100).optional().or(z.literal("")),
+  tagIds: z.array(z.string().uuid()).optional(),
+  otherSubtype: z.string().trim().max(50).optional().or(z.literal("")),
   address: z.string().trim().max(200).optional().or(z.literal("")),
   city: z.string().trim().max(100).optional().or(z.literal("")),
   state: z.string().trim().max(50).optional().or(z.literal("")),
@@ -80,6 +84,106 @@ const agencyInput = z.object({
   phone: z.string().trim().max(32).optional().or(z.literal("")),
   email: z.string().trim().email().max(254).optional().or(z.literal("")),
 });
+
+export interface AgencyTagView {
+  id: string;
+  code: string;
+  name: string;
+  subtype: string | null;
+}
+
+const OTHER_SUBTYPE_VALUES: string[] = Object.values(AGENCY_OTHER_SUBTYPES);
+
+function tagOrder(code: string): number {
+  const index = Object.values(AGENCY_TAG_CODES).indexOf(
+    code as (typeof AGENCY_TAG_CODES)[keyof typeof AGENCY_TAG_CODES],
+  );
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+async function loadAgencyTags(
+  db: Database,
+  agencyIds: string[],
+): Promise<Map<string, AgencyTagView[]>> {
+  const grouped = new Map<string, AgencyTagView[]>();
+  if (agencyIds.length === 0) return grouped;
+  const rows = await db
+    .select({
+      agencyId: agencyTagLinks.agencyId,
+      id: agencyTags.id,
+      code: agencyTags.code,
+      name: agencyTags.name,
+      subtype: agencyTagLinks.subtype,
+    })
+    .from(agencyTagLinks)
+    .innerJoin(agencyTags, eq(agencyTags.id, agencyTagLinks.tagId))
+    .where(inArray(agencyTagLinks.agencyId, agencyIds));
+  for (const row of rows) {
+    const list = grouped.get(row.agencyId) ?? [];
+    list.push({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      subtype: row.subtype,
+    });
+    grouped.set(row.agencyId, list);
+  }
+  for (const list of grouped.values()) {
+    list.sort((a, b) => tagOrder(a.code) - tagOrder(b.code));
+  }
+  return grouped;
+}
+
+/**
+ * Replaces an agency's tag links, validating that each tag exists and is
+ * active and that an Other subtype is only set alongside the Other tag.
+ */
+async function replaceAgencyTagLinks(
+  transaction: DatabaseTransaction,
+  agencyId: string,
+  tagIds: string[],
+  otherSubtype: string,
+): Promise<void> {
+  const uniqueIds = [...new Set(tagIds)];
+  const rows = uniqueIds.length
+    ? await transaction
+        .select({ id: agencyTags.id, code: agencyTags.code })
+        .from(agencyTags)
+        .where(
+          and(inArray(agencyTags.id, uniqueIds), eq(agencyTags.isActive, true)),
+        )
+    : [];
+  if (rows.length !== uniqueIds.length) {
+    throw new Error("One or more selected tags are not available.");
+  }
+
+  const subtype = otherSubtype.trim() || null;
+  let resolvedSubtype: string | null = null;
+  if (subtype) {
+    if (!OTHER_SUBTYPE_VALUES.includes(subtype)) {
+      throw new Error("Choose a valid Other subtype.");
+    }
+    if (!rows.some((row) => row.code === AGENCY_TAG_CODES.OTHER)) {
+      throw new Error(
+        "An Other subtype can only be set when the Other tag is selected.",
+      );
+    }
+    resolvedSubtype = subtype;
+  }
+
+  await transaction
+    .delete(agencyTagLinks)
+    .where(eq(agencyTagLinks.agencyId, agencyId));
+  if (rows.length > 0) {
+    await transaction.insert(agencyTagLinks).values(
+      rows.map((row) => ({
+        agencyId,
+        tagId: row.id,
+        subtype: row.code === AGENCY_TAG_CODES.OTHER ? resolvedSubtype : null,
+      })),
+    );
+  }
+}
 
 const credentialInput = z.object({
   value: z.string().trim().min(1).max(200),
@@ -360,12 +464,26 @@ export async function setStudentMembership(
 
 export async function listAgencies(db: Database, query: string) {
   const term = `%${query.trim()}%`;
-  return db
+  const rows = await db
     .select()
     .from(agencies)
     .where(and(isNull(agencies.archivedAt), ilike(agencies.name, term)))
     .orderBy(agencies.name)
     .limit(100);
+  const tagsByAgency = await loadAgencyTags(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => ({ ...row, tags: tagsByAgency.get(row.id) ?? [] }));
+}
+
+/** The active tag vocabulary, in canonical order, for the agency form. */
+export async function listAgencyTags(db: Database) {
+  const rows = await db
+    .select({ id: agencyTags.id, code: agencyTags.code, name: agencyTags.name })
+    .from(agencyTags)
+    .where(eq(agencyTags.isActive, true));
+  return rows.sort((a, b) => tagOrder(a.code) - tagOrder(b.code));
 }
 
 export async function getAgency(db: Database, id: string) {
@@ -374,7 +492,9 @@ export async function getAgency(db: Database, id: string) {
     .from(agencies)
     .where(eq(agencies.id, id))
     .limit(1);
-  return agency ?? null;
+  if (!agency) return null;
+  const tags = (await loadAgencyTags(db, [agency.id])).get(agency.id) ?? [];
+  return { ...agency, tags };
 }
 
 export async function createAgency(
@@ -385,7 +505,6 @@ export async function createAgency(
   const parsed = agencyInput.parse(input);
   const details = {
     name: parsed.name,
-    type: nullable(parsed.type ?? ""),
     address: nullable(parsed.address ?? ""),
     city: nullable(parsed.city ?? ""),
     state: nullable(parsed.state ?? ""),
@@ -394,6 +513,8 @@ export async function createAgency(
     phone: nullable(parsed.phone ?? ""),
     email: nullable(parsed.email ?? ""),
   };
+  const tagIds = parsed.tagIds ?? [];
+  const otherSubtype = parsed.otherSubtype ?? "";
   return db.transaction(async (transaction) => {
     // An agency name is unique, so re-adding an archived or inactive agency
     // revives or reactivates it instead of failing as a duplicate.
@@ -414,6 +535,7 @@ export async function createAgency(
         .where(eq(agencies.id, existing.id))
         .returning();
       if (!agency) throw new Error("Agency was not created.");
+      await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -430,6 +552,7 @@ export async function createAgency(
         .values(details)
         .returning();
       if (!agency) throw new Error("Agency was not created.");
+      await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -455,12 +578,13 @@ export async function updateAgency(
   input: z.infer<typeof agencyInput>,
 ) {
   const parsed = agencyInput.parse(input);
+  const tagIds = parsed.tagIds ?? [];
+  const otherSubtype = parsed.otherSubtype ?? "";
   return db.transaction(async (transaction) => {
     const [agency] = await transaction
       .update(agencies)
       .set({
         name: parsed.name,
-        type: nullable(parsed.type ?? ""),
         address: nullable(parsed.address ?? ""),
         city: nullable(parsed.city ?? ""),
         state: nullable(parsed.state ?? ""),
@@ -473,6 +597,7 @@ export async function updateAgency(
       .where(eq(agencies.id, id))
       .returning();
     if (!agency) throw new Error("Agency not found.");
+    await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",

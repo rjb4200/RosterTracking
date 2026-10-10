@@ -147,7 +147,6 @@ describeDatabase("database foundation", () => {
 
     const agency = await createAgency(database, actor, {
       name: `Agency ${suffix}`,
-      type: "Fire",
       address: "",
       city: "",
       state: "",

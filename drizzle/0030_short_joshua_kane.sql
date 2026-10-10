@@ -1,0 +1,1 @@
+ALTER TABLE "agencies" DROP COLUMN "type";

@@ -37,6 +37,12 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --tag-fire: oklch(0.55 0.19 27);
+  --tag-ems: oklch(0.52 0.15 250);
+  --tag-law-enforcement: oklch(0.42 0.13 275);
+  --tag-other: oklch(0.5 0.02 260);
+  --tag-volunteer: oklch(0.48 0.12 150);
+  --tag-career: oklch(0.42 0.03 250);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -802,6 +808,12 @@ h1 {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --tag-fire: oklch(0.7 0.16 27);
+  --tag-ems: oklch(0.72 0.12 250);
+  --tag-law-enforcement: oklch(0.68 0.12 275);
+  --tag-other: oklch(0.72 0.02 260);
+  --tag-volunteer: oklch(0.72 0.12 150);
+  --tag-career: oklch(0.7 0.03 250);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -1295,6 +1307,26 @@ h1 {
 .checkbox-field input {
   width: 1rem;
   height: 1rem;
+}
+
+.tag-badge-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in oklch, var(--tag-color) 35%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--tag-color) 14%, transparent);
+  color: var(--tag-color);
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .token-panel {

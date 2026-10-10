@@ -1,6 +1,8 @@
 import { inArray, sql } from "drizzle-orm";
 
 import {
+  AGENCY_TAG_CODES,
+  AGENCY_TAG_NAMES,
   CREDENTIAL_TYPE_CODES,
   REPORTING_REQUIREMENT_KINDS,
   REPORTING_SYSTEM_CODES,
@@ -8,6 +10,7 @@ import {
 
 import type { DatabaseTransaction } from "./client";
 import {
+  agencyTags,
   credentialTypes,
   reportingRequirementSets,
   reportingRequirements,
@@ -41,6 +44,12 @@ const credentialTypeDefinitions = [
     isActive: false,
   },
 ];
+
+const agencyTagDefinitions = Object.values(AGENCY_TAG_CODES).map((code) => ({
+  code,
+  name: AGENCY_TAG_NAMES[code] ?? code,
+  isActive: true,
+}));
 
 const reportingSystemDefinitions = [
   {
@@ -88,6 +97,18 @@ export async function seedReferenceData(
       set: {
         name: sql`excluded.name`,
         issuer: sql`excluded.issuer`,
+        isActive: sql`excluded.is_active`,
+        updatedAt: new Date(),
+      },
+    });
+
+  await transaction
+    .insert(agencyTags)
+    .values(agencyTagDefinitions)
+    .onConflictDoUpdate({
+      target: agencyTags.code,
+      set: {
+        name: sql`excluded.name`,
         isActive: sql`excluded.is_active`,
         updatedAt: new Date(),
       },

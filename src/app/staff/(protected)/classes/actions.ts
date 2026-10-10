@@ -191,7 +191,6 @@ export async function createInlineAgencyAction(
   try {
     const agency = await createAgency(getDatabase(), actor, {
       name: read(formData, "name"),
-      type: read(formData, "type"),
       address: read(formData, "address"),
       city: read(formData, "city"),
       state: read(formData, "state"),

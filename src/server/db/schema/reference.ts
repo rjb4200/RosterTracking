@@ -48,7 +48,6 @@ export const agencies = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
-    type: text("type"),
     address: text("address"),
     city: text("city"),
     state: text("state"),
@@ -91,6 +90,41 @@ export const studentAgencies = pgTable(
     uniqueIndex("student_agencies_primary_unique")
       .on(table.studentId)
       .where(sql`${table.isPrimary} and ${table.isActive}`),
+  ],
+);
+
+export const agencyTags = pgTable(
+  "agency_tags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("agency_tags_code_unique").on(table.code)],
+);
+
+export const agencyTagLinks = pgTable(
+  "agency_tag_links",
+  {
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => agencyTags.id, { onDelete: "restrict" }),
+    // Optional qualifier for the "other" tag; a fixed, code-owned list.
+    subtype: text("subtype"),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.agencyId, table.tagId] }),
+    index("agency_tag_links_agency_idx").on(table.agencyId),
+    check(
+      "agency_tag_links_subtype_valid",
+      sql`${table.subtype} is null or ${table.subtype} in ('schools', 'hospital', 'industry', 'business', 'churches')`,
+    ),
   ],
 );
 

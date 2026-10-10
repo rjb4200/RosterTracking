@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Button, buttonVariants } from "@/components/ui/button";
-import { getAgency } from "@/modules/reference/services";
+import { AGENCY_TAG_CODES } from "@/modules/reference/constants";
+import { getAgency, listAgencyTags } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -13,6 +14,7 @@ import {
   updateAgencyAction,
 } from "../actions";
 import { AgencyForm } from "../agency-form";
+import { TagBadgeList } from "../tag-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +25,28 @@ export default async function AgencyDetailPage({
 }) {
   await requirePagePermission(PERMISSIONS.AGENCIES_MANAGE);
   const { id } = await params;
-  const agency = await getAgency(getDatabase(), id);
+  const database = getDatabase();
+  const [agency, tags] = await Promise.all([
+    getAgency(database, id),
+    listAgencyTags(database),
+  ]);
   if (!agency) notFound();
+
+  const values = {
+    id: agency.id,
+    name: agency.name,
+    address: agency.address,
+    city: agency.city,
+    state: agency.state,
+    zip: agency.zip,
+    contactName: agency.contactName,
+    phone: agency.phone,
+    email: agency.email,
+    tagIds: agency.tags.map((tag) => tag.id),
+    otherSubtype:
+      agency.tags.find((tag) => tag.code === AGENCY_TAG_CODES.OTHER)?.subtype ??
+      null,
+  };
 
   return (
     <main className="admin-content">
@@ -32,6 +54,7 @@ export default async function AgencyDetailPage({
         <div>
           <p className="eyebrow">Reference data</p>
           <h1 className="staff-title">{agency.name}</h1>
+          <TagBadgeList tags={agency.tags} />
         </div>
         <div className="admin-actions">
           <Link
@@ -69,7 +92,8 @@ export default async function AgencyDetailPage({
         <AgencyForm
           action={updateAgencyAction}
           submitLabel="Save changes"
-          values={agency}
+          tags={tags}
+          values={values}
         />
       </section>
     </main>
