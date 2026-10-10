@@ -60,9 +60,9 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
   await expect(
     page.getByRole("heading", { name: "Mobile Training Unit usage" }),
   ).toBeVisible();
-  await page.getByLabel("Equipment used").fill("Trailer 4");
+  await page.getByLabel("Other equipment (not listed)").fill("Trailer 4");
   await page.getByLabel("Mileage").fill("120");
-  await page.getByLabel("Used supplies").fill("Gloves");
+  await page.getByLabel("Other supplies (not listed)").fill("Gloves");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Class and schedule step. MTU-only, so it collects the class name.

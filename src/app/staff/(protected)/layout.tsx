@@ -46,6 +46,11 @@ const navItems: Array<{ href: string; label: string; permission: string }> = [
     permission: PERMISSIONS.SITES_MANAGE,
   },
   {
+    href: "/staff/mtu-catalog",
+    label: "MTU catalog",
+    permission: PERMISSIONS.MTU_CATALOG_MANAGE,
+  },
+  {
     href: "/staff/reporting",
     label: "Reporting",
     permission: PERMISSIONS.REPORTING_MANAGE,

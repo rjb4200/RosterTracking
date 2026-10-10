@@ -20,6 +20,7 @@ import {
   getRosterReadiness,
 } from "@/modules/instructor-roster/services";
 import { TEMPLATE_MAPPINGS } from "@/modules/official-roster-pdfs/mappings";
+import { listActiveMtuCatalogItems } from "@/modules/reference/services";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -97,6 +98,7 @@ export default async function ClassReviewPage({
     isFinalized ? getFinalizationHistory(db, actor, id) : Promise.resolve([]),
   ]);
   const staff = await getCurrentStaff();
+  const mtuCatalog = await listActiveMtuCatalogItems(db);
   const canManageOfficialRosters = isFinalized ? Boolean(staff) : false;
   const isLeadInstructor =
     isOpen &&
@@ -253,6 +255,12 @@ export default async function ClassReviewPage({
           finalizeAction={finalizeClassAction}
           canFinalize={reviewData?.readiness.ready ?? false}
           isLeadInstructor={isLeadInstructor}
+          isMtuClass={classRecord.reportingSystems.some(
+            (system) => system.code === "mtu",
+          )}
+          mtuCatalog={mtuCatalog}
+          mtuUsage={classRecord.mtuUsage}
+          activeParticipants={roster.active.length}
         />
       </section>
 
@@ -542,7 +550,12 @@ export default async function ClassReviewPage({
             Operational usage can be updated after finalization without changing
             the signed roster.
           </p>
-          <MtuUsageForm classId={id} usage={classRecord.mtuUsage} />
+          <MtuUsageForm
+            classId={id}
+            usage={classRecord.mtuUsage}
+            mtuCatalog={mtuCatalog}
+            activeParticipants={roster.active.length}
+          />
         </section>
       ) : null}
 

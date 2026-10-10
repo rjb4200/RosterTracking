@@ -5,8 +5,10 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { MtuUsageItem } from "@/modules/classes/mtu";
 
 import type { ActionState } from "./actions";
+import { type MtuCatalogOption, MtuUsageFields } from "./mtu-usage-fields";
 
 interface Option {
   id: string;
@@ -18,6 +20,8 @@ export function ClassForm({
   sites,
   agencies,
   reportingSystems,
+  mtuCatalog = [],
+  mtuActiveParticipantCount = 0,
   values,
 }: {
   action: (
@@ -27,6 +31,8 @@ export function ClassForm({
   sites: Option[];
   agencies: Option[];
   reportingSystems: Option[];
+  mtuCatalog?: MtuCatalogOption[];
+  mtuActiveParticipantCount?: number;
   values?: {
     id: string;
     name: string | null;
@@ -42,6 +48,7 @@ export function ClassForm({
       equipmentUsed: string | null;
       mileage: string | null;
       usedSupplies: string | null;
+      items?: MtuUsageItem[];
     } | null;
   };
 }) {
@@ -172,8 +179,15 @@ export function ClassForm({
             defaultValue={values?.objectives ?? ""}
           />
         </div>
+        <MtuUsageFields
+          catalog={mtuCatalog}
+          items={values?.mtuUsage?.items ?? []}
+          activeParticipants={mtuActiveParticipantCount}
+        />
         <div className="field field-wide">
-          <Label htmlFor="mtuEquipmentUsed">MTU equipment used</Label>
+          <Label htmlFor="mtuEquipmentUsed">
+            Other MTU equipment (not listed)
+          </Label>
           <textarea
             id="mtuEquipmentUsed"
             className="search-input"
@@ -191,7 +205,9 @@ export function ClassForm({
           />
         </div>
         <div className="field">
-          <Label htmlFor="mtuUsedSupplies">MTU used supplies</Label>
+          <Label htmlFor="mtuUsedSupplies">
+            Other MTU supplies (not listed)
+          </Label>
           <textarea
             id="mtuUsedSupplies"
             className="search-input"

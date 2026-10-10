@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -340,6 +341,45 @@ export const trainingSites = pgTable(
     check(
       "training_sites_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
+  ],
+);
+
+// Department-managed Mobile Training Unit catalog. Equipment is durable and
+// carries no quantity rule; supplies are consumable and carry a rule of
+// per-class base + per-student rate, rounded by the rounding mode.
+export const mtuCatalogItems = pgTable(
+  "mtu_catalog_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    unitLabel: text("unit_label"),
+    perClassQty: numeric("per_class_qty", { precision: 10, scale: 2 }),
+    perStudentQty: numeric("per_student_qty", { precision: 10, scale: 2 }),
+    rounding: text("rounding"),
+    isActive: boolean("is_active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("mtu_catalog_items_kind_name_unique").on(
+      table.kind,
+      sql`lower(btrim(${table.name}))`,
+    ),
+    index("mtu_catalog_items_kind_idx").on(table.kind, table.sortOrder),
+    check(
+      "mtu_catalog_items_archived_state",
+      sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
+    check(
+      "mtu_catalog_items_kind",
+      sql`${table.kind} in ('equipment', 'supplies')`,
+    ),
+    check(
+      "mtu_catalog_items_rule_shape",
+      sql`(${table.kind} = 'supplies' and ${table.unitLabel} is not null and ${table.rounding} in ('ceil', 'exact') and (${table.perClassQty} is null or ${table.perClassQty} >= 0) and (${table.perStudentQty} is null or ${table.perStudentQty} >= 0)) or (${table.kind} = 'equipment' and ${table.unitLabel} is null and ${table.rounding} is null and ${table.perClassQty} is null and ${table.perStudentQty} is null)`,
     ),
   ],
 );

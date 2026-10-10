@@ -74,6 +74,15 @@ function read(formData: FormData, key: string): string {
   return formData.get(key)?.toString() ?? "";
 }
 
+function readMtuSelections(formData: FormData) {
+  const equipmentIds = formData.getAll("mtuEquipmentIds").map(String);
+  const supplies = formData.getAll("mtuSupplyIds").map((value) => {
+    const itemId = value.toString();
+    return { itemId, quantity: read(formData, `mtuSupplyQty:${itemId}`) };
+  });
+  return { equipmentIds, supplies };
+}
+
 function draftValues(formData: FormData) {
   const site = read(formData, "trainingSiteId");
   const reportingSystemIds = formData
@@ -100,6 +109,8 @@ function draftValues(formData: FormData) {
     mtuEquipmentUsed: read(formData, "mtuEquipmentUsed"),
     mtuMileage: read(formData, "mtuMileage"),
     mtuUsedSupplies: read(formData, "mtuUsedSupplies"),
+    mtuEquipmentIds: readMtuSelections(formData).equipmentIds,
+    mtuSupplyItems: readMtuSelections(formData).supplies,
   };
 }
 
@@ -311,10 +322,13 @@ export async function updateMtuUsageAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
   try {
+    const selections = readMtuSelections(formData);
     await updateClassMtuUsage(getDatabase(), actor, classId, {
       equipmentUsed: read(formData, "equipmentUsed"),
       mileage: read(formData, "mileage"),
       usedSupplies: read(formData, "usedSupplies"),
+      equipmentIds: selections.equipmentIds,
+      supplies: selections.supplies,
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
@@ -360,10 +374,21 @@ export async function finalizeClassAction(
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
   try {
-    const revision = await finalizeClass(getDatabase(), actor, classId, {
-      certified: read(formData, "certified") === "true",
-      typedName: read(formData, "typedName"),
-    });
+    const mtuSelections = readMtuSelections(formData);
+    const revision = await finalizeClass(
+      getDatabase(),
+      actor,
+      classId,
+      {
+        certified: read(formData, "certified") === "true",
+        typedName: read(formData, "typedName"),
+      },
+      {
+        confirmed: read(formData, "mtuConfirmed") === "true",
+        equipmentIds: mtuSelections.equipmentIds,
+        supplies: mtuSelections.supplies,
+      },
+    );
     // Deliver certificates after the response; a delivery failure is recorded
     // on its delivery row and never affects the finalized class.
     after(async () => {

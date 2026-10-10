@@ -25,11 +25,13 @@ import {
   attendance,
   classComponents,
   classInstructors,
+  classMtuUsageItems,
   classReportingSystems,
   credentialTypes,
   curricula,
   curriculumChapters,
   finalizationRevisions,
+  mtuCatalogItems,
   mtuUsage,
   reportingRequirementSets,
   reportingRequirements,
@@ -49,9 +51,15 @@ import {
 } from "./constants";
 import { defaultComponentMethod } from "./fire-subjects";
 import {
+  estimateSupplyQuantity,
   hasMtuUsage,
+  MTU_ITEM_SOURCES,
+  type MtuConsumptionRule,
+  type MtuItemSource,
   type MtuUsage,
   type MtuUsageInput,
+  type MtuUsageItem,
+  type MtuUsageText,
   normalizeMtuUsage,
 } from "./mtu";
 import {
@@ -110,6 +118,11 @@ function asDate(value: Date | string | null): Date | null {
       : new Date(value);
 }
 
+const mtuSupplySelectionInput = z.object({
+  itemId: z.string().uuid(),
+  quantity: z.union([z.string(), z.number()]).optional(),
+});
+
 const draftInput = z.object({
   name: z.string().trim().max(200).default(""),
   trainingSiteId: z.string().uuid().nullable().optional(),
@@ -128,6 +141,8 @@ const draftInput = z.object({
   mtuEquipmentUsed: z.string().trim().max(500).default(""),
   mtuMileage: z.string().trim().max(200).default(""),
   mtuUsedSupplies: z.string().trim().max(500).default(""),
+  mtuEquipmentIds: z.array(z.string().uuid()).optional().default([]),
+  mtuSupplyItems: z.array(mtuSupplySelectionInput).optional().default([]),
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
@@ -350,7 +365,7 @@ async function replaceReportingSystems(
   }
 }
 
-function mtuUsageFromDraft(input: z.infer<typeof draftInput>): MtuUsage {
+function mtuUsageFromDraft(input: z.infer<typeof draftInput>): MtuUsageText {
   return normalizeMtuUsage({
     equipmentUsed: input.mtuEquipmentUsed,
     mileage: input.mtuMileage,
@@ -358,10 +373,120 @@ function mtuUsageFromDraft(input: z.infer<typeof draftInput>): MtuUsage {
   });
 }
 
+function ruleFromCatalogItem(item: {
+  perClassQty: string | null;
+  perStudentQty: string | null;
+  rounding: string | null;
+}): MtuConsumptionRule {
+  return {
+    perClassQty: item.perClassQty === null ? null : Number(item.perClassQty),
+    perStudentQty:
+      item.perStudentQty === null ? null : Number(item.perStudentQty),
+    rounding:
+      item.rounding === "ceil" || item.rounding === "exact"
+        ? item.rounding
+        : null,
+  };
+}
+
+function parseSelectionQuantity(
+  value: string | number | undefined,
+): number | null {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (text === "") return null;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("Supply quantities must be non-negative numbers.");
+  }
+  return parsed;
+}
+
+async function countActiveParticipants(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<number> {
+  const [row] = await transaction
+    .select({ count: sql<number>`count(*)::int` })
+    .from(attendance)
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  return row?.count ?? 0;
+}
+
+/**
+ * Replaces a class's structured catalog selections. A supply whose submitted
+ * quantity equals the current roster suggestion is stored as a suggestion
+ * (recomputed while the class is open); a differing quantity is a manual
+ * override. Equipment selections carry no quantity.
+ */
+async function replaceMtuUsageItems(
+  transaction: DatabaseTransaction,
+  classId: string,
+  equipmentIds: string[],
+  supplies: { itemId: string; quantity?: string | number }[],
+): Promise<void> {
+  await transaction
+    .delete(classMtuUsageItems)
+    .where(eq(classMtuUsageItems.classId, classId));
+  const uniqueEquipmentIds = [...new Set(equipmentIds)];
+  const supplyByItem = new Map<string, number | null>();
+  for (const supply of supplies) {
+    supplyByItem.set(supply.itemId, parseSelectionQuantity(supply.quantity));
+  }
+  const allIds = [...new Set([...uniqueEquipmentIds, ...supplyByItem.keys()])];
+  if (allIds.length === 0) return;
+  const catalogRows = await transaction
+    .select()
+    .from(mtuCatalogItems)
+    .where(inArray(mtuCatalogItems.id, allIds));
+  const byId = new Map(catalogRows.map((row) => [row.id, row]));
+  const activeParticipantCount = await countActiveParticipants(
+    transaction,
+    classId,
+  );
+  const rows: {
+    classId: string;
+    itemId: string;
+    quantity: string | null;
+    source: MtuItemSource;
+  }[] = [];
+  for (const itemId of uniqueEquipmentIds) {
+    const item = byId.get(itemId);
+    if (!item?.isActive || item.kind !== "equipment") {
+      throw new Error("Selected MTU equipment is not available.");
+    }
+    rows.push({
+      classId,
+      itemId,
+      quantity: null,
+      source: MTU_ITEM_SOURCES.MANUAL,
+    });
+  }
+  for (const [itemId, submitted] of supplyByItem) {
+    const item = byId.get(itemId);
+    if (!item?.isActive || item.kind !== "supplies") {
+      throw new Error("Selected MTU supply is not available.");
+    }
+    const suggestion = estimateSupplyQuantity(
+      ruleFromCatalogItem(item),
+      activeParticipantCount,
+    );
+    const isOverride = submitted !== null && submitted !== suggestion;
+    const quantity = submitted === null ? suggestion : submitted;
+    rows.push({
+      classId,
+      itemId,
+      quantity: quantity.toString(),
+      source: isOverride ? MTU_ITEM_SOURCES.MANUAL : MTU_ITEM_SOURCES.SUGGESTED,
+    });
+  }
+  await transaction.insert(classMtuUsageItems).values(rows);
+}
+
 async function replaceMtuUsage(
   transaction: DatabaseTransaction,
   classId: string,
-  usage: MtuUsage,
+  usage: MtuUsageText,
 ): Promise<void> {
   if (hasMtuUsage(usage)) {
     await transaction
@@ -376,17 +501,32 @@ async function replaceMtuUsage(
   }
 }
 
+export interface MtuUsageUpdateInput extends MtuUsageInput {
+  equipmentIds?: string[];
+  supplies?: { itemId: string; quantity?: string | number }[];
+}
+
 export async function updateClassMtuUsage(
   db: Database,
   actor: ClassActor,
   classId: string,
-  input: MtuUsageInput,
+  input: MtuUsageUpdateInput,
 ) {
   const usage = normalizeMtuUsage(input);
   return db.transaction(async (transaction) => {
     // Class access is required, but operational usage is not a signed fact.
     await requireClassAccess(transaction, actor, classId);
     await replaceMtuUsage(transaction, classId, usage);
+    // Only touch structured selections when the caller supplies them, so a
+    // free-text-only update never wipes catalog picks.
+    if (input.equipmentIds !== undefined || input.supplies !== undefined) {
+      await replaceMtuUsageItems(
+        transaction,
+        classId,
+        input.equipmentIds ?? [],
+        input.supplies ?? [],
+      );
+    }
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -396,6 +536,75 @@ export async function updateClassMtuUsage(
       details: { fields: ["equipmentUsed", "mileage", "usedSupplies"] },
     });
   });
+}
+
+/**
+ * Freezes suggestions into stored manual quantities. Called inside the
+ * finalization transaction so a locked roster stops recomputing.
+ */
+export async function resolveMtuUsageItemsForFinalization(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<void> {
+  const rows = await transaction
+    .select({
+      itemId: classMtuUsageItems.itemId,
+      source: classMtuUsageItems.source,
+      perClassQty: mtuCatalogItems.perClassQty,
+      perStudentQty: mtuCatalogItems.perStudentQty,
+      rounding: mtuCatalogItems.rounding,
+    })
+    .from(classMtuUsageItems)
+    .innerJoin(
+      mtuCatalogItems,
+      eq(mtuCatalogItems.id, classMtuUsageItems.itemId),
+    )
+    .where(
+      and(
+        eq(classMtuUsageItems.classId, classId),
+        eq(classMtuUsageItems.source, MTU_ITEM_SOURCES.SUGGESTED),
+      ),
+    );
+  if (rows.length === 0) return;
+  const activeParticipantCount = await countActiveParticipants(
+    transaction,
+    classId,
+  );
+  for (const row of rows) {
+    const quantity = estimateSupplyQuantity(
+      ruleFromCatalogItem(row),
+      activeParticipantCount,
+    );
+    await transaction
+      .update(classMtuUsageItems)
+      .set({
+        quantity: quantity.toString(),
+        source: MTU_ITEM_SOURCES.MANUAL,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(classMtuUsageItems.classId, classId),
+          eq(classMtuUsageItems.itemId, row.itemId),
+        ),
+      );
+  }
+}
+
+/**
+ * Applies the lead instructor's confirmed MTU usage and freezes any remaining
+ * suggestions. Runs inside the finalization transaction and writes only the
+ * operational usage tables, so participant count and revision number are
+ * unaffected.
+ */
+export async function confirmMtuUsageForFinalization(
+  transaction: DatabaseTransaction,
+  classId: string,
+  equipmentIds: string[],
+  supplies: { itemId: string; quantity?: string | number }[],
+): Promise<void> {
+  await replaceMtuUsageItems(transaction, classId, equipmentIds, supplies);
+  await resolveMtuUsageItemsForFinalization(transaction, classId);
 }
 
 async function findAvailablePublicCode(transaction: DatabaseTransaction) {
@@ -555,6 +764,12 @@ export async function createOpenClass(
       });
     }
     await replaceMtuUsage(transaction, created.id, mtuUsageFromDraft(parsed));
+    await replaceMtuUsageItems(
+      transaction,
+      created.id,
+      parsed.mtuEquipmentIds,
+      parsed.mtuSupplyItems,
+    );
     validateClassReadiness({
       componentCount: createdComponents.length,
       leadCount: 1,
@@ -634,6 +849,12 @@ export async function updateClass(
       parsed.reportingSystemIds ?? [],
     );
     await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
+    await replaceMtuUsageItems(
+      transaction,
+      classId,
+      parsed.mtuEquipmentIds,
+      parsed.mtuSupplyItems,
+    );
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -1353,6 +1574,72 @@ export async function getClassDetail(
       .from(mtuUsage)
       .where(eq(mtuUsage.classId, classId))
       .limit(1);
+    const itemRows = await transaction
+      .select({
+        itemId: classMtuUsageItems.itemId,
+        quantity: classMtuUsageItems.quantity,
+        source: classMtuUsageItems.source,
+        kind: mtuCatalogItems.kind,
+        name: mtuCatalogItems.name,
+        unitLabel: mtuCatalogItems.unitLabel,
+        perClassQty: mtuCatalogItems.perClassQty,
+        perStudentQty: mtuCatalogItems.perStudentQty,
+        rounding: mtuCatalogItems.rounding,
+        sortOrder: mtuCatalogItems.sortOrder,
+      })
+      .from(classMtuUsageItems)
+      .innerJoin(
+        mtuCatalogItems,
+        eq(mtuCatalogItems.id, classMtuUsageItems.itemId),
+      )
+      .where(eq(classMtuUsageItems.classId, classId))
+      .orderBy(
+        mtuCatalogItems.kind,
+        mtuCatalogItems.sortOrder,
+        mtuCatalogItems.name,
+      );
+    const activeParticipantCount = await countActiveParticipants(
+      transaction,
+      classId,
+    );
+    const items: MtuUsageItem[] = itemRows.map((row) => {
+      const isEquipment = row.kind === "equipment";
+      const suggestion = isEquipment
+        ? null
+        : estimateSupplyQuantity(
+            ruleFromCatalogItem(row),
+            activeParticipantCount,
+          );
+      const source =
+        row.source === MTU_ITEM_SOURCES.SUGGESTED
+          ? MTU_ITEM_SOURCES.SUGGESTED
+          : MTU_ITEM_SOURCES.MANUAL;
+      const quantity = isEquipment
+        ? null
+        : source === MTU_ITEM_SOURCES.SUGGESTED
+          ? suggestion
+          : row.quantity === null
+            ? null
+            : Number(row.quantity);
+      return {
+        itemId: row.itemId,
+        kind: isEquipment ? "equipment" : "supplies",
+        name: row.name,
+        unitLabel: row.unitLabel,
+        quantity,
+        suggestion,
+        source,
+      };
+    });
+    const usage: MtuUsage | null =
+      mtu || items.length > 0
+        ? {
+            equipmentUsed: mtu?.equipmentUsed ?? null,
+            mileage: mtu?.mileage ?? null,
+            usedSupplies: mtu?.usedSupplies ?? null,
+            items,
+          }
+        : null;
     return {
       ...classRecord,
       site: site[0] ?? null,
@@ -1360,7 +1647,8 @@ export async function getClassDetail(
       components,
       instructors,
       reportingSystems: systems,
-      mtuUsage: mtu ?? null,
+      mtuUsage: usage,
+      mtuActiveParticipantCount: activeParticipantCount,
     };
   });
 }
@@ -1375,6 +1663,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     trainingCodeRows,
     curriculumRows,
     curriculumChapterRows,
+    mtuItemRows,
   ] = await Promise.all([
     db
       .select({ id: trainingSites.id, name: trainingSites.name })
@@ -1449,6 +1738,23 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       .from(curriculumChapters)
       .where(eq(curriculumChapters.isActive, true))
       .orderBy(curriculumChapters.curriculumId, curriculumChapters.position),
+    db
+      .select({
+        id: mtuCatalogItems.id,
+        kind: mtuCatalogItems.kind,
+        name: mtuCatalogItems.name,
+        unitLabel: mtuCatalogItems.unitLabel,
+        perClassQty: mtuCatalogItems.perClassQty,
+        perStudentQty: mtuCatalogItems.perStudentQty,
+        rounding: mtuCatalogItems.rounding,
+      })
+      .from(mtuCatalogItems)
+      .where(eq(mtuCatalogItems.isActive, true))
+      .orderBy(
+        mtuCatalogItems.kind,
+        mtuCatalogItems.sortOrder,
+        mtuCatalogItems.name,
+      ),
   ]);
   const recentRows = actor
     ? await db
@@ -1496,6 +1802,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     trainingCodes: trainingCodeRows,
     curricula: curriculumRows,
     curriculumChapters: curriculumChapterRows,
+    mtuCatalog: mtuItemRows,
     recentSiteIds: [
       ...new Set(
         recentRows.flatMap((row) =>

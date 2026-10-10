@@ -66,6 +66,7 @@ export default async function EditClassPage({
         <ClassForm
           action={updateClassAction}
           {...options}
+          mtuActiveParticipantCount={classRecord.mtuActiveParticipantCount}
           values={{
             id: classRecord.id,
             name: classRecord.name,

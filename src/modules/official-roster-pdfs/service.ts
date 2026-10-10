@@ -75,7 +75,9 @@ export interface FinalizationSnapshot {
     signedAt: string | null;
     attestationVersion: string | null;
   };
-  // Optional because revisions written before MTU tracking have no usage facts.
+  // Legacy field. MTU usage is operational and is no longer written into the
+  // signed snapshot; it is kept optional so revisions that predate this still
+  // decode.
   mtuUsage?: {
     equipmentUsed: string | null;
     mileage: string | null;

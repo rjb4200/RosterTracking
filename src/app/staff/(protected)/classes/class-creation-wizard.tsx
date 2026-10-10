@@ -12,6 +12,10 @@ import {
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
 import {
+  estimateSupplyQuantity,
+  type MtuConsumptionRule,
+} from "@/modules/classes/mtu";
+import {
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
@@ -31,6 +35,7 @@ import {
   type FireSubjectValue,
   newFireSubject,
 } from "./fire-subject-fields";
+import type { MtuCatalogOption } from "./mtu-usage-fields";
 import { SearchSelect, type SearchSelectOption } from "./search-select";
 
 type Option = { id: string; name: string };
@@ -48,6 +53,7 @@ export function ClassCreationWizard({
   trainingCodes,
   curricula,
   curriculumChapters,
+  mtuCatalog = [],
   recentSiteIds,
   recentCurriculumIds,
   defaultLeadInstructorId,
@@ -85,6 +91,7 @@ export function ClassCreationWizard({
     version: string | null;
   }>;
   curriculumChapters: CurriculumChapterOption[];
+  mtuCatalog?: MtuCatalogOption[];
   recentSiteIds: string[];
   recentCurriculumIds: string[];
   defaultLeadInstructorId: string;
@@ -118,6 +125,8 @@ export function ClassCreationWizard({
     mtuEquipmentUsed: "",
     mtuMileage: "",
     mtuUsedSupplies: "",
+    mtuEquipmentIds: [] as string[],
+    mtuSupplyQuantities: {} as Record<string, string>,
   });
   const [subjects, setSubjects] = useState<FireSubjectValue[]>(() => [
     newFireSubject(),
@@ -195,6 +204,19 @@ export function ClassCreationWizard({
     value: (typeof values)[K],
   ) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function mtuRule(option: MtuCatalogOption): MtuConsumptionRule {
+    return {
+      perClassQty:
+        option.perClassQty === null ? null : Number(option.perClassQty),
+      perStudentQty:
+        option.perStudentQty === null ? null : Number(option.perStudentQty),
+      rounding:
+        option.rounding === "ceil" || option.rounding === "exact"
+          ? option.rounding
+          : null,
+    };
   }
 
   function toggleDestination(systemId: string, selected: boolean) {
@@ -499,8 +521,115 @@ export function ClassCreationWizard({
       {currentKey === "mtu" ? (
         <section className="stack-form">
           <h2>Mobile Training Unit usage</h2>
+          {mtuCatalog.filter((option) => option.kind === "equipment").length >
+          0 ? (
+            <fieldset className="field field-wide">
+              <legend>Equipment used</legend>
+              <div className="checkbox-list">
+                {mtuCatalog
+                  .filter((option) => option.kind === "equipment")
+                  .map((option) => (
+                    <Label key={option.id} className="checkbox-field">
+                      <Input
+                        type="checkbox"
+                        name="mtuEquipmentIds"
+                        value={option.id}
+                        checked={values.mtuEquipmentIds.includes(option.id)}
+                        onChange={(event) =>
+                          update(
+                            "mtuEquipmentIds",
+                            event.target.checked
+                              ? [
+                                  ...new Set([
+                                    ...values.mtuEquipmentIds,
+                                    option.id,
+                                  ]),
+                                ]
+                              : values.mtuEquipmentIds.filter(
+                                  (id) => id !== option.id,
+                                ),
+                          )
+                        }
+                      />
+                      {option.name}
+                    </Label>
+                  ))}
+              </div>
+            </fieldset>
+          ) : null}
+          {mtuCatalog.filter((option) => option.kind === "supplies").length >
+          0 ? (
+            <fieldset className="field field-wide">
+              <legend>Supplies used</legend>
+              <div className="mtu-supply-list">
+                {mtuCatalog
+                  .filter((option) => option.kind === "supplies")
+                  .map((option) => {
+                    const included = option.id in values.mtuSupplyQuantities;
+                    const suggestion = estimateSupplyQuantity(
+                      mtuRule(option),
+                      0,
+                    );
+                    return (
+                      <div key={option.id} className="mtu-supply-row">
+                        <Label className="checkbox-field">
+                          <Input
+                            type="checkbox"
+                            name="mtuSupplyIds"
+                            value={option.id}
+                            checked={included}
+                            onChange={(event) =>
+                              setValues((current) => {
+                                const next = {
+                                  ...current.mtuSupplyQuantities,
+                                };
+                                if (event.target.checked) {
+                                  next[option.id] = String(suggestion);
+                                } else {
+                                  delete next[option.id];
+                                }
+                                return {
+                                  ...current,
+                                  mtuSupplyQuantities: next,
+                                };
+                              })
+                            }
+                          />
+                          {option.name}
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="search-input mtu-supply-qty"
+                          name={`mtuSupplyQty:${option.id}`}
+                          value={
+                            values.mtuSupplyQuantities[option.id] ??
+                            String(suggestion)
+                          }
+                          onChange={(event) =>
+                            setValues((current) => ({
+                              ...current,
+                              mtuSupplyQuantities: {
+                                ...current.mtuSupplyQuantities,
+                                [option.id]: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                        <span className="text-muted-foreground">
+                          {option.unitLabel ?? ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </fieldset>
+          ) : null}
           <div className="field">
-            <Label htmlFor="mtuEquipmentUsed">Equipment used</Label>
+            <Label htmlFor="mtuEquipmentUsed">
+              Other equipment (not listed)
+            </Label>
             <textarea
               id="mtuEquipmentUsed"
               className="search-input"
@@ -520,7 +649,7 @@ export function ClassCreationWizard({
             />
           </div>
           <div className="field">
-            <Label htmlFor="mtuUsedSupplies">Used supplies</Label>
+            <Label htmlFor="mtuUsedSupplies">Other supplies (not listed)</Label>
             <textarea
               id="mtuUsedSupplies"
               className="search-input"

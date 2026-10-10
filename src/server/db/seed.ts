@@ -50,6 +50,11 @@ const permissionDefinitions = [
     code: PERMISSIONS.CLASSES_MANAGE,
     description: "Create and manage training classes",
   },
+  {
+    code: PERMISSIONS.MTU_CATALOG_MANAGE,
+    description:
+      "Manage the Mobile Training Unit equipment and supplies catalog",
+  },
 ];
 
 const roleDefinitions = [
@@ -83,6 +88,7 @@ const grants: Array<[string, string]> = [
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.REPORTING_MANAGE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.OFFICIAL_ROSTERS_MANAGE],
   [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.CLASSES_MANAGE],
+  [ROLE_CODES.ADMINISTRATOR, PERMISSIONS.MTU_CATALOG_MANAGE],
   // Training Major: manage reference data and reporting, but not staff accounts.
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STAFF_ACCESS],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.STUDENTS_MANAGE],
@@ -94,6 +100,7 @@ const grants: Array<[string, string]> = [
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.REPORTING_MANAGE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.OFFICIAL_ROSTERS_MANAGE],
   [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.CLASSES_MANAGE],
+  [ROLE_CODES.TRAINING_MAJOR, PERMISSIONS.MTU_CATALOG_MANAGE],
   // Instructor: staff access, quick site and agency creation, and class operations.
   [ROLE_CODES.INSTRUCTOR, PERMISSIONS.STAFF_ACCESS],
   [ROLE_CODES.INSTRUCTOR, PERMISSIONS.SITES_CREATE],

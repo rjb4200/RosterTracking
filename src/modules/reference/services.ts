@@ -20,13 +20,19 @@ import {
   credentialTypes,
   curricula,
   curriculumChapters,
+  mtuCatalogItems,
   studentAgencies,
   studentCredentials,
   students,
   trainingCodes,
   trainingSites,
 } from "@/server/db/schema";
-import { AGENCY_OTHER_SUBTYPES, AGENCY_TAG_CODES } from "./constants";
+import {
+  AGENCY_OTHER_SUBTYPES,
+  AGENCY_TAG_CODES,
+  MTU_CATALOG_KINDS,
+  MTU_ROUNDING_MODES,
+} from "./constants";
 import {
   credentialLookupHash,
   encryptCredential,
@@ -1650,5 +1656,278 @@ export async function reactivateCurriculumChapter(
       details: { chapterId: chapter.id, number: chapter.number },
     });
     return chapter;
+  });
+}
+
+// ── Mobile Training Unit catalog ──────────────────────────────────────────
+
+const MTU_KIND_VALUES: string[] = Object.values(MTU_CATALOG_KINDS);
+const MTU_ROUNDING_VALUES: string[] = Object.values(MTU_ROUNDING_MODES);
+
+const mtuCatalogItemInput = z.object({
+  kind: z.string().trim().min(1).max(30),
+  name: z.string().trim().min(1).max(200),
+  unitLabel: z.string().trim().max(50).optional().or(z.literal("")),
+  perClassQty: z.union([z.string(), z.number()]).optional(),
+  perStudentQty: z.union([z.string(), z.number()]).optional(),
+  rounding: z.string().trim().max(20).optional().or(z.literal("")),
+  sortOrder: z.union([z.string(), z.number()]).optional(),
+});
+
+export type MtuCatalogItemInput = z.input<typeof mtuCatalogItemInput>;
+
+function parseQuantity(
+  value: string | number | undefined,
+  label: string,
+): number | null {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (text === "") return null;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label} must be a non-negative number.`);
+  }
+  return parsed;
+}
+
+interface NormalizedMtuCatalogItem {
+  kind: string;
+  name: string;
+  unitLabel: string | null;
+  perClassQty: string | null;
+  perStudentQty: string | null;
+  rounding: string | null;
+  sortOrder: number;
+}
+
+/**
+ * Equipment carries no quantity rule. Supplies require a unit label and a
+ * rounding mode, with non-negative per-class and per-student quantities.
+ */
+export function normalizeMtuCatalogItem(
+  input: MtuCatalogItemInput,
+): NormalizedMtuCatalogItem {
+  const parsed = mtuCatalogItemInput.parse(input);
+  if (!MTU_KIND_VALUES.includes(parsed.kind)) {
+    throw new Error("Choose equipment or supplies.");
+  }
+  const name = parsed.name.trim();
+  if (parsed.kind === MTU_CATALOG_KINDS.EQUIPMENT) {
+    return {
+      kind: parsed.kind,
+      name,
+      unitLabel: null,
+      perClassQty: null,
+      perStudentQty: null,
+      rounding: null,
+      sortOrder: Number(parseQuantity(parsed.sortOrder, "Sort order") ?? 0),
+    };
+  }
+  const unitLabel = (parsed.unitLabel ?? "").trim();
+  if (!unitLabel) throw new Error("Supplies need a unit label.");
+  const rounding = (parsed.rounding ?? "").trim();
+  if (!MTU_ROUNDING_VALUES.includes(rounding)) {
+    throw new Error("Choose a rounding mode of round up or exact.");
+  }
+  const perClassQty = parseQuantity(parsed.perClassQty, "Per-class quantity");
+  const perStudentQty = parseQuantity(
+    parsed.perStudentQty,
+    "Per-student quantity",
+  );
+  return {
+    kind: parsed.kind,
+    name,
+    unitLabel,
+    perClassQty: perClassQty === null ? null : perClassQty.toString(),
+    perStudentQty: perStudentQty === null ? null : perStudentQty.toString(),
+    rounding,
+    sortOrder: Number(parseQuantity(parsed.sortOrder, "Sort order") ?? 0),
+  };
+}
+
+export async function listMtuCatalogItems(db: Database, query: string) {
+  const term = `%${query.trim()}%`;
+  return db
+    .select()
+    .from(mtuCatalogItems)
+    .where(
+      and(
+        isNull(mtuCatalogItems.archivedAt),
+        ilike(mtuCatalogItems.name, term),
+      ),
+    )
+    .orderBy(
+      mtuCatalogItems.kind,
+      mtuCatalogItems.sortOrder,
+      mtuCatalogItems.name,
+    )
+    .limit(200);
+}
+
+export async function listActiveMtuCatalogItems(db: Database) {
+  return db
+    .select()
+    .from(mtuCatalogItems)
+    .where(eq(mtuCatalogItems.isActive, true))
+    .orderBy(
+      mtuCatalogItems.kind,
+      mtuCatalogItems.sortOrder,
+      mtuCatalogItems.name,
+    );
+}
+
+export async function getMtuCatalogItem(db: Database, id: string) {
+  const [item] = await db
+    .select()
+    .from(mtuCatalogItems)
+    .where(eq(mtuCatalogItems.id, id))
+    .limit(1);
+  return item ?? null;
+}
+
+export async function createMtuCatalogItem(
+  db: Database,
+  actor: Actor,
+  input: MtuCatalogItemInput,
+) {
+  const details = normalizeMtuCatalogItem(input);
+  return db.transaction(async (transaction) => {
+    // Re-adding an archived or inactive item with the same kind and name
+    // revives or reactivates it instead of creating a duplicate.
+    const [existing] = await transaction
+      .select()
+      .from(mtuCatalogItems)
+      .where(
+        and(
+          eq(mtuCatalogItems.kind, details.kind),
+          sql`lower(btrim(${mtuCatalogItems.name})) = lower(btrim(${details.name}))`,
+          or(
+            isNotNull(mtuCatalogItems.archivedAt),
+            eq(mtuCatalogItems.isActive, false),
+          ),
+        ),
+      )
+      .orderBy(desc(mtuCatalogItems.updatedAt))
+      .limit(1);
+    if (existing) {
+      const [item] = await transaction
+        .update(mtuCatalogItems)
+        .set({
+          ...details,
+          isActive: true,
+          archivedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(mtuCatalogItems.id, existing.id))
+        .returning();
+      if (!item) throw new Error("Catalog item was not created.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: existing.archivedAt
+          ? "mtu_catalog_item.revived"
+          : "mtu_catalog_item.reactivated",
+        entityType: "mtu_catalog_item",
+        entityId: item.id,
+        details: { kind: item.kind, name: item.name },
+      });
+      return item;
+    }
+    const [item] = await transaction
+      .insert(mtuCatalogItems)
+      .values(details)
+      .returning();
+    if (!item) throw new Error("Catalog item was not created.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "mtu_catalog_item.created",
+      entityType: "mtu_catalog_item",
+      entityId: item.id,
+      details: { kind: item.kind, name: item.name },
+    });
+    return item;
+  });
+}
+
+export async function updateMtuCatalogItem(
+  db: Database,
+  actor: Actor,
+  id: string,
+  input: MtuCatalogItemInput,
+) {
+  const details = normalizeMtuCatalogItem(input);
+  try {
+    return await db.transaction(async (transaction) => {
+      const [item] = await transaction
+        .update(mtuCatalogItems)
+        .set({ ...details, updatedAt: new Date() })
+        .where(eq(mtuCatalogItems.id, id))
+        .returning();
+      if (!item) throw new Error("Catalog item not found.");
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "mtu_catalog_item.updated",
+        entityType: "mtu_catalog_item",
+        entityId: item.id,
+        details: { kind: item.kind, name: item.name },
+      });
+      return item;
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new Error("Another item already uses that name for this kind.");
+    }
+    throw error;
+  }
+}
+
+export async function setMtuCatalogItemActive(
+  db: Database,
+  actor: Actor,
+  id: string,
+  isActive: boolean,
+) {
+  return db.transaction(async (transaction) => {
+    const [item] = await transaction
+      .update(mtuCatalogItems)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(mtuCatalogItems.id, id))
+      .returning();
+    if (!item) throw new Error("Catalog item not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: isActive
+        ? "mtu_catalog_item.activated"
+        : "mtu_catalog_item.deactivated",
+      entityType: "mtu_catalog_item",
+      entityId: item.id,
+    });
+    return item;
+  });
+}
+
+export async function archiveMtuCatalogItem(
+  db: Database,
+  actor: Actor,
+  id: string,
+) {
+  return db.transaction(async (transaction) => {
+    const [item] = await transaction
+      .update(mtuCatalogItems)
+      .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+      .where(eq(mtuCatalogItems.id, id))
+      .returning();
+    if (!item) throw new Error("Catalog item not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "mtu_catalog_item.archived",
+      entityType: "mtu_catalog_item",
+      entityId: item.id,
+    });
+    return item;
   });
 }

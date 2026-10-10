@@ -4,6 +4,7 @@ import {
   AGENCY_TAG_CODES,
   AGENCY_TAG_NAMES,
   CREDENTIAL_TYPE_CODES,
+  MTU_CATALOG_SEED,
   REPORTING_REQUIREMENT_KINDS,
   REPORTING_SYSTEM_CODES,
 } from "@/modules/reference/constants";
@@ -12,6 +13,7 @@ import type { DatabaseTransaction } from "./client";
 import {
   agencyTags,
   credentialTypes,
+  mtuCatalogItems,
   reportingRequirementSets,
   reportingRequirements,
   reportingSystems,
@@ -125,6 +127,26 @@ export async function seedReferenceData(
         updatedAt: new Date(),
       },
     });
+
+  // The initial Mobile Training Unit catalog. Inserted with do-nothing on
+  // conflict so re-running the seed (for example a test reset) repopulates a
+  // cleared catalog without overwriting staff edits to existing entries.
+  await transaction
+    .insert(mtuCatalogItems)
+    .values(
+      MTU_CATALOG_SEED.map((entry) => ({
+        kind: entry.kind,
+        name: entry.name,
+        unitLabel: entry.unitLabel,
+        perClassQty:
+          entry.perClassQty === null ? null : String(entry.perClassQty),
+        perStudentQty:
+          entry.perStudentQty === null ? null : String(entry.perStudentQty),
+        rounding: entry.rounding,
+        sortOrder: entry.sortOrder,
+      })),
+    )
+    .onConflictDoNothing();
 
   const credentialTypeRows = await transaction
     .select()

@@ -270,10 +270,16 @@ describeDatabase("reporting destinations", () => {
       requirementSetId: setId,
     });
 
-    const revision = await finalizeClass(db, instructor, classId, {
-      certified: true,
-      typedName: "Test Instructor",
-    });
+    const revision = await finalizeClass(
+      db,
+      instructor,
+      classId,
+      {
+        certified: true,
+        typedName: "Test Instructor",
+      },
+      { confirmed: true, equipmentIds: [], supplies: [] },
+    );
     const [row] = await db
       .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
       .from(finalizationRevisions)

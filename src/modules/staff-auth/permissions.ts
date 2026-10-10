@@ -10,6 +10,7 @@ export const PERMISSIONS = {
   REPORTING_MANAGE: "reporting.manage",
   OFFICIAL_ROSTERS_MANAGE: "official-rosters.manage",
   CLASSES_MANAGE: "classes.manage",
+  MTU_CATALOG_MANAGE: "mtu-catalog.manage",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

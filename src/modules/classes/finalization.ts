@@ -51,12 +51,12 @@ import {
   userRoles,
   users,
 } from "@/server/db/schema";
-
 import {
   validateFinalizationTransition,
   validateReopenReason,
   validateReportingStatusTransition,
 } from "./policy";
+import { confirmMtuUsageForFinalization } from "./services";
 
 export interface FinalizationActor {
   id: string;
@@ -361,6 +361,11 @@ export async function finalizeClass(
   actor: FinalizationActor,
   classId: string,
   attestation: { certified: boolean; typedName: string },
+  mtu?: {
+    confirmed: boolean;
+    equipmentIds: string[];
+    supplies: { itemId: string; quantity?: string | number }[];
+  },
 ) {
   if (!attestation.certified) {
     throw new Error("Certify the roster before finalizing.");
@@ -384,6 +389,22 @@ export async function finalizeClass(
     const next = nextRevision?.next ?? 1;
     const finalizedAt = new Date();
     const snapshot = await buildSnapshot(transaction, classId, finalizedAt);
+    // An MTU class must confirm usage before signing. This writes only the
+    // operational usage tables; it never touches the participant count or the
+    // revision number captured below.
+    if (
+      snapshot.destinations.some((destination) => destination.code === "mtu")
+    ) {
+      if (!mtu?.confirmed) {
+        throw new Error("Confirm the MTU usage before finalizing.");
+      }
+      await confirmMtuUsageForFinalization(
+        transaction,
+        classId,
+        mtu.equipmentIds ?? [],
+        mtu.supplies ?? [],
+      );
+    }
     const revisionRows = await transaction
       .select({
         attendanceId: attendance.id,

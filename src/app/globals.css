@@ -1309,6 +1309,27 @@ h1 {
   height: 1rem;
 }
 
+.mtu-supply-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mtu-supply-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.mtu-supply-row .checkbox-field {
+  flex: 1 1 14rem;
+}
+
+.mtu-supply-qty {
+  width: 6rem;
+}
+
 .tag-badge-list {
   display: inline-flex;
   flex-wrap: wrap;

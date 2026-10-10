@@ -4,13 +4,18 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { MtuUsage } from "@/modules/classes/mtu";
 import { updateMtuUsageAction } from "./actions";
+import { type MtuCatalogOption, MtuUsageFields } from "./mtu-usage-fields";
 
 export function MtuUsageForm({
   classId,
   usage,
+  mtuCatalog = [],
+  activeParticipants = 0,
 }: {
   classId: string;
   usage: MtuUsage | null;
+  mtuCatalog?: MtuCatalogOption[];
+  activeParticipants?: number;
 }) {
   const [state, action, pending] = useActionState(
     updateMtuUsageAction,
@@ -19,8 +24,13 @@ export function MtuUsageForm({
   return (
     <form action={action} className="stack-form" aria-label="MTU usage">
       <input type="hidden" name="classId" value={classId} />
+      <MtuUsageFields
+        catalog={mtuCatalog}
+        items={usage?.items ?? []}
+        activeParticipants={activeParticipants}
+      />
       <label className="field">
-        Equipment used
+        Equipment used (not listed)
         <textarea
           name="equipmentUsed"
           className="search-input"
@@ -38,7 +48,7 @@ export function MtuUsageForm({
         />
       </label>
       <label className="field">
-        Supplies used
+        Supplies used (not listed)
         <textarea
           name="usedSupplies"
           className="search-input"

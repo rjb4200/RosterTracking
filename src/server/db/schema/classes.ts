@@ -18,6 +18,7 @@ import { users } from "./auth";
 import {
   agencies,
   curricula,
+  mtuCatalogItems,
   reportingSystems,
   trainingCodes,
   trainingSites,
@@ -212,6 +213,32 @@ export const mtuUsage = pgTable("mtu_usage", {
   usedSupplies: text("used_supplies"),
   ...timestamps,
 });
+
+// Structured MTU catalog selections for a class. Equipment rows carry a null
+// quantity (on/off); supply rows carry a quantity that is a live suggestion
+// (source = 'suggested') until an operator edits it (source = 'manual').
+export const classMtuUsageItems = pgTable(
+  "class_mtu_usage_items",
+  {
+    classId: uuid("class_id")
+      .notNull()
+      .references(() => trainingClasses.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => mtuCatalogItems.id, { onDelete: "restrict" }),
+    quantity: numeric("quantity", { precision: 10, scale: 2 }),
+    source: text("source").default("manual").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.classId, table.itemId] }),
+    index("class_mtu_usage_items_item_idx").on(table.itemId),
+    check(
+      "class_mtu_usage_items_source",
+      sql`${table.source} in ('suggested', 'manual')`,
+    ),
+  ],
+);
 
 export const finalizationRevisions = pgTable(
   "finalization_revisions",
