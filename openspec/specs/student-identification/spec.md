@@ -3,9 +3,7 @@
 ## Purpose
 
 Identify regular students through privacy-preserving public pathways and collect the profile and credential data required for the current class without exposing the student directory.
-
 ## Requirements
-
 ### Requirement: Regular identification follows a defined priority
 The system SHALL attempt regular student identification in this order: a valid remembered device, normalized current-phone lookup, changed-number recovery using the prior phone plus the stored email, and then new-student registration. Identification SHALL use only active student records. A successful regular sign-in SHALL remember the device by default.
 
@@ -170,3 +168,4 @@ When a class has the Fire reporting system selected and the student has no valid
 #### Scenario: Warn before confirming without a valid FFN
 - **WHEN** a student reaches attendance confirmation on a Fire-selected class without a valid FFN
 - **THEN** the workflow shows the Fire-credit warning before confirmation
+
