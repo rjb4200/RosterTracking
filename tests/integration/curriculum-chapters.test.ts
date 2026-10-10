@@ -21,7 +21,6 @@ import {
   reactivateCurriculumChapter,
   updateCurriculumChapter,
 } from "../../src/modules/reference/services";
-import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
@@ -33,15 +32,14 @@ import {
   finalizationRevisions,
   reportingRequirementSets,
   reportingSystems,
-  roles,
   students,
   trainingClasses,
   trainingCodes,
   trainingSites,
-  userRoles,
   users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { createStaffUser } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -52,21 +50,10 @@ const pool = connectionString
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 async function createInstructor(db: Db, suffix: string) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      username: `chapters-${suffix}`,
-      displayName: "Chapter Instructor",
-      passwordHash: "fixture-password-hash",
-    })
-    .returning({ id: users.id, username: users.username });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(eq(roles.code, ROLE_CODES.INSTRUCTOR));
-  if (!user || !role) throw new Error("Chapter fixture user failed.");
-  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
-  return user;
+  return createStaffUser(db, {
+    username: `chapters-${suffix}`,
+    displayName: "Chapter Instructor",
+  });
 }
 
 async function activeSetId(db: Db, code: string) {

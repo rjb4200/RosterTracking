@@ -11,28 +11,27 @@ import {
   generateFireRosterWithNotices,
   sendParticipantNoticeOnDemand,
 } from "../../src/modules/individual-training-notices/service";
-import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
+import { encryptCredential } from "../../src/modules/reference/crypto";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
   agencies,
   attendance,
   attendanceReportingContexts,
+  attendanceRequiredFieldSnapshots,
   auditLogs,
   curricula,
   emailDeliveries,
   finalizationReportingStatuses,
   reportingRequirementSets,
   reportingSystems,
-  roles,
   students,
   trainingClasses,
   trainingCodes,
   trainingSites,
-  userRoles,
-  users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { createStaffUser, uniqueFfn } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -45,21 +44,10 @@ type Db = ReturnType<typeof drizzle<typeof schema>>;
 const NOTICE_TEMPLATE = "individual-training-notice";
 
 async function createInstructor(db: Db, suffix: string) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      username: `notice-instructor-${suffix}`,
-      displayName: "Notice Instructor",
-      passwordHash: "fixture-password-hash",
-    })
-    .returning({ id: users.id, username: users.username });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(eq(roles.code, ROLE_CODES.INSTRUCTOR));
-  if (!user || !role) throw new Error("Notice fixture user failed.");
-  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
-  return user;
+  return createStaffUser(db, {
+    username: `notice-instructor-${suffix}`,
+    displayName: "Notice Instructor",
+  });
 }
 
 async function fireSetId(db: Db) {
@@ -142,6 +130,7 @@ async function addAttendance(
     agencyId: string;
     requirementSetId: string;
     email: string;
+    ffn?: string;
   },
 ) {
   const digits = crypto
@@ -175,6 +164,16 @@ async function addAttendance(
     attendanceId: record.id,
     requirementSetId: input.requirementSetId,
   });
+  // Fire roster membership is gated by a valid FFN, recorded here as the
+  // required-field snapshot the sign-in flow would have written.
+  if (input.ffn) {
+    await db.insert(attendanceRequiredFieldSnapshots).values({
+      attendanceId: record.id,
+      requirementSetId: input.requirementSetId,
+      studentField: "ffn",
+      encryptedValue: encryptCredential(input.ffn),
+    });
+  }
   return record.id;
 }
 
@@ -216,12 +215,14 @@ describeDatabase("individual training notices", () => {
       agencyId: hostAgency.id,
       requirementSetId: setId,
       email: `host-${suffix.slice(0, 6)}@example.com`,
+      ffn: uniqueFfn(),
     });
     await addAttendance(db, {
       classId,
       agencyId: outsideAgency.id,
       requirementSetId: setId,
       email: `outside-${suffix.slice(0, 6)}@example.com`,
+      ffn: uniqueFfn(),
     });
     await db
       .update(trainingClasses)
@@ -268,6 +269,7 @@ describeDatabase("individual training notices", () => {
       agencyId: hostAgency.id,
       requirementSetId: setId,
       email: `host2-${suffix.slice(0, 6)}@example.com`,
+      ffn: uniqueFfn(),
     });
     await db
       .update(trainingClasses)

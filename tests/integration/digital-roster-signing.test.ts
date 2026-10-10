@@ -21,15 +21,13 @@ import {
   finalizationRevisions,
   reportingRequirementSets,
   reportingSystems,
-  roles,
   students,
   trainingClasses,
   trainingCodes,
   trainingSites,
-  userRoles,
-  users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { createStaffUser } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -45,21 +43,11 @@ async function createUser(
   roleCode: string,
   displayName: string,
 ) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      username: `${roleCode}-${suffix}`,
-      displayName,
-      passwordHash: "fixture-password-hash",
-    })
-    .returning({ id: users.id, username: users.username });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(eq(roles.code, roleCode));
-  if (!user || !role) throw new Error("Signing fixture user failed.");
-  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
-  return user;
+  return createStaffUser(db, {
+    username: `${roleCode}-${suffix}`,
+    displayName,
+    roleCode,
+  });
 }
 
 async function retireRevision(db: Db, revisionId: string) {
