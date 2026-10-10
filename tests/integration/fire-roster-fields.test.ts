@@ -50,7 +50,7 @@ async function createInstructor(db: Db, suffix: string) {
       username: `instructor-${suffix}`,
       displayName: "Fire Instructor",
       passwordHash: "fixture-password-hash",
-      ffn: `0001${ffnDigits}`,
+      ffn: `0001-${ffnDigits}`,
       instructorLevel: 2,
     })
     .returning({ id: users.id, username: users.username });

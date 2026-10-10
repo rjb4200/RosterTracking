@@ -388,6 +388,7 @@ export const attendanceReportingContexts = pgTable(
     requirementSetId: uuid("requirement_set_id")
       .notNull()
       .references(() => reportingRequirementSets.id, { onDelete: "restrict" }),
+    included: boolean("included").default(true).notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.attendanceId, table.requirementSetId] }),

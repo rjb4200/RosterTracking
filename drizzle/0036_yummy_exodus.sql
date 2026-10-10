@@ -1,0 +1,1 @@
+ALTER TABLE "attendance_reporting_contexts" ADD COLUMN "included" boolean DEFAULT true NOT NULL;

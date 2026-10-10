@@ -2,7 +2,11 @@ import "server-only";
 
 import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 
-import { REPORTING_REQUIREMENT_KINDS } from "@/modules/reference/constants";
+import {
+  CREDENTIAL_TYPE_CODES,
+  REPORTING_REQUIREMENT_KINDS,
+  REPORTING_SYSTEM_CODES,
+} from "@/modules/reference/constants";
 import { decryptCredential } from "@/modules/reference/crypto";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
@@ -95,16 +99,23 @@ export function reduceClassRequirements(
   };
 }
 
-/**
- * The student fields a new registration must collect: every class-required
- * field plus an email address, which is always required to create a profile.
- */
+/** Email is required for certificate delivery; reporting never gates sign-in. */
 export function requiredRegistrationFields(
-  requirements: ClassRequirements,
+  _requirements: ClassRequirements,
 ): string[] {
-  return requirements.studentFields.includes("email")
-    ? requirements.studentFields
-    : ["email", ...requirements.studentFields];
+  return ["email"];
+}
+
+/** Prompts are based on selected destinations, not on roster eligibility. */
+export function promptCredentialCodes(systemCodes: string[]): string[] {
+  const codes: string[] = [];
+  if (systemCodes.includes(REPORTING_SYSTEM_CODES.FIRE)) {
+    codes.push(CREDENTIAL_TYPE_CODES.FFN);
+  }
+  if (systemCodes.includes(REPORTING_SYSTEM_CODES.KBEMS)) {
+    codes.push(CREDENTIAL_TYPE_CODES.KEMSIS, CREDENTIAL_TYPE_CODES.NREMT);
+  }
+  return codes;
 }
 
 export async function resolveClassRequirements(
@@ -178,7 +189,39 @@ export async function resolveClassRequirements(
   if (selectedSystems.length !== resolved.sets.length) {
     throw new Error("Class reporting requirements are unavailable.");
   }
-  return resolved;
+  const promptCodes = promptCredentialCodes(
+    resolved.sets.map(({ reportingSystemCode }) => reportingSystemCode),
+  );
+  const prompts = promptCodes.length
+    ? await db
+        .select({ id: credentialTypes.id, code: credentialTypes.code })
+        .from(credentialTypes)
+        .where(
+          and(
+            inArray(credentialTypes.code, promptCodes),
+            eq(credentialTypes.isActive, true),
+          ),
+        )
+    : [];
+  const byCode = new Map(prompts.map((prompt) => [prompt.code, prompt]));
+  const credentials = promptCodes.flatMap((code) => {
+    const prompt = byCode.get(code);
+    return prompt ? [prompt] : [];
+  });
+  return {
+    sets: resolved.sets.map((set) => ({
+      ...set,
+      studentFields: [],
+      credentials: promptCredentialCodes([set.reportingSystemCode]).flatMap(
+        (code) => {
+          const prompt = byCode.get(code);
+          return prompt ? [prompt] : [];
+        },
+      ),
+    })),
+    studentFields: [],
+    credentials,
+  };
 }
 
 export async function getRegularRequirementValues(
@@ -212,13 +255,16 @@ export async function getRegularRequirementValues(
             ),
           )
           .for("update");
-  return {
-    student,
-    credentials: new Map(
-      credentials.map((credential) => [
+  const readable = new Map<string, string>();
+  for (const credential of credentials) {
+    try {
+      readable.set(
         credential.credentialTypeId,
         decryptCredential(credential.value),
-      ]),
-    ),
-  };
+      );
+    } catch {
+      // A legacy unreadable credential never blocks attendance or earns credit.
+    }
+  }
+  return { student, credentials: readable };
 }

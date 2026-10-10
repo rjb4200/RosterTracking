@@ -270,18 +270,27 @@ export async function saveComponentAction(
 }
 
 export async function assignInstructorAction(
+  _prev: ActionState | undefined,
   formData: FormData,
-): Promise<void> {
+): Promise<ActionState> {
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
-  await assignClassInstructor(
-    getDatabase(),
-    actor,
-    classId,
-    read(formData, "userId"),
-    read(formData, "isLead") === "true",
-  );
-  revalidatePath(`/staff/classes/${classId}`);
+  try {
+    await assignClassInstructor(
+      getDatabase(),
+      actor,
+      classId,
+      read(formData, "userId"),
+      read(formData, "isLead") === "true",
+    );
+    revalidatePath(`/staff/classes/${classId}`);
+    return { classId, success: "Instructor assigned." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not assign instructor.",
+    };
+  }
 }
 
 export async function transitionClassAction(

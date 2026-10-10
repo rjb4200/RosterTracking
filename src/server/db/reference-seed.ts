@@ -1,13 +1,13 @@
-import { inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import {
   AGENCY_TAG_CODES,
   AGENCY_TAG_NAMES,
   CREDENTIAL_TYPE_CODES,
   MTU_CATALOG_SEED,
-  REPORTING_REQUIREMENT_KINDS,
   REPORTING_SYSTEM_CODES,
 } from "@/modules/reference/constants";
+import { FFN_VALUE_PATTERN } from "@/modules/reference/credential-format";
 
 import type { DatabaseTransaction } from "./client";
 import {
@@ -15,7 +15,6 @@ import {
   credentialTypes,
   mtuCatalogItems,
   reportingRequirementSets,
-  reportingRequirements,
   reportingSystems,
 } from "./schema";
 
@@ -24,18 +23,21 @@ const credentialTypeDefinitions = [
     code: CREDENTIAL_TYPE_CODES.FFN,
     name: "Kentucky Firefighter Number",
     issuer: "Kentucky Fire Commission",
+    valuePattern: FFN_VALUE_PATTERN,
     isActive: true,
   },
   {
     code: CREDENTIAL_TYPE_CODES.KEMSIS,
     name: "KEMSIS ID",
     issuer: "KBEMS",
+    valuePattern: null,
     isActive: true,
   },
   {
     code: CREDENTIAL_TYPE_CODES.NREMT,
     name: "NREMT Number",
     issuer: "NREMT",
+    valuePattern: null,
     isActive: true,
   },
   {
@@ -43,6 +45,7 @@ const credentialTypeDefinitions = [
     code: CREDENTIAL_TYPE_CODES.FEMA_SID,
     name: "FEMA SID",
     issuer: "FEMA",
+    valuePattern: null,
     isActive: false,
   },
 ];
@@ -77,16 +80,25 @@ const reportingSystemDefinitions = [
   },
 ];
 
-// Version-one requirement mapping: which credential type each reporting
-// system requires during student sign-in.
-const reportingRequirementMapping = [
-  [REPORTING_SYSTEM_CODES.FIRE, CREDENTIAL_TYPE_CODES.FFN],
-  [REPORTING_SYSTEM_CODES.KBEMS, CREDENTIAL_TYPE_CODES.KEMSIS],
+// Version two separates destination membership from admission to a class.
+// The version-one sets remain available for historical attendance snapshots.
+const reportingInclusionRules = [
+  {
+    systemCode: REPORTING_SYSTEM_CODES.FIRE,
+    mode: "credential",
+    credentialCode: CREDENTIAL_TYPE_CODES.FFN,
+  },
+  {
+    systemCode: REPORTING_SYSTEM_CODES.KBEMS,
+    mode: "all",
+    credentialCode: null,
+  },
+  {
+    systemCode: REPORTING_SYSTEM_CODES.MTU,
+    mode: "none",
+    credentialCode: null,
+  },
 ] as const;
-
-// Destinations that require no student credential or field still need an
-// active requirement set so class requirement resolution can resolve them.
-const emptyRequirementSystemCodes = [REPORTING_SYSTEM_CODES.MTU] as const;
 
 export async function seedReferenceData(
   transaction: DatabaseTransaction,
@@ -99,6 +111,7 @@ export async function seedReferenceData(
       set: {
         name: sql`excluded.name`,
         issuer: sql`excluded.issuer`,
+        valuePattern: sql`excluded.value_pattern`,
         isActive: sql`excluded.is_active`,
         updatedAt: new Date(),
       },
@@ -166,57 +179,45 @@ export async function seedReferenceData(
     reportingSystemRows.map((row) => [row.code, row.id]),
   );
 
-  for (const [systemCode, credentialCode] of reportingRequirementMapping) {
+  for (const { systemCode, mode, credentialCode } of reportingInclusionRules) {
     const reportingSystemId = reportingSystemByCode.get(systemCode);
-    const credentialTypeId = credentialTypeByCode.get(credentialCode);
-    if (!reportingSystemId || !credentialTypeId) {
+    const credentialTypeId = credentialCode
+      ? credentialTypeByCode.get(credentialCode)
+      : null;
+    if (!reportingSystemId || (credentialCode && !credentialTypeId)) {
       throw new Error(
         `Reference seed could not resolve system '${systemCode}' or credential '${credentialCode}'.`,
       );
     }
-
-    const [requirementSet] = await transaction
-      .insert(reportingRequirementSets)
-      .values({ reportingSystemId, version: 1, isActive: true })
-      .onConflictDoUpdate({
-        target: [
-          reportingRequirementSets.reportingSystemId,
-          reportingRequirementSets.version,
-        ],
-        set: { isActive: true },
-      })
-      .returning({ id: reportingRequirementSets.id });
-    if (!requirementSet) {
-      throw new Error("Reference seed could not create a requirement set.");
-    }
-
     await transaction
-      .insert(reportingRequirements)
-      .values({
-        requirementSetId: requirementSet.id,
-        kind: REPORTING_REQUIREMENT_KINDS.CREDENTIAL,
-        credentialTypeId,
-        isRequired: true,
-      })
-      .onConflictDoNothing();
-  }
-
-  for (const systemCode of emptyRequirementSystemCodes) {
-    const reportingSystemId = reportingSystemByCode.get(systemCode);
-    if (!reportingSystemId) {
-      throw new Error(
-        `Reference seed could not resolve system '${systemCode}'.`,
+      .update(reportingRequirementSets)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(reportingRequirementSets.reportingSystemId, reportingSystemId),
+          ne(reportingRequirementSets.version, 2),
+          eq(reportingRequirementSets.isActive, true),
+        ),
       );
-    }
     await transaction
       .insert(reportingRequirementSets)
-      .values({ reportingSystemId, version: 1, isActive: true })
+      .values({
+        reportingSystemId,
+        version: 2,
+        isActive: true,
+        inclusionMode: mode,
+        inclusionCredentialTypeId: credentialTypeId,
+      })
       .onConflictDoUpdate({
         target: [
           reportingRequirementSets.reportingSystemId,
           reportingRequirementSets.version,
         ],
-        set: { isActive: true },
+        set: {
+          isActive: true,
+          inclusionMode: mode,
+          inclusionCredentialTypeId: credentialTypeId,
+        },
       });
   }
 }

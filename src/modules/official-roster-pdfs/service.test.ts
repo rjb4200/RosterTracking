@@ -47,6 +47,7 @@ const snapshot: FinalizationSnapshot = {
     lastName: "Roster",
     guestFirstName: null,
     guestLastName: null,
+    fireEligible: true,
   })),
   fieldSnapshots: [],
   credentialSnapshots: [],
@@ -190,6 +191,30 @@ describe("official roster PDF templates", () => {
     );
   });
 
+  it("omits attendees without a valid FFN from the KFS-1A", async () => {
+    const eligible = snapshot.attendance.map((attendee, index) => ({
+      ...attendee,
+      attendanceId: `eligible-${index}`,
+    }));
+    const ineligible = snapshot.attendance.map((attendee, index) => ({
+      ...attendee,
+      attendanceId: `ineligible-${index}`,
+      fireEligible: false,
+    }));
+    const mixed = await renderOfficialRoster("kfs-1a", {
+      ...snapshot,
+      attendance: [...eligible, ...ineligible],
+    });
+    // 26 eligible at 25 per page is two pages; the 26 ineligible add no pages.
+    expect((await PDFDocument.load(mixed)).getPageCount()).toBe(2);
+
+    const none = await renderOfficialRoster("kfs-1a", {
+      ...snapshot,
+      attendance: ineligible,
+    });
+    expect((await PDFDocument.load(none)).getPageCount()).toBe(1);
+  });
+
   const zoeZeta = {
     attendanceId: "attendance-unique",
     agencyName: "Example Fire",
@@ -198,6 +223,7 @@ describe("official roster PDF templates", () => {
     lastName: "Zeta",
     guestFirstName: null,
     guestLastName: null,
+    fireEligible: true,
   };
 
   it("populates the KFS-1A signature and initials from revision facts", async () => {

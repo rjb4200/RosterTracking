@@ -1,12 +1,9 @@
 import "server-only";
 
 import { and, eq, inArray, ne } from "drizzle-orm";
+import { z } from "zod";
 
 import { CREDENTIAL_TYPE_CODES } from "@/modules/reference/constants";
-import {
-  credentialLookupHash,
-  normalizeCredentialValue,
-} from "@/modules/reference/crypto";
 import { normalizePhone } from "@/modules/reference/masking";
 import type { Database } from "@/server/db/client";
 import {
@@ -23,6 +20,24 @@ export const RECOVERY_CREDENTIAL_TYPES = [
   CREDENTIAL_TYPE_CODES.FFN,
   CREDENTIAL_TYPE_CODES.KEMSIS,
 ] as const;
+
+export function normalizeRecoveryEmail(value: string): string | null {
+  const result = z.string().trim().email().max(254).safeParse(value);
+  return result.success ? result.data.toLowerCase() : null;
+}
+
+/**
+ * Changed-number recovery matches the stored email case-insensitively with
+ * surrounding whitespace ignored. A record with no stored email cannot recover,
+ * and returns the same generic failure as any other non-match.
+ */
+export function recoveryEmailMatches(
+  storedEmail: string | null | undefined,
+  submittedNormalizedEmail: string | null,
+): boolean {
+  if (!storedEmail || !submittedNormalizedEmail) return false;
+  return storedEmail.trim().toLowerCase() === submittedNormalizedEmail;
+}
 
 export interface PublicStudentProjection {
   id: string;
@@ -73,8 +88,7 @@ export async function recognizeStudent(
     recovery?: {
       priorPhone: string;
       newPhone: string;
-      credentialType: RecoveryCredentialType;
-      credentialValue: string;
+      email: string;
     };
   },
 ): Promise<RecognitionResult> {
@@ -111,48 +125,34 @@ export async function recoverActiveStudent(
   input: {
     priorPhone: string;
     newPhone: string;
-    credentialType: RecoveryCredentialType;
-    credentialValue: string;
+    email: string;
   },
 ): Promise<RecognitionResult> {
   let priorPhone: string;
   let newPhone: string;
-  let normalizedCredential: string;
+  const normalizedEmail = normalizeRecoveryEmail(input.email);
+  if (!normalizedEmail) return { status: "recovery_or_guest" };
   try {
     priorPhone = normalizePhone(input.priorPhone);
     newPhone = normalizePhone(input.newPhone);
-    normalizedCredential = normalizeCredentialValue(input.credentialValue);
   } catch {
     return { status: "recovery_or_guest" };
   }
   const [matched] = await db
     .select({
       ...publicStudentSelection,
+      email: students.email,
     })
     .from(students)
-    .innerJoin(
-      studentCredentials,
-      eq(studentCredentials.studentId, students.id),
-    )
-    .innerJoin(
-      credentialTypes,
-      eq(credentialTypes.id, studentCredentials.credentialTypeId),
-    )
-    .where(
-      and(
-        eq(students.phone, priorPhone),
-        eq(students.isActive, true),
-        eq(credentialTypes.code, input.credentialType),
-        eq(credentialTypes.isActive, true),
-        eq(
-          studentCredentials.valueHash,
-          credentialLookupHash(normalizedCredential),
-        ),
-      ),
-    )
+    .where(and(eq(students.phone, priorPhone), eq(students.isActive, true)))
     .limit(1);
 
-  if (!matched) return { status: "recovery_or_guest" };
+  // Compare the email in application code so a record with no stored email
+  // (or a mismatch) returns the same generic failure without leaking which
+  // value failed.
+  if (!matched || !recoveryEmailMatches(matched.email, normalizedEmail)) {
+    return { status: "recovery_or_guest" };
+  }
   const [phoneOwner] = await db
     .select({ id: students.id })
     .from(students)

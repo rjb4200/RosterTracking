@@ -41,6 +41,7 @@ import {
   renderPage,
   snapshotIdentifier,
 } from "@/modules/official-roster-pdfs/service";
+import { isAttendanceFireEligible } from "@/modules/reference/fire-eligibility";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import { EMAIL_DELIVERY_STATUSES, emailDeliveries } from "@/server/db/schema";
@@ -73,7 +74,9 @@ export function qualifyingParticipants(
   if (!isFireClass(snapshot) || !hostAgencyId) return [];
   return snapshot.attendance.filter(
     (participant) =>
-      participant.agencyId && participant.agencyId !== hostAgencyId,
+      participant.agencyId &&
+      participant.agencyId !== hostAgencyId &&
+      isAttendanceFireEligible(snapshot, participant.attendanceId),
   );
 }
 

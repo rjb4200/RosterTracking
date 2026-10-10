@@ -49,7 +49,7 @@ export function ClassCreationWizard({
   agencies,
   staff,
   reportingSystems,
-  reportingRequirements,
+  inclusionRules,
   trainingCodes,
   curricula,
   curriculumChapters,
@@ -76,12 +76,11 @@ export function ClassCreationWizard({
   agencies: Option[];
   staff: Option[];
   reportingSystems: ReportingSystemOption[];
-  reportingRequirements: Array<{
+  inclusionRules: Array<{
     reportingSystemId: string;
-    kind: string;
+    inclusionMode: string;
     credentialName: string | null;
-    studentField: string | null;
-    isRequired: boolean;
+    credentialCode: string | null;
   }>;
   trainingCodes: Array<{ id: string; code: string; title: string }>;
   curricula: Array<{
@@ -160,22 +159,22 @@ export function ClassCreationWizard({
   const selectedSystems = reportingSystems.filter((system) =>
     values.reportingSystemIds.includes(system.id),
   );
-  const requiredInformation = [
-    ...new Set(
-      reportingRequirements
-        .filter(
-          (requirement) =>
-            requirement.isRequired &&
-            values.reportingSystemIds.includes(requirement.reportingSystemId),
-        )
-        .map((requirement) =>
-          requirement.kind === "credential"
-            ? requirement.credentialName
-            : requirement.studentField,
-        )
-        .filter((requirement): requirement is string => Boolean(requirement)),
-    ),
-  ];
+  const inclusionDescriptions = selectedSystems.map((system) => {
+    const rule = inclusionRules.find(
+      (entry) => entry.reportingSystemId === system.id,
+    );
+    if (rule?.inclusionMode === "credential") {
+      const format = rule.credentialCode === "ffn" ? " (0000-0000)" : "";
+      return `${system.name}: only attendees with a valid ${rule.credentialName ?? "credential"}${format} appear on this roster.`;
+    }
+    if (rule?.inclusionMode === "none") {
+      return `${system.name}: resource reporting only; no attendee roster.`;
+    }
+    if (rule?.inclusionMode === "all") {
+      return `${system.name}: all attendees are included.`;
+    }
+    return `${system.name}: inclusion policy unavailable.`;
+  });
   const siteSearchOptions: SearchSelectOption[] = [
     ...siteOptions
       .filter((site) => recentSiteIds.includes(site.id))
@@ -390,15 +389,16 @@ export function ClassCreationWizard({
             </div>
           </fieldset>
           <div className="wizard-requirements">
-            <h2>Student information required</h2>
-            {requiredInformation.length ? (
+            <h2>Reporting inclusion</h2>
+            <p>No student credential is required to sign in.</p>
+            {inclusionDescriptions.length ? (
               <ul>
-                {requiredInformation.map((requirement) => (
-                  <li key={requirement}>{requirement}</li>
+                {inclusionDescriptions.map((description) => (
+                  <li key={description}>{description}</li>
                 ))}
               </ul>
             ) : (
-              <p>No additional reporting requirements are selected.</p>
+              <p>Select a reporting destination to see its inclusion rules.</p>
             )}
           </div>
         </section>
@@ -410,6 +410,11 @@ export function ClassCreationWizard({
           <p className="text-muted-foreground">
             Each subject becomes a row on the Kentucky Fire Commission KFS-1A
             roster. A second subject is scheduled after the first.
+          </p>
+          <p className="text-muted-foreground">
+            Lead and assisting instructors need an FFN in the format 0000-0000
+            on their staff profile before they can be assigned to this Fire
+            class.
           </p>
           {subjects.map((subject, index) => (
             <FireSubjectRow
@@ -878,6 +883,19 @@ export function ClassCreationWizard({
             <dd>
               {selectedSystems.map((system) => system.name).join(", ") ||
                 "None selected"}
+            </dd>
+            <dt>Student sign-in</dt>
+            <dd>
+              No credential is required to sign in; every attendee receives a
+              certificate.
+            </dd>
+            <dt>Reporting inclusion</dt>
+            <dd>
+              <ul>
+                {inclusionDescriptions.map((description) => (
+                  <li key={description}>{description}</li>
+                ))}
+              </ul>
             </dd>
             <dt>Class name</dt>
             <dd>{resolvedClassName || "Not provided"}</dd>

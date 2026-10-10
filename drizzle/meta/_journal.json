@@ -239,6 +239,27 @@
       "when": 1791645374454,
       "tag": "0033_known_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791646985805,
+      "tag": "0034_kind_rage",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791649310673,
+      "tag": "0035_daily_carlie_cooper",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791649762243,
+      "tag": "0036_yummy_exodus",
+      "breakpoints": true
     }
   ]
 }

@@ -139,6 +139,7 @@ export const credentialTypes = pgTable(
     code: text("code").notNull(),
     name: text("name").notNull(),
     issuer: text("issuer"),
+    valuePattern: text("value_pattern"),
     isActive: boolean("is_active").default(true).notNull(),
     ...timestamps,
   },
@@ -195,6 +196,11 @@ export const reportingRequirementSets = pgTable(
       .notNull()
       .references(() => reportingSystems.id, { onDelete: "restrict" }),
     version: integer("version").notNull(),
+    inclusionMode: text("inclusion_mode").default("all").notNull(),
+    inclusionCredentialTypeId: uuid("inclusion_credential_type_id").references(
+      () => credentialTypes.id,
+      { onDelete: "restrict" },
+    ),
     effectiveFrom: timestamp("effective_from", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -212,6 +218,10 @@ export const reportingRequirementSets = pgTable(
     uniqueIndex("reporting_requirement_sets_active_unique")
       .on(table.reportingSystemId)
       .where(sql`${table.isActive}`),
+    check(
+      "reporting_requirement_sets_inclusion_mode",
+      sql`(${table.inclusionMode} in ('all', 'none') and ${table.inclusionCredentialTypeId} is null) or (${table.inclusionMode} = 'credential' and ${table.inclusionCredentialTypeId} is not null)`,
+    ),
   ],
 );
 

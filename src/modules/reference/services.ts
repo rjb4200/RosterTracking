@@ -33,11 +33,8 @@ import {
   MTU_CATALOG_KINDS,
   MTU_ROUNDING_MODES,
 } from "./constants";
-import {
-  credentialLookupHash,
-  encryptCredential,
-  normalizeCredentialValue,
-} from "./crypto";
+import { validateCredentialValue } from "./credential-format";
+import { credentialLookupHash, encryptCredential } from "./crypto";
 import { credentialMaskedSuffix, normalizePhone } from "./masking";
 
 export interface Actor {
@@ -716,13 +713,27 @@ export async function upsertStudentCredential(
   input: z.infer<typeof credentialInput>,
 ) {
   const parsed = credentialInput.parse(input);
-  const normalizedValue = normalizeCredentialValue(parsed.value);
-  const maskedSuffix = credentialMaskedSuffix(normalizedValue);
-  const valueHash = credentialLookupHash(normalizedValue);
-  const encryptedValue = encryptCredential(normalizedValue);
   const expirationDate = parsed.expirationDate ? parsed.expirationDate : null;
 
   return db.transaction(async (transaction) => {
+    const [type] = await transaction
+      .select({
+        code: credentialTypes.code,
+        valuePattern: credentialTypes.valuePattern,
+      })
+      .from(credentialTypes)
+      .where(
+        and(
+          eq(credentialTypes.id, credentialTypeId),
+          eq(credentialTypes.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!type) throw new Error("Credential type is unavailable.");
+    const normalizedValue = validateCredentialValue(parsed.value, type);
+    const maskedSuffix = credentialMaskedSuffix(normalizedValue);
+    const valueHash = credentialLookupHash(normalizedValue);
+    const encryptedValue = encryptCredential(normalizedValue);
     const existing = await transaction
       .select()
       .from(studentCredentials)

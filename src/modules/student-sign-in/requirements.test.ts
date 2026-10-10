@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  promptCredentialCodes,
   reduceClassRequirements,
   requiredRegistrationFields,
 } from "./requirements";
@@ -50,7 +51,7 @@ describe("class reporting requirement resolution", () => {
     expect(resolved.studentFields).toEqual(["email"]);
   });
 
-  it("always collects an email for a new registration", () => {
+  it("requires an email for certificate delivery, not reporting-specific fields", () => {
     expect(
       requiredRegistrationFields({
         sets: [],
@@ -64,13 +65,24 @@ describe("class reporting requirement resolution", () => {
         studentFields: ["studentNumber"],
         credentials: [],
       }),
-    ).toEqual(["email", "studentNumber"]);
+    ).toEqual(["email"]);
     expect(
       requiredRegistrationFields({
         sets: [],
         studentFields: ["email", "studentNumber"],
         credentials: [],
       }),
-    ).toEqual(["email", "studentNumber"]);
+    ).toEqual(["email"]);
+  });
+
+  it("offers FFN for Fire and KEMSIS/NREMT for KBEMS without prompting FEMA", () => {
+    expect(promptCredentialCodes(["fire"])).toEqual(["ffn"]);
+    expect(promptCredentialCodes(["kbems"])).toEqual(["kemsis", "nremt"]);
+    expect(promptCredentialCodes(["fire", "kbems", "mtu"])).toEqual([
+      "ffn",
+      "kemsis",
+      "nremt",
+    ]);
+    expect(promptCredentialCodes(["mtu", "fema"])).toEqual([]);
   });
 });

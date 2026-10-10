@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   getClassDetail,
   listClassFormOptions,
@@ -23,6 +23,7 @@ import {
 } from "../../actions";
 import { ClassForm } from "../../class-form";
 import { ComponentForm } from "../../component-form";
+import { InstructorAssignmentForm } from "../../instructor-assignment-form";
 
 export const dynamic = "force-dynamic";
 
@@ -141,20 +142,11 @@ export default async function EditClassPage({
             </li>
           ))}
         </ul>
-        <form action={assignInstructorAction} className="inline-form">
-          <input type="hidden" name="classId" value={classRecord.id} />
-          <input type="hidden" name="isLead" value="true" />
-          <select name="userId" className="select-input" required>
-            {options.staff.map((staff) => (
-              <option key={staff.id} value={staff.id}>
-                {staff.name}
-              </option>
-            ))}
-          </select>
-          <Button type="submit" variant="secondary">
-            Set lead instructor
-          </Button>
-        </form>
+        <InstructorAssignmentForm
+          action={assignInstructorAction}
+          classId={classRecord.id}
+          staff={options.staff}
+        />
       </section>
     </main>
   );

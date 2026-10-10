@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
 import {
   getClassDetail,
@@ -45,6 +45,7 @@ import {
   FinalizationControls,
   ReopenControl,
 } from "../../finalization-controls";
+import { InstructorAssignmentForm } from "../../instructor-assignment-form";
 import { MtuUsageForm } from "../../mtu-usage-form";
 import {
   CompletionCertificateControls,
@@ -510,20 +511,11 @@ export default async function ClassReviewPage({
                 </li>
               ))}
             </ul>
-            <form action={assignInstructorAction} className="inline-form">
-              <input type="hidden" name="classId" value={classRecord.id} />
-              <input type="hidden" name="isLead" value="true" />
-              <select name="userId" className="select-input" required>
-                {classOptions.staff.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.name}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit" variant="secondary">
-                Set lead instructor
-              </Button>
-            </form>
+            <InstructorAssignmentForm
+              action={assignInstructorAction}
+              classId={classRecord.id}
+              staff={classOptions.staff}
+            />
           </section>
         </details>
       ) : null}

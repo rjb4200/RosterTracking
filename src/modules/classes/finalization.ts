@@ -23,6 +23,10 @@ import {
 } from "@/modules/individual-training-notices/service";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
 import { encryptCredential } from "@/modules/reference/crypto";
+import {
+  countFireEligible,
+  isFireEligibleFromSnapshots,
+} from "@/modules/reference/fire-eligibility";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { resolveClassRequirements } from "@/modules/student-sign-in/requirements";
 import { writeAuditLog } from "@/server/db/audit";
@@ -348,6 +352,10 @@ async function buildSnapshot(
       guestFirstName: entry.guestFirstName,
       guestLastName: entry.guestLastName,
       email: entry.studentEmail ?? entry.guestEmail ?? null,
+      fireEligible: isFireEligibleFromSnapshots(
+        { attendance: [], fieldSnapshots, credentialSnapshots },
+        entry.attendanceId,
+      ),
     })),
     destinations,
     requirements,
@@ -472,6 +480,9 @@ export async function finalizeClass(
           completedAt: snapshot.class.completedAt,
           attendanceCount: snapshot.attendance.length,
           instructorCount: snapshot.instructors.length,
+          // Frozen so the Fire reporting queue can count the eligible subset
+          // without re-evaluating mutable credentials.
+          fireEligibleCount: countFireEligible(snapshot),
         },
       })
       .returning();
@@ -778,6 +789,7 @@ export async function listReportingQueue(
         referenceNumber: finalizationReportingStatuses.referenceNumber,
         notes: finalizationReportingStatuses.notes,
         updatedAt: finalizationReportingStatuses.updatedAt,
+        summary: finalizationRevisions.summary,
         // The immediately preceding revision of the same class, and its status
         // for the same destination. Null for a first-time finalization.
         supersededRevisionNumber: sql<number | null>`(
@@ -851,6 +863,20 @@ export async function listReportingQueue(
         asc(reportingSystems.name),
         asc(finalizationReportingStatuses.status),
       );
-    return { rows, summaries };
+    // The Fire destination covers only valid-FFN attendees, so its queue count
+    // uses the frozen eligible subset rather than the full roster.
+    const countedRows = rows.map((row) => {
+      const frozen = (row.summary as { fireEligibleCount?: unknown } | null)
+        ?.fireEligibleCount;
+      return {
+        ...row,
+        attendanceCount:
+          row.systemCode === "fire" && typeof frozen === "number"
+            ? frozen
+            : row.attendanceCount,
+        summary: undefined,
+      };
+    });
+    return { rows: countedRows, summaries };
   });
 }

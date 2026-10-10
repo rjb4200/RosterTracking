@@ -131,6 +131,19 @@ describe("completion certificates", () => {
     expect(pdf.getForm().getFields()).toHaveLength(0);
   });
 
+  it("issues a certificate to every attendee regardless of credentials", async () => {
+    // EMS may certify anyone, so an attendee without a valid FFN (or any
+    // credential) still receives a certificate.
+    const withoutCredentials = await renderCompletionCertificates({
+      ...snapshot,
+      attendance: snapshot.attendance.map((participant) => ({
+        ...participant,
+        fireEligible: false,
+      })),
+    });
+    expect((await PDFDocument.load(withoutCredentials)).getPageCount()).toBe(2);
+  });
+
   it("renders the same finalized inputs deterministically", async () => {
     await expect(renderCompletionCertificates(snapshot)).resolves.toEqual(
       await renderCompletionCertificates(snapshot),

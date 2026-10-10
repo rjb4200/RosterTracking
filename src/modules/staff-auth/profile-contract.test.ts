@@ -7,16 +7,16 @@ function input(ffn: string) {
 }
 
 describe("profile firefighter number", () => {
-  it("accepts a digits-only firefighter number", () => {
-    expect(parseProfileInput(input("123456")).ffn).toBe("123456");
+  it("accepts the canonical firefighter number", () => {
+    expect(parseProfileInput(input("1234-5678")).ffn).toBe("1234-5678");
   });
 
-  it("rejects a dashed firefighter number", () => {
-    expect(() => parseProfileInput(input("0634-4600"))).toThrow(/digits only/i);
+  it("rejects a legacy digits-only firefighter number", () => {
+    expect(() => parseProfileInput(input("06344600"))).toThrow(/0000-0000/i);
   });
 
   it("rejects a non-digit firefighter number", () => {
-    expect(() => parseProfileInput(input("ABC123"))).toThrow(/digits only/i);
+    expect(() => parseProfileInput(input("ABC123"))).toThrow(/0000-0000/i);
   });
 
   it("accepts an empty firefighter number", () => {

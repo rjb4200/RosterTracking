@@ -34,7 +34,6 @@ import {
   mtuCatalogItems,
   mtuUsage,
   reportingRequirementSets,
-  reportingRequirements,
   reportingSystems,
   roles,
   trainingClasses,
@@ -50,6 +49,7 @@ import {
   type ClassStatus,
 } from "./constants";
 import { defaultComponentMethod } from "./fire-subjects";
+import { requireFireInstructorFfns } from "./instructor-ffn";
 import {
   estimateSupplyQuantity,
   hasMtuUsage,
@@ -365,6 +365,56 @@ async function replaceReportingSystems(
   }
 }
 
+async function selectsFireDestination(
+  transaction: DatabaseTransaction,
+  reportingSystemIds: string[],
+): Promise<boolean> {
+  if (reportingSystemIds.length === 0) return false;
+  const [fire] = await transaction
+    .select({ id: reportingSystems.id })
+    .from(reportingSystems)
+    .where(
+      and(
+        inArray(reportingSystems.id, reportingSystemIds),
+        eq(reportingSystems.code, REPORTING_SYSTEM_CODES.FIRE),
+      ),
+    )
+    .limit(1);
+  return Boolean(fire);
+}
+
+async function classSelectsFire(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<boolean> {
+  const [fire] = await transaction
+    .select({ id: reportingSystems.id })
+    .from(classReportingSystems)
+    .innerJoin(
+      reportingSystems,
+      eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+    )
+    .where(
+      and(
+        eq(classReportingSystems.classId, classId),
+        eq(reportingSystems.code, REPORTING_SYSTEM_CODES.FIRE),
+      ),
+    )
+    .limit(1);
+  return Boolean(fire);
+}
+
+async function assignedInstructorIds(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<string[]> {
+  const assignments = await transaction
+    .select({ id: classInstructors.userId })
+    .from(classInstructors)
+    .where(eq(classInstructors.classId, classId));
+  return assignments.map(({ id }) => id);
+}
+
 function mtuUsageFromDraft(input: z.infer<typeof draftInput>): MtuUsageText {
   return normalizeMtuUsage({
     equipmentUsed: input.mtuEquipmentUsed,
@@ -636,6 +686,17 @@ export async function createOpenClass(
     await validateReferences(transaction, parsed);
     await assertKbemsCourseDetails(transaction, parsed);
     const reportingSystemIds = parsed.reportingSystemIds ?? [];
+    const [leadInstructor] = await transaction
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(eq(users.id, parsed.leadInstructorId), eq(users.isActive, true)),
+      )
+      .limit(1);
+    if (!leadInstructor) throw new Error("Select an active lead instructor.");
+    if (await selectsFireDestination(transaction, reportingSystemIds)) {
+      await requireFireInstructorFfns(transaction, [parsed.leadInstructorId]);
+    }
     // The class name: the entered/EMS course name, else the first Fire subject.
     const className = parsed.name || parsed.subjects?.[0]?.className || null;
     const publicCode = await findAvailablePublicCode(transaction);
@@ -675,14 +736,6 @@ export async function createOpenClass(
         details: { reportingSystemIds },
       });
     }
-    const [leadInstructor] = await transaction
-      .select({ id: users.id })
-      .from(users)
-      .where(
-        and(eq(users.id, parsed.leadInstructorId), eq(users.isActive, true)),
-      )
-      .limit(1);
-    if (!leadInstructor) throw new Error("Select an active lead instructor.");
     await transaction.insert(classInstructors).values({
       classId: created.id,
       userId: parsed.leadInstructorId,
@@ -810,6 +863,18 @@ export async function updateClass(
     const existing = await requireClassAccess(transaction, actor, classId);
     assertClassEditable(existing.status);
     await validateReferences(transaction, parsed);
+    if (
+      (await selectsFireDestination(
+        transaction,
+        parsed.reportingSystemIds ?? [],
+      )) &&
+      !(await classSelectsFire(transaction, classId))
+    ) {
+      await requireFireInstructorFfns(
+        transaction,
+        await assignedInstructorIds(transaction, classId),
+      );
+    }
     const accessPin = parsed.accessPinEnabled
       ? existing.accessPinEnabled
         ? existing.accessPinEncrypted
@@ -966,6 +1031,12 @@ export async function assignClassInstructor(
       .where(and(eq(users.id, userId), eq(users.isActive, true)))
       .limit(1);
     if (!activeUser) throw new Error("Select an active staff user.");
+    if (await classSelectsFire(transaction, classId)) {
+      await requireFireInstructorFfns(transaction, [
+        ...(await assignedInstructorIds(transaction, classId)),
+        userId,
+      ]);
+    }
     if (isLead) {
       await transaction
         .update(classInstructors)
@@ -1659,7 +1730,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     agencyRows,
     systemRows,
     staffRows,
-    requirementRows,
+    inclusionRuleRows,
     trainingCodeRows,
     curriculumRows,
     curriculumChapterRows,
@@ -1692,19 +1763,17 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     db
       .select({
         reportingSystemId: reportingRequirementSets.reportingSystemId,
-        kind: reportingRequirements.kind,
+        inclusionMode: reportingRequirementSets.inclusionMode,
         credentialName: credentialTypes.name,
-        studentField: reportingRequirements.studentField,
-        isRequired: reportingRequirements.isRequired,
+        credentialCode: credentialTypes.code,
       })
-      .from(reportingRequirements)
-      .innerJoin(
-        reportingRequirementSets,
-        eq(reportingRequirementSets.id, reportingRequirements.requirementSetId),
-      )
+      .from(reportingRequirementSets)
       .leftJoin(
         credentialTypes,
-        eq(credentialTypes.id, reportingRequirements.credentialTypeId),
+        eq(
+          credentialTypes.id,
+          reportingRequirementSets.inclusionCredentialTypeId,
+        ),
       )
       .where(eq(reportingRequirementSets.isActive, true)),
     db
@@ -1798,7 +1867,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     agencies: agencyRows,
     reportingSystems: systemRows,
     staff: staffRows,
-    reportingRequirements: requirementRows,
+    inclusionRules: inclusionRuleRows,
     trainingCodes: trainingCodeRows,
     curricula: curriculumRows,
     curriculumChapters: curriculumChapterRows,

@@ -12,8 +12,7 @@ export const PUBLIC_RATE_LIMIT_OPERATIONS = {
   STAGING_WRITE: "staging_write",
   CURRENT_PHONE_LOOKUP: "current_phone_lookup",
   PRIOR_PHONE_RECOVERY: "prior_phone_recovery",
-  FFN_VERIFICATION: "ffn_verification",
-  KEMSIS_VERIFICATION: "kemsis_verification",
+  EMAIL_RECOVERY: "email_recovery",
   REGULAR_CONFIRMATION: "regular_confirmation",
   GUEST_CONFIRMATION: "guest_confirmation",
   ACCESS_PIN_VERIFICATION: "access_pin_verification",
@@ -47,13 +46,7 @@ export const PUBLIC_RATE_LIMIT_POLICIES: Record<
     identifierAttempts: 5,
     failures: 6,
   },
-  ffn_verification: {
-    windowSeconds: 900,
-    sourceAttempts: 8,
-    identifierAttempts: 4,
-    failures: 5,
-  },
-  kemsis_verification: {
+  email_recovery: {
     windowSeconds: 900,
     sourceAttempts: 8,
     identifierAttempts: 4,

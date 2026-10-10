@@ -14,6 +14,7 @@ import { loadLogoAttachment } from "@/modules/notifications/assets";
 import { sendEmail } from "@/modules/notifications/client";
 import { BRAND, emailShell, FONT_STACK } from "@/modules/notifications/layout";
 import { decryptCredential } from "@/modules/reference/crypto";
+import { fireEligibleAttendance } from "@/modules/reference/fire-eligibility";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database } from "@/server/db/client";
@@ -50,6 +51,9 @@ export interface SnapshotAttendance {
   // when the participant has no deliverable address (a legacy student or a
   // guest recorded before guest email was required).
   email?: string | null;
+  // Frozen at finalization: the attendee had a valid FFN. Absent on revisions
+  // that predate this fact, where it is derived from the credential snapshots.
+  fireEligible?: boolean;
 }
 
 export interface FinalizationSnapshot {
@@ -461,7 +465,14 @@ export async function renderOfficialRoster(
   snapshot: FinalizationSnapshot,
 ): Promise<Uint8Array> {
   const mapping = getTemplateMapping(formType);
-  const pages = split(snapshot.attendance, mapping.pageCapacity);
+  // The Fire Commission credits training hours only to attendees with a valid
+  // FFN, so the KFS-1A carries that eligible subset. Every other form covers
+  // all attendees.
+  const attendance =
+    formType === "kfs-1a"
+      ? fireEligibleAttendance(snapshot)
+      : snapshot.attendance;
+  const pages = split(attendance, mapping.pageCapacity);
   if (!pages.length) pages.push([]);
   const output = await PDFDocument.create();
   for (const [index, attendees] of pages.entries()) {

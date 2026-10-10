@@ -4,6 +4,10 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
 import { encryptCredential } from "@/modules/reference/crypto";
+import {
+  includesParticipant,
+  resolveClassInclusionRules,
+} from "@/modules/reference/inclusion";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
@@ -269,9 +273,6 @@ async function prepareRegularFacts(
         "Existing credentials cannot be replaced.",
       );
     }
-    if (!existing && !addition) {
-      throw new AttendanceConfirmationError("Required data is missing.");
-    }
     if (addition) credentialValues.set(credential.id, addition.value);
   }
   return { loaded, fields, studentUpdates, credentialValues };
@@ -295,9 +296,7 @@ function prepareGuestFacts(
   const credentialValues = new Map<string, string>();
   for (const credential of requirements.credentials) {
     const value = staged.get(credential.id)?.value;
-    if (!value)
-      throw new AttendanceConfirmationError("Required data is missing.");
-    credentialValues.set(credential.id, value);
+    if (value) credentialValues.set(credential.id, value);
   }
   return { fields, credentialValues };
 }
@@ -308,17 +307,37 @@ async function insertReportingSnapshots(
   requirements: ClassRequirements,
   fields: Record<string, string>,
   credentialValues: Map<string, string>,
+  inclusionRules: Awaited<ReturnType<typeof resolveClassInclusionRules>>,
 ) {
   if (requirements.sets.length > 0) {
     await transaction.insert(attendanceReportingContexts).values(
-      requirements.sets.map((set) => ({
-        attendanceId,
-        requirementSetId: set.id,
-      })),
+      requirements.sets.map((set) => {
+        const rule = inclusionRules.find(
+          (entry) => entry.requirementSetId === set.id,
+        );
+        if (!rule)
+          throw new AttendanceConfirmationError("Reporting unavailable.");
+        const values = Object.fromEntries(
+          requirements.credentials.map(({ id, code }) => [
+            code,
+            credentialValues.get(id),
+          ]),
+        );
+        return {
+          attendanceId,
+          requirementSetId: set.id,
+          included: includesParticipant(rule, values),
+        };
+      }),
     );
   }
   const fieldSnapshots = requirements.sets.flatMap((set) =>
-    set.studentFields.map((studentField) => ({
+    [
+      ...new Set([
+        ...set.studentFields,
+        ...requiredRegistrationFields(requirements),
+      ]),
+    ].map((studentField) => ({
       attendanceId,
       requirementSetId: set.id,
       studentField,
@@ -331,18 +350,19 @@ async function insertReportingSnapshots(
       .values(fieldSnapshots);
   }
   const credentialSnapshots = requirements.sets.flatMap((set) =>
-    set.credentials.map((credential) => {
+    set.credentials.flatMap((credential) => {
       const value = credentialValues.get(credential.id);
-      if (!value)
-        throw new AttendanceConfirmationError("Required data is missing.");
+      if (!value) return [];
       const protectedValue = protectedCredentialValue(value);
-      return {
-        attendanceId,
-        requirementSetId: set.id,
-        credentialTypeId: credential.id,
-        encryptedValue: protectedValue.encryptedValue,
-        maskedSuffix: protectedValue.maskedSuffix,
-      };
+      return [
+        {
+          attendanceId,
+          requirementSetId: set.id,
+          credentialTypeId: credential.id,
+          encryptedValue: protectedValue.encryptedValue,
+          maskedSuffix: protectedValue.maskedSuffix,
+        },
+      ];
     }),
   );
   if (credentialSnapshots.length > 0) {
@@ -492,6 +512,11 @@ export async function confirmAttendance(
       }
 
       const requirements = await resolveClassRequirements(
+        transaction,
+        context.classId,
+        now,
+      );
+      const inclusionRules = await resolveClassInclusionRules(
         transaction,
         context.classId,
         now,
@@ -738,6 +763,7 @@ export async function confirmAttendance(
         requirements,
         fields,
         credentialValues,
+        inclusionRules,
       );
       if (studentId) {
         const membershipChanged = await ensureAgencyMembership(

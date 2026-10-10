@@ -55,6 +55,7 @@ const snapshot: FinalizationSnapshot = {
       guestFirstName: null,
       guestLastName: null,
       email: "bath@example.com",
+      fireEligible: true,
     },
     {
       attendanceId: "a2",
@@ -66,6 +67,7 @@ const snapshot: FinalizationSnapshot = {
       guestFirstName: null,
       guestLastName: null,
       email: "winn@example.com",
+      fireEligible: true,
     },
   ],
   fieldSnapshots: [],
@@ -78,6 +80,19 @@ describe("individual training notices", () => {
     expect(qualifyingParticipants(snapshot).map((p) => p.attendanceId)).toEqual(
       ["a1"],
     );
+  });
+
+  it("skips an outside-agency participant without a valid FFN", () => {
+    expect(
+      qualifyingParticipants({
+        ...snapshot,
+        attendance: snapshot.attendance.map((participant) =>
+          participant.attendanceId === "a1"
+            ? { ...participant, fireEligible: false }
+            : participant,
+        ),
+      }),
+    ).toEqual([]);
   });
 
   it("produces no notices for a non-Fire class", () => {

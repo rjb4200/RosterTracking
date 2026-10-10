@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { validateCredentialValue } from "@/modules/reference/credential-format";
 
 import {
   credentialLookupHash,
@@ -106,31 +107,31 @@ export async function resolveRegularAttendanceAgencies(
   };
 }
 
-function requiredCredentialMap(
+export function optionalCredentialMap(
   credentials: { credentialTypeId: string; value: string }[],
-  required: { id: string; code: string }[],
+  offered: { id: string; code: string }[],
 ): StagedCredential[] {
-  const requiredIds = new Set(required.map(({ id }) => id));
+  const offeredIds = new Set(offered.map(({ id }) => id));
   if (
     credentials.length !==
       new Set(credentials.map(({ credentialTypeId }) => credentialTypeId))
         .size ||
     credentials.some(
-      ({ credentialTypeId }) => !requiredIds.has(credentialTypeId),
+      ({ credentialTypeId }) => !offeredIds.has(credentialTypeId),
     )
   ) {
-    throw new Error("Only missing required credentials may be submitted.");
+    throw new Error("Only offered credentials may be submitted.");
   }
   const submitted = new Map(
     credentials.map((credential) => [credential.credentialTypeId, credential]),
   );
-  return required.map((requirement) => {
+  return offered.flatMap((requirement) => {
     const credential = submitted.get(requirement.id);
-    if (!credential) throw new Error("All required credentials are required.");
+    if (!credential?.value.trim()) return [];
     return {
       credentialTypeId: requirement.id,
       code: requirement.code,
-      value: normalizeCredentialValue(credential.value),
+      value: validateCredentialValue(credential.value, requirement),
     };
   });
 }
@@ -196,7 +197,7 @@ export async function stageRegularRequirements(
   const missingCredentials = requirements.credentials.filter(
     ({ id }) => !existingTypeIds.has(id),
   );
-  const stagedCredentials = requiredCredentialMap(
+  const stagedCredentials = optionalCredentialMap(
     input.credentials,
     missingCredentials,
   );
@@ -271,7 +272,7 @@ export async function stageGuestParticipant(
     firstName,
     lastName,
     fields,
-    credentials: requiredCredentialMap(
+    credentials: optionalCredentialMap(
       input.credentials,
       requirements.credentials,
     ),
@@ -345,7 +346,7 @@ export async function stageNewStudentParticipant(
     lastName,
     phone,
     fields,
-    credentials: requiredCredentialMap(
+    credentials: optionalCredentialMap(
       input.credentials,
       requirements.credentials,
     ),

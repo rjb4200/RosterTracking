@@ -2,6 +2,15 @@ import "server-only";
 
 import { and, eq, inArray } from "drizzle-orm";
 
+import {
+  CREDENTIAL_TYPE_CODES,
+  REPORTING_SYSTEM_CODES,
+} from "@/modules/reference/constants";
+import { decryptCredential } from "@/modules/reference/crypto";
+import {
+  needsFireCreditWarning,
+  resolveClassInclusionRules,
+} from "@/modules/reference/inclusion";
 import type { Database } from "@/server/db/client";
 import {
   credentialTypes,
@@ -47,6 +56,7 @@ export type SignInPageModel =
       preselectedAgencyId: string | null;
       attestation: string;
       email: string | null;
+      fireCreditWarning: boolean;
     }
   | {
       step: "regular-details";
@@ -76,6 +86,7 @@ export type SignInPageModel =
       participantName: string;
       regular: boolean;
       attestation: string;
+      fireCreditWarning: boolean;
     };
 
 export function requestedEntryStep(
@@ -172,6 +183,48 @@ async function listMaskedCredentials(
     );
 }
 
+async function fireCreditWarning(
+  db: Database,
+  classId: string,
+  participant: NonNullable<
+    Awaited<ReturnType<typeof loadSignInWorkflow>>["state"]["participant"]
+  >,
+): Promise<boolean> {
+  const rules = await resolveClassInclusionRules(db, classId);
+  const fire = rules.find(
+    ({ reportingSystemCode }) =>
+      reportingSystemCode === REPORTING_SYSTEM_CODES.FIRE,
+  );
+  if (!fire) return false;
+  let ffn = participant.credentials.find(
+    ({ code }) => code === CREDENTIAL_TYPE_CODES.FFN,
+  )?.value;
+  if (!ffn && participant.kind === "regular") {
+    const [stored] = await db
+      .select({ value: studentCredentials.value })
+      .from(studentCredentials)
+      .innerJoin(
+        credentialTypes,
+        eq(credentialTypes.id, studentCredentials.credentialTypeId),
+      )
+      .where(
+        and(
+          eq(studentCredentials.studentId, participant.studentId),
+          eq(credentialTypes.code, CREDENTIAL_TYPE_CODES.FFN),
+        ),
+      )
+      .limit(1);
+    if (stored) {
+      try {
+        ffn = decryptCredential(stored.value);
+      } catch {
+        // Legacy test credentials which cannot be read do not earn Fire credit.
+      }
+    }
+  }
+  return needsFireCreditWarning(fire, ffn);
+}
+
 export async function buildSignInPageModel(
   db: Database,
   signedContext: string,
@@ -229,6 +282,11 @@ export async function buildSignInPageModel(
       attestation: renderAttendanceAttestation(
         `${participant.firstName} ${participant.lastName}`,
       ),
+      fireCreditWarning: await fireCreditWarning(
+        db,
+        loaded.context.classId,
+        participant,
+      ),
     };
   }
 
@@ -239,6 +297,11 @@ export async function buildSignInPageModel(
       participantName,
       regular: true,
       attestation: renderAttendanceAttestation(participantName),
+      fireCreditWarning: await fireCreditWarning(
+        db,
+        loaded.context.classId,
+        participant,
+      ),
     };
   }
 
@@ -265,6 +328,11 @@ export async function buildSignInPageModel(
         participantName,
         regular: true,
         attestation: renderAttendanceAttestation(participantName),
+        fireCreditWarning: await fireCreditWarning(
+          db,
+          loaded.context.classId,
+          participant,
+        ),
       };
     }
     return {
@@ -297,6 +365,11 @@ export async function buildSignInPageModel(
       email: student.email,
       ...details,
       attestation: renderAttendanceAttestation(participantName),
+      fireCreditWarning: await fireCreditWarning(
+        db,
+        loaded.context.classId,
+        participant,
+      ),
     };
   }
 

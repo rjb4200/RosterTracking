@@ -35,6 +35,8 @@ const NOTICES: Record<string, string> = {
     "We could not continue with that phone number. You can try again, use changed-number recovery, or sign in as a guest.",
   recovery:
     "We could not verify those details. Check your entries or use guest sign-in.",
+  "ffn-format":
+    "FFN must use the format 0000-0000. Correct it or leave it blank to continue.",
   required: "Complete every required field and choose an active agency.",
   unable: "We could not continue sign-in. Check your entries and try again.",
 };
@@ -49,6 +51,16 @@ function CertificateEmail({ email }: { email: string | null }) {
   return (
     <p className="recognized-email">
       Completion certificate emailed to <strong>{email}</strong>
+    </p>
+  );
+}
+
+function FireCreditNotice() {
+  return (
+    <p className="sign-in-alert" role="status">
+      You can still sign in and receive your certificate, but your training
+      hours will not appear on the Fire Commission roster without a valid FFN
+      (0000-0000).
     </p>
   );
 }
@@ -156,13 +168,13 @@ function RequirementFields({
       {model.credentials.map((credential) => (
         <div className="sign-in-field" key={credential.id}>
           <label htmlFor={`credential-${credential.id}`}>
-            {credential.code.toUpperCase()}
+            {credential.code.toUpperCase()} (optional)
           </label>
           <input
             autoComplete="off"
             id={`credential-${credential.id}`}
             name={`credential:${credential.id}`}
-            required
+            placeholder={credential.code === "ffn" ? "0000-0000" : undefined}
             type="text"
           />
         </div>
@@ -220,8 +232,8 @@ function Wizard({
     return (
       <>
         <p className="sign-in-copy">
-          Enter your previous phone number and choose one credential. The same
-          choices are always shown for privacy.
+          Enter your previous phone number and the email address on your student
+          profile.
         </p>
         <Notice notice={notice} />
         <form action={recoverChangedPhone} className="sign-in-form">
@@ -235,29 +247,14 @@ function Wizard({
               type="tel"
             />
           </div>
-          <fieldset className="sign-in-choice-group">
-            <legend>Credential type</legend>
-            <label>
-              <input name="credentialType" required type="radio" value="ffn" />
-              FFN
-            </label>
-            <label>
-              <input
-                name="credentialType"
-                required
-                type="radio"
-                value="kemsis"
-              />
-              KEMSIS ID
-            </label>
-          </fieldset>
           <div className="sign-in-field">
-            <label htmlFor="credentialValue">Credential value</label>
+            <label htmlFor="recoveryEmail">Email address on your profile</label>
             <input
-              autoComplete="off"
-              id="credentialValue"
-              name="credentialValue"
+              autoComplete="email"
+              id="recoveryEmail"
+              name="email"
               required
+              type="email"
             />
           </div>
           <SubmitButton pendingLabel="Verifying...">
@@ -330,6 +327,7 @@ function Wizard({
           </ul>
         ) : null}
         <Notice notice={notice} />
+        {model.fireCreditWarning ? <FireCreditNotice /> : null}
         <form action={confirmRecognizedSignIn} className="sign-in-form">
           {model.fields.length > 0 || model.credentials.length > 0 ? (
             <details className="sign-in-update" open>
@@ -361,8 +359,8 @@ function Wizard({
         <p className="recognized-name">{model.participantName}</p>
         <CertificateEmail email={model.email} />
         <p className="sign-in-copy">
-          Complete any class-required details and select the agency you
-          represent.
+          Confirm your email, optionally add any relevant credentials, and
+          select the agency you represent.
         </p>
         <Notice notice={notice} />
         <form action={saveRegularDetails} className="sign-in-form">
@@ -481,6 +479,7 @@ function Wizard({
         Selecting the button below records your attendance and the exact
         statement above.
       </p>
+      {model.fireCreditWarning ? <FireCreditNotice /> : null}
       <Notice notice={notice} />
       <form action={confirmSignIn} className="sign-in-form">
         <SubmitButton pendingLabel="Signing in...">

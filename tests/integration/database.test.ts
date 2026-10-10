@@ -493,7 +493,7 @@ describeDatabase("database foundation", () => {
     );
     const options = await listClassFormOptions(database, actor);
     expect(options.recentSiteIds).toContain(site.id);
-    expect(options.reportingRequirements.length).toBeGreaterThan(0);
+    expect(options.inclusionRules.length).toBeGreaterThan(0);
 
     const classCount = await database
       .select({ count: sql<number>`count(*)::int` })

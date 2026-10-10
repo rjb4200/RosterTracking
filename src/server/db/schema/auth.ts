@@ -54,7 +54,8 @@ export const users = pgTable(
     check("users_session_version_positive", sql`${table.sessionVersion} > 0`),
     check(
       "users_ffn_format",
-      sql`${table.ffn} is null or ${table.ffn} ~ '^[0-9]+$'`,
+      // Legacy digits-only values remain until the owner corrects their profile.
+      sql`${table.ffn} is null or ${table.ffn} ~ '^([0-9]+|[0-9]{4}-[0-9]{4})$'`,
     ),
     check(
       "users_archived_state",

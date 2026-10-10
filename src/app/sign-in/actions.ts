@@ -2,7 +2,6 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { normalizeCredentialValue } from "@/modules/reference/crypto";
 import { normalizePhone } from "@/modules/reference/masking";
 import {
   type AttendanceConfirmationResult,
@@ -61,6 +60,13 @@ const REQUIRED_ERROR = "/sign-in?notice=required";
 const LIMITED_ERROR = "/sign-in?notice=limited";
 const REGISTER_REQUIRED_ERROR = "/sign-in?step=register&notice=required";
 const REGISTER_LIMITED_ERROR = "/sign-in?step=register&notice=limited";
+
+function isFfnFormatError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message === "FFN must be in the format 0000-0000."
+  );
+}
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -262,18 +268,10 @@ export async function recoverChangedPhone(formData: FormData) {
     classId = context.loaded.context.classId;
     const newPhone = context.loaded.state.pendingNewPhone;
     const submittedPriorPhone = text(formData, "priorPhone");
-    const credentialType = text(formData, "credentialType");
-    const submittedCredential = text(formData, "credentialValue");
-    if (
-      !newPhone ||
-      (credentialType !== "ffn" && credentialType !== "kemsis")
-    ) {
+    const submittedEmail = text(formData, "email");
+    if (!newPhone) {
       throw new Error("Recovery is unavailable.");
     }
-    const verificationOperation =
-      credentialType === "ffn"
-        ? PUBLIC_RATE_LIMIT_OPERATIONS.FFN_VERIFICATION
-        : PUBLIC_RATE_LIMIT_OPERATIONS.KEMSIS_VERIFICATION;
     const limit = await acquireLimits(context, [
       { operation: PUBLIC_RATE_LIMIT_OPERATIONS.STAGING_WRITE },
       {
@@ -281,8 +279,8 @@ export async function recoverChangedPhone(formData: FormData) {
         identifier: phoneFingerprintInput(submittedPriorPhone),
       },
       {
-        operation: verificationOperation,
-        identifier: submittedCredential.trim(),
+        operation: PUBLIC_RATE_LIMIT_OPERATIONS.EMAIL_RECOVERY,
+        identifier: submittedEmail.trim().toLowerCase(),
       },
     ]);
     leases = limit.leases;
@@ -290,13 +288,11 @@ export async function recoverChangedPhone(formData: FormData) {
       destination = LIMITED_ERROR;
     } else {
       const priorPhone = normalizePhone(submittedPriorPhone);
-      const credentialValue = normalizeCredentialValue(submittedCredential);
       const recognition = await recognizeStudent(context.db, {
         recovery: {
           priorPhone,
           newPhone,
-          credentialType,
-          credentialValue,
+          email: submittedEmail,
         },
       });
       if (recognition.status !== "identified") {
@@ -431,6 +427,7 @@ export async function confirmRecognizedSignIn(formData: FormData) {
       destination = confirmationDestination(result.status);
     }
   } catch (error) {
+    if (isFfnFormatError(error)) destination = "/sign-in?notice=ffn-format";
     logActionFailure({
       correlationId,
       route: "/sign-in confirmRecognizedSignIn",
@@ -491,9 +488,9 @@ export async function notMe() {
 }
 
 function credentialsFromForm(formData: FormData) {
-  return Object.entries(collectPrefixed(formData, "credential:")).map(
-    ([credentialTypeId, value]) => ({ credentialTypeId, value }),
-  );
+  return Object.entries(collectPrefixed(formData, "credential:"))
+    .map(([credentialTypeId, value]) => ({ credentialTypeId, value }))
+    .filter(({ value }) => value.trim().length > 0);
 }
 
 export async function saveRegularDetails(formData: FormData) {
@@ -522,6 +519,7 @@ export async function saveRegularDetails(formData: FormData) {
       destination = "/sign-in";
     }
   } catch (error) {
+    if (isFfnFormatError(error)) destination = "/sign-in?notice=ffn-format";
     logActionFailure({
       correlationId,
       route: "/sign-in saveRegularDetails",
@@ -561,6 +559,8 @@ export async function saveGuestDetails(formData: FormData) {
       destination = "/sign-in";
     }
   } catch (error) {
+    if (isFfnFormatError(error))
+      destination = "/sign-in?step=guest&notice=ffn-format";
     logActionFailure({
       correlationId,
       route: "/sign-in saveGuestDetails",
@@ -601,6 +601,8 @@ export async function saveNewStudentDetails(formData: FormData) {
       destination = "/sign-in";
     }
   } catch (error) {
+    if (isFfnFormatError(error))
+      destination = "/sign-in?step=register&notice=ffn-format";
     logActionFailure({
       correlationId,
       route: "/sign-in saveNewStudentDetails",
