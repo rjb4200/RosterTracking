@@ -3,9 +3,7 @@
 ## Purpose
 
 Provide instructors and elevated staff with focused, role-appropriate views of the teaching work that requires action.
-
 ## Requirements
-
 ### Requirement: Instructor operational dashboard
 The system SHALL provide assigned instructors a server-rendered dashboard with a primary Create Class action, today's classes, upcoming classes, and the lifecycle-specific actions available to them.
 
@@ -38,3 +36,24 @@ The system SHALL identify open classes whose final scheduled session ended more 
 #### Scenario: Do not expose unrelated overdue work
 - **WHEN** a non-elevated instructor is not assigned to an overdue class
 - **THEN** the dashboard does not show that reminder
+
+### Requirement: Dashboard sections guide when empty
+
+The system SHALL explain each empty dashboard section rather than only stating that it is empty, and SHALL surface the operator's next upcoming assigned class in the today section when they have no class today and an upcoming class.
+
+#### Scenario: Show the next class in an empty today section
+- **WHEN** an assigned instructor has no class scheduled today but has an upcoming class
+- **THEN** the today section states that there are no classes today and names the next upcoming class with its date and time
+
+#### Scenario: Confirm nothing overdue
+- **WHEN** an assigned instructor has no overdue roster
+- **THEN** the overdue section confirms that nothing is awaiting finalization and offers no action
+
+#### Scenario: Offer class creation when no upcoming work exists
+- **WHEN** an operator has no upcoming classes
+- **THEN** the upcoming section offers the create-class action
+
+#### Scenario: Confirm no department work needs attention
+- **WHEN** elevated staff have no department classes needing attention
+- **THEN** the oversight section confirms that nothing needs attention and offers no action
+

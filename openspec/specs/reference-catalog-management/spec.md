@@ -3,9 +3,7 @@
 ## Purpose
 
 Give every department reference catalog — host agencies, training sites, training codes, and approved curricula — the same predictable management screens, so staff learn one pattern for browsing, creating, and editing reference records regardless of which catalog they are in.
-
 ## Requirements
-
 ### Requirement: Reference catalogs share one management-screen pattern
 
 The system SHALL present each reference catalog (host agencies, training sites, training codes, and approved curricula) as a searchable list, a dedicated new-record page, and a dedicated record page.
@@ -81,3 +79,16 @@ The system SHALL NOT ask staff for a source revision when creating or editing a 
 #### Scenario: Lists omit the source revision
 - **WHEN** staff view the curricula or training-codes list
 - **THEN** the list does not show a source revision
+
+### Requirement: Catalog lists distinguish empty from no matches
+
+The system SHALL present a different empty state when a reference catalog has no records than when a search matches no records; the no-records state SHALL offer the create action for that catalog and the no-matches state SHALL offer to clear the search.
+
+#### Scenario: No records yet
+- **WHEN** a reference catalog has no records
+- **THEN** the list explains that no records exist yet and offers the create action for that catalog
+
+#### Scenario: No search matches
+- **WHEN** a search term matches no records in a reference catalog
+- **THEN** the list reports that no records match the term and offers to clear the search
+

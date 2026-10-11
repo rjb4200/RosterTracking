@@ -6,9 +6,7 @@ Maintain the department's Mobile Training Unit catalog of durable equipment and
 consumable supplies, so staff record class usage against a shared, retireable
 vocabulary and the system can estimate a class's supply consumption from its
 size.
-
 ## Requirements
-
 ### Requirement: The MTU catalog holds equipment, supplies, and transport
 
 The system SHALL maintain a department Mobile Training Unit catalog whose
@@ -144,3 +142,16 @@ administrators set that flag on any transport entry.
 #### Scenario: POV does not require mileage
 - **WHEN** staff view the seeded transport entries
 - **THEN** POV is present and marked as not requiring mileage
+
+### Requirement: MTU catalog empty states guide the operator
+
+The system SHALL explain an empty MTU catalog kind and offer the create-entry action when that kind has no entries, and SHALL report no match and offer to clear the search when a search excludes every entry.
+
+#### Scenario: A kind has no entries
+- **WHEN** the equipment, supplies, or transport section of the MTU catalog has no entries
+- **THEN** the section explains that no entries of that kind exist yet and offers the create-entry action
+
+#### Scenario: No search matches
+- **WHEN** a search term matches no MTU catalog entries
+- **THEN** the list reports that no entries match the term and offers to clear the search
+

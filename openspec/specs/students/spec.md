@@ -3,9 +3,7 @@
 ## Purpose
 
 Provide durable, searchable student and agency records with many-to-many memberships so later class and sign-in phases can look up and manage training participants.
-
 ## Requirements
-
 ### Requirement: Student record management
 The system SHALL store one primary record per student with a normalized unique phone number, an email address, and an optional unique internal number, and SHALL let authorized staff create, edit, and deactivate students. A student created or confirmed through sign-in going forward SHALL hold an email address; the email is required so the student can receive their completion certificate.
 
@@ -53,3 +51,16 @@ The system SHALL record audit events when a student is created or their core inf
 #### Scenario: Student is updated
 - **WHEN** authorized staff change a student's name, phone, or membership
 - **THEN** an audit event records the actor, entity, and server timestamp without credential material
+
+### Requirement: Student list distinguishes empty from no matches
+
+The system SHALL present a different empty state when no students exist than when a search matches no students; the no-students state SHALL offer the new-student action and the no-matches state SHALL offer to clear the search.
+
+#### Scenario: No students yet
+- **WHEN** no students exist
+- **THEN** the list explains that no students exist yet and offers the new-student action
+
+#### Scenario: No search matches
+- **WHEN** a search term matches no students
+- **THEN** the list reports that no students match the term and offers to clear the search
+

@@ -3,9 +3,7 @@
 ## Purpose
 
 Provide a minimal public view of classes currently accepting attendance so students can locate and begin the appropriate sign-in flow without instructor-distributed links.
-
 ## Requirements
-
 ### Requirement: Public directory lists only open classes
 The system SHALL present a public landing-page directory containing only classes that are in the open state and whose first scheduled session is within the display window. It SHALL list a class starting 18 hours before its first scheduled session and SHALL stop listing it 36 hours after its first scheduled session. Each entry SHALL disclose only the class name, next scheduled session date and time, in-person site name or `Virtual` delivery label, and assigned instructor names formatted as first initial plus last name.
 
@@ -42,3 +40,12 @@ The public directory and public student-access flow SHALL NOT disclose rosters, 
 #### Scenario: Request unavailable class access
 - **WHEN** a visitor requests a public class URL for a class that is not open
 - **THEN** the system returns a generic unavailable response without class details
+
+### Requirement: Empty directory orients the visitor
+
+The system SHALL present an explanatory message when no class is open for sign-in, describing that classes appear here when an instructor opens them, and SHALL NOT present any staff action to a visitor.
+
+#### Scenario: No class is open for sign-in
+- **WHEN** a visitor opens the public landing page and no class is within the display window
+- **THEN** the directory explains that no class is open for sign-in, states that classes appear here when opened, and offers no action
+
