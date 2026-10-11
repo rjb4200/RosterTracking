@@ -70,6 +70,7 @@
 - [x] Add credited-hour adjustments and reasons
 - [x] Add completion validation
 - [x] Add instructor-focused tablet and desktop tests
+- [x] Add an action-oriented instructor dashboard with direct roster, student QR, and review actions
 
 ## Phase 7: Finalization and Reporting
 
@@ -80,6 +81,7 @@
 - [x] Add independent Fire, KBEMS, and FEMA reporting statuses
 - [x] Add pending and needs-correction queues
 - [x] Record reporting actor, time, reference number, and notes
+- [x] Include students on Fire rosters only when they have a valid FFN while retaining attendance for other participants
 
 ## Phase 8: Official Rosters
 
