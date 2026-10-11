@@ -85,20 +85,34 @@ describe("public request security", () => {
     expect(await validateSameOriginRequest(request)).toBe(true);
   });
 
-  it("trusts the configured origin and the project production domain", () => {
+  it("trusts the configured origin and, in production, the project production domain", () => {
     const origins = trustedSignInOrigins(
       "https://rosters.winchesterfireems.com",
       "roster-tracking.vercel.app",
+      true,
     );
     expect(origins.has("https://rosters.winchesterfireems.com")).toBe(true);
     expect(origins.has("https://roster-tracking.vercel.app")).toBe(true);
     expect(origins.size).toBe(2);
   });
 
-  it("accepts either trusted host for a public mutation", () => {
+  it("does not trust the project production domain outside production", () => {
+    const origins = trustedSignInOrigins(
+      "https://rosterdev.winchesterfireems.com",
+      "roster-tracking.vercel.app",
+      false,
+    );
+    expect(origins.has("https://rosterdev.winchesterfireems.com")).toBe(true);
+    expect(origins.has("https://roster-tracking.vercel.app")).toBe(false);
+    expect(origins.size).toBe(1);
+  });
+
+  it("accepts either trusted host for a public mutation in production", () => {
     const configured = "https://rosters.winchesterfireems.com";
     const project = "roster-tracking.vercel.app";
-    const previous = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    const previousVercelEnv = process.env.VERCEL_ENV;
+    const previousProject = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", project);
     try {
       expect(
@@ -117,7 +131,8 @@ describe("public request security", () => {
         ),
       ).toBe(true);
     } finally {
-      vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", previous ?? "");
+      vi.stubEnv("VERCEL_ENV", previousVercelEnv ?? "");
+      vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", previousProject ?? "");
     }
   });
 

@@ -3,6 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { ipAddress } from "@vercel/functions";
 
+import { isLiveEnvironment } from "@/server/environment";
+
 import { keyedHash } from "./crypto";
 
 export interface TrustedRequestMetadata {
@@ -37,21 +39,25 @@ export function requestSourceFingerprint(ipAddress: string): string {
 
 /**
  * The bounded set of origins a public sign-in mutation may come from:
- * the configured canonical origin, and the deployment's project production
- * domain. Compared by full origin (scheme, host, and port) so no wildcard,
- * suffix, or lookalike host is ever accepted.
+ * the configured canonical origin and, only in the live environment, the
+ * deployment's project production domain. Compared by full origin (scheme,
+ * host, and port) so no wildcard, suffix, or lookalike host is ever accepted.
+ * Outside production the project production domain is deliberately NOT trusted.
  */
 export function trustedSignInOrigins(
   configuredOrigin = process.env.NEXTAUTH_URL,
   projectProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  live = isLiveEnvironment(),
 ): Set<string> {
   const origins = new Set<string>();
   const configured = originOf(configuredOrigin);
   if (configured) origins.add(configured);
-  const project = originOf(
-    projectProductionUrl ? `https://${projectProductionUrl}` : undefined,
-  );
-  if (project) origins.add(project);
+  if (live) {
+    const project = originOf(
+      projectProductionUrl ? `https://${projectProductionUrl}` : undefined,
+    );
+    if (project) origins.add(project);
+  }
   return origins;
 }
 

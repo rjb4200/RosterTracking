@@ -117,3 +117,44 @@ error's message is never recorded — only its class name.
 - **Failures that are handled and returned as a generic response** are still
   logged before the response is sent, so a staff route that answers `404` for an
   unauthorized caller leaves a trace with its failure kind.
+
+## Database environments
+
+See `docs/environment-workflow.md` for the day-to-day workflow. The topology:
+
+- **Production** — a dedicated database, protected, holding only reusable data
+  and the administrator. Built from committed sources; never modified in place.
+- **Development** — the former production database, holding historical test data
+  as fixtures; local `.env` and Vercel preview/development point here.
+- **Test** — `roster_integration` and `roster_e2e`, reset with `db:reset:*`.
+
+| Environment | Database | Deployed by | Configuration |
+| --- | --- | --- | --- |
+| Production | new production database | Vercel, `main` branch | Vercel Production `DATABASE_URL` |
+| Development | former production database | Vercel preview/development | local `.env` `DATABASE_URL` |
+| Test (integration) | `roster_integration` | — | `TEST_DATABASE_URL` |
+| Test (end-to-end) | `roster_e2e` | — | `E2E_DATABASE_URL` |
+
+### Capturing reference data into source
+
+`npm run export:reference` reads training codes, the approved curricula and their
+chapters, and the MTU catalog from a database and writes committed JSON under
+`scripts/data/`. It is strictly read-only, and the database is authoritative for
+curricula and chapters. Host agencies and training sites are not exported; they
+are created by hand.
+
+### Provisioning a fresh database
+
+`npm run provision` builds a fresh database from committed sources: migrations,
+the foundation and reference seeds, the committed reference imports (curricula,
+chapters, training codes, and the MTU catalog), and the administrator. It reads
+and writes only its target database and never deletes rows; re-running is
+idempotent. It refuses a protected production database unless
+`--allow-production` is passed.
+
+### The production guard
+
+Maintenance and data commands — `db:migrate`, `db:seed`, `import:*`, `admin`,
+and `db:reset:*` — refuse to run against a database named in
+`PROTECTED_DATABASE_NAMES`. Pass `--allow-production` (or set
+`ALLOW_PRODUCTION=1`) only for an approved production operation.

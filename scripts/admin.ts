@@ -9,6 +9,7 @@ import {
 } from "../src/modules/staff-auth/password";
 import { ROLE_CODES } from "../src/modules/staff-auth/permissions";
 import type { DatabaseTransaction } from "../src/server/db/client";
+import { assertNotProtectedTarget } from "../src/server/db/maintenance-guard";
 import * as schema from "../src/server/db/schema";
 import { auditLogs, roles, userRoles, users } from "../src/server/db/schema";
 
@@ -20,6 +21,7 @@ const directUrl = z
   .url()
   .startsWith("postgresql://")
   .parse(process.env.DATABASE_URL_DIRECT);
+assertNotProtectedTarget(directUrl, "admin");
 const pool = new Pool({ connectionString: directUrl, max: 1 });
 const db = drizzle(pool, { schema });
 

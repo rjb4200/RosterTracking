@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import { z } from "zod";
 
 import { importCurriculumChapters } from "../src/modules/reference/services";
+import { assertNotProtectedTarget } from "../src/server/db/maintenance-guard";
 import * as schema from "../src/server/db/schema";
 
 const inputPath = process.argv[2] ?? "scripts/data/curriculum-chapters.json";
@@ -30,6 +31,7 @@ const directUrl = z
   .url()
   .startsWith("postgresql://")
   .parse(process.env.DATABASE_URL_DIRECT);
+assertNotProtectedTarget(directUrl, "import:curriculum-chapters");
 const configuredUsername = process.env.ADMIN_USERNAME?.trim();
 const pool = new Pool({ connectionString: directUrl, max: 1 });
 const db = drizzle(pool, { schema });

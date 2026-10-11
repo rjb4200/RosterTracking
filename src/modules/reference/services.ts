@@ -1818,6 +1818,40 @@ export function normalizeMtuCatalogItem(
   };
 }
 
+/**
+ * Insert committed MTU catalog entries that are missing, without touching any
+ * entry that already exists. Used by provisioning so a fresh database receives
+ * the catalog while a database that already holds edited entries keeps them.
+ */
+export async function reconcileMtuCatalog(
+  db: Database,
+  actor: Actor,
+  rows: MtuCatalogItemInput[],
+) {
+  const normalized = rows.map((row) => normalizeMtuCatalogItem(row));
+  return db.transaction(async (transaction) => {
+    let inserted = 0;
+    for (const item of normalized) {
+      const result = await transaction
+        .insert(mtuCatalogItems)
+        .values(item)
+        .onConflictDoNothing()
+        .returning({ id: mtuCatalogItems.id });
+      if (result[0]) inserted += 1;
+    }
+    if (inserted > 0) {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "mtu_catalog.reconciled",
+        entityType: "mtu_catalog_item",
+        details: { inserted },
+      });
+    }
+    return inserted;
+  });
+}
+
 export async function listMtuCatalogItems(db: Database, query: string) {
   const term = `%${query.trim()}%`;
   return db

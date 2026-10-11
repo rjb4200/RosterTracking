@@ -1,0 +1,195 @@
+[
+  {
+    "kind": "equipment",
+    "name": "Adult HAL s5301 Mannequin",
+    "sortOrder": 1,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Victoria OB/Birthing trainer",
+    "sortOrder": 2,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Advanced pediatric HAL",
+    "sortOrder": 3,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Portable virtual monitor",
+    "sortOrder": 4,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Gaumard Ultrasound module",
+    "sortOrder": 5,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Gaumard POCUS/EFAST unit",
+    "sortOrder": 6,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Pediatric ultrasound POCUS/EFAST",
+    "sortOrder": 7,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Ultrasound Cases",
+    "sortOrder": 8,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Laryngoscope Set",
+    "sortOrder": 9,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Traction Splints",
+    "sortOrder": 10,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "I.O. Drill",
+    "sortOrder": 11,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Naloxone Trainer",
+    "sortOrder": 12,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Tourniquet Trainer",
+    "sortOrder": 13,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "SAM junctional tourniquet Trainer",
+    "sortOrder": 14,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Epi-pen trainer",
+    "sortOrder": 15,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Suction unit",
+    "sortOrder": 16,
+    "isActive": true
+  },
+  {
+    "kind": "equipment",
+    "name": "Traffic Cones",
+    "sortOrder": 17,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "Trauma Moulage Kit",
+    "unitLabel": "each",
+    "perClassQty": 1,
+    "perStudentQty": 0,
+    "rounding": "ceil",
+    "sortOrder": 1,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "True Clot Hemorrhage training kit",
+    "unitLabel": "each",
+    "perClassQty": 1,
+    "perStudentQty": 0,
+    "rounding": "ceil",
+    "sortOrder": 2,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "TCC/TECC training module: 2 IFAKs",
+    "unitLabel": "each",
+    "perClassQty": 0,
+    "perStudentQty": 0.5,
+    "rounding": "ceil",
+    "sortOrder": 3,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "Tourniquet",
+    "unitLabel": "each",
+    "perClassQty": 0,
+    "perStudentQty": 1,
+    "rounding": "ceil",
+    "sortOrder": 4,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "Simulated blood gallon",
+    "unitLabel": "gallon",
+    "perClassQty": 0,
+    "perStudentQty": 0.25,
+    "rounding": "exact",
+    "sortOrder": 5,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "Roller Gauze",
+    "unitLabel": "each",
+    "perClassQty": 0,
+    "perStudentQty": 2,
+    "rounding": "ceil",
+    "sortOrder": 6,
+    "isActive": true
+  },
+  {
+    "kind": "supplies",
+    "name": "Chest Seal",
+    "unitLabel": "each",
+    "perClassQty": 0,
+    "perStudentQty": 1,
+    "rounding": "ceil",
+    "sortOrder": 7,
+    "isActive": true
+  },
+  {
+    "kind": "transport",
+    "name": "Ford Transit Van 15 passenger",
+    "requiresMileage": true,
+    "sortOrder": 1,
+    "isActive": true
+  },
+  {
+    "kind": "transport",
+    "name": "Department vehicle",
+    "requiresMileage": true,
+    "sortOrder": 2,
+    "isActive": true
+  },
+  {
+    "kind": "transport",
+    "name": "POV",
+    "requiresMileage": false,
+    "sortOrder": 3,
+    "isActive": true
+  }
+]

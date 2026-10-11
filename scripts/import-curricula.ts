@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import { z } from "zod";
 
 import { importCurricula } from "../src/modules/reference/services";
+import { assertNotProtectedTarget } from "../src/server/db/maintenance-guard";
 import * as schema from "../src/server/db/schema";
 
 const inputPath = process.argv[2];
@@ -27,6 +28,7 @@ const directUrl = z
   .url()
   .startsWith("postgresql://")
   .parse(process.env.DATABASE_URL_DIRECT);
+assertNotProtectedTarget(directUrl, "import:curricula");
 const actorUsername = z
   .string()
   .trim()

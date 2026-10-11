@@ -1,0 +1,612 @@
+[
+  {
+    "code": "A0000",
+    "title": "Administration & Organization",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "AA0000",
+    "title": "Fire Officer Training",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "AA0001",
+    "title": "Fire Officer 1",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "AA0002",
+    "title": "Fire Officer 2",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "AA0003",
+    "title": "Chief Fire Officer",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "B0000",
+    "title": "Safety",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "B0001",
+    "title": "Cancer Awareness",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "B0002",
+    "title": "Traffic Incident Management",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "B0003",
+    "title": "Response to Opioid Emergencies",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "B0004",
+    "title": "Suicide Awareness & PTSD/Silent Mayday",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "B0005",
+    "title": "Active Shooter/Hostile Events (ASHER)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "BB0000",
+    "title": "Methodology",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "BB0001",
+    "title": "Methodology-Fire Instructor 1",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "BB0002",
+    "title": "Methodology-Fire Instructor 2",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "BB0003",
+    "title": "Methodology-Bridge/Refresher",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "BB0004",
+    "title": "Methodology-NFPA 1403/Live Fire Instructor",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "C0000",
+    "title": "Communications",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "CC0000",
+    "title": "Drivers Training",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "CC0001",
+    "title": "Drivers Training-POV",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "D0000",
+    "title": "Fire Behavior",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "DD0000",
+    "title": "Fire Inspector",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "DD0001",
+    "title": "Fire Inspector 1",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "DD0002",
+    "title": "Fire Inspector 2",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "DD0003",
+    "title": "Pre-Planning & Inspections Training",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "E0000",
+    "title": "Extinguishers",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "F0000",
+    "title": "Personal Protective Equipment",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC10000",
+    "title": "KY Firefighter Survival (Classroom Lecture)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC11000",
+    "title": "KY Firefighter Survival (All Skills Required)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC20000",
+    "title": "KY Firefighter Rescue (Classroom Lecture)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC21000",
+    "title": "KY Firefighter Rescue (All Skills Required)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC30000",
+    "title": "KY Wildland Awareness",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC40000",
+    "title": "KY Flashover Recognition (Classroom Lecture)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FC41000",
+    "title": "KY Flashover Recognition (All Skills Required)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0000",
+    "title": "Incident Command / NIMS",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0001",
+    "title": "ICS 100",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0002",
+    "title": "ICS 200",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0003",
+    "title": "ICS 300",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0004",
+    "title": "ICS 400",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0007",
+    "title": "ICS 700",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "FF0008",
+    "title": "ICS 800",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "G0000",
+    "title": "Forcible Entry",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "GG0000",
+    "title": "Grandfather Hours",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "H0000",
+    "title": "Ventilation",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "HH0000",
+    "title": "Aerial Operations",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "I0000",
+    "title": "Ropes-Basic",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "II0000",
+    "title": "Special Topics in Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "II0001",
+    "title": "Drones for the Emergency Services",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "II0002",
+    "title": "Response to Special Needs Population",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "J0000",
+    "title": "Ladders",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "JJ0000",
+    "title": "Chaplain Training",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "K0000",
+    "title": "Hose, Nozzles, Appliances",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "KK0000",
+    "title": "Health and Wellness",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "L0000",
+    "title": "Foam",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "LL0000",
+    "title": "Forestry Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "LL0001",
+    "title": "Fire Control (S-130)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "LL0002",
+    "title": "Fire Behavior (S-190)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "LL0003",
+    "title": "Urban Interface (S-215)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "M0000",
+    "title": "Fire Control",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "M0001",
+    "title": "Structural Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "M0002",
+    "title": "Vehicle Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "M0003",
+    "title": "Flammable Liquids Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "M0004",
+    "title": "Flammable Gases Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "M0005",
+    "title": "Dumpster/Container Firefighting",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "N0000",
+    "title": "Loss Control (Salvage/Overhaul)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "O0000",
+    "title": "Victim Search & Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0000",
+    "title": "Emergency Medical Care",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0001",
+    "title": "CPR/AED Health Care Provider/Professional",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0002",
+    "title": "HIV/AIDS",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0003",
+    "title": "Emergency Medical Responder",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0004",
+    "title": "Emergency Medical Technician",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0005",
+    "title": "Paramedic",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0008",
+    "title": "Airway",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0010",
+    "title": "Medical Emergencies",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0011",
+    "title": "Trauma",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0014",
+    "title": "Operations",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0015",
+    "title": "ACLS",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0017",
+    "title": "PALS/PEPP",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0019",
+    "title": "Sexual Assault Training",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0020",
+    "title": "Pediatric Abusive Head Trauma",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0021",
+    "title": "First-Aid",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0023",
+    "title": "Cardiovascular",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "P0025",
+    "title": "Advanced Emergency Medical Technician",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0000",
+    "title": "Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0001",
+    "title": "Vehicle Extrication",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0002",
+    "title": "Collapse Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0003",
+    "title": "Trench Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0004",
+    "title": "Confined Space Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0005",
+    "title": "Water Rescue (Swift & Ice Rescue, Boat Ops)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0006",
+    "title": "Farm & Machinery Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0007",
+    "title": "Rope Rescue (High/Low Angle)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0008",
+    "title": "Dive Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Q0009",
+    "title": "Large Animal Rescue",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "R0000",
+    "title": "Water Supply",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "S0000",
+    "title": "Fire Protection Systems (Alarms & Sprinklers)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "T0000",
+    "title": "Hazardous Materials",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "T0001",
+    "title": "Hazardous Materials Awareness",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "T0002",
+    "title": "Hazardous Materials Operations",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "T0003",
+    "title": "Hazardous Materials Technician",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "T0004",
+    "title": "Hazardous Materials Refresher",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "U0000",
+    "title": "Fire Prevention-Public Education",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "V0000",
+    "title": "Building Construction",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0000",
+    "title": "Aircraft",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0001",
+    "title": "Airport Familiarization",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0002",
+    "title": "Aircraft Familiarization",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0003",
+    "title": "ARFF Personnel Safety",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0004",
+    "title": "Emergency Communications",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0005",
+    "title": "Application of Agents",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0006",
+    "title": "Hoses, Nozzles, and Turrets",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0007",
+    "title": "Emergency Aircraft Evacuation",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0008",
+    "title": "Firefighter Operations",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0009",
+    "title": "Adapting Structural Equipment",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0010",
+    "title": "Aircraft Cargo Hazards/Dangerous Goods",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0011",
+    "title": "Duties Under Airport Emergency Plan (AEP)",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0012",
+    "title": "Live Fire Drill",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "W0013",
+    "title": "Other ARFF Duties",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "X0000",
+    "title": "Emergency and Disaster Planning",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Y0000",
+    "title": "Cause & Origin/Fire Investigation",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Y0001",
+    "title": "Arson 1",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Y0002",
+    "title": "Arson 2",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Y0003",
+    "title": "Arson 3",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Y0004",
+    "title": "Fire Investigation Technician",
+    "sourceRevision": "2024-01"
+  },
+  {
+    "code": "Z0000",
+    "title": "Pump Operations",
+    "sourceRevision": "2024-01"
+  }
+]

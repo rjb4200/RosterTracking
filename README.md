@@ -45,6 +45,8 @@ npm run db:seed
 
 Use `DATABASE_URL` for application runtime traffic and `DATABASE_URL_DIRECT` for migrations and administrative commands. Migrations must run once as a deployment step and never during application startup.
 
+Environments are separated: a production database, a development database, and the automated-test databases. See `docs/environment-workflow.md` for the day-to-day development and production workflow, and `docs/operations.md` for the topology, the production guard, and `npm run provision` / `npm run export:reference`.
+
 ## Staff Accounts
 
 Staff accounts use normalized usernames and Argon2id password hashes. Auth.js stores the login in an encrypted, secure, HTTP-only cookie for up to one year. Protected operations reload account state and permissions from Neon, so disabling an account or resetting its password invalidates existing sessions.

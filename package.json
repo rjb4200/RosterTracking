@@ -23,12 +23,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "db:reset:integration": "tsx scripts/reset-test-db.ts --database=integration",
-    "db:reset:e2e": "tsx scripts/reset-test-db.ts --database=e2e",
+    "db:reset:integration": "tsx --tsconfig scripts/tsconfig.json scripts/reset-test-db.ts --database=integration",
+    "db:reset:e2e": "tsx --tsconfig scripts/tsconfig.json scripts/reset-test-db.ts --database=e2e",
     "db:clean-class-data": "tsx --tsconfig scripts/tsconfig.json scripts/clean-class-data.ts",
     "import:training-codes": "tsx scripts/import-training-codes.ts",
     "import:curricula": "tsx --tsconfig scripts/tsconfig.json scripts/import-curricula.ts",
     "import:curriculum-chapters": "tsx --tsconfig scripts/tsconfig.json scripts/import-curriculum-chapters.ts",
+    "export:reference": "tsx --tsconfig scripts/tsconfig.json scripts/export-reference-data.ts",
+    "provision": "tsx --tsconfig scripts/tsconfig.json scripts/provision.ts",
     "admin": "tsx scripts/admin.ts"
   },
   "dependencies": {
