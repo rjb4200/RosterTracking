@@ -30,16 +30,16 @@ When the application is not running in the production environment, it SHALL deri
 - **WHEN** a sign-in mutation is validated outside the production environment
 - **THEN** the production domain is not accepted as a trusted origin
 
-### Requirement: Development does not send live email
-The development environment SHALL NOT deliver email to real recipients through the production sender; email delivery in development SHALL be disabled or directed to a non-production destination.
+### Requirement: Email delivery is environment-scoped
+The production environment SHALL deliver email through the verified production sender. The development environment MAY deliver email so test messages can be exercised during development, and when it does it SHALL use the shared recorded-delivery path so every attempt has a visible outcome.
 
-#### Scenario: No live recipient is emailed from development
-- **WHEN** a development action would send email
-- **THEN** no message is delivered from the production sender to a real recipient
+#### Scenario: Production delivers through the verified sender
+- **WHEN** the application sends email in production
+- **THEN** it uses the verified production sender and records the delivery
 
-#### Scenario: Delivery outcome is still recorded
-- **WHEN** email is suppressed in development
-- **THEN** the delivery attempt is recorded as skipped rather than silently dropped
+#### Scenario: Development delivery is recorded
+- **WHEN** a development action sends email
+- **THEN** the delivery attempt is recorded with its outcome rather than dropped silently
 
 ### Requirement: A single environment discriminator governs cross-environment identity
 The application SHALL determine whether it is the live environment from the deployment environment rather than from the build mode, so preview and development deployments never present themselves as, or trust, the production origin.

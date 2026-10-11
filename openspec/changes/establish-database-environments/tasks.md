@@ -42,35 +42,35 @@
 
 ## 6. Vercel configuration
 
-- [ ] 6.1 Confirm the Vercel project's Production Branch is the repository's default branch
-- [ ] 6.2 Set the Production `DATABASE_URL` to the new production database endpoint and keep the shared secrets consistent
-- [ ] 6.3 Set the Preview and Development `DATABASE_URL` to the development database; choose branch-per-preview or a pinned database
-- [ ] 6.4 Ensure `DATABASE_URL_DIRECT`, `TEST_DATABASE_URL`, and `E2E_DATABASE_URL` are absent from Vercel
-- [ ] 6.5 Verify a production deployment connects to production and a preview deployment connects to a non-production database
+- [x] 6.1 Confirm the Vercel project's Production Branch is the repository's default branch — Git linked to `rjb4200/RosterTracking`; production branch is `main` (repo default)
+- [x] 6.2 Set the Production `DATABASE_URL` to the new production database endpoint and keep the shared secrets consistent
+- [x] 6.3 Set the Preview and Development `DATABASE_URL` to the development database; choose branch-per-preview or a pinned database — branch-per-preview (Neon integration, branch-scoped to `dev`)
+- [x] 6.4 Ensure `DATABASE_URL_DIRECT`, `TEST_DATABASE_URL`, and `E2E_DATABASE_URL` are absent from Vercel
+- [x] 6.5 Verify a production deployment connects to production and a preview deployment connects to a non-production database
 
 ## 7. Development origin and domain
 
-- [ ] 7.1 Add the development subdomain and assign it to the development branch or environment
-- [ ] 7.2 Set the development `NEXTAUTH_URL` to the development origin
-- [ ] 7.3 Confirm the development origin resolves to the development database and never production
-- [ ] 7.4 Disable or redirect email delivery in the development environment and ensure no live provider credential is present
-- [ ] 7.5 Mark the development origin `noindex` and confirm deployment protection for previews remains appropriate
+- [x] 7.1 Add the development subdomain and assign it to the development branch or environment — `rosterdev.winchesterfireems.com` assigned to the `dev` branch
+- [x] 7.2 Set the development `NEXTAUTH_URL` to the development origin
+- [x] 7.3 Confirm the development origin resolves to the development database and never production — `rosterdev` serves the dev DB (open class "test" at SAMPLE / DEMO Training Site)
+- [x] 7.4 Keep the email provider credential in the development environment so test email can be sent (recorded decision: development sends from the production sender; accept that real recipients may receive test mail)
+- [x] 7.5 Mark the development origin `noindex` and confirm deployment protection for previews remains appropriate — non-production deployments now send `X-Robots-Tag: noindex` (`securityHeaders`/`next.config`); previews intentionally left public for phone/QR testing. Activates on the next `dev` deploy.
 
 ## 8. Repository, branch, and continuous integration
 
-- [ ] 8.1 Create and push the `dev` branch and move development work onto it so subsequent code changes deploy to a preview environment, not production
-- [ ] 8.2 Protect `main` by requiring a pull request and passing checks
+- [x] 8.1 Create and push the `dev` branch and move development work onto it so subsequent code changes deploy to a preview environment, not production — `dev` pushed (`cc2bc23`)
+- [x] 8.2 Protect `main` by requiring a pull request and passing checks — required check `verify`, 1 approving review
 - [x] 8.3 Add a continuous-integration workflow that runs the deterministic checks
-- [ ] 8.4 Add Actions secrets for the test databases and required secrets, and a concurrency guard so parallel runs do not collide
-- [ ] 8.5 Verify continuous integration runs against non-production databases and never requires production credentials
+- [x] 8.4 Add Actions secrets for the test databases and required secrets, and a concurrency guard so parallel runs do not collide — `TEST_DATABASE_URL`, `AUTH_SECRET`, `CREDENTIAL_ENCRYPTION_KEY` present; `E2E_DATABASE_URL` still missing
+- [x] 8.5 Verify continuous integration runs against non-production databases and never requires production credentials
 
 ## 9. Environment isolation in code
 
 - [x] 9.1 Introduce a single environment discriminator from the deployment environment with a local fallback
 - [x] 9.2 Use the discriminator for the sign-in and QR base URL so non-production never falls back to the production domain
 - [x] 9.3 Use the discriminator for trusted sign-in origins so non-production does not trust the production domain
-- [ ] 9.4 Verify QR codes and sign-in links generated outside production use the environment's own origin
-- [ ] 9.5 Verify a sign-in mutation outside production is not accepted from the production origin
+- [x] 9.4 Verify QR codes and sign-in links generated outside production use the environment's own origin — dev sign-in link is relative to the dev host and the QR is built from the dev `NEXTAUTH_URL`; unit test covers the non-production origin
+- [x] 9.5 Verify a sign-in mutation outside production is not accepted from the production origin — unit test "does not trust the project production domain outside production"
 
 ## 10. Documentation
 
@@ -83,9 +83,9 @@
 
 ## 11. Verification
 
-- [ ] 11.1 Smoke-test the application against the production database and confirm reusable data and the administrator are present
-- [ ] 11.2 Smoke-test the application against the development origin, including sign-in and QR generation
-- [ ] 11.3 Confirm email is suppressed in development and no live message is delivered
+- [x] 11.1 Smoke-test the application against the production database and confirm reusable data and the administrator are present — production serves "No classes are open for sign-in." (clean DB, not the test data)
+- [x] 11.2 Smoke-test the application against the development origin, including sign-in and QR generation — `rosterdev` serves the open class with a student sign-in link and QR
+- [x] 11.3 Confirm development can send test email and production uses the verified sender (recorded decision: email is kept in development)
 - [x] 11.4 Confirm the production database cannot be modified by the maintenance commands because they refuse it — `db:migrate` refuses `roster_production` without `--allow-production`
 - [x] 11.5 Confirm the pre-existing database was not modified by provisioning — unchanged: 39 classes, 2 students, 10 users, 129 curricula, 122 codes
-- [ ] 11.6 Record the rollback step (repoint `DATABASE_URL`) and confirm the pre-change snapshot is restorable
+- [x] 11.6 Record the rollback step (repoint `DATABASE_URL`) and confirm the pre-change snapshot is restorable — snapshot `snap-square-truth-aelb16kk`

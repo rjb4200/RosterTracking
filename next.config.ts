@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-import { securityHeaders } from "./src/server/security-headers";
+import { noIndexHeader, securityHeaders } from "./src/server/security-headers";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
@@ -10,7 +10,10 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders() }];
+    const headers = securityHeaders();
+    const robots = noIndexHeader();
+    if (robots) headers.push(robots);
+    return [{ source: "/(.*)", headers }];
   },
   poweredByHeader: false,
 };

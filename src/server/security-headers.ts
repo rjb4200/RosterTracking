@@ -1,3 +1,5 @@
+import { isLiveEnvironment } from "./environment";
+
 /**
  * The security response headers applied to every route by `next.config.ts`.
  *
@@ -63,4 +65,14 @@ export function securityHeaders(
     });
   }
   return headers;
+}
+
+/**
+ * A `noindex` directive for non-production origins so a development or preview
+ * deployment is never indexed. Returns null in the live environment.
+ */
+export function noIndexHeader(
+  live: boolean = isLiveEnvironment(),
+): SecurityHeader | null {
+  return live ? null : { key: "X-Robots-Tag", value: "noindex" };
 }

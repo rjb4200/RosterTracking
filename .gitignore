@@ -35,3 +35,6 @@ Thumbs.db
 
 # Reference source PDFs (application forms live in src/modules/official-roster-pdfs)
 /*.pdf
+
+.vercel
+.env*
