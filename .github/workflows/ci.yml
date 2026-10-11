@@ -6,9 +6,12 @@ on:
   pull_request:
 
 # Serialize runs so parallel jobs cannot collide on the shared test databases.
+# A constant group (not per-ref) makes every run queue on the one shared test
+# database instead of racing; cancel-in-progress stays false so a queued run
+# never interrupts a run that is mid `db:reset:integration`.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-test-db
+  cancel-in-progress: false
 
 jobs:
   verify:
