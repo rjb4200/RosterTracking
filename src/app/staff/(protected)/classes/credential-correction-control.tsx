@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { normalizeFfn } from "@/modules/reference/credential-format";
 
 export interface CorrectionCredential {
   credentialTypeId: string;
@@ -81,6 +82,10 @@ export function CredentialCorrectionControl({
               defaultValue={credential.currentValue}
               id={`correction-${attendanceId}-${credential.credentialTypeId}`}
               name="value"
+              onBlur={(event) => {
+                const canonical = normalizeFfn(event.currentTarget.value);
+                if (canonical) event.currentTarget.value = canonical;
+              }}
               placeholder={credential.code === "ffn" ? "0000-0000" : undefined}
               required
             />

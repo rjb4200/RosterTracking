@@ -8,7 +8,7 @@ import {
   reportingSystems,
 } from "@/server/db/schema";
 
-import { validateCredentialValue } from "./credential-format";
+import { isValidCredentialValue } from "./credential-format";
 
 export type InclusionRule = {
   reportingSystemCode: string;
@@ -28,16 +28,12 @@ export function includesParticipant(
   if (!rule.credentialCode) return false;
   const value = credentials[rule.credentialCode];
   if (!value) return false;
-  try {
-    validateCredentialValue(value, {
-      code: rule.credentialCode,
-      valuePattern: rule.credentialPattern,
-    });
-    return true;
-  } catch {
-    // Historical malformed credentials remain stored, but do not confer credit.
-    return false;
-  }
+  // A stored value's validity is a fact: no input normalization is applied, so
+  // a historical non-canonical credential does not confer credit.
+  return isValidCredentialValue(value, {
+    code: rule.credentialCode,
+    valuePattern: rule.credentialPattern,
+  });
 }
 
 /**

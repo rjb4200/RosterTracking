@@ -1,7 +1,7 @@
 import "server-only";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
-import { validateCredentialValue } from "@/modules/reference/credential-format";
+import { isValidCredentialValue } from "@/modules/reference/credential-format";
 
 /**
  * Credentials may be corrected only while a class is open. A finalized revision
@@ -13,18 +13,13 @@ export function canCorrectCredentials(status: string): boolean {
 }
 
 /**
- * Whether a stored value is valid for its credential type. An absent or
- * format-failing value is not valid, so it withholds reporting inclusion.
+ * Whether a stored value is valid for its credential type. A stored value's
+ * validity is a fact and is not normalized, so an absent or non-canonical value
+ * reads as invalid and prompts the operator to correct it.
  */
 export function promptedCredentialIsValid(
   type: { code: string; valuePattern?: string | null },
   value: string | null | undefined,
 ): boolean {
-  if (!value) return false;
-  try {
-    validateCredentialValue(value, type);
-    return true;
-  } catch {
-    return false;
-  }
+  return isValidCredentialValue(value, type);
 }

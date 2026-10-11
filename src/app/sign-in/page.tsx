@@ -20,6 +20,7 @@ import {
   saveNewStudentDetails,
   saveRegularDetails,
 } from "./actions";
+import { CredentialInput } from "./credential-input";
 import { SubmitButton } from "./submit-button";
 
 export const dynamic = "force-dynamic";
@@ -177,13 +178,11 @@ function RequirementFields({
           <label htmlFor={`credential-${credential.id}`}>
             {credential.code.toUpperCase()} (optional)
           </label>
-          <input
-            autoComplete="off"
+          <CredentialInput
             defaultValue={credential.currentValue ?? ""}
             id={`credential-${credential.id}`}
             name={`credential:${credential.id}`}
             placeholder={credential.code === "ffn" ? "0000-0000" : undefined}
-            type="text"
           />
           {credential.invalid ? (
             <p className="sign-in-field-hint" role="status">

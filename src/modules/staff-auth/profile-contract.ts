@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { FFN_PATTERN } from "@/modules/reference/credential-format";
+import {
+  FFN_FORMAT_MESSAGE,
+  normalizeFfn,
+} from "@/modules/reference/credential-format";
 
 export const INSTRUCTOR_LEVELS = [1, 2, 3] as const;
 
@@ -38,15 +41,17 @@ export function isInstructorLevel(value: number): value is InstructorLevel {
 
 /**
  * Normalizes and validates raw profile input. Empty strings become null so the
- * database stores "not recorded" rather than a blank value, and an FFN must be
- * four digits, a dash, and four digits (for example `0634-4600`).
+ * database stores "not recorded" rather than a blank value, and an FFN is
+ * normalized to four digits, a dash, and four digits (for example `0634-4600`),
+ * so a loose 8-digit entry like `06344600` is accepted.
  */
 export function parseProfileInput(input: ProfileInput): ProfileValues {
   const parsed = profileInputSchema.parse(input);
 
-  const ffn = parsed.ffn === "" ? null : parsed.ffn;
-  if (ffn !== null && !FFN_PATTERN.test(ffn)) {
-    throw new Error("FFN must be in the format 0000-0000.");
+  let ffn: string | null = null;
+  if (parsed.ffn !== "") {
+    ffn = normalizeFfn(parsed.ffn);
+    if (!ffn) throw new Error(FFN_FORMAT_MESSAGE);
   }
 
   const levelText = parsed.instructorLevel;

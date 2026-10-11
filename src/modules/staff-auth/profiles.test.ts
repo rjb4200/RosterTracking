@@ -30,10 +30,20 @@ describe("instructor profile input", () => {
     });
   });
 
-  it("rejects a malformed FFN", () => {
-    expect(() =>
+  it("normalizes a digits-only FFN to the canonical form", () => {
+    expect(
       parseProfileInput({
         ffn: "12345678",
+        instructorLevel: "",
+        emsProviderNumber: "",
+      }),
+    ).toMatchObject({ ffn: "1234-5678" });
+  });
+
+  it("rejects an FFN that cannot be normalized", () => {
+    expect(() =>
+      parseProfileInput({
+        ffn: "ABC123",
         instructorLevel: "",
         emsProviderNumber: "",
       }),
