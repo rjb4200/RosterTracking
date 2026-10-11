@@ -43,6 +43,7 @@ import {
   users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { uniqueFfn } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -189,6 +190,7 @@ describeDatabase("database foundation", () => {
         username: `class-test-${suffix}`,
         displayName: "Class Test",
         passwordHash: "not-a-real-hash",
+        ffn: uniqueFfn(),
       })
       .returning({ id: users.id, username: users.username });
     const [site] = await database
@@ -231,6 +233,7 @@ describeDatabase("database foundation", () => {
         username: `class-lead-${suffix}`,
         displayName: "Replacement Lead",
         passwordHash: "not-a-real-hash",
+        ffn: uniqueFfn(),
       })
       .returning({ id: users.id, username: users.username });
     if (!replacementLead) throw new Error("Replacement lead was not created.");
@@ -448,6 +451,7 @@ describeDatabase("database foundation", () => {
         username: `scheduled-class-${suffix}`,
         displayName: "Scheduled Class Instructor",
         passwordHash: "not-a-real-hash",
+        ffn: uniqueFfn(),
       })
       .returning({ id: users.id, username: users.username });
     const [site] = await database
@@ -528,16 +532,19 @@ describeDatabase("database foundation", () => {
           username: `dashboard-instructor-${suffix}`,
           displayName: "Dashboard Instructor",
           passwordHash: "not-a-real-hash",
+          ffn: uniqueFfn(),
         },
         {
           username: `dashboard-colleague-${suffix}`,
           displayName: "Dashboard Colleague",
           passwordHash: "not-a-real-hash",
+          ffn: uniqueFfn(),
         },
         {
           username: `dashboard-major-${suffix}`,
           displayName: "Dashboard Major",
           passwordHash: "not-a-real-hash",
+          ffn: uniqueFfn(),
         },
       ])
       .returning({ id: users.id, username: users.username });

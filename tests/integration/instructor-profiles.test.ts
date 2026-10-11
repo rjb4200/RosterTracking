@@ -13,6 +13,7 @@ import {
 import * as schema from "../../src/server/db/schema";
 import { auditLogs, roles, userRoles, users } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { uniqueFfn } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -21,15 +22,6 @@ const pool = connectionString
   : undefined;
 
 type Db = ReturnType<typeof drizzle<typeof schema>>;
-
-function randomFfn() {
-  const digits = crypto
-    .randomUUID()
-    .replace(/\D/g, "")
-    .padEnd(8, "0")
-    .slice(0, 8);
-  return digits;
-}
 
 async function createUser(db: Db, suffix: string, roleCode: string) {
   const [user] = await db
@@ -69,7 +61,7 @@ describeDatabase("instructor profiles", () => {
       crypto.randomUUID(),
       ROLE_CODES.INSTRUCTOR,
     );
-    const ffn = randomFfn();
+    const ffn = uniqueFfn();
 
     await updateOwnProfile(db, instructor.id, {
       ffn,
@@ -109,7 +101,7 @@ describeDatabase("instructor profiles", () => {
     );
 
     await updateOwnProfile(db, instructor.id, {
-      ffn: randomFfn(),
+      ffn: uniqueFfn(),
       instructorLevel: "1",
       emsProviderNumber: "",
       // Extra keys are stripped: self-service can never change a role.
@@ -146,7 +138,7 @@ describeDatabase("instructor profiles", () => {
 
     await expect(
       updateStaffProfile(db, instructor.id, target.id, {
-        ffn: randomFfn(),
+        ffn: uniqueFfn(),
         instructorLevel: "1",
         emsProviderNumber: "",
       }),
@@ -163,7 +155,7 @@ describeDatabase("instructor profiles", () => {
       ROLE_CODES.ADMINISTRATOR,
     );
     const target = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
-    const ffn = randomFfn();
+    const ffn = uniqueFfn();
 
     await updateStaffProfile(db, administrator.id, target.id, {
       ffn,
@@ -190,7 +182,7 @@ describeDatabase("instructor profiles", () => {
       crypto.randomUUID(),
       ROLE_CODES.INSTRUCTOR,
     );
-    const ffn = randomFfn();
+    const ffn = uniqueFfn();
 
     await updateOwnProfile(db, first.id, {
       ffn,

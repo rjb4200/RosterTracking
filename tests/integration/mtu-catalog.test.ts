@@ -11,6 +11,7 @@ import {
   updateClass,
   updateClassMtuUsage,
 } from "../../src/modules/classes/services";
+import { MTU_CATALOG_SEED } from "../../src/modules/reference/constants";
 import {
   archiveMtuCatalogItem,
   createMtuCatalogItem,
@@ -42,6 +43,7 @@ import {
   users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { uniqueFfn } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -194,9 +196,12 @@ describeDatabase("MTU catalog and structured usage", () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const items = await db.select().from(mtuCatalogItems);
-    expect(items.filter((item) => item.kind === "equipment")).toHaveLength(17);
-    expect(items.filter((item) => item.kind === "supplies")).toHaveLength(7);
-    expect(items.filter((item) => item.kind === "transport")).toHaveLength(3);
+    // Count only seeded entries so fixture rows from other runs cannot skew it.
+    const seedNames = new Set(MTU_CATALOG_SEED.map((entry) => entry.name));
+    const seeded = items.filter((item) => seedNames.has(item.name));
+    expect(seeded.filter((item) => item.kind === "equipment")).toHaveLength(17);
+    expect(seeded.filter((item) => item.kind === "supplies")).toHaveLength(7);
+    expect(seeded.filter((item) => item.kind === "transport")).toHaveLength(3);
   });
 
   it("manages catalog items and revives a retired name", async () => {
@@ -208,10 +213,13 @@ describeDatabase("MTU catalog and structured usage", () => {
       ROLE_CODES.ADMINISTRATOR,
     );
     const actor = { id: admin.id, username: admin.username };
+    // A run-unique name so a leftover row from a previous run cannot collide
+    // with the kind+name unique constraint.
+    const name = `Test Gauze ${crypto.randomUUID().slice(0, 8)}`;
 
     const created = await createMtuCatalogItem(db, actor, {
       kind: "supplies",
-      name: "Test Gauze",
+      name,
       unitLabel: "each",
       perClassQty: "0",
       perStudentQty: "2",
@@ -219,12 +227,12 @@ describeDatabase("MTU catalog and structured usage", () => {
     });
     expect(created.kind).toBe("supplies");
 
-    const listed = await listMtuCatalogItems(db, "Test Gauze");
+    const listed = await listMtuCatalogItems(db, name);
     expect(listed).toHaveLength(1);
 
     await updateMtuCatalogItem(db, actor, created.id, {
       kind: "supplies",
-      name: "Test Gauze",
+      name,
       unitLabel: "roll",
       perClassQty: "1",
       perStudentQty: "1",
@@ -242,7 +250,7 @@ describeDatabase("MTU catalog and structured usage", () => {
     // Re-adding a retired name revives it instead of duplicating.
     const revived = await createMtuCatalogItem(db, actor, {
       kind: "supplies",
-      name: "Test Gauze",
+      name,
       unitLabel: "each",
       perClassQty: "0",
       perStudentQty: "2",
@@ -260,7 +268,7 @@ describeDatabase("MTU catalog and structured usage", () => {
     await expect(
       createMtuCatalogItem(db, actor, {
         kind: "supplies",
-        name: "Ruleless Supply",
+        name: `Ruleless Supply ${crypto.randomUUID().slice(0, 8)}`,
         unitLabel: "",
       }),
     ).rejects.toThrow(/unit label/i);
@@ -383,7 +391,7 @@ describeDatabase("MTU catalog and structured usage", () => {
     // Fire classes require an FFN-format number for every instructor.
     await db
       .update(users)
-      .set({ ffn: "1234-5678" })
+      .set({ ffn: uniqueFfn() })
       .where(eq(users.id, instructor.id));
     const [site] = await db
       .insert(trainingSites)

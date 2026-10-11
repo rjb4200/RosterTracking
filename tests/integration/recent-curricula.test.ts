@@ -8,7 +8,6 @@ import {
   createOpenClass,
   listClassFormOptions,
 } from "../../src/modules/classes/services";
-import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
@@ -16,13 +15,11 @@ import {
   curricula,
   reportingRequirementSets,
   reportingSystems,
-  roles,
   trainingCodes,
   trainingSites,
-  userRoles,
-  users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { createStaffUser } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -33,21 +30,10 @@ const pool = connectionString
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 async function createInstructor(db: Db, suffix: string) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      username: `recent-${suffix}`,
-      displayName: "Recent Instructor",
-      passwordHash: "fixture-password-hash",
-    })
-    .returning({ id: users.id, username: users.username });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(eq(roles.code, ROLE_CODES.INSTRUCTOR));
-  if (!user || !role) throw new Error("Recent fixture user failed.");
-  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
-  return user;
+  return createStaffUser(db, {
+    username: `recent-${suffix}`,
+    displayName: "Recent Instructor",
+  });
 }
 
 async function activeSetId(db: Db, code: string) {

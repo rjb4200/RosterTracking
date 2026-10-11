@@ -27,14 +27,12 @@ import {
   reportingRequirementSets,
   reportingRequirements,
   reportingSystems,
-  roles,
   students,
   trainingClasses,
   trainingSites,
-  userRoles,
-  users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { createStaffUser } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -45,21 +43,11 @@ const pool = connectionString
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 async function createUser(db: Db, suffix: string, roleCode: string) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      username: `${roleCode}-${suffix}`,
-      displayName: roleCode,
-      passwordHash: "fixture-password-hash",
-    })
-    .returning({ id: users.id, username: users.username });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(eq(roles.code, roleCode));
-  if (!user || !role) throw new Error("Destination fixture user failed.");
-  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
-  return user;
+  return createStaffUser(db, {
+    username: `${roleCode}-${suffix}`,
+    displayName: roleCode,
+    roleCode,
+  });
 }
 
 async function createClassFixture(

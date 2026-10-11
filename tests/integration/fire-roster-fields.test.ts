@@ -33,6 +33,7 @@ import {
   users,
 } from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
+import { uniqueFfn } from "./support/fixtures";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -43,17 +44,16 @@ const pool = connectionString
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 async function createInstructor(db: Db, suffix: string) {
-  const ffnDigits = suffix.replace(/\D/g, "").padEnd(4, "0").slice(0, 4);
   const [user] = await db
     .insert(users)
     .values({
       username: `instructor-${suffix}`,
       displayName: "Fire Instructor",
       passwordHash: "fixture-password-hash",
-      ffn: `0001-${ffnDigits}`,
+      ffn: uniqueFfn(),
       instructorLevel: 2,
     })
-    .returning({ id: users.id, username: users.username });
+    .returning({ id: users.id, username: users.username, ffn: users.ffn });
   const [role] = await db
     .select({ id: roles.id })
     .from(roles)
@@ -334,7 +334,8 @@ describeDatabase("fire roster fields", () => {
       name: "Fire Instructor",
       level: 2,
     });
-    expect(snapshot.instructors[0].ffn).toMatch(/^0001/);
+    expect(snapshot.instructors[0].ffn).toBe(instructor.ffn);
+    expect(snapshot.instructors[0].ffn).toMatch(/^\d{4}-\d{4}$/);
     await retireRevision(db, revision.id);
   });
 });
