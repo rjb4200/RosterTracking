@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { formatCredentialDisplay } from "@/modules/reference/masking";
 import {
   getStudent,
@@ -49,36 +50,34 @@ export default async function StudentDetailPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">
-            {student.firstName} {student.lastName}
-          </h1>
-        </div>
-        <div className="admin-actions">
-          <Link
-            href="/staff/students"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Back
-          </Link>
-          <form action={setStudentActiveAction}>
-            <input type="hidden" name="id" value={student.id} />
-            <input
-              type="hidden"
-              name="isActive"
-              value={student.isActive ? "false" : "true"}
-            />
-            <Button
-              type="submit"
-              variant={student.isActive ? "destructive" : "secondary"}
+      <PageHeading
+        eyebrow="Reference data"
+        title={`${student.firstName} ${student.lastName}`}
+        actions={
+          <>
+            <Link
+              href="/staff/students"
+              className={buttonVariants({ variant: "outline" })}
             >
-              {student.isActive ? "Deactivate" : "Reactivate"}
-            </Button>
-          </form>
-        </div>
-      </div>
+              Back
+            </Link>
+            <form action={setStudentActiveAction}>
+              <input type="hidden" name="id" value={student.id} />
+              <input
+                type="hidden"
+                name="isActive"
+                value={student.isActive ? "false" : "true"}
+              />
+              <Button
+                type="submit"
+                variant={student.isActive ? "destructive" : "secondary"}
+              >
+                {student.isActive ? "Deactivate" : "Reactivate"}
+              </Button>
+            </form>
+          </>
+        }
+      />
 
       <section className="admin-section">
         <h2>Profile</h2>

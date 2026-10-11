@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   Table,
   TableBody,
@@ -30,20 +31,11 @@ export default async function CurriculaPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">Curricula</h1>
-        </div>
-        <div className="admin-actions">
-          <Link
-            href="/staff/curricula/new"
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            New curriculum
-          </Link>
-        </div>
-      </div>
+      <PageHeading
+        eyebrow="Reference data"
+        title="Curricula"
+        primary={{ href: "/staff/curricula/new", label: "New curriculum" }}
+      />
 
       <form className="search-bar" action="/staff/curricula">
         <input

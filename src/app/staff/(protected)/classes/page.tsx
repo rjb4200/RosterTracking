@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   Table,
   TableBody,
@@ -204,15 +205,11 @@ export default async function ClassesPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Training operations</p>
-          <h1 className="staff-title">Classes</h1>
-        </div>
-        <Link href="/staff/classes/new" className={buttonVariants()}>
-          New class
-        </Link>
-      </div>
+      <PageHeading
+        eyebrow="Training operations"
+        title="Classes"
+        primary={{ href: "/staff/classes/new", label: "New class" }}
+      />
       <form className="inline-form class-list-filters" action="/staff/classes">
         <label htmlFor="classes-status">Status</label>
         <select

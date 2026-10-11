@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { getStaffAccount } from "@/modules/staff-auth/staff-accounts";
 import { isAdministrator } from "@/modules/staff-auth/workspaces";
@@ -30,18 +31,16 @@ export default async function StaffAccountPage({
       <Link href="/staff/accounts" className="back-link-plain">
         Back to accounts
       </Link>
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Administration</p>
-          <h1 className="staff-title">{account.displayName}</h1>
-          <p>{account.username}</p>
-        </div>
-        <div className="admin-actions">
+      <PageHeading
+        eyebrow="Administration"
+        title={account.displayName}
+        meta={<p>{account.username}</p>}
+        actions={
           <Badge variant={account.isActive ? "secondary" : "outline"}>
             {account.isActive ? "Active" : "Inactive"}
           </Badge>
-        </div>
-      </div>
+        }
+      />
 
       <section className="admin-section">
         <h2>Account</h2>

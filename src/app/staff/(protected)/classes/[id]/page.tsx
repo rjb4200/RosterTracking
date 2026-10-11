@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   buildClassSignInUrl,
   createClassQrDataUrl,
@@ -53,10 +54,10 @@ export default async function ClassDetailPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Class</p>
-          <h1 className="staff-title">{classRecord.name ?? "Class"}</h1>
+      <PageHeading
+        eyebrow="Class"
+        title={classRecord.name ?? "Class"}
+        meta={
           <p>
             {classRecord.site?.name ?? "Online"} |{" "}
             {classRecord.deliveryMethod.replace("_", " ")} |{" "}
@@ -64,19 +65,21 @@ export default async function ClassDetailPage({
               ? formatDepartmentDateTime(classRecord.components[0].startsAt)
               : "No session scheduled"}
           </p>
-        </div>
-        <div className="admin-actions">
-          <Badge variant={isOpen ? "default" : "secondary"}>
-            {classRecord.status}
-          </Badge>
-          <Link
-            href="/staff/classes"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Back
-          </Link>
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            <Badge variant={isOpen ? "default" : "secondary"}>
+              {classRecord.status}
+            </Badge>
+            <Link
+              href="/staff/classes"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Back
+            </Link>
+          </>
+        }
+      />
       {isOpen ? (
         <section className="admin-section">
           <LifecycleControls
@@ -106,17 +109,20 @@ export default async function ClassDetailPage({
         </section>
       ) : null}
       <section className="admin-section">
-        <div className="admin-heading">
-          <h2>Class details</h2>
-          {isOpen ? (
-            <Link
-              href={`/staff/classes/${id}/edit`}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              Edit class details
-            </Link>
-          ) : null}
-        </div>
+        <PageHeading
+          titleAs="h2"
+          title="Class details"
+          actions={
+            isOpen ? (
+              <Link
+                href={`/staff/classes/${id}/edit`}
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                Edit class details
+              </Link>
+            ) : null
+          }
+        />
         <ClassSummary classRecord={classRecord} />
       </section>
     </main>

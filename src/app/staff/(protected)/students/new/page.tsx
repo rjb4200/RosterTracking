@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PageHeading } from "@/components/ui/page-heading";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 
@@ -13,15 +14,15 @@ export default async function NewStudentPage() {
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">New student</h1>
-        </div>
-        <Link href="/staff/students" className="back-link-plain">
-          Back to students
-        </Link>
-      </div>
+      <PageHeading
+        eyebrow="Reference data"
+        title="New student"
+        actions={
+          <Link href="/staff/students" className="back-link-plain">
+            Back to students
+          </Link>
+        }
+      />
       <StudentForm action={createStudentAction} submitLabel="Create student" />
     </main>
   );

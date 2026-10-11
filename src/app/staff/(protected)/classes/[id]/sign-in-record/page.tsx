@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import type {
   ClassSignInRecordEntry,
   ClassSignInRecordRemovedEntry,
@@ -60,27 +61,27 @@ export default async function ClassSignInRecordPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Sign-in record</p>
-          <h1 className="staff-title">{record.courseName}</h1>
-        </div>
-        <div className="admin-actions">
-          <Link
-            href={`/staff/classes/${id}`}
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Back to class
-          </Link>
-          <Link
-            href={`/api/staff/class-sign-in-record/${id}?disposition=inline`}
-            target="_blank"
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            View record
-          </Link>
-        </div>
-      </div>
+      <PageHeading
+        eyebrow="Sign-in record"
+        title={record.courseName}
+        actions={
+          <>
+            <Link
+              href={`/staff/classes/${id}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Back to class
+            </Link>
+            <Link
+              href={`/api/staff/class-sign-in-record/${id}?disposition=inline`}
+              target="_blank"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              View record
+            </Link>
+          </>
+        }
+      />
       <section className="admin-section">
         <p className="roster-note">
           {record.siteName ?? "Online"} |{" "}
