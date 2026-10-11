@@ -14,11 +14,7 @@ import {
   normalizePhone,
 } from "@/modules/reference/masking";
 import type { Database } from "@/server/db/client";
-import {
-  agencies,
-  studentAgencies,
-  studentCredentials,
-} from "@/server/db/schema";
+import { agencies, studentAgencies } from "@/server/db/schema";
 import {
   requiredRegistrationFields,
   resolveClassRequirements,
@@ -156,15 +152,11 @@ export async function stageRegularRequirements(
     loaded.context.classId,
     now,
   );
-  const [studentRows, existingCredentials, agencyRows] = await Promise.all([
+  const [studentRows, agencyRows] = await Promise.all([
     db.query.students.findFirst({
       where: (table, { and, eq }) =>
         and(eq(table.id, participant.studentId), eq(table.isActive, true)),
     }),
-    db
-      .select({ credentialTypeId: studentCredentials.credentialTypeId })
-      .from(studentCredentials)
-      .where(eq(studentCredentials.studentId, participant.studentId)),
     listGuestAttendanceAgencies(db),
   ]);
   if (!studentRows || !agencyRows.some(({ id }) => id === input.agencyId)) {
@@ -191,23 +183,12 @@ export async function stageRegularRequirements(
     }
   }
 
-  const existingTypeIds = new Set(
-    existingCredentials.map(({ credentialTypeId }) => credentialTypeId),
-  );
-  const missingCredentials = requirements.credentials.filter(
-    ({ id }) => !existingTypeIds.has(id),
-  );
+  // A prompted credential the student already has may be replaced; a value for
+  // any other type is rejected. Only credentials the class prompts are offered.
   const stagedCredentials = optionalCredentialMap(
     input.credentials,
-    missingCredentials,
+    requirements.credentials,
   );
-  if (
-    input.credentials.some((credential) =>
-      existingTypeIds.has(credential.credentialTypeId),
-    )
-  ) {
-    throw new Error("Existing credentials cannot be replaced.");
-  }
 
   const state: SignInWorkflowState = {
     participant: {

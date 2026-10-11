@@ -2,6 +2,14 @@ import { ROSTER_REFRESH_GRACE_HOURS } from "@/modules/classes/constants";
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 
+export interface RosterCorrectionCredential {
+  credentialTypeId: string;
+  code: string;
+  name: string;
+  currentValue: string;
+  valid: boolean;
+}
+
 export interface RosterRefreshEntry {
   id: string;
   name: string;
@@ -9,6 +17,7 @@ export interface RosterRefreshEntry {
   signedInAt: string;
   signedInAtLabel: string;
   creditedHours: string | null;
+  corrections: RosterCorrectionCredential[];
 }
 
 export interface RosterRefreshPayload {

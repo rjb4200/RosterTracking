@@ -4,6 +4,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
+import { listClassCredentialCorrections } from "@/modules/credential-correction/service";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
@@ -375,12 +376,17 @@ export async function getClassRoster(
       .leftJoin(users, eq(users.id, attendance.removedByUserId))
       .where(eq(attendance.classId, classId))
       .orderBy(asc(attendance.signedInAt));
+    const corrections = await listClassCredentialCorrections(
+      transaction,
+      classId,
+    );
     const map = (row: (typeof rows)[number]) => ({
       ...row,
       participantType: row.studentId ? "regular" : "guest",
       name: row.studentId
         ? `${row.firstName} ${row.lastName}`
         : `${row.guestFirstName} ${row.guestLastName}`,
+      corrections: row.studentId ? (corrections.get(row.id) ?? []) : [],
     });
     return {
       classRecord,
@@ -424,6 +430,7 @@ export async function getClassRosterRefresh(
       signedInAt: entry.signedInAt.toISOString(),
       signedInAtLabel: formatDepartmentDateTime(entry.signedInAt),
       creditedHours: entry.creditedHours,
+      corrections: entry.corrections,
     })),
   };
 }

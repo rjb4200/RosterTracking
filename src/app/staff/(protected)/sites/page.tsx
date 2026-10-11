@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -25,6 +26,7 @@ export default async function SitesPage({
   await requirePagePermission(PERMISSIONS.SITES_MANAGE);
   const { q = "" } = await searchParams;
   const sites = await listSites(getDatabase(), q);
+  const hasSearch = q.trim().length > 0;
 
   return (
     <main className="admin-content">
@@ -64,8 +66,35 @@ export default async function SitesPage({
         <TableBody>
           {sites.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={3} className="text-muted-foreground">
-                No sites found.
+              <TableCell colSpan={3}>
+                <EmptyState
+                  title={hasSearch ? `No sites match "${q}"` : "No sites yet"}
+                  description={
+                    hasSearch
+                      ? "Try a different search, or clear it to see every site."
+                      : "Add your first training site to get started."
+                  }
+                  action={
+                    hasSearch ? (
+                      <Link
+                        href="/staff/sites"
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                      >
+                        Clear search
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/staff/sites/new"
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        New site
+                      </Link>
+                    )
+                  }
+                />
               </TableCell>
             </TableRow>
           ) : (

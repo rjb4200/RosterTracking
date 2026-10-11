@@ -29,7 +29,7 @@ The system SHALL let authorized operators copy the active class sign-in link and
 - **THEN** the QR code and sign-in link are displayed prominently for students
 
 ### Requirement: Embedded live roster
-The system SHALL show active attendance rows with student name, agency when present, sign-in time, and credit exceptions on the class page, and SHALL offer authorized operators the class sign-in record without leaving the class page. While the class is open, the system SHALL keep the displayed roster current on its own, showing a newly signed-in attendee without the operator reloading the page, and SHALL add new rows in place without a flash, highlight, or sound. Credited-hour and removal corrections SHALL be made at the finalization step rather than on the class page.
+The system SHALL show active attendance rows with student name, agency when present, sign-in time, and credit exceptions on the class page, and SHALL offer authorized operators the class sign-in record without leaving the class page. While the class is open, the class page and the review step SHALL offer credential correction for a prompted credential. Credited-hour and removal corrections SHALL be made at the finalization step rather than on the class page. While the class is open, the system SHALL keep the displayed roster current on its own, showing a newly signed-in attendee without the operator reloading the page, and SHALL add new rows in place without a flash, highlight, or sound.
 
 #### Scenario: See a new sign-in without reloading
 - **WHEN** a student signs in while an authorized operator has the open class page displayed
@@ -38,6 +38,10 @@ The system SHALL show active attendance rows with student name, agency when pres
 #### Scenario: Reach the sign-in record
 - **WHEN** an operator wants the printable attendance record for a class
 - **THEN** the class page links to that class's sign-in record
+
+#### Scenario: Correct a credential from the live roster
+- **WHEN** an authorized operator corrects an attendee's prompted credential from the open class page with a reason
+- **THEN** the system applies the correction and the roster reflects any resulting inclusion change
 
 ### Requirement: Bounded live roster refresh
 The system SHALL stop refreshing the class page roster once the class is no longer open, SHALL pause refreshing while the operator's browser tab is not visible and resume it when the tab becomes visible again, and SHALL stop refreshing once a fixed grace period has elapsed after the last scheduled session is due to end. Refreshing SHALL stop on its own without requiring the operator to take any action.

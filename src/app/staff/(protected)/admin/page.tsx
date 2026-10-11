@@ -36,17 +36,20 @@ export default async function AdminWorkspacePage() {
       <OperationalClassSection
         title="My teaching"
         classes={teaching}
-        empty="No assigned teaching work."
+        emptyTitle="No assigned teaching"
+        emptyDescription="You are not on any class roster right now."
       />
       <OperationalClassSection
         title="Department overdue rosters"
         classes={department.filter((classRecord) => classRecord.isOverdue)}
-        empty="No department rosters are overdue."
+        emptyTitle="No overdue rosters"
+        emptyDescription="Every department roster is up to date."
       />
       <OperationalClassSection
         title="Department oversight"
         classes={department.filter((classRecord) => !classRecord.isOverdue)}
-        empty="No department classes need attention."
+        emptyTitle="No classes need attention"
+        emptyDescription="New or overdue department work will show here."
       />
     </main>
   );

@@ -29,6 +29,7 @@ import { getDatabase } from "@/server/db/client";
 
 import {
   assignInstructorAction,
+  correctCredentialAction,
   emailTrainingNoticeAction,
   finalizeClassAction,
   reopenClassAction,
@@ -41,6 +42,7 @@ import { CertificateDeliveryControls } from "../../certificate-delivery-controls
 import { ClassForm } from "../../class-form";
 import { ClassSummary } from "../../class-summary";
 import { ComponentForm } from "../../component-form";
+import { CredentialCorrectionControl } from "../../credential-correction-control";
 import {
   FinalizationControls,
   ReopenControl,
@@ -111,6 +113,9 @@ export default async function ClassReviewPage({
     );
   const canReopen = staff ? isAdministrator(staff.roleCodes) : false;
   const latestRevision = revisionHistory[0] ?? null;
+  // Credentials may be corrected only while the class is open; a finalized
+  // revision is immutable and is changed through the reopen path.
+  const canCorrectRosterCredentials = isOpen;
   const latestReportsToKbems = Boolean(
     latestRevision?.destinations.some(
       (destination) => destination.systemCode === "kbems",
@@ -179,15 +184,28 @@ export default async function ClassReviewPage({
           <span>
             Removed by {entry.removedBy ?? "staff"}: {entry.removalReason}
           </span>
-        ) : isFinalized ? (
-          <span className="text-muted-foreground">Locked</span>
         ) : (
-          <AttendanceControls
-            classId={id}
-            attendanceId={entry.id}
-            creditedHours={entry.creditedHours}
-            scheduledHours={roster.scheduledHours}
-          />
+          <>
+            {isFinalized ? (
+              <span className="text-muted-foreground">Locked</span>
+            ) : (
+              <AttendanceControls
+                classId={id}
+                attendanceId={entry.id}
+                creditedHours={entry.creditedHours}
+                scheduledHours={roster.scheduledHours}
+              />
+            )}
+            {canCorrectRosterCredentials && entry.corrections.length > 0 ? (
+              <CredentialCorrectionControl
+                classId={id}
+                attendanceId={entry.id}
+                participantName={entry.name}
+                credentials={entry.corrections}
+                action={correctCredentialAction}
+              />
+            ) : null}
+          </>
         )}
       </div>
     </li>

@@ -341,11 +341,6 @@ h1 {
   color: var(--signal-dark);
 }
 
-.public-class-empty {
-  margin: 0;
-  color: #4d5961;
-}
-
 .public-class-list {
   display: grid;
   gap: 1rem;
@@ -931,8 +926,7 @@ h1 {
 .operational-class-heading h3,
 .operational-class-heading p,
 .operational-class-schedule,
-.operational-class-meta,
-.operational-empty {
+.operational-class-meta {
   margin: 0;
 }
 
@@ -941,8 +935,7 @@ h1 {
 }
 
 .operational-class-heading p,
-.operational-class-meta,
-.operational-empty {
+.operational-class-meta {
   color: var(--steel);
   font-size: 0.9rem;
 }

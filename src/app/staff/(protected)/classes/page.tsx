@@ -1,7 +1,9 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -68,9 +70,15 @@ function formatRelativeDays(date: Date) {
   return `${days}d ago`;
 }
 
-function ClassTable({ rows, empty }: { rows: ClassListRow[]; empty: string }) {
+function ClassTable({
+  rows,
+  empty,
+}: {
+  rows: ClassListRow[];
+  empty: ReactNode;
+}) {
   if (!rows.length) {
-    return <p className="text-muted-foreground">{empty}</p>;
+    return <>{empty}</>;
   }
   return (
     <Table>
@@ -165,6 +173,14 @@ export default async function ClassesPage({
   const to = toValue ? new Date(`${toValue}T23:59:59.999`) : undefined;
   const includeFinalized = readSearchParam(query.includeFinalized) === "on";
   const includeCancelled = readSearchParam(query.includeCancelled) === "on";
+
+  const filtersActive =
+    search.trim().length > 0 ||
+    status !== undefined ||
+    fromValue !== defaultFrom ||
+    toValue !== "" ||
+    includeFinalized ||
+    includeCancelled;
 
   const classes = await listClasses(getDatabase(), actor, {
     query: search,
@@ -272,16 +288,60 @@ export default async function ClassesPage({
       ) : null}
       <section className="admin-section">
         <h2>Active</h2>
-        <ClassTable rows={active} empty="No active classes found." />
+        <ClassTable
+          rows={active}
+          empty={
+            <EmptyState
+              title={
+                filtersActive
+                  ? "No classes match these filters"
+                  : "No classes yet"
+              }
+              description={
+                filtersActive
+                  ? "Try widening or clearing the filters."
+                  : "Create a class to get started."
+              }
+              action={
+                filtersActive ? (
+                  <Link
+                    href="/staff/classes"
+                    className={buttonVariants({
+                      variant: "outline",
+                      size: "sm",
+                    })}
+                  >
+                    Clear filters
+                  </Link>
+                ) : (
+                  <Link
+                    href="/staff/classes/new"
+                    className={buttonVariants({ size: "sm" })}
+                  >
+                    Create class
+                  </Link>
+                )
+              }
+            />
+          }
+        />
       </section>
-      {finalized.length ? (
+      {finalized.length || includeFinalized ? (
         <section className="admin-section">
           <h2>
             {includeFinalized
               ? "Finalized"
               : `Recently finalized · last ${CLASS_LIST_FINALIZED_GRACE_DAYS} days`}
           </h2>
-          <ClassTable rows={finalized} empty="No finalized classes found." />
+          <ClassTable
+            rows={finalized}
+            empty={
+              <EmptyState
+                title="No finalized classes"
+                description="Finalized rosters are kept here after a class is finalized."
+              />
+            }
+          />
         </section>
       ) : null}
     </main>

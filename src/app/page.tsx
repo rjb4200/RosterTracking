@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   buildClassSignInUrl,
   createClassQrDataUrl,
@@ -39,7 +40,10 @@ export default async function HomePage() {
       <aside className="public-class-directory" aria-label="Open classes">
         <p className="status-label">Open classes</p>
         {classes.length === 0 ? (
-          <p className="public-class-empty">No classes are open for sign-in.</p>
+          <EmptyState
+            title="No classes are open"
+            description="Classes appear here when an instructor opens them for sign-in. Check back soon."
+          />
         ) : (
           <ul className="public-class-list">
             {

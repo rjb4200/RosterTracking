@@ -37,6 +37,8 @@ const NOTICES: Record<string, string> = {
     "We could not verify those details. Check your entries or use guest sign-in.",
   "ffn-format":
     "FFN must use the format 0000-0000. Correct it or leave it blank to continue.",
+  "credential-taken":
+    "That credential number is already in use. Check it or leave it blank to continue.",
   required: "Complete every required field and choose an active agency.",
   unable: "We could not continue sign-in. Check your entries and try again.",
 };
@@ -146,7 +148,12 @@ function RequirementFields({
 }: {
   model: {
     fields: { key: string; label: string }[];
-    credentials: { id: string; code: string }[];
+    credentials: {
+      id: string;
+      code: string;
+      currentValue?: string;
+      invalid?: boolean;
+    }[];
     agencies: { id: string; name: string }[];
     preselectedAgencyId?: string | null;
   };
@@ -172,11 +179,18 @@ function RequirementFields({
           </label>
           <input
             autoComplete="off"
+            defaultValue={credential.currentValue ?? ""}
             id={`credential-${credential.id}`}
             name={`credential:${credential.id}`}
             placeholder={credential.code === "ffn" ? "0000-0000" : undefined}
             type="text"
           />
+          {credential.invalid ? (
+            <p className="sign-in-field-hint" role="status">
+              This value is not in the expected format. Correct it or leave it
+              blank to continue.
+            </p>
+          ) : null}
         </div>
       ))}
       <AgencyField

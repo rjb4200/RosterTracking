@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -25,6 +26,7 @@ export default async function CurriculaPage({
   await requirePagePermission(PERMISSIONS.CURRICULA_MANAGE);
   const { q = "" } = await searchParams;
   const curricula = await listCurricula(getDatabase(), q);
+  const hasSearch = q.trim().length > 0;
 
   return (
     <main className="admin-content">
@@ -65,8 +67,37 @@ export default async function CurriculaPage({
         <TableBody>
           {curricula.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
-                No curricula found.
+              <TableCell colSpan={4}>
+                <EmptyState
+                  title={
+                    hasSearch ? `No curricula match "${q}"` : "No curricula yet"
+                  }
+                  description={
+                    hasSearch
+                      ? "Try a different search, or clear it to see every curriculum."
+                      : "Add your first curriculum to get started."
+                  }
+                  action={
+                    hasSearch ? (
+                      <Link
+                        href="/staff/curricula"
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                      >
+                        Clear search
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/staff/curricula/new"
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        New curriculum
+                      </Link>
+                    )
+                  }
+                />
               </TableCell>
             </TableRow>
           ) : (

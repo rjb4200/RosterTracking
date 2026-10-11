@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 
 import { buttonVariants } from "@/components/ui/button";
 import { listOperationalClasses } from "@/modules/classes/services";
-import { getDepartmentCalendarDate } from "@/modules/classes/time";
+import {
+  formatDepartmentDateTime,
+  getDepartmentCalendarDate,
+} from "@/modules/classes/time";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { resolveStaffWorkspace } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
@@ -35,6 +38,10 @@ export default async function InstructorWorkspacePage() {
       classRecord.firstSessionStartsAt > now &&
       !classRecord.isOverdue,
   );
+  const nextClass = upcoming[0];
+  const nextClassDescription = nextClass?.firstSessionStartsAt
+    ? `Your next class is ${nextClass.courseName} ${formatDepartmentDateTime(nextClass.firstSessionStartsAt)}.`
+    : undefined;
   return (
     <main className="admin-content">
       <div className="admin-heading">
@@ -52,17 +59,28 @@ export default async function InstructorWorkspacePage() {
       <OperationalClassSection
         title="Overdue rosters"
         classes={overdue}
-        empty="No overdue rosters."
+        emptyTitle="No overdue rosters"
+        emptyDescription="Nothing is awaiting finalization."
       />
       <OperationalClassSection
         title="Today"
         classes={todayClasses}
-        empty="No classes scheduled today."
+        emptyTitle="No classes today"
+        emptyDescription={nextClassDescription}
       />
       <OperationalClassSection
         title="Upcoming"
         classes={upcoming}
-        empty="No upcoming classes."
+        emptyTitle="No upcoming classes"
+        emptyDescription="Schedule the next class to keep rosters moving."
+        emptyAction={
+          <Link
+            href="/staff/classes/new"
+            className={buttonVariants({ size: "sm" })}
+          >
+            Create class
+          </Link>
+        }
       />
     </main>
   );

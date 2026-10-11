@@ -68,6 +68,13 @@ function isFfnFormatError(error: unknown): boolean {
   );
 }
 
+function isCredentialTakenError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message === "This credential number is already in use."
+  );
+}
+
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value : "";
@@ -428,6 +435,8 @@ export async function confirmRecognizedSignIn(formData: FormData) {
     }
   } catch (error) {
     if (isFfnFormatError(error)) destination = "/sign-in?notice=ffn-format";
+    else if (isCredentialTakenError(error))
+      destination = "/sign-in?notice=credential-taken";
     logActionFailure({
       correlationId,
       route: "/sign-in confirmRecognizedSignIn",
@@ -661,6 +670,8 @@ export async function confirmSignIn() {
       destination = confirmationDestination(result.status);
     }
   } catch (error) {
+    if (isCredentialTakenError(error))
+      destination = "/sign-in?notice=credential-taken";
     logActionFailure({
       correlationId,
       route: "/sign-in confirmSignIn",

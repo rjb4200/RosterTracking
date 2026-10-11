@@ -209,6 +209,50 @@ function stagedCredentialMap(participant: {
   );
 }
 
+/**
+ * Writes a captured credential onto the student, replacing the existing value
+ * for that type in place so a credential the student corrected at sign-in
+ * overwrites the stored one.
+ */
+async function upsertStagedCredential(
+  transaction: DatabaseTransaction,
+  studentId: string,
+  credential: { credentialTypeId: string; code: string; value: string },
+  now: Date,
+) {
+  const protectedValue = protectedCredentialValue(credential.value);
+  const [existing] = await transaction
+    .select({ id: studentCredentials.id })
+    .from(studentCredentials)
+    .where(
+      and(
+        eq(studentCredentials.studentId, studentId),
+        eq(studentCredentials.credentialTypeId, credential.credentialTypeId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  if (existing) {
+    await transaction
+      .update(studentCredentials)
+      .set({
+        value: protectedValue.encryptedValue,
+        valueHash: protectedValue.valueHash,
+        maskedSuffix: protectedValue.maskedSuffix,
+        updatedAt: now,
+      })
+      .where(eq(studentCredentials.id, existing.id));
+    return;
+  }
+  await transaction.insert(studentCredentials).values({
+    studentId,
+    credentialTypeId: credential.credentialTypeId,
+    value: protectedValue.encryptedValue,
+    valueHash: protectedValue.valueHash,
+    maskedSuffix: protectedValue.maskedSuffix,
+  });
+}
+
 async function prepareRegularFacts(
   transaction: DatabaseTransaction,
   participant: RegularWorkflowParticipant,
@@ -266,13 +310,9 @@ async function prepareRegularFacts(
   const staged = stagedCredentialMap(participant);
   const credentialValues = new Map(loaded.credentials);
   for (const credential of requirements.credentials) {
-    const existing = credentialValues.get(credential.id);
     const addition = staged.get(credential.id);
-    if (existing && addition) {
-      throw new AttendanceConfirmationError(
-        "Existing credentials cannot be replaced.",
-      );
-    }
+    // A staged value replaces an existing one, so a credential the student
+    // corrected during sign-in is written through to the reporting facts.
     if (addition) credentialValues.set(credential.id, addition.value);
   }
   return { loaded, fields, studentUpdates, credentialValues };
@@ -597,14 +637,12 @@ export async function confirmAttendance(
             );
         }
         for (const credential of participant.credentials) {
-          const protectedValue = protectedCredentialValue(credential.value);
-          await transaction.insert(studentCredentials).values({
-            studentId: participant.studentId,
-            credentialTypeId: credential.credentialTypeId,
-            value: protectedValue.encryptedValue,
-            valueHash: protectedValue.valueHash,
-            maskedSuffix: protectedValue.maskedSuffix,
-          });
+          await upsertStagedCredential(
+            transaction,
+            participant.studentId,
+            credential,
+            now,
+          );
           await writeAuditLog(transaction, {
             actorType: "system",
             action: "student.credential.added_from_sign_in",
@@ -683,14 +721,7 @@ export async function confirmAttendance(
         fields = facts.fields;
         credentialValues = facts.credentialValues;
         for (const credential of participant.credentials) {
-          const protectedValue = protectedCredentialValue(credential.value);
-          await transaction.insert(studentCredentials).values({
-            studentId,
-            credentialTypeId: credential.credentialTypeId,
-            value: protectedValue.encryptedValue,
-            valueHash: protectedValue.valueHash,
-            maskedSuffix: protectedValue.maskedSuffix,
-          });
+          await upsertStagedCredential(transaction, studentId, credential, now);
           await writeAuditLog(transaction, {
             actorType: "system",
             action: "student.credential.added_from_sign_in",
@@ -815,6 +846,11 @@ export async function confirmAttendance(
   } catch (error) {
     if (isUniqueViolation(error, "students_phone_unique")) {
       throw new RecoveryRestartRequiredError("Recovery must be restarted.");
+    }
+    if (isUniqueViolation(error, "student_credentials_type_value_unique")) {
+      throw new AttendanceConfirmationError(
+        "This credential number is already in use.",
+      );
     }
     throw error;
   }

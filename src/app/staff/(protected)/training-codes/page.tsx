@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -25,6 +26,7 @@ export default async function TrainingCodesPage({
   await requirePagePermission(PERMISSIONS.TRAINING_CODES_MANAGE);
   const { q = "" } = await searchParams;
   const codes = await listTrainingCodes(getDatabase(), q);
+  const hasSearch = q.trim().length > 0;
 
   return (
     <main className="admin-content">
@@ -64,8 +66,39 @@ export default async function TrainingCodesPage({
         <TableBody>
           {codes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={3} className="text-muted-foreground">
-                No training codes found.
+              <TableCell colSpan={3}>
+                <EmptyState
+                  title={
+                    hasSearch
+                      ? `No training codes match "${q}"`
+                      : "No training codes yet"
+                  }
+                  description={
+                    hasSearch
+                      ? "Try a different search, or clear it to see every training code."
+                      : "Add your first training code to get started."
+                  }
+                  action={
+                    hasSearch ? (
+                      <Link
+                        href="/staff/training-codes"
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                      >
+                        Clear search
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/staff/training-codes/new"
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        New training code
+                      </Link>
+                    )
+                  }
+                />
               </TableCell>
             </TableRow>
           ) : (
