@@ -17,7 +17,7 @@ import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
-import { transitionClassAction } from "../actions";
+import { correctCredentialAction, transitionClassAction } from "../actions";
 import { ClassSummary } from "../class-summary";
 import { LifecycleControls } from "../lifecycle-controls";
 import { LiveRoster } from "../live-roster";
@@ -92,6 +92,7 @@ export default async function ClassDetailPage({
             classId={id}
             hostAgencyName={classRecord.hostAgency?.name ?? "Not set"}
             initialRoster={rosterRefresh}
+            correctionAction={correctCredentialAction}
             tokenPanel={
               publicAccess && signInUrl && qrDataUrl ? (
                 <TokenPanel

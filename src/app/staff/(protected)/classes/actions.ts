@@ -28,6 +28,7 @@ import {
   dispatchCertificateDeliveries,
   resendParticipantCertificate,
 } from "@/modules/completion-certificates/service";
+import { correctCredential } from "@/modules/credential-correction/service";
 import {
   dispatchTrainingNoticeDeliveries,
   type NoticeVariant,
@@ -457,6 +458,32 @@ export async function reopenClassAction(
   // Reopening returns the class to its editable open state, which the review
   // route does not render, so send the operator to the class detail route.
   redirect(`/staff/classes/${classId}`);
+}
+
+export async function correctCredentialAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await correctCredential(getDatabase(), actor, {
+      attendanceId: read(formData, "attendanceId"),
+      credentialTypeId: read(formData, "credentialTypeId"),
+      value: read(formData, "value"),
+      reason: read(formData, "reason"),
+    });
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return { success: "Credential corrected." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not correct the credential.",
+    };
+  }
 }
 
 export async function sendOfficialRosterEmailAction(

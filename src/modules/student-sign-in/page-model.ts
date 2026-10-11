@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, inArray } from "drizzle-orm";
 
+import { promptedCredentialIsValid } from "@/modules/credential-correction/rules";
 import {
   CREDENTIAL_TYPE_CODES,
   REPORTING_SYSTEM_CODES,
@@ -36,6 +37,14 @@ export const PUBLIC_FIELD_LABELS: Record<string, string> = {
   studentNumber: "Student number",
 };
 
+/** A prompted credential with its current value for review and correction. */
+export interface SignInCredentialField {
+  id: string;
+  code: string;
+  currentValue?: string;
+  invalid?: boolean;
+}
+
 export type SignInPageModel =
   | { step: "phone" }
   | { step: "recovery" }
@@ -51,7 +60,7 @@ export type SignInPageModel =
       participantName: string;
       maskedCredentials: { code: string; maskedSuffix: string }[];
       fields: { key: string; label: string }[];
-      credentials: { id: string; code: string }[];
+      credentials: SignInCredentialField[];
       agencies: { id: string; name: string }[];
       preselectedAgencyId: string | null;
       attestation: string;
@@ -62,7 +71,7 @@ export type SignInPageModel =
       step: "regular-details";
       participantName: string;
       fields: { key: string; label: string }[];
-      credentials: { id: string; code: string }[];
+      credentials: SignInCredentialField[];
       agencies: { id: string; name: string }[];
       preselectedAgencyId: string | null;
       email: string | null;
@@ -70,14 +79,14 @@ export type SignInPageModel =
   | {
       step: "guest-details";
       fields: { key: string; label: string }[];
-      credentials: { id: string; code: string }[];
+      credentials: SignInCredentialField[];
       agencies: { id: string; name: string }[];
     }
   | {
       step: "new-student-details";
       phone: string;
       fields: { key: string; label: string }[];
-      credentials: { id: string; code: string }[];
+      credentials: SignInCredentialField[];
       agencies: { id: string; name: string }[];
       preselectedAgencyId: string | null;
     }
@@ -123,7 +132,10 @@ async function resolveRegularDetails(
     requirements.credentials.length === 0
       ? []
       : await db
-          .select({ credentialTypeId: studentCredentials.credentialTypeId })
+          .select({
+            credentialTypeId: studentCredentials.credentialTypeId,
+            encryptedValue: studentCredentials.value,
+          })
           .from(studentCredentials)
           .where(
             and(
@@ -134,8 +146,11 @@ async function resolveRegularDetails(
               ),
             ),
           );
-  const existingCredentialIds = new Set(
-    existingCredentials.map(({ credentialTypeId }) => credentialTypeId),
+  const existingByType = new Map(
+    existingCredentials.map((credential) => [
+      credential.credentialTypeId,
+      credential.encryptedValue,
+    ]),
   );
   const [classRecord] = await db
     .select({ hostAgencyId: trainingClasses.hostAgencyId })
@@ -153,9 +168,28 @@ async function resolveRegularDetails(
         (field) => !studentFieldValue(student, field),
       ),
     ),
-    credentials: requirements.credentials.filter(
-      ({ id }) => !existingCredentialIds.has(id),
-    ),
+    // Every prompted credential is offered with its current value so the
+    // student can review or correct it, not only fill a missing one.
+    credentials: requirements.credentials.map((credential) => {
+      const encrypted = existingByType.get(credential.id);
+      let currentValue = "";
+      if (encrypted) {
+        try {
+          currentValue = decryptCredential(encrypted);
+        } catch {
+          currentValue = "";
+        }
+      }
+      return {
+        id: credential.id,
+        code: credential.code,
+        currentValue,
+        invalid: !promptedCredentialIsValid(
+          { code: credential.code },
+          currentValue,
+        ),
+      };
+    }),
     agencies: agencyResolution.agencies,
     preselectedAgencyId: agencyResolution.preselectedAgencyId,
   };

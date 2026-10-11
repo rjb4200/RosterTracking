@@ -8,6 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import type { RosterRefreshPayload } from "@/modules/instructor-roster/refresh";
 
+import {
+  type CredentialCorrectionActionState,
+  CredentialCorrectionControl,
+} from "./credential-correction-control";
+
 const ROSTER_REFRESH_INTERVAL_MS = 10_000;
 
 /**
@@ -22,11 +27,16 @@ export function LiveRoster({
   hostAgencyName,
   initialRoster,
   tokenPanel,
+  correctionAction,
 }: {
   classId: string;
   hostAgencyName: string;
   initialRoster: RosterRefreshPayload;
   tokenPanel: ReactNode;
+  correctionAction: (
+    prev: CredentialCorrectionActionState | undefined,
+    formData: FormData,
+  ) => Promise<CredentialCorrectionActionState>;
 }) {
   const router = useRouter();
   const [roster, setRoster] = useState(initialRoster);
@@ -141,6 +151,15 @@ export function LiveRoster({
                 <Badge variant="outline">
                   {entry.creditedHours ?? roster.scheduledHours} hours
                 </Badge>
+                {entry.corrections.length > 0 ? (
+                  <CredentialCorrectionControl
+                    classId={classId}
+                    attendanceId={entry.id}
+                    participantName={entry.name}
+                    credentials={entry.corrections}
+                    action={correctionAction}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>
