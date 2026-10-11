@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +126,7 @@ export function ClassCreationWizard({
   const [subjects, setSubjects] = useState<FireSubjectValue[]>(() => [
     newFireSubject(),
   ]);
+  const [courseNumberTouched, setCourseNumberTouched] = useState(false);
 
   const curriculaWithChapters = new Set(
     curriculumChapters.map((chapter) => chapter.curriculumId),
@@ -193,6 +194,11 @@ export function ClassCreationWizard({
     : needsClassName
       ? values.className
       : (subjects[0]?.className ?? "");
+  const mtuMileageRequired = mtuCatalog.some(
+    (option) =>
+      option.requiresMileage === true &&
+      values.mtuUsage.transportIds.includes(option.id),
+  );
 
   function update<K extends keyof typeof values>(
     key: K,
@@ -200,6 +206,32 @@ export function ClassCreationWizard({
   ) {
     setValues((current) => ({ ...current, [key]: value }));
   }
+
+  const fireSelected = selectedCodes.includes("fire");
+  const kbemsSelected = selectedCodes.includes("kbems");
+  const firstFireTrainingCodeId = subjects[0]?.trainingCodeId ?? "";
+
+  // A dual Fire + KBEMS class carries the Fire training code as its course
+  // number. Seed it once from the first Fire subject while the field is
+  // untouched; a manual entry (or deliberate clear) is never overwritten.
+  useEffect(() => {
+    if (!fireSelected || !kbemsSelected || courseNumberTouched) return;
+    const code = trainingCodes.find(
+      (trainingCode) => trainingCode.id === firstFireTrainingCodeId,
+    )?.code;
+    if (!code) return;
+    setValues((current) =>
+      current.courseNumber === code
+        ? current
+        : { ...current, courseNumber: code },
+    );
+  }, [
+    fireSelected,
+    kbemsSelected,
+    firstFireTrainingCodeId,
+    courseNumberTouched,
+    trainingCodes,
+  ]);
 
   function toggleDestination(systemId: string, selected: boolean) {
     update(
@@ -243,6 +275,8 @@ export function ClassCreationWizard({
     courseType: values.courseType,
     objectives: values.objectives,
     courseNumber: values.courseNumber,
+    mtuMileage: values.mtuUsage.mileage,
+    mtuMileageRequired,
     subjects,
     curriculaWithChapters,
   };
@@ -467,24 +501,34 @@ export function ClassCreationWizard({
               <option value="refresher">Refresher</option>
             </select>
           </div>
-          {values.courseType === "initial_certification" ? (
-            <div className="field">
-              <Label htmlFor="courseNumber">
-                Course number
+          <div className="field">
+            <Label htmlFor="courseNumber">
+              Course number
+              {values.courseType === "initial_certification" ? (
                 <span className="required-mark" aria-hidden="true">
                   {" "}
                   *
                 </span>
-              </Label>
-              <Input
-                id="courseNumber"
-                value={values.courseNumber}
-                onChange={(event) => update("courseNumber", event.target.value)}
-                aria-invalid={errors.includes("courseNumber") || undefined}
-                required
-              />
-            </div>
-          ) : null}
+              ) : (
+                <span className="text-muted-foreground">(optional)</span>
+              )}
+            </Label>
+            <Input
+              id="courseNumber"
+              value={values.courseNumber}
+              onChange={(event) => {
+                setCourseNumberTouched(true);
+                update("courseNumber", event.target.value);
+              }}
+              className={
+                values.courseType === "initial_certification"
+                  ? undefined
+                  : "text-muted-foreground"
+              }
+              aria-invalid={errors.includes("courseNumber") || undefined}
+              required={values.courseType === "initial_certification"}
+            />
+          </div>
           <div className="field">
             <Label htmlFor="objectives">
               Course description or objectives
@@ -515,6 +559,7 @@ export function ClassCreationWizard({
             value={values.mtuUsage}
             onChange={(next) => update("mtuUsage", next)}
             requireMileage
+            mileageInvalid={errors.includes("mtuMileage")}
           />
         </section>
       ) : null}
@@ -866,13 +911,11 @@ export function ClassCreationWizard({
         <>
           <input type="hidden" name="objectives" value={values.objectives} />
           <input type="hidden" name="courseType" value={values.courseType} />
-          {values.courseType === "initial_certification" ? (
-            <input
-              type="hidden"
-              name="courseNumber"
-              value={values.courseNumber}
-            />
-          ) : null}
+          <input
+            type="hidden"
+            name="courseNumber"
+            value={values.courseNumber}
+          />
         </>
       ) : null}
       {selectedCodes.includes("mtu") ? (

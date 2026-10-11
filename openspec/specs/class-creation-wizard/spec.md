@@ -104,7 +104,7 @@ When Fire is a selected destination, the system SHALL provide a Fire step that c
 
 ### Requirement: KBEMS destination step collects EMS course details
 
-When KBEMS is a selected destination, the system SHALL require the EMS course name as free text, a Course type from a selectable set, and the course description or objectives on the KBEMS step. It SHALL require a Course number as free text only when the course type is Initial certification and SHALL NOT offer a course number for the other course types.
+When KBEMS is a selected destination, the system SHALL require the EMS course name as free text, a Course type from a selectable set, and the course description or objectives on the KBEMS step. It SHALL offer a Course number as free text for every course type: required only when the course type is Initial certification, and otherwise offered as an optional field shown with muted styling that remains editable. When both Fire and KBEMS are selected, the system SHALL pre-fill the Course number from the first Fire subject's training code, and staff SHALL be able to overwrite the pre-filled value.
 
 #### Scenario: Enter the EMS course name
 - **WHEN** staff enter the EMS course name on the KBEMS step
@@ -138,9 +138,17 @@ When KBEMS is a selected destination, the system SHALL require the EMS course na
 - **WHEN** staff choose Initial certification and try to leave the KBEMS step without a course number
 - **THEN** the system blocks the step and identifies the missing course number
 
-#### Scenario: Omit the course number for other course types
+#### Scenario: Offer the course number for other course types
 - **WHEN** staff choose Continuing education or Refresher
-- **THEN** the KBEMS step does not offer a course number field
+- **THEN** the KBEMS step offers the course number as an optional field with muted styling that staff can still edit
+
+#### Scenario: Pre-fill the course number for a dual Fire and EMS class
+- **WHEN** Fire and KBEMS are both selected on the Destinations step
+- **THEN** the KBEMS step pre-fills the course number from the first Fire subject's training code
+
+#### Scenario: Overwrite a pre-filled course number
+- **WHEN** staff change a pre-filled course number on the KBEMS step
+- **THEN** the system retains the typed value for the class
 
 ### Requirement: Fire subject chapter and typed book
 
