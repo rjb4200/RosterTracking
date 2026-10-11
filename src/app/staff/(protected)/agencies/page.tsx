@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -27,6 +28,7 @@ export default async function AgenciesPage({
   await requirePagePermission(PERMISSIONS.AGENCIES_MANAGE);
   const { q = "" } = await searchParams;
   const agencies = await listAgencies(getDatabase(), q);
+  const hasSearch = q.trim().length > 0;
 
   return (
     <main className="admin-content">
@@ -67,8 +69,37 @@ export default async function AgenciesPage({
         <TableBody>
           {agencies.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
-                No agencies found.
+              <TableCell colSpan={4}>
+                <EmptyState
+                  title={
+                    hasSearch ? `No agencies match "${q}"` : "No agencies yet"
+                  }
+                  description={
+                    hasSearch
+                      ? "Try a different search, or clear it to see every agency."
+                      : "Add your first agency to get started."
+                  }
+                  action={
+                    hasSearch ? (
+                      <Link
+                        href="/staff/agencies"
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                      >
+                        Clear search
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/staff/agencies/new"
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        New agency
+                      </Link>
+                    )
+                  }
+                />
               </TableCell>
             </TableRow>
           ) : (

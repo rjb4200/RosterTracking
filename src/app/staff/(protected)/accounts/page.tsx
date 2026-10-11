@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -28,6 +29,7 @@ export default async function StaffAccountsPage({
   if (!staff || !isAdministrator(staff.roleCodes)) redirect("/staff");
   const { q = "" } = await searchParams;
   const accounts = await listStaffAccounts(getDatabase(), staff.id, q);
+  const hasSearch = q.trim().length > 0;
 
   return (
     <main className="admin-content">
@@ -69,8 +71,39 @@ export default async function StaffAccountsPage({
         <TableBody>
           {accounts.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
-                No staff accounts found.
+              <TableCell colSpan={5}>
+                <EmptyState
+                  title={
+                    hasSearch
+                      ? `No accounts match "${q}"`
+                      : "No staff accounts yet"
+                  }
+                  description={
+                    hasSearch
+                      ? "Try a different search, or clear it to see every account."
+                      : "Create the first staff account to get started."
+                  }
+                  action={
+                    hasSearch ? (
+                      <Link
+                        href="/staff/accounts"
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                      >
+                        Clear search
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/staff/accounts/new"
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        New staff account
+                      </Link>
+                    )
+                  }
+                />
               </TableCell>
             </TableRow>
           ) : (

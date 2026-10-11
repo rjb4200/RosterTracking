@@ -1,8 +1,10 @@
 import { QrCode } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { listOperationalClasses } from "@/modules/classes/services";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
 
@@ -66,11 +68,15 @@ function ClassCard({ classRecord }: { classRecord: OperationalClass }) {
 export function OperationalClassSection({
   title,
   classes,
-  empty,
+  emptyTitle,
+  emptyDescription,
+  emptyAction,
 }: {
   title: string;
   classes: OperationalClass[];
-  empty: string;
+  emptyTitle: ReactNode;
+  emptyDescription?: ReactNode;
+  emptyAction?: ReactNode;
 }) {
   return (
     <section
@@ -85,7 +91,11 @@ export function OperationalClassSection({
           ))}
         </div>
       ) : (
-        <p className="operational-empty">{empty}</p>
+        <EmptyState
+          title={emptyTitle}
+          description={emptyDescription}
+          action={emptyAction}
+        />
       )}
     </section>
   );

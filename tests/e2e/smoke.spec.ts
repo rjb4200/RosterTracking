@@ -83,7 +83,7 @@ test.describe("@smoke critical pages render", () => {
       expect(detailResponse?.status() ?? 200).toBeLessThan(400);
       await expectNoRenderError(page);
     } else {
-      await expect(page.getByText(/no active classes found/i)).toBeVisible();
+      await expect(page.getByText(/no classes yet/i)).toBeVisible();
     }
   });
 
