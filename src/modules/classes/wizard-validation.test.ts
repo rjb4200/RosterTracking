@@ -127,6 +127,18 @@ describe("wizard step validation", () => {
         }),
       ),
     ).toEqual([]);
+    // A non-initial class may still carry a course number.
+    expect(
+      wizardStepErrors(
+        "kbems",
+        base({
+          kbemsCourseName: "EMT Refresher",
+          courseType: "refresher",
+          objectives: "Review of EMT skills",
+          courseNumber: "A0000",
+        }),
+      ),
+    ).toEqual([]);
     // An initial-certification class requires the course number.
     expect(
       wizardStepErrors(

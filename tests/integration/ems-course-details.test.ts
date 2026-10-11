@@ -138,6 +138,16 @@ describeDatabase("EMS course details", () => {
       objectives: "Review of EMT skills",
     });
     expect(refresher.classRecord.id).toBeTruthy();
+    expect(refresher.classRecord.courseNumber).toBeNull();
+
+    // A non-initial class is also accepted with a course number.
+    const refresherWithNumber = await createOpenClass(db, instructor, {
+      ...baseInput,
+      courseType: "refresher",
+      objectives: "Review of EMT skills",
+      courseNumber: "A0000",
+    });
+    expect(refresherWithNumber.classRecord.courseNumber).toBe("A0000");
 
     // An initial-certification class is accepted with a course number.
     const initial = await createOpenClass(db, instructor, {
@@ -148,5 +158,6 @@ describeDatabase("EMS course details", () => {
       courseNumber: "EMS-100",
     });
     expect(initial.classRecord.id).toBeTruthy();
+    expect(initial.classRecord.courseNumber).toBe("EMS-100");
   });
 });
