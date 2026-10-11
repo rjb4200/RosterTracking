@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { listReportingQueue } from "@/modules/classes/finalization";
 import { listActiveReportingSystems } from "@/modules/reference/requirements";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
@@ -54,12 +55,7 @@ export default async function ReportingPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Training Major workspace</p>
-          <h1 className="staff-title">Reporting queue</h1>
-        </div>
-      </div>
+      <PageHeading eyebrow="Training Major workspace" title="Reporting queue" />
       <section className="admin-section">
         <p className="eyebrow">Finalized revisions</p>
         <h2>Workload</h2>

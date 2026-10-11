@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import type { RosterRefreshPayload } from "@/modules/instructor-roster/refresh";
 
 import {
@@ -122,19 +123,20 @@ export function LiveRoster({
 
   return (
     <>
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Live class</p>
-          <h2>{roster.active.length} signed-in students</h2>
-          <p>Host agency: {hostAgencyName}</p>
-        </div>
-        <Link
-          href={`/staff/classes/${classId}/sign-in-record`}
-          className={buttonVariants({ variant: "secondary" })}
-        >
-          Sign-in record
-        </Link>
-      </div>
+      <PageHeading
+        titleAs="h2"
+        eyebrow="Live class"
+        title={`${roster.active.length} signed-in students`}
+        meta={<p>Host agency: {hostAgencyName}</p>}
+        actions={
+          <Link
+            href={`/staff/classes/${classId}/sign-in-record`}
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            Sign-in record
+          </Link>
+        }
+      />
       {tokenPanel}
       <div className="command-roster">
         <div>

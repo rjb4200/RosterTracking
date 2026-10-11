@@ -1,14 +1,14 @@
 "use client";
 
+import { PageHeading } from "@/components/ui/page-heading";
+
 export default function StaffError({ reset }: { reset: () => void }) {
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Staff workspace</p>
-          <h1 className="staff-title">This page could not be loaded</h1>
-        </div>
-      </div>
+      <PageHeading
+        eyebrow="Staff workspace"
+        title="This page could not be loaded"
+      />
       <p className="text-muted-foreground">
         Something went wrong loading this page. Try again, or return to your
         workspace.

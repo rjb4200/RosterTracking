@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { getMtuCatalogItem } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -28,42 +29,42 @@ export default async function MtuCatalogItemPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">{item.name}</h1>
-        </div>
-        <div className="admin-actions">
-          <Link
-            href="/staff/mtu-catalog"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Back
-          </Link>
-          <form action={setMtuCatalogItemActiveAction}>
-            <input type="hidden" name="id" value={item.id} />
-            <input
-              type="hidden"
-              name="isActive"
-              value={item.isActive ? "false" : "true"}
-            />
-            <Button
-              type="submit"
-              variant={item.isActive ? "destructive" : "secondary"}
+      <PageHeading
+        eyebrow="Reference data"
+        title={item.name}
+        actions={
+          <>
+            <Link
+              href="/staff/mtu-catalog"
+              className={buttonVariants({ variant: "outline" })}
             >
-              {item.isActive ? "Deactivate" : "Reactivate"}
-            </Button>
-          </form>
-          {!item.archivedAt ? (
-            <form action={archiveMtuCatalogItemAction}>
+              Back
+            </Link>
+            <form action={setMtuCatalogItemActiveAction}>
               <input type="hidden" name="id" value={item.id} />
-              <Button type="submit" variant="destructive">
-                Archive
+              <input
+                type="hidden"
+                name="isActive"
+                value={item.isActive ? "false" : "true"}
+              />
+              <Button
+                type="submit"
+                variant={item.isActive ? "destructive" : "secondary"}
+              >
+                {item.isActive ? "Deactivate" : "Reactivate"}
               </Button>
             </form>
-          ) : null}
-        </div>
-      </div>
+            {!item.archivedAt ? (
+              <form action={archiveMtuCatalogItemAction}>
+                <input type="hidden" name="id" value={item.id} />
+                <Button type="submit" variant="destructive">
+                  Archive
+                </Button>
+              </form>
+            ) : null}
+          </>
+        }
+      />
       <section className="admin-section">
         <h2>Edit item</h2>
         <MtuItemForm

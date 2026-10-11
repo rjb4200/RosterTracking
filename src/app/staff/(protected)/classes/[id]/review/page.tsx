@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
 import {
   getClassDetail,
@@ -213,29 +214,29 @@ export default async function ClassReviewPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">
-            {isFinalized ? "Finalized class review" : "Review and finalize"}
-          </p>
-          <h1 className="staff-title">{classRecord.name ?? "Class roster"}</h1>
+      <PageHeading
+        eyebrow={isFinalized ? "Finalized class review" : "Review and finalize"}
+        title={classRecord.name ?? "Class roster"}
+        meta={
           <p>
             {classRecord.site?.name ?? "Online"} | Scheduled total:{" "}
             {roster.scheduledHours} hours
           </p>
-        </div>
-        <div className="admin-actions">
-          <Badge variant={isFinalized ? "default" : "secondary"}>
-            {classRecord.status}
-          </Badge>
-          <Link
-            href={isFinalized ? "/staff/classes" : `/staff/classes/${id}`}
-            className={buttonVariants({ variant: "outline" })}
-          >
-            {isFinalized ? "Back to classes" : "Back to class"}
-          </Link>
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            <Badge variant={isFinalized ? "default" : "secondary"}>
+              {classRecord.status}
+            </Badge>
+            <Link
+              href={isFinalized ? "/staff/classes" : `/staff/classes/${id}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {isFinalized ? "Back to classes" : "Back to class"}
+            </Link>
+          </>
+        }
+      />
 
       <section className="admin-section">
         <h2>Class details</h2>

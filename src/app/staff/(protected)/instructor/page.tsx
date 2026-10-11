@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { listOperationalClasses } from "@/modules/classes/services";
 import {
   formatDepartmentDateTime,
@@ -44,18 +45,15 @@ export default async function InstructorWorkspacePage() {
     : undefined;
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Instructor workspace</p>
-          <h1 className="staff-title">Class operations</h1>
-        </div>
-        <Link
-          href="/staff/classes/new"
-          className={buttonVariants({ size: "lg" })}
-        >
-          Create class
-        </Link>
-      </div>
+      <PageHeading
+        eyebrow="Instructor workspace"
+        title="Class operations"
+        primary={{
+          href: "/staff/classes/new",
+          label: "Create class",
+          size: "lg",
+        }}
+      />
       <OperationalClassSection
         title="Overdue rosters"
         classes={overdue}

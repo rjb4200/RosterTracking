@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import { AGENCY_TAG_CODES } from "@/modules/reference/constants";
 import { getAgency, listAgencyTags } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
@@ -53,43 +54,43 @@ export default async function AgencyDetailPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">{agency.name}</h1>
-          <TagBadgeList tags={agency.tags} />
-        </div>
-        <div className="admin-actions">
-          <Link
-            href="/staff/agencies"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Back
-          </Link>
-          <form action={setAgencyActiveAction}>
-            <input type="hidden" name="id" value={agency.id} />
-            <input
-              type="hidden"
-              name="isActive"
-              value={agency.isActive ? "false" : "true"}
-            />
-            <Button
-              type="submit"
-              variant={agency.isActive ? "destructive" : "secondary"}
+      <PageHeading
+        eyebrow="Reference data"
+        title={agency.name}
+        meta={<TagBadgeList tags={agency.tags} />}
+        actions={
+          <>
+            <Link
+              href="/staff/agencies"
+              className={buttonVariants({ variant: "outline" })}
             >
-              {agency.isActive ? "Deactivate" : "Reactivate"}
-            </Button>
-          </form>
-          {!agency.archivedAt ? (
-            <form action={archiveAgencyAction}>
+              Back
+            </Link>
+            <form action={setAgencyActiveAction}>
               <input type="hidden" name="id" value={agency.id} />
-              <Button type="submit" variant="destructive">
-                Archive
+              <input
+                type="hidden"
+                name="isActive"
+                value={agency.isActive ? "false" : "true"}
+              />
+              <Button
+                type="submit"
+                variant={agency.isActive ? "destructive" : "secondary"}
+              >
+                {agency.isActive ? "Deactivate" : "Reactivate"}
               </Button>
             </form>
-          ) : null}
-        </div>
-      </div>
+            {!agency.archivedAt ? (
+              <form action={archiveAgencyAction}>
+                <input type="hidden" name="id" value={agency.id} />
+                <Button type="submit" variant="destructive">
+                  Archive
+                </Button>
+              </form>
+            ) : null}
+          </>
+        }
+      />
       <section className="admin-section">
         <h2>Edit agency</h2>
         <AgencyForm

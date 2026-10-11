@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   Table,
   TableBody,
@@ -87,20 +88,11 @@ export default async function MtuCatalogPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">MTU catalog</h1>
-        </div>
-        <div className="admin-actions">
-          <Link
-            href="/staff/mtu-catalog/new"
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            New item
-          </Link>
-        </div>
-      </div>
+      <PageHeading
+        eyebrow="Reference data"
+        title="MTU catalog"
+        primary={{ href: "/staff/mtu-catalog/new", label: "New item" }}
+      />
 
       <form className="search-bar" action="/staff/mtu-catalog">
         <input

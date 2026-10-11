@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   Table,
   TableBody,
@@ -29,15 +30,11 @@ export default async function StudentsPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">Students</h1>
-        </div>
-        <Link href="/staff/students/new" className={buttonVariants()}>
-          New student
-        </Link>
-      </div>
+      <PageHeading
+        eyebrow="Reference data"
+        title="Students"
+        primary={{ href: "/staff/students/new", label: "New student" }}
+      />
 
       <form className="search-bar" action="/staff/students">
         <input

@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { normalizeFfn } from "@/modules/reference/credential-format";
 
 export interface CredentialTypeOption {
   id: string;
@@ -47,7 +48,15 @@ export function CredentialForm({
         </div>
         <div className="field">
           <Label htmlFor="value">Credential number</Label>
-          <Input id="value" name="value" required />
+          <Input
+            id="value"
+            name="value"
+            onBlur={(event) => {
+              const canonical = normalizeFfn(event.currentTarget.value);
+              if (canonical) event.currentTarget.value = canonical;
+            }}
+            required
+          />
         </div>
         <div className="field">
           <Label htmlFor="expirationDate">Expiration (optional)</Label>

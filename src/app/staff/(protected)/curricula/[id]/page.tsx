@@ -4,6 +4,7 @@ import { Fragment } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   getCurriculum,
   listCurriculumChaptersForAdmin,
@@ -41,43 +42,43 @@ export default async function CurriculumDetailPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Reference data</p>
-          <h1 className="staff-title">{curriculum.programTitle}</h1>
-          <p>{curriculum.publisher}</p>
-        </div>
-        <div className="admin-actions">
-          <Link
-            href="/staff/curricula"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Back
-          </Link>
-          <form action={setCurriculumActiveAction}>
-            <input type="hidden" name="id" value={curriculum.id} />
-            <input
-              type="hidden"
-              name="isActive"
-              value={curriculum.isActive ? "false" : "true"}
-            />
-            <Button
-              type="submit"
-              variant={curriculum.isActive ? "destructive" : "secondary"}
+      <PageHeading
+        eyebrow="Reference data"
+        title={curriculum.programTitle}
+        meta={<p>{curriculum.publisher}</p>}
+        actions={
+          <>
+            <Link
+              href="/staff/curricula"
+              className={buttonVariants({ variant: "outline" })}
             >
-              {curriculum.isActive ? "Deactivate" : "Reactivate"}
-            </Button>
-          </form>
-          {!curriculum.archivedAt ? (
-            <form action={archiveCurriculumAction}>
+              Back
+            </Link>
+            <form action={setCurriculumActiveAction}>
               <input type="hidden" name="id" value={curriculum.id} />
-              <Button type="submit" variant="destructive">
-                Archive
+              <input
+                type="hidden"
+                name="isActive"
+                value={curriculum.isActive ? "false" : "true"}
+              />
+              <Button
+                type="submit"
+                variant={curriculum.isActive ? "destructive" : "secondary"}
+              >
+                {curriculum.isActive ? "Deactivate" : "Reactivate"}
               </Button>
             </form>
-          ) : null}
-        </div>
-      </div>
+            {!curriculum.archivedAt ? (
+              <form action={archiveCurriculumAction}>
+                <input type="hidden" name="id" value={curriculum.id} />
+                <Button type="submit" variant="destructive">
+                  Archive
+                </Button>
+              </form>
+            ) : null}
+          </>
+        }
+      />
       <section className="admin-section">
         <h2>Edit curriculum</h2>
         <CurriculumForm

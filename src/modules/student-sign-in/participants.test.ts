@@ -31,12 +31,20 @@ describe("optional public credential capture", () => {
       { credentialTypeId: "ffn-id", code: "ffn", value: "1234-5678" },
       { credentialTypeId: "kemsis-id", code: "kemsis", value: "EMS-42" },
     ]);
-    expect(() =>
+    expect(
       optionalCredentialMap(
         [{ credentialTypeId: "ffn-id", value: "12345678" }],
         offered,
       ),
-    ).toThrow(/0000-0000/);
+    ).toEqual([
+      { credentialTypeId: "ffn-id", code: "ffn", value: "1234-5678" },
+    ]);
+    expect(() =>
+      optionalCredentialMap(
+        [{ credentialTypeId: "ffn-id", value: "1234567" }],
+        offered,
+      ),
+    ).toThrow(/8 digits/);
   });
 
   it("rejects unsolicited and repeated credential types", () => {

@@ -2,6 +2,7 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { FFN_FORMAT_MESSAGE } from "@/modules/reference/credential-format";
 import { normalizePhone } from "@/modules/reference/masking";
 import {
   type AttendanceConfirmationResult,
@@ -62,10 +63,7 @@ const REGISTER_REQUIRED_ERROR = "/sign-in?step=register&notice=required";
 const REGISTER_LIMITED_ERROR = "/sign-in?step=register&notice=limited";
 
 function isFfnFormatError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message === "FFN must be in the format 0000-0000."
-  );
+  return error instanceof Error && error.message === FFN_FORMAT_MESSAGE;
 }
 
 function isCredentialTakenError(error: unknown): boolean {

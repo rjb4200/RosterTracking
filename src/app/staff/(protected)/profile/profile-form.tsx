@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { normalizeFfn } from "@/modules/reference/credential-format";
 import {
   INSTRUCTOR_LEVELS,
   type ProfileActionState,
@@ -45,9 +46,13 @@ export function ProfileForm({
         <Input
           id={`${idPrefix}-ffn`}
           name="ffn"
-          placeholder="e.g. 123456"
-          value={ffn}
+          onBlur={(event) => {
+            const canonical = normalizeFfn(event.currentTarget.value);
+            if (canonical) setFfn(canonical);
+          }}
           onChange={(event) => setFfn(event.target.value)}
+          placeholder="e.g. 1234-5678"
+          value={ffn}
         />
       </div>
       <div className="field">

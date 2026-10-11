@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeading } from "@/components/ui/page-heading";
 import {
   getClassDetail,
   listClassFormOptions,
@@ -49,18 +50,18 @@ export default async function EditClassPage({
 
   return (
     <main className="admin-content">
-      <div className="admin-heading">
-        <div>
-          <p className="eyebrow">Edit class</p>
-          <h1 className="staff-title">{classRecord.name ?? "Class"}</h1>
-        </div>
-        <Link
-          href={`/staff/classes/${id}`}
-          className={buttonVariants({ variant: "outline" })}
-        >
-          Back to class
-        </Link>
-      </div>
+      <PageHeading
+        eyebrow="Edit class"
+        title={classRecord.name ?? "Class"}
+        actions={
+          <Link
+            href={`/staff/classes/${id}`}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Back to class
+          </Link>
+        }
+      />
 
       <section className="admin-section">
         <h2>Class details</h2>
