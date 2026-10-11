@@ -36,5 +36,5 @@
 
 ## 7. Continuous integration
 
-- [ ] 7.1 Confirm the CI integration job runs the reset and the suite
-- [ ] 7.2 Confirm the suite is green on CI
+- [x] 7.1 Confirm the CI integration job runs the reset and the suite
+- [x] 7.2 Confirm the suite is green on CI

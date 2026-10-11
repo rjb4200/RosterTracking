@@ -7,7 +7,7 @@ The system SHALL validate same-origin requests on public sign-in mutations again
 - **WHEN** a public sign-in mutation arrives with an origin equal to the configured canonical origin
 - **THEN** the system accepts the request
 
-#### Scenario: Request on the project production domain in production
+#### Scenario: Request on the project production domain
 - **WHEN** a public sign-in mutation arrives on the deployment's project production domain in the production environment
 - **THEN** the system accepts the request rather than rejecting a host the application legitimately serves
 

@@ -3,9 +3,7 @@
 ## Purpose
 
 Keep public student sign-in contained and observable so a dependency, configuration, or data failure produces a usable response and a diagnosable log instead of an unexplained crash.
-
 ## Requirements
-
 ### Requirement: Public sign-in failures are contained
 The system SHALL provide error boundaries for the public sign-in route tree and the staff route tree so an unexpected failure renders a usable page with a generic message and a recovery action rather than a framework error.
 
@@ -48,15 +46,19 @@ The system SHALL log public sign-in and entry-route failures server-side with th
 - **THEN** the student receives the same generic unavailable response and no failure detail
 
 ### Requirement: Same-origin validation accepts the served hosts
-The system SHALL validate same-origin requests on public sign-in mutations against a bounded set of trusted origins: the configured canonical origin, the request's own origin, and the deployment's project production domain. It SHALL NOT accept wildcard hosts, and SHALL continue to reject a request whose origin is absent or matches no trusted origin.
+The system SHALL validate same-origin requests on public sign-in mutations against a bounded set of trusted origins: the configured canonical origin and the request's own origin, and, only in the production environment, the deployment's project production domain. Outside the production environment the system SHALL NOT treat the project production domain as a trusted origin. It SHALL NOT accept wildcard hosts, and SHALL continue to reject a request whose origin is absent or matches no trusted origin.
 
 #### Scenario: Request on the canonical origin
 - **WHEN** a public sign-in mutation arrives with an origin equal to the configured canonical origin
 - **THEN** the system accepts the request
 
 #### Scenario: Request on the project production domain
-- **WHEN** a public sign-in mutation arrives on the deployment's project production domain
+- **WHEN** a public sign-in mutation arrives on the deployment's project production domain in the production environment
 - **THEN** the system accepts the request rather than rejecting a host the application legitimately serves
+
+#### Scenario: Request on the project production domain outside production
+- **WHEN** a public sign-in mutation arrives with the project production domain as its origin outside the production environment
+- **THEN** the system rejects the request
 
 #### Scenario: Request with no origin
 - **WHEN** a public sign-in mutation arrives with no origin header
@@ -106,3 +108,4 @@ The system SHALL establish a fresh sign-in context when a visitor reaches the si
 #### Scenario: Absent context with no resolvable class
 - **WHEN** a visitor reaches the sign-in route with no sign-in context and no resolvable open class
 - **THEN** the system returns the generic unavailable response without class details
+
