@@ -17,6 +17,8 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     courseType: "",
     objectives: "",
     courseNumber: "",
+    mtuMileage: "",
+    mtuMileageRequired: false,
     subjects: [] as Array<{
       trainingCodeId: string;
       className: string;
@@ -167,6 +169,32 @@ describe("wizard step validation", () => {
           trainingSiteId: "site-1",
         }),
       ),
+    ).toEqual([]);
+  });
+
+  it("requires mileage for a driving transport until it is provided", () => {
+    // A selected driving transport with no estimate blocks the step.
+    expect(wizardStepErrors("mtu", base({ mtuMileageRequired: true }))).toEqual(
+      ["mtuMileage"],
+    );
+    // Whitespace-only mileage does not satisfy the requirement.
+    expect(
+      wizardStepErrors(
+        "mtu",
+        base({ mtuMileageRequired: true, mtuMileage: "   " }),
+      ),
+    ).toEqual(["mtuMileage"]);
+    // A non-empty estimate clears the requirement.
+    expect(
+      wizardStepErrors(
+        "mtu",
+        base({ mtuMileageRequired: true, mtuMileage: "120" }),
+      ),
+    ).toEqual([]);
+    // No driving transport leaves mileage optional.
+    expect(wizardStepErrors("mtu", base())).toEqual([]);
+    expect(
+      wizardStepErrors("mtu", base({ mtuMileageRequired: false })),
     ).toEqual([]);
   });
 });

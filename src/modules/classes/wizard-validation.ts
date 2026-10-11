@@ -12,6 +12,8 @@ export interface WizardValidationInput {
   courseType: string;
   objectives: string;
   courseNumber: string;
+  mtuMileage: string;
+  mtuMileageRequired: boolean;
   subjects: ReadonlyArray<{
     trainingCodeId: string;
     className: string;
@@ -75,6 +77,12 @@ export function wizardStepErrors(
     if (!input.creditedHours) missing.push("creditedHours");
     if (!input.leadInstructorId) missing.push("leadInstructorId");
     if (!input.hostAgencyId) missing.push("hostAgencyId");
+    return missing;
+  }
+  if (key === "mtu") {
+    if (input.mtuMileageRequired && !input.mtuMileage.trim()) {
+      missing.push("mtuMileage");
+    }
     return missing;
   }
   return missing;

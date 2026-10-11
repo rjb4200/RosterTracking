@@ -99,6 +99,7 @@ export function MtuUsageFields({
   onChange,
   activeParticipants = 0,
   requireMileage = false,
+  mileageInvalid = false,
 }: {
   catalog: MtuCatalogOption[];
   mode: "select" | "confirm";
@@ -106,6 +107,7 @@ export function MtuUsageFields({
   onChange: (next: MtuUsageValue) => void;
   activeParticipants?: number;
   requireMileage?: boolean;
+  mileageInvalid?: boolean;
 }) {
   const [mileageOpen, setMileageOpen] = useState(false);
   const equipment = catalog.filter((option) => option.kind === "equipment");
@@ -299,7 +301,7 @@ export function MtuUsageFields({
               name="mtuMileage"
               value={value.mileage}
               onChange={(event) => update({ mileage: event.target.value })}
-              required={drivingSelected}
+              aria-invalid={mileageInvalid || undefined}
               aria-label="Mileage estimate"
             />
           </details>

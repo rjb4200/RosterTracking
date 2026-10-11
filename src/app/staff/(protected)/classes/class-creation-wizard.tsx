@@ -193,6 +193,11 @@ export function ClassCreationWizard({
     : needsClassName
       ? values.className
       : (subjects[0]?.className ?? "");
+  const mtuMileageRequired = mtuCatalog.some(
+    (option) =>
+      option.requiresMileage === true &&
+      values.mtuUsage.transportIds.includes(option.id),
+  );
 
   function update<K extends keyof typeof values>(
     key: K,
@@ -243,6 +248,8 @@ export function ClassCreationWizard({
     courseType: values.courseType,
     objectives: values.objectives,
     courseNumber: values.courseNumber,
+    mtuMileage: values.mtuUsage.mileage,
+    mtuMileageRequired,
     subjects,
     curriculaWithChapters,
   };
@@ -515,6 +522,7 @@ export function ClassCreationWizard({
             value={values.mtuUsage}
             onChange={(next) => update("mtuUsage", next)}
             requireMileage
+            mileageInvalid={errors.includes("mtuMileage")}
           />
         </section>
       ) : null}
