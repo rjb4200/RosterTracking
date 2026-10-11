@@ -1,7 +1,21 @@
 [
   {
+    "publisher": "ASHI",
+    "programTitle": "First Aid/Safety Training Programs",
+    "version": "N/A*",
+    "additionalRequirements": "Approval of AHJ; Current ASHI Instructor Certification",
+    "sourceRevision": "aug2024"
+  },
+  {
     "publisher": "Action Training",
     "programTitle": "Driver/Operator Programs/Videos",
+    "version": "N/A*",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Action Training",
+    "programTitle": "EMS Training Programs/Videos",
     "version": "N/A*",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
@@ -35,13 +49,6 @@
     "sourceRevision": "aug2024"
   },
   {
-    "publisher": "Action Training",
-    "programTitle": "EMS Training Programs/Videos",
-    "version": "N/A*",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
     "publisher": "American Heart Assoc.",
     "programTitle": "First Aid/CPR/Safety Training Programs",
     "version": "N/A*",
@@ -53,13 +60,6 @@
     "programTitle": "First Aid/CPR/Safety Training Programs",
     "version": "N/A*",
     "additionalRequirements": "Approval of AHJ; Current American Red Cross Instructor Certification",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "ASHI",
-    "programTitle": "First Aid/Safety Training Programs",
-    "version": "N/A*",
-    "additionalRequirements": "Approval of AHJ; Current ASHI Instructor Certification",
     "sourceRevision": "aug2024"
   },
   {
@@ -92,23 +92,16 @@
   },
   {
     "publisher": "Burke",
-    "programTitle": "Emergency Response Guidebook, GHS",
-    "version": "2020 & 2024",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Burke",
     "programTitle": "Bloodborne Pathogens and other Hazardous Materials Related Programs",
     "version": "N/A*",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
-    "publisher": "Cleveland State University",
-    "programTitle": "Fire/Rescue/EMS Online Learning Courses",
-    "version": "2016 & newer",
-    "additionalRequirements": "Conditions for Online Learning; Approval of AHJ",
+    "publisher": "Burke",
+    "programTitle": "Emergency Response Guidebook, GHS",
+    "version": "2020 & 2024",
+    "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
@@ -130,6 +123,13 @@
     "programTitle": "Trench Rescue Technician",
     "version": "1st Edition",
     "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Cleveland State University",
+    "programTitle": "Fire/Rescue/EMS Online Learning Courses",
+    "version": "2016 & newer",
+    "additionalRequirements": "Conditions for Online Learning; Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
@@ -182,6 +182,27 @@
     "sourceRevision": "aug2024"
   },
   {
+    "publisher": "FPP/IFSTA",
+    "programTitle": "Leadership for Wildland Fire Officer",
+    "version": "2nd Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "FPP/IFSTA",
+    "programTitle": "Live Fire Instructor",
+    "version": "1st Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "FPP/IFSTA",
+    "programTitle": "Rapid Intervention Teams",
+    "version": "2019",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
     "publisher": "Fire Engineering/Clarion",
     "programTitle": "Fire Engineering Training & JEMS Training",
     "version": "2023 or newer",
@@ -190,15 +211,15 @@
   },
   {
     "publisher": "Fire Engineering/Pennwell",
-    "programTitle": "Handbook for Firefighter I and II",
-    "version": "2019 Edition",
+    "programTitle": "Art of Reading Smoke",
+    "version": "N/A",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
     "publisher": "Fire Engineering/Pennwell",
-    "programTitle": "Art of Reading Smoke",
-    "version": "N/A",
+    "programTitle": "Handbook for Firefighter I and II",
+    "version": "2019 Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
@@ -274,13 +295,6 @@
   },
   {
     "publisher": "IFSTA",
-    "programTitle": "Fire/Emergency Services Instructor",
-    "version": "9th Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "IFSTA",
     "programTitle": "Fire Inspection & Code Enforcement",
     "version": "9th Edition",
     "additionalRequirements": "Approval of AHJ",
@@ -295,15 +309,15 @@
   },
   {
     "publisher": "IFSTA",
-    "programTitle": "Fire Protection Detection & Suppression Systems",
-    "version": "5th Edition",
+    "programTitle": "Fire Prevention for Company Officers",
+    "version": "1st Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
     "publisher": "IFSTA",
-    "programTitle": "Fire Prevention for Company Officers",
-    "version": "1st Edition",
+    "programTitle": "Fire Protection Detection & Suppression Systems",
+    "version": "5th Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
@@ -316,8 +330,8 @@
   },
   {
     "publisher": "IFSTA",
-    "programTitle": "Hazardous Materials for First Responders",
-    "version": "6th Edition",
+    "programTitle": "Fire/Emergency Services Instructor",
+    "version": "9th Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
@@ -329,16 +343,9 @@
     "sourceRevision": "aug2024"
   },
   {
-    "publisher": "FPP/IFSTA",
-    "programTitle": "Leadership for Wildland Fire Officer",
-    "version": "2nd Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "FPP/IFSTA",
-    "programTitle": "Live Fire Instructor",
-    "version": "1st Edition",
+    "publisher": "IFSTA",
+    "programTitle": "Hazardous Materials for First Responders",
+    "version": "6th Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
@@ -385,13 +392,6 @@
     "sourceRevision": "aug2024"
   },
   {
-    "publisher": "FPP/IFSTA",
-    "programTitle": "Rapid Intervention Teams",
-    "version": "2019",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
     "publisher": "IFSTA",
     "programTitle": "Safety Officer",
     "version": "2nd Edition",
@@ -424,6 +424,13 @@
     "programTitle": "Principles of Modern Fire Attack/SLICE-RS",
     "version": "N/A",
     "additionalRequirements": "Approval of AHJ; Train-the-Trainer course",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
+    "programTitle": "Advanced Fire and Emergency Services Admin (FESHE)",
+    "version": "4th Edition",
+    "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
@@ -463,6 +470,20 @@
   },
   {
     "publisher": "Jones and Bartlett",
+    "programTitle": "Fire & Emergency Services Instructor",
+    "version": "3rd Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
+    "programTitle": "Fire & Life Safety Educator",
+    "version": "2nd Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
     "programTitle": "Fire Apparatus Driver/Operator",
     "version": "3rd Edition",
     "additionalRequirements": "Approval of AHJ",
@@ -477,43 +498,8 @@
   },
   {
     "publisher": "Jones and Bartlett",
-    "programTitle": "Firefighter Safety (FESHE)",
-    "version": "3rd Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
-    "programTitle": "Firefighting Strategies and Tactics (FESHE)",
-    "version": "3rd Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
-    "programTitle": "Advanced Fire and Emergency Services Admin (FESHE)",
-    "version": "4th Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
-    "programTitle": "Fire & Life Safety Educator",
-    "version": "2nd Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
     "programTitle": "Fire Inspector",
     "version": "1st Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
-    "programTitle": "Fire & Emergency Services Instructor",
-    "version": "3rd Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
@@ -554,10 +540,31 @@
   },
   {
     "publisher": "Jones and Bartlett",
+    "programTitle": "Firefighter Safety (FESHE)",
+    "version": "3rd Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
+    "programTitle": "Firefighting Strategies and Tactics (FESHE)",
+    "version": "3rd Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
     "programTitle": "Fundamentals of Firefighter Skills (and Hazmat)",
     "version": "5th Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
+    "programTitle": "Fundamentals of Firefighter Skills for Support Personnel",
+    "version": "1st Edition",
+    "additionalRequirements": "",
+    "sourceRevision": "2026"
   },
   {
     "publisher": "Jones and Bartlett",
@@ -596,20 +603,6 @@
   },
   {
     "publisher": "Jones and Bartlett",
-    "programTitle": "Legal Aspects of Emergency Services (FESHE)",
-    "version": "2nd Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
-    "programTitle": "Management in the Fire Service (FESHE)",
-    "version": "5th Edition",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Jones and Bartlett",
     "programTitle": "Industrial Fire Brigade",
     "version": "1st Edition",
     "additionalRequirements": "Approval of AHJ",
@@ -624,6 +617,13 @@
   },
   {
     "publisher": "Jones and Bartlett",
+    "programTitle": "Legal Aspects of Emergency Services (FESHE)",
+    "version": "2nd Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
     "programTitle": "Live Fire Training",
     "version": "2nd Edition",
     "additionalRequirements": "Approval of AHJ",
@@ -632,6 +632,13 @@
   {
     "publisher": "Jones and Bartlett",
     "programTitle": "Management in the Fire Service",
+    "version": "5th Edition",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "Jones and Bartlett",
+    "programTitle": "Management in the Fire Service (FESHE)",
     "version": "5th Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
@@ -721,13 +728,6 @@
     "sourceRevision": "aug2024"
   },
   {
-    "publisher": "National Safety Council",
-    "programTitle": "First Aid/CPR/Safety Training Programs",
-    "version": "N/A*",
-    "additionalRequirements": "Approval of AHJ; Current NSC Instructor Certification",
-    "sourceRevision": "aug2024"
-  },
-  {
     "publisher": "NFPA",
     "programTitle": "Alternative Fuel Vehicle Safety",
     "version": "2015 or newer",
@@ -756,9 +756,30 @@
     "sourceRevision": "aug2024"
   },
   {
+    "publisher": "NHTSA/VFIS",
+    "programTitle": "Traffic Incident Management (TIM)",
+    "version": "2015 or newer",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
     "publisher": "NWCG",
     "programTitle": "S-130, S-190; Other Wildland Programs",
     "version": "N/A*",
+    "additionalRequirements": "Approval of AHJ",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "National Safety Council",
+    "programTitle": "First Aid/CPR/Safety Training Programs",
+    "version": "N/A*",
+    "additionalRequirements": "Approval of AHJ; Current NSC Instructor Certification",
+    "sourceRevision": "aug2024"
+  },
+  {
+    "publisher": "PERC",
+    "programTitle": "Propane Emergencies",
+    "version": "3rd Edition",
     "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
@@ -767,13 +788,6 @@
     "programTitle": "EMR, EMT, and Paramedic Training Programs",
     "version": "N/A*",
     "additionalRequirements": "Approval of AHJ; KBEMS Certified Instructor at appropriate level",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "PERC",
-    "programTitle": "Propane Emergencies",
-    "version": "3rd Edition",
-    "additionalRequirements": "Approval of AHJ",
     "sourceRevision": "aug2024"
   },
   {
@@ -861,38 +875,10 @@
     "sourceRevision": "aug2024"
   },
   {
-    "publisher": "NHTSA/VFIS",
-    "programTitle": "Traffic Incident Management (TIM)",
-    "version": "2015 or newer",
-    "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
     "publisher": "VFIS",
     "programTitle": "UTV/ATV Safety",
     "version": "2016 or newer",
     "additionalRequirements": "Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "VFIS",
-    "programTitle": "VFIS University",
-    "version": "N/A",
-    "additionalRequirements": "Conditions for Online Learning; Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Western KY University",
-    "programTitle": "Introduction to the Science of Thermology",
-    "version": "N/A",
-    "additionalRequirements": "Conditions for Online Learning; Approval of AHJ",
-    "sourceRevision": "aug2024"
-  },
-  {
-    "publisher": "Western KY University",
-    "programTitle": "Introduction to Tactical Thermology",
-    "version": "N/A",
-    "additionalRequirements": "Conditions for Online Learning; Approval of AHJ",
     "sourceRevision": "aug2024"
   }
 ]

@@ -1,17 +1,31 @@
 import "dotenv/config";
 
+import { randomBytes } from "node:crypto";
+
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { z } from "zod";
 
+import { hashPassword } from "../src/modules/staff-auth/password";
+import type { Database } from "../src/server/db/client";
+import { assertNotProtectedTarget } from "../src/server/db/maintenance-guard";
+import {
+  importReferenceData,
+  readReferenceSources,
+} from "../src/server/db/reference-provision";
 import { seedReferenceData } from "../src/server/db/reference-seed";
 import * as schema from "../src/server/db/schema";
+import { users } from "../src/server/db/schema";
 import { seedFoundation } from "../src/server/db/seed";
 
 const databaseUrl = z.string().url().startsWith("postgresql://");
 
 const PRODUCTION_DATABASE_NAME = "RosterGenerator";
+
+/** A stable, non-login account used only to attribute reference imports. */
+const IMPORT_ACTOR_USERNAME = "reference-import";
 
 function requiredUrl(name: string): string {
   const value = process.env[name];
@@ -87,21 +101,59 @@ async function clearApplicationTables(pool: Pool): Promise<void> {
   await pool.query(`truncate table ${tables} restart identity cascade`);
 }
 
+/**
+ * The reference imports write audit rows attributed to an actor, so a test
+ * database needs one account before it can be populated from committed sources.
+ */
+async function ensureImportActor(
+  db: Database,
+): Promise<{ id: string; username: string }> {
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.username, IMPORT_ACTOR_USERNAME))
+    .limit(1);
+  if (existing) return { id: existing.id, username: IMPORT_ACTOR_USERNAME };
+
+  const passwordHash = await hashPassword(
+    randomBytes(24).toString("base64url"),
+  );
+  const [created] = await db
+    .insert(users)
+    .values({
+      username: IMPORT_ACTOR_USERNAME,
+      displayName: "Reference Import",
+      passwordHash,
+    })
+    .returning({ id: users.id });
+  if (!created) throw new Error("Import actor was not created.");
+  return { id: created.id, username: IMPORT_ACTOR_USERNAME };
+}
+
 const target = resolveTarget();
 assertNotProduction(target.url);
+assertNotProtectedTarget(target.url, "db:reset");
 
 const pool = new Pool({ connectionString: target.url, max: 1 });
+const db = drizzle(pool, { schema });
 
 try {
   await warmUp(pool);
   await migrate(drizzle(pool), { migrationsFolder: "drizzle" });
   await clearApplicationTables(pool);
-  await drizzle(pool, { schema }).transaction(async (transaction) => {
+  await db.transaction(async (transaction) => {
     await seedFoundation(transaction);
     await seedReferenceData(transaction);
   });
+
+  const actor = await ensureImportActor(db);
+  const sources = await readReferenceSources("scripts/data");
+  const result = await importReferenceData(db, actor, sources);
+
   console.log(
-    `Reset the ${target.label} database: migrations applied, application tables cleared, seed data loaded.`,
+    `Reset the ${target.label} database: migrations applied, application tables cleared, ` +
+      `seeds loaded, reference imported (curricula=${result.curricula} chapters=${result.chapters} ` +
+      `trainingCodes=${result.codes} mtu=${result.mtu}).`,
   );
 } finally {
   await pool.end();

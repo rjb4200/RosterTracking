@@ -124,7 +124,16 @@ review of the agency forms themselves.
 ## Known issues
 
 None currently. The class creation wizard's action row no longer overlaps the
-step content on narrow mobile viewports — the wizard and the class command
+step content on narrow mobile viewports - the wizard and the class command
 screen now keep their controls within the viewport, and both are covered by
 read-only narrow-viewport reachability checks on every project, including
 `mobile-chrome`.
+
+## Test database preparation
+
+`npm run db:reset:integration` and `npm run db:reset:e2e` truncate the target
+test database and repopulate it from committed sources: the foundation and
+reference seeds, then the approved curricula, curriculum chapters, training
+codes, agencies, and training sites. A reset provisions an actor account first
+so the imports can be attributed. Test databases never point at production, and
+the reset refuses any protected database name.

@@ -4,7 +4,7 @@
       "publisher": "IFSTA",
       "programTitle": "Essentials of Firefighting",
       "version": "8th Edition",
-      "sourceRevision": "2026",
+      "sourceRevision": "aug2024",
       "chapters": [
         {
           "part": "Firefighter I",
@@ -16,13 +16,21 @@
           "number": "2",
           "title": "Operational Scene Safety and Management"
         },
-        { "part": "Firefighter I", "number": "3", "title": "Communications" },
+        {
+          "part": "Firefighter I",
+          "number": "3",
+          "title": "Communications"
+        },
         {
           "part": "Firefighter I",
           "number": "4",
           "title": "Building Construction"
         },
-        { "part": "Firefighter I", "number": "5", "title": "Fire Dynamics" },
+        {
+          "part": "Firefighter I",
+          "number": "5",
+          "title": "Fire Dynamics"
+        },
         {
           "part": "Firefighter I",
           "number": "6",
@@ -33,9 +41,21 @@
           "number": "7",
           "title": "Portable Fire Extinguishers"
         },
-        { "part": "Firefighter I", "number": "8", "title": "Ropes and Knots" },
-        { "part": "Firefighter I", "number": "9", "title": "Ground Ladders" },
-        { "part": "Firefighter I", "number": "10", "title": "Forcible Entry" },
+        {
+          "part": "Firefighter I",
+          "number": "8",
+          "title": "Ropes and Knots"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "9",
+          "title": "Ground Ladders"
+        },
+        {
+          "part": "Firefighter I",
+          "number": "10",
+          "title": "Forcible Entry"
+        },
         {
           "part": "Firefighter I",
           "number": "11",
@@ -109,20 +129,56 @@
       "version": "1st Edition",
       "sourceRevision": "2026",
       "chapters": [
-        { "part": "", "number": "1", "title": "The Fire Service" },
-        { "part": "", "number": "2", "title": "Firefighter Health and Safety" },
-        { "part": "", "number": "3", "title": "Personal Protective Equipment" },
-        { "part": "", "number": "4", "title": "Fire Service Communications" },
-        { "part": "", "number": "5", "title": "Fire Behavior" },
-        { "part": "", "number": "6", "title": "Portable Fire Extinguishers" },
+        {
+          "part": "",
+          "number": "1",
+          "title": "The Fire Service"
+        },
+        {
+          "part": "",
+          "number": "2",
+          "title": "Firefighter Health and Safety"
+        },
+        {
+          "part": "",
+          "number": "3",
+          "title": "Personal Protective Equipment"
+        },
+        {
+          "part": "",
+          "number": "4",
+          "title": "Fire Service Communications"
+        },
+        {
+          "part": "",
+          "number": "5",
+          "title": "Fire Behavior"
+        },
+        {
+          "part": "",
+          "number": "6",
+          "title": "Portable Fire Extinguishers"
+        },
         {
           "part": "",
           "number": "7",
           "title": "Firefighter Tools and Equipment"
         },
-        { "part": "", "number": "8", "title": "Ropes and Knots" },
-        { "part": "", "number": "9", "title": "Water Supply Systems" },
-        { "part": "", "number": "10", "title": "Fire Hose" },
+        {
+          "part": "",
+          "number": "8",
+          "title": "Ropes and Knots"
+        },
+        {
+          "part": "",
+          "number": "9",
+          "title": "Water Supply Systems"
+        },
+        {
+          "part": "",
+          "number": "10",
+          "title": "Fire Hose"
+        },
         {
           "part": "",
           "number": "11",
