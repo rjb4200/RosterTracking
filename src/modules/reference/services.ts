@@ -581,6 +581,10 @@ export async function createAgency(
       });
       return agency;
     }
+    if (existing) {
+      // An active agency with this name already exists: reuse it unchanged.
+      return existing;
+    }
     try {
       const [agency] = await transaction
         .insert(agencies)
@@ -616,7 +620,7 @@ export async function updateAgency(
   const tagIds = parsed.tagIds ?? [];
   const otherSubtype = parsed.otherSubtype ?? "";
   return db.transaction(async (transaction) => {
-    const [agency] = await transaction
+    const updatedRows = await transaction
       .update(agencies)
       .set({
         name: parsed.name,
@@ -637,7 +641,14 @@ export async function updateAgency(
         updatedAt: new Date(),
       })
       .where(eq(agencies.id, id))
-      .returning();
+      .returning()
+      .catch((error: unknown) => {
+        if (isUniqueViolation(error)) {
+          throw new Error("An agency with that name already exists.");
+        }
+        throw error;
+      });
+    const agency = updatedRows[0];
     if (!agency) throw new Error("Agency not found.");
     await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
     await writeAuditLog(transaction, {
@@ -855,23 +866,18 @@ export async function createSite(
     zip: nullable(parsed.zip ?? ""),
   };
   return db.transaction(async (transaction) => {
-    // Re-adding an archived or inactive site with the same name revives or
-    // reactivates the most recent one instead of creating another copy.
+    // Re-adding a site whose name matches an existing one reuses the active
+    // site unchanged, or revives/reactivates the most recent archived or
+    // inactive one instead of creating another copy.
     const [existing] = await transaction
       .select()
       .from(trainingSites)
       .where(
-        and(
-          sql`lower(btrim(${trainingSites.name})) = lower(btrim(${parsed.name}))`,
-          or(
-            isNotNull(trainingSites.archivedAt),
-            eq(trainingSites.isActive, false),
-          ),
-        ),
+        sql`lower(btrim(${trainingSites.name})) = lower(btrim(${parsed.name}))`,
       )
       .orderBy(desc(trainingSites.updatedAt))
       .limit(1);
-    if (existing) {
+    if (existing && (existing.archivedAt || !existing.isActive)) {
       const [site] = await transaction
         .update(trainingSites)
         .set({
@@ -892,6 +898,10 @@ export async function createSite(
         details: { name: site.name },
       });
       return site;
+    }
+    if (existing) {
+      // An active site with this name already exists: reuse it unchanged.
+      return existing;
     }
     const [site] = await transaction
       .insert(trainingSites)

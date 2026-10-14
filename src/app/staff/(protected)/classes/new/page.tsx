@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { listClassFormOptions } from "@/modules/classes/services";
+import { listAgencyTags } from "@/modules/reference/services";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -18,7 +19,11 @@ export const dynamic = "force-dynamic";
 export default async function NewClassPage() {
   const actor = await requirePagePermission(PERMISSIONS.CLASSES_MANAGE);
   const staff = await getCurrentStaff();
-  const options = await listClassFormOptions(getDatabase(), actor);
+  const db = getDatabase();
+  const [options, agencyTags] = await Promise.all([
+    listClassFormOptions(db, actor),
+    listAgencyTags(db),
+  ]);
   return (
     <main className="admin-content">
       <Link href="/staff/classes" className="back-link-plain">
@@ -39,6 +44,7 @@ export default async function NewClassPage() {
         canCreateAgency={Boolean(
           staff?.permissions.has(PERMISSIONS.AGENCIES_MANAGE),
         )}
+        agencyTags={agencyTags}
         {...options}
       />
     </main>

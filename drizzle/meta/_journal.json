@@ -281,6 +281,13 @@
       "when": 1791988446467,
       "tag": "0039_breezy_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792007793906,
+      "tag": "0040_peaceful_cerebro",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import {
   createAgency,
   setAgencyActive,
   setStudentMembership,
+  updateAgency,
 } from "../../src/modules/reference/services";
 import { resolveRegularAttendanceAgencies } from "../../src/modules/student-sign-in/participants";
 import type { Database } from "../../src/server/db/client";
@@ -49,14 +50,27 @@ async function createActor(db: Database) {
 }
 
 describeDatabase("agency management and host agency", () => {
-  it("rejects a duplicate agency name ignoring case and surrounding space", async () => {
+  it("reuses the active agency on a duplicate name ignoring case and surrounding space", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const actor = await createActor(db);
     const name = `Winchester Test ${crypto.randomUUID()}`;
-    await createAgency(db, actor, { name });
+    const created = await createAgency(db, actor, { name });
+    const reused = await createAgency(db, actor, {
+      name: `  ${name.toUpperCase()}  `,
+    });
+    expect(reused.id).toBe(created.id);
+  });
+
+  it("rejects renaming an agency to a name already in use", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const actor = await createActor(db);
+    const suffix = crypto.randomUUID();
+    await createAgency(db, actor, { name: `Taken ${suffix}` });
+    const other = await createAgency(db, actor, { name: `Movable ${suffix}` });
     await expect(
-      createAgency(db, actor, { name: `  ${name.toUpperCase()}  ` }),
+      updateAgency(db, actor, other.id, { name: `Taken ${suffix}` }),
     ).rejects.toThrow(/already exists/i);
   });
 

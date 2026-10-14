@@ -20,6 +20,8 @@ test("authorized staff can create and open a class in one pass", async ({
     "Set E2E staff credentials and E2E_DATABASE_URL.",
   );
   if (!username || !password || !connectionString) return;
+  // The full create-and-open pass touches many pages; allow for network latency.
+  test.setTimeout(120_000);
 
   const suffix = crypto.randomUUID();
   const pool = new Pool({ connectionString, max: 1 });
@@ -27,14 +29,13 @@ test("authorized staff can create and open a class in one pass", async ({
     "insert into training_sites (name) values ($1) returning id",
     [`E2E Site ${suffix}`],
   );
-  // Reuse a reporting system that has an active requirement set: the
-  // application rejects a class whose selected system has none.
+  // Reuse the MTU reporting system: it has an active requirement set (a class
+  // whose selected system has none is rejected) and its step needs no input.
   const system = await pool.query<{ id: string; name: string }>(
     `select rs.id, rs.name from reporting_systems rs
      join reporting_requirement_sets rrs
        on rrs.reporting_system_id = rs.id and rrs.is_active = true
-     where rs.is_active = true
-     order by rs.code
+     where rs.is_active = true and rs.code = 'mtu'
      limit 1`,
   );
   await pool.end();
@@ -51,16 +52,31 @@ test("authorized staff can create and open a class in one pass", async ({
   await page.getByLabel(systemName).check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // The selected destination's step (Fire is informational) precedes class
-  // details.
+  // The selected destination's step (MTU) needs no input.
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // Class and schedule step.
-  await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
-  await page.getByLabel("Add a new site").fill(`Inline Site ${suffix}`);
-  await page.getByRole("button", { name: "Add site" }).click();
-  await page.getByLabel("Add a new agency").fill(`Inline Agency ${suffix}`);
-  await page.getByRole("button", { name: "Add agency" }).click();
+  // Class and schedule step. An MTU-only class needs a class name.
+  await page.getByLabel("Class name").fill(`E2E MTU Class ${suffix}`);
+  await page
+    .getByRole("combobox", { name: "Training site" })
+    .selectOption(siteId);
+
+  // Add a new site inline through the popup.
+  await page.getByRole("button", { name: "Add a new site" }).click();
+  const siteDialog = page.getByRole("dialog");
+  await siteDialog.getByLabel("Site name").fill(`Inline Site ${suffix}`);
+  await siteDialog.getByRole("button", { name: "Add site" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+
+  // Add a new agency inline through the popup.
+  await page.getByRole("button", { name: "Add a new agency" }).click();
+  const agencyDialog = page.getByRole("dialog");
+  await agencyDialog
+    .getByLabel("Name", { exact: true })
+    .fill(`Inline Agency ${suffix}`);
+  await agencyDialog.getByRole("button", { name: "Add agency" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
   await page.getByLabel("Scheduled duration (hours)").fill("4");
   await page.getByLabel("Require a four-digit student access PIN").check();

@@ -351,6 +351,9 @@ export const trainingSites = pgTable(
   },
   (table) => [
     index("training_sites_name_idx").on(table.name),
+    uniqueIndex("training_sites_name_unique").on(
+      sql`lower(btrim(${table.name}))`,
+    ),
     check(
       "training_sites_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -31,6 +31,9 @@ import {
   type WizardValidationInput,
   wizardStepErrors,
 } from "@/modules/classes/wizard-validation";
+
+import { AgencyForm } from "../agencies/agency-form";
+import { SiteForm } from "../sites/site-form";
 
 import type {
   ActionState,
@@ -64,6 +67,7 @@ export function ClassCreationWizard({
   reportingSystems,
   inclusionRules,
   trainingCodes,
+  agencyTags,
   curricula,
   curriculumChapters,
   mtuCatalog = [],
@@ -98,6 +102,7 @@ export function ClassCreationWizard({
     credentialCode: string | null;
   }>;
   trainingCodes: Array<{ id: string; code: string; title: string }>;
+  agencyTags: Array<{ id: string; code: string; name: string }>;
   curricula: Array<{
     id: string;
     publisher: string;
@@ -116,14 +121,10 @@ export function ClassCreationWizard({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [step, setStep] = useState(0);
-  const [newSiteName, setNewSiteName] = useState("");
   const [siteOptions, setSiteOptions] = useState(sites);
-  const [siteError, setSiteError] = useState<string>();
-  const [creatingSite, setCreatingSite] = useState(false);
-  const [newAgencyName, setNewAgencyName] = useState("");
+  const [siteDialogOpen, setSiteDialogOpen] = useState(false);
   const [agencyOptions, setAgencyOptions] = useState(agencies);
-  const [agencyError, setAgencyError] = useState<string>();
-  const [creatingAgency, setCreatingAgency] = useState(false);
+  const [agencyDialogOpen, setAgencyDialogOpen] = useState(false);
   const [values, setValues] = useState({
     className: "",
     kbemsCourseName: "",
@@ -349,51 +350,6 @@ export function ClassCreationWizard({
   function back() {
     setAttempted(false);
     setStep(Math.max(activeStep - 1, 0));
-  }
-
-  function createSite() {
-    if (!newSiteName.trim()) return;
-    setCreatingSite(true);
-    setSiteError(undefined);
-    const formData = new FormData();
-    formData.set("name", newSiteName);
-    formData.set("state", "KY");
-    startTransition(async () => {
-      const result = await createSiteAction(undefined, formData);
-      setCreatingSite(false);
-      if (result.site) {
-        const site = result.site;
-        setSiteOptions((current) =>
-          [...current, site].sort((a, b) => a.name.localeCompare(b.name)),
-        );
-        update("trainingSiteId", site.id);
-        setNewSiteName("");
-      } else {
-        setSiteError(result.error);
-      }
-    });
-  }
-
-  function createAgency() {
-    if (!newAgencyName.trim()) return;
-    setCreatingAgency(true);
-    setAgencyError(undefined);
-    const formData = new FormData();
-    formData.set("name", newAgencyName);
-    startTransition(async () => {
-      const result = await createAgencyAction(undefined, formData);
-      setCreatingAgency(false);
-      if (result.agency) {
-        const agency = result.agency;
-        setAgencyOptions((current) =>
-          [...current, agency].sort((a, b) => a.name.localeCompare(b.name)),
-        );
-        update("hostAgencyId", agency.id);
-        setNewAgencyName("");
-      } else {
-        setAgencyError(result.error);
-      }
-    });
   }
 
   if (state?.classId && state.signInUrl && state.qrDataUrl) {
@@ -662,28 +618,39 @@ export function ClassCreationWizard({
                 onChange={(nextId) => update("trainingSiteId", nextId)}
               />
               {canCreateSite ? (
-                <div className="inline-form">
-                  <Label htmlFor="newSiteName">Add a new site</Label>
-                  <Input
-                    id="newSiteName"
-                    value={newSiteName}
-                    onChange={(event) => setNewSiteName(event.target.value)}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSiteDialogOpen(true)}
+                >
+                  Add a new site
+                </Button>
+              ) : null}
+              <Dialog open={siteDialogOpen} onOpenChange={setSiteDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add a training site</DialogTitle>
+                    <DialogDescription>
+                      Enter the site's details. Only the name is required.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <SiteForm
+                    action={createSiteAction}
+                    submitLabel="Add site"
+                    onCreated={(site) => {
+                      setSiteOptions((current) =>
+                        current.some((existing) => existing.id === site.id)
+                          ? current
+                          : [...current, site].sort((a, b) =>
+                              a.name.localeCompare(b.name),
+                            ),
+                      );
+                      update("trainingSiteId", site.id);
+                      setSiteDialogOpen(false);
+                    }}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={createSite}
-                    disabled={creatingSite || !newSiteName.trim()}
-                  >
-                    {creatingSite ? "Creating site..." : "Add site"}
-                  </Button>
-                </div>
-              ) : null}
-              {siteError ? (
-                <p className="form-error" role="alert">
-                  {siteError}
-                </p>
-              ) : null}
+                </DialogContent>
+              </Dialog>
             </>
           ) : null}
           <div className="field">
@@ -711,28 +678,40 @@ export function ClassCreationWizard({
             </select>
           </div>
           {canCreateAgency ? (
-            <div className="inline-form">
-              <Label htmlFor="newAgencyName">Add a new agency</Label>
-              <Input
-                id="newAgencyName"
-                value={newAgencyName}
-                onChange={(event) => setNewAgencyName(event.target.value)}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAgencyDialogOpen(true)}
+            >
+              Add a new agency
+            </Button>
+          ) : null}
+          <Dialog open={agencyDialogOpen} onOpenChange={setAgencyDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add a host agency</DialogTitle>
+                <DialogDescription>
+                  Enter the agency's details. Only the name is required.
+                </DialogDescription>
+              </DialogHeader>
+              <AgencyForm
+                action={createAgencyAction}
+                tags={agencyTags}
+                submitLabel="Add agency"
+                onCreated={(agency) => {
+                  setAgencyOptions((current) =>
+                    current.some((existing) => existing.id === agency.id)
+                      ? current
+                      : [...current, agency].sort((a, b) =>
+                          a.name.localeCompare(b.name),
+                        ),
+                  );
+                  update("hostAgencyId", agency.id);
+                  setAgencyDialogOpen(false);
+                }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={createAgency}
-                disabled={creatingAgency || !newAgencyName.trim()}
-              >
-                {creatingAgency ? "Creating agency..." : "Add agency"}
-              </Button>
-            </div>
-          ) : null}
-          {agencyError ? (
-            <p className="form-error" role="alert">
-              {agencyError}
-            </p>
-          ) : null}
+            </DialogContent>
+          </Dialog>
           <div className="form-grid">
             <div className="field">
               <Label htmlFor="startsAt">
