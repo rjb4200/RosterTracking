@@ -13,10 +13,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listAgencies } from "@/modules/reference/services";
+import { getInitialCertTei } from "@/modules/settings/services";
+import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
+import { updateInitialCertTeiAction } from "./actions";
+import { InitialCertTeiForm } from "./initial-cert-tei-form";
 import { TagBadgeList } from "./tag-badge";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +32,14 @@ export default async function AgenciesPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   await requirePagePermission(PERMISSIONS.AGENCIES_MANAGE);
+  const staff = await getCurrentStaff();
+  const canEditTei = Boolean(staff && isAdministrator(staff.roleCodes));
   const { q = "" } = await searchParams;
-  const agencies = await listAgencies(getDatabase(), q);
+  const db = getDatabase();
+  const [agencies, tei] = await Promise.all([
+    listAgencies(db, q),
+    getInitialCertTei(db),
+  ]);
   const hasSearch = q.trim().length > 0;
 
   return (
@@ -121,6 +132,9 @@ export default async function AgenciesPage({
           )}
         </TableBody>
       </Table>
+      {canEditTei ? (
+        <InitialCertTeiForm tei={tei} action={updateInitialCertTeiAction} />
+      ) : null}
     </main>
   );
 }

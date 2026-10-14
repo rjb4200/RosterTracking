@@ -18,7 +18,11 @@ test("an administrator can change the initial-certification TEI number", async (
   if (!username || !password) return;
 
   await signIn(page, username, password);
-  await page.goto("/staff/reporting");
+  await page.goto("/staff/agencies");
+
+  // The control is collapsed until expanded.
+  await expect(page.getByLabel("Initial certification TEI")).toBeHidden();
+  await page.getByText("Initial certification settings").click();
 
   const field = page.getByLabel("Initial certification TEI");
   await expect(field).toBeVisible();
@@ -28,7 +32,7 @@ test("an administrator can change the initial-certification TEI number", async (
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("TEI number updated.")).toBeVisible();
 
-  // Restore the original value so the shared end-to-end database is unchanged.
+  // Restore the original value so the shared development database is unchanged.
   await field.fill(original);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("TEI number updated.")).toBeVisible();
@@ -48,10 +52,10 @@ test("a non-administrator is not offered the TEI number control", async ({
   if (!instructorUsername || !instructorPassword) return;
 
   await signIn(page, instructorUsername, instructorPassword);
-  await page.goto("/staff/reporting");
+  await page.goto("/staff/agencies");
 
-  // The reporting queue requires reporting.manage, so an instructor is
-  // redirected away and the TEI control is never offered.
-  await expect(page).not.toHaveURL(/\/staff\/reporting/);
+  // A non-administrator never gets the control, whether or not they can view
+  // the Agencies page.
+  await expect(page.getByText("Initial certification settings")).toHaveCount(0);
   await expect(page.getByLabel("Initial certification TEI")).toHaveCount(0);
 });
