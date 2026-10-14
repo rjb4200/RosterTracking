@@ -5,11 +5,18 @@ import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import { listReportingQueue } from "@/modules/classes/finalization";
 import { listActiveReportingSystems } from "@/modules/reference/requirements";
+import { getInitialCertTei } from "@/modules/settings/services";
+import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
-import { updateReportingDestinationAction } from "./actions";
+import {
+  updateInitialCertTeiAction,
+  updateReportingDestinationAction,
+} from "./actions";
+import { InitialCertTeiForm } from "./initial-cert-tei-form";
 import { ReportingDestinationControl } from "./reporting-destination-control";
 
 export const dynamic = "force-dynamic";
@@ -35,13 +42,15 @@ export default async function ReportingPage({
   searchParams,
 }: PageProps<"/staff/reporting">) {
   const actor = await requirePagePermission(PERMISSIONS.REPORTING_MANAGE);
+  const staff = await getCurrentStaff();
+  const canEditTei = Boolean(staff && isAdministrator(staff.roleCodes));
   const db = getDatabase();
   const query = await searchParams;
   const reportingSystemId = readSearchParam(query.system);
   const status = readSearchParam(query.status);
   const from = readSearchParam(query.from);
   const to = readSearchParam(query.to);
-  const [systems, queue] = await Promise.all([
+  const [systems, queue, tei] = await Promise.all([
     listActiveReportingSystems(db),
     listReportingQueue(db, actor, {
       reportingSystemId,
@@ -51,6 +60,7 @@ export default async function ReportingPage({
       from: from ? new Date(`${from}T00:00:00`) : undefined,
       to: to ? new Date(`${to}T23:59:59.999`) : undefined,
     }),
+    getInitialCertTei(db),
   ]);
 
   return (
@@ -136,6 +146,11 @@ export default async function ReportingPage({
         </form>
         <ReportingQueue rows={queue.rows} />
       </section>
+      {canEditTei ? (
+        <section className="admin-section">
+          <InitialCertTeiForm tei={tei} action={updateInitialCertTeiAction} />
+        </section>
+      ) : null}
     </main>
   );
 }

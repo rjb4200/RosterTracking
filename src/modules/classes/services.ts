@@ -12,11 +12,13 @@ import {
   isNotNull,
   isNull,
   lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
 import { REPORTING_SYSTEM_CODES } from "@/modules/reference/constants";
+import { getInitialCertTei } from "@/modules/settings/services";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -49,6 +51,7 @@ import {
   type ClassStatus,
 } from "./constants";
 import { defaultComponentMethod } from "./fire-subjects";
+import { deriveRecentInitialCertNumbers } from "./initial-cert-code";
 import { requireFireInstructorFfns } from "./instructor-ffn";
 import {
   estimateSupplyQuantity,
@@ -1817,6 +1820,8 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     curriculumRows,
     curriculumChapterRows,
     mtuItemRows,
+    recentInitialCertRows,
+    defaultTeiNumber,
   ] = await Promise.all([
     db
       .select({ id: trainingSites.id, name: trainingSites.name })
@@ -1907,6 +1912,19 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         mtuCatalogItems.sortOrder,
         mtuCatalogItems.name,
       ),
+    db
+      .select({ courseNumber: trainingClasses.courseNumber })
+      .from(trainingClasses)
+      .where(
+        and(
+          eq(trainingClasses.courseType, "initial_certification"),
+          isNotNull(trainingClasses.courseNumber),
+          ne(trainingClasses.courseNumber, ""),
+        ),
+      )
+      .orderBy(desc(trainingClasses.updatedAt))
+      .limit(100),
+    getInitialCertTei(db),
   ]);
   const recentRows = actor
     ? await db
@@ -1955,6 +1973,10 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     curricula: curriculumRows,
     curriculumChapters: curriculumChapterRows,
     mtuCatalog: mtuItemRows,
+    defaultTeiNumber,
+    recentInitialCertNumbers: deriveRecentInitialCertNumbers(
+      recentInitialCertRows,
+    ),
     recentSiteIds: [
       ...new Set(
         recentRows.flatMap((row) =>

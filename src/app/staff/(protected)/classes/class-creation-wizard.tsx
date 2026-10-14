@@ -5,12 +5,24 @@ import Link from "next/link";
 import { startTransition, useActionState, useEffect, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   buildWizardSteps,
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
+import {
+  isInitialCertNumberValid,
+  normalizeInitialCertNumber,
+} from "@/modules/classes/initial-cert-code";
 import {
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
@@ -31,6 +43,7 @@ import {
   type FireSubjectValue,
   newFireSubject,
 } from "./fire-subject-fields";
+import { InitialCertNumberField } from "./initial-cert-number-field";
 import {
   emptyMtuUsageValue,
   type MtuCatalogOption,
@@ -56,6 +69,8 @@ export function ClassCreationWizard({
   mtuCatalog = [],
   recentSiteIds,
   recentCurriculumIds,
+  defaultTeiNumber,
+  recentInitialCertNumbers,
   defaultLeadInstructorId,
   canCreateSite,
   canCreateAgency,
@@ -93,6 +108,8 @@ export function ClassCreationWizard({
   mtuCatalog?: MtuCatalogOption[];
   recentSiteIds: string[];
   recentCurriculumIds: string[];
+  defaultTeiNumber: string;
+  recentInitialCertNumbers: string[];
   defaultLeadInstructorId: string;
   canCreateSite: boolean;
   canCreateAgency: boolean;
@@ -127,6 +144,7 @@ export function ClassCreationWizard({
     newFireSubject(),
   ]);
   const [courseNumberTouched, setCourseNumberTouched] = useState(false);
+  const [courseNumberAckOpen, setCourseNumberAckOpen] = useState(false);
 
   const curriculaWithChapters = new Set(
     curriculumChapters.map((chapter) => chapter.curriculumId),
@@ -214,11 +232,24 @@ export function ClassCreationWizard({
   // A dual Fire + KBEMS class carries the Fire training code as its course
   // number. Seed it once from the first Fire subject while the field is
   // untouched; a manual entry (or deliberate clear) is never overwritten.
+  // An initial-certification class never carries the Fire training code: it is
+  // not seeded, and a value already seeded from the Fire code is cleared.
   useEffect(() => {
-    if (!fireSelected || !kbemsSelected || courseNumberTouched) return;
+    if (!fireSelected || !kbemsSelected) return;
     const code = trainingCodes.find(
       (trainingCode) => trainingCode.id === firstFireTrainingCodeId,
     )?.code;
+    if (values.courseType === "initial_certification") {
+      if (code && values.courseNumber === code) {
+        setValues((current) =>
+          current.courseNumber === code
+            ? { ...current, courseNumber: "" }
+            : current,
+        );
+      }
+      return;
+    }
+    if (courseNumberTouched) return;
     if (!code) return;
     setValues((current) =>
       current.courseNumber === code
@@ -231,6 +262,8 @@ export function ClassCreationWizard({
     firstFireTrainingCodeId,
     courseNumberTouched,
     trainingCodes,
+    values.courseType,
+    values.courseNumber,
   ]);
 
   function toggleDestination(systemId: string, selected: boolean) {
@@ -282,13 +315,35 @@ export function ClassCreationWizard({
   };
   const errors = attempted ? wizardStepErrors(currentKey, validationInput) : [];
 
-  function next() {
-    if (wizardStepErrors(currentKey, validationInput).length === 0) {
-      setAttempted(false);
-      setStep(Math.min(activeStep + 1, steps.length - 1));
-    } else {
-      setAttempted(true);
+  // An initial-certification number that is present but not in the expected
+  // shape warns and is acknowledged; its shape never blocks the step.
+  const courseNumberShapeMismatch =
+    currentKey === "kbems" &&
+    values.courseType === "initial_certification" &&
+    values.courseNumber.trim() !== "" &&
+    !isInitialCertNumberValid(values.courseNumber, defaultTeiNumber);
+
+  function advance() {
+    if (values.courseType === "initial_certification") {
+      setValues((current) => ({
+        ...current,
+        courseNumber: normalizeInitialCertNumber(current.courseNumber),
+      }));
     }
+    setAttempted(false);
+    setStep(Math.min(activeStep + 1, steps.length - 1));
+  }
+
+  function next() {
+    if (wizardStepErrors(currentKey, validationInput).length > 0) {
+      setAttempted(true);
+      return;
+    }
+    if (courseNumberShapeMismatch) {
+      setCourseNumberAckOpen(true);
+      return;
+    }
+    advance();
   }
 
   function back() {
@@ -501,34 +556,34 @@ export function ClassCreationWizard({
               <option value="refresher">Refresher</option>
             </select>
           </div>
-          <div className="field">
-            <Label htmlFor="courseNumber">
-              Course number
-              {values.courseType === "initial_certification" ? (
-                <span className="required-mark" aria-hidden="true">
-                  {" "}
-                  *
-                </span>
-              ) : (
-                <span className="text-muted-foreground">(optional)</span>
-              )}
-            </Label>
-            <Input
-              id="courseNumber"
+          {values.courseType === "initial_certification" ? (
+            <InitialCertNumberField
               value={values.courseNumber}
-              onChange={(event) => {
+              recentNumbers={recentInitialCertNumbers}
+              invalid={errors.includes("courseNumber")}
+              onChange={(next) => {
                 setCourseNumberTouched(true);
-                update("courseNumber", event.target.value);
+                update("courseNumber", next);
               }}
-              className={
-                values.courseType === "initial_certification"
-                  ? undefined
-                  : "text-muted-foreground"
-              }
-              aria-invalid={errors.includes("courseNumber") || undefined}
-              required={values.courseType === "initial_certification"}
             />
-          </div>
+          ) : (
+            <div className="field">
+              <Label htmlFor="courseNumber">
+                Course number
+                <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="courseNumber"
+                value={values.courseNumber}
+                onChange={(event) => {
+                  setCourseNumberTouched(true);
+                  update("courseNumber", event.target.value);
+                }}
+                className="text-muted-foreground"
+                aria-invalid={errors.includes("courseNumber") || undefined}
+              />
+            </div>
+          )}
           <div className="field">
             <Label htmlFor="objectives">
               Course description or objectives
@@ -997,6 +1052,34 @@ export function ClassCreationWizard({
           </Button>
         )}
       </div>
+      <Dialog open={courseNumberAckOpen} onOpenChange={setCourseNumberAckOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Check the course number</DialogTitle>
+            <DialogDescription>
+              {`"${values.courseNumber}" is not in the expected initial-certification format (${defaultTeiNumber}-YY-CC-R|B|A|P). Continue only if this number is correct.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCourseNumberAckOpen(false)}
+            >
+              Go back
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setCourseNumberAckOpen(false);
+                advance();
+              }}
+            >
+              Use this number
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
