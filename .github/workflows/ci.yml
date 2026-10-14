@@ -28,10 +28,27 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Migrations are append-only when promoting to the default branch
+        # A promotion into the default branch may add migrations but never drop
+        # or rewrite one already there.
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          npm run check:migrations -- append-only "origin/${{ github.base_ref }}"
       # Next generates the PageProps/route types that tsc needs; without this a
       # clean checkout fails typecheck because .next/types does not exist yet.
       - run: npx next typegen
       - run: npm run check
+      - name: Migration set is consistent
+        run: npm run check:migrations -- set
+      - name: Schema ships as a committed migration
+        run: |
+          npm run db:generate
+          if ! git diff --quiet -- drizzle; then
+            echo "::error::Schema changed without a committed migration. Run npm run db:generate and commit the result."
+            git --no-pager diff --stat -- drizzle
+            exit 1
+          fi
       - run: npm test
       - run: npm run build
       - name: Integration tests
