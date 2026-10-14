@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import * as reference from "@/modules/reference/services";
+import { setInitialCertTei } from "@/modules/settings/services";
+import { requirePermission } from "@/modules/staff-auth/authorization";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -12,8 +14,36 @@ export interface ActionState {
   error?: string;
 }
 
+export interface InitialCertTeiActionState {
+  error?: string;
+  success?: string;
+}
+
 function read(formData: FormData, key: string): string {
   return formData.get(key)?.toString() ?? "";
+}
+
+export async function updateInitialCertTeiAction(
+  _prev: InitialCertTeiActionState | undefined,
+  formData: FormData,
+): Promise<InitialCertTeiActionState> {
+  const staff = await requirePermission(PERMISSIONS.AGENCIES_MANAGE);
+  try {
+    await setInitialCertTei(
+      getDatabase(),
+      staff.roleCodes,
+      read(formData, "tei"),
+    );
+    revalidatePath("/staff/agencies");
+    return { success: "TEI number updated." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not update the TEI number.",
+    };
+  }
 }
 
 export async function createAgencyAction(

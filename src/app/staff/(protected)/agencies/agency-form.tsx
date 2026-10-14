@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,11 +20,12 @@ export function AgencyForm({
   submitLabel = "Create agency",
   tags,
   values,
+  onCreated,
 }: {
   action: (
     prev: { error?: string } | undefined,
     formData: FormData,
-  ) => Promise<{ error?: string }>;
+  ) => Promise<{ error?: string; agency?: { id: string; name: string } }>;
   submitLabel?: string;
   tags: { id: string; code: string; name: string }[];
   values?: {
@@ -43,11 +44,21 @@ export function AgencyForm({
     tagIds: string[];
     otherSubtype: string | null;
   };
+  onCreated?: (agency: { id: string; name: string }) => void;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     () => values?.tagIds ?? [],
   );
+  const handled = useRef<unknown>(null);
+
+  useEffect(() => {
+    if (state?.agency && handled.current !== state) {
+      handled.current = state;
+      onCreated?.(state.agency);
+    }
+  }, [state, onCreated]);
+
   const otherTag = tags.find((tag) => tag.code === AGENCY_TAG_CODES.OTHER);
   const otherSelected = otherTag ? selectedTagIds.includes(otherTag.id) : false;
 

@@ -57,7 +57,7 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
   const next = page.getByRole("button", { name: "Next", exact: true });
   await page.getByLabel("Filter Category").fill(code);
   await page
-    .getByLabel("Category", { exact: true })
+    .getByRole("combobox", { name: "Category" })
     .selectOption(trainingCodeId);
   await page
     .getByLabel("Curriculum", { exact: true })
@@ -68,7 +68,7 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
   await expect(
     page.getByText("Complete the highlighted fields."),
   ).toBeVisible();
-  await expect(page.getByText("Fire reporting")).toBeVisible();
+  await expect(page.getByText(/Lead and assisting instructors/)).toBeVisible();
 
   await page
     .getByLabel("Chapter")

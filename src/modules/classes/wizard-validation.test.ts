@@ -161,6 +161,19 @@ describe("wizard step validation", () => {
         }),
       ),
     ).toEqual([]);
+    // The number's shape is advisory: a present but non-conforming value is
+    // not reported by the blocking step validation.
+    expect(
+      wizardStepErrors(
+        "kbems",
+        base({
+          kbemsCourseName: "EMT Initial",
+          courseType: "initial_certification",
+          objectives: "Initial EMT certification",
+          courseNumber: "not-a-code",
+        }),
+      ),
+    ).toEqual([]);
   });
 
   it("identifies missing class-and-schedule inputs", () => {

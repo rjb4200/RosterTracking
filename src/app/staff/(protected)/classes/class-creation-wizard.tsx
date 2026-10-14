@@ -2,15 +2,27 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   buildWizardSteps,
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
+import {
+  isInitialCertNumberValid,
+  normalizeInitialCertNumber,
+} from "@/modules/classes/initial-cert-code";
 import {
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
@@ -19,6 +31,9 @@ import {
   type WizardValidationInput,
   wizardStepErrors,
 } from "@/modules/classes/wizard-validation";
+
+import { AgencyForm } from "../agencies/agency-form";
+import { SiteForm } from "../sites/site-form";
 
 import type {
   ActionState,
@@ -31,6 +46,7 @@ import {
   type FireSubjectValue,
   newFireSubject,
 } from "./fire-subject-fields";
+import { InitialCertNumberField } from "./initial-cert-number-field";
 import {
   emptyMtuUsageValue,
   type MtuCatalogOption,
@@ -51,11 +67,14 @@ export function ClassCreationWizard({
   reportingSystems,
   inclusionRules,
   trainingCodes,
+  agencyTags,
   curricula,
   curriculumChapters,
   mtuCatalog = [],
   recentSiteIds,
   recentCurriculumIds,
+  defaultTeiNumber,
+  recentInitialCertNumbers,
   defaultLeadInstructorId,
   canCreateSite,
   canCreateAgency,
@@ -83,6 +102,7 @@ export function ClassCreationWizard({
     credentialCode: string | null;
   }>;
   trainingCodes: Array<{ id: string; code: string; title: string }>;
+  agencyTags: Array<{ id: string; code: string; name: string }>;
   curricula: Array<{
     id: string;
     publisher: string;
@@ -93,20 +113,18 @@ export function ClassCreationWizard({
   mtuCatalog?: MtuCatalogOption[];
   recentSiteIds: string[];
   recentCurriculumIds: string[];
+  defaultTeiNumber: string;
+  recentInitialCertNumbers: string[];
   defaultLeadInstructorId: string;
   canCreateSite: boolean;
   canCreateAgency: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [step, setStep] = useState(0);
-  const [newSiteName, setNewSiteName] = useState("");
   const [siteOptions, setSiteOptions] = useState(sites);
-  const [siteError, setSiteError] = useState<string>();
-  const [creatingSite, setCreatingSite] = useState(false);
-  const [newAgencyName, setNewAgencyName] = useState("");
+  const [siteDialogOpen, setSiteDialogOpen] = useState(false);
   const [agencyOptions, setAgencyOptions] = useState(agencies);
-  const [agencyError, setAgencyError] = useState<string>();
-  const [creatingAgency, setCreatingAgency] = useState(false);
+  const [agencyDialogOpen, setAgencyDialogOpen] = useState(false);
   const [values, setValues] = useState({
     className: "",
     kbemsCourseName: "",
@@ -127,6 +145,7 @@ export function ClassCreationWizard({
     newFireSubject(),
   ]);
   const [courseNumberTouched, setCourseNumberTouched] = useState(false);
+  const [courseNumberAckOpen, setCourseNumberAckOpen] = useState(false);
 
   const curriculaWithChapters = new Set(
     curriculumChapters.map((chapter) => chapter.curriculumId),
@@ -214,11 +233,24 @@ export function ClassCreationWizard({
   // A dual Fire + KBEMS class carries the Fire training code as its course
   // number. Seed it once from the first Fire subject while the field is
   // untouched; a manual entry (or deliberate clear) is never overwritten.
+  // An initial-certification class never carries the Fire training code: it is
+  // not seeded, and a value already seeded from the Fire code is cleared.
   useEffect(() => {
-    if (!fireSelected || !kbemsSelected || courseNumberTouched) return;
+    if (!fireSelected || !kbemsSelected) return;
     const code = trainingCodes.find(
       (trainingCode) => trainingCode.id === firstFireTrainingCodeId,
     )?.code;
+    if (values.courseType === "initial_certification") {
+      if (code && values.courseNumber === code) {
+        setValues((current) =>
+          current.courseNumber === code
+            ? { ...current, courseNumber: "" }
+            : current,
+        );
+      }
+      return;
+    }
+    if (courseNumberTouched) return;
     if (!code) return;
     setValues((current) =>
       current.courseNumber === code
@@ -231,6 +263,8 @@ export function ClassCreationWizard({
     firstFireTrainingCodeId,
     courseNumberTouched,
     trainingCodes,
+    values.courseType,
+    values.courseNumber,
   ]);
 
   function toggleDestination(systemId: string, selected: boolean) {
@@ -282,63 +316,40 @@ export function ClassCreationWizard({
   };
   const errors = attempted ? wizardStepErrors(currentKey, validationInput) : [];
 
-  function next() {
-    if (wizardStepErrors(currentKey, validationInput).length === 0) {
-      setAttempted(false);
-      setStep(Math.min(activeStep + 1, steps.length - 1));
-    } else {
-      setAttempted(true);
+  // An initial-certification number that is present but not in the expected
+  // shape warns and is acknowledged; its shape never blocks the step.
+  const courseNumberShapeMismatch =
+    currentKey === "kbems" &&
+    values.courseType === "initial_certification" &&
+    values.courseNumber.trim() !== "" &&
+    !isInitialCertNumberValid(values.courseNumber, defaultTeiNumber);
+
+  function advance() {
+    if (values.courseType === "initial_certification") {
+      setValues((current) => ({
+        ...current,
+        courseNumber: normalizeInitialCertNumber(current.courseNumber),
+      }));
     }
+    setAttempted(false);
+    setStep(Math.min(activeStep + 1, steps.length - 1));
+  }
+
+  function next() {
+    if (wizardStepErrors(currentKey, validationInput).length > 0) {
+      setAttempted(true);
+      return;
+    }
+    if (courseNumberShapeMismatch) {
+      setCourseNumberAckOpen(true);
+      return;
+    }
+    advance();
   }
 
   function back() {
     setAttempted(false);
     setStep(Math.max(activeStep - 1, 0));
-  }
-
-  function createSite() {
-    if (!newSiteName.trim()) return;
-    setCreatingSite(true);
-    setSiteError(undefined);
-    const formData = new FormData();
-    formData.set("name", newSiteName);
-    formData.set("state", "KY");
-    startTransition(async () => {
-      const result = await createSiteAction(undefined, formData);
-      setCreatingSite(false);
-      if (result.site) {
-        const site = result.site;
-        setSiteOptions((current) =>
-          [...current, site].sort((a, b) => a.name.localeCompare(b.name)),
-        );
-        update("trainingSiteId", site.id);
-        setNewSiteName("");
-      } else {
-        setSiteError(result.error);
-      }
-    });
-  }
-
-  function createAgency() {
-    if (!newAgencyName.trim()) return;
-    setCreatingAgency(true);
-    setAgencyError(undefined);
-    const formData = new FormData();
-    formData.set("name", newAgencyName);
-    startTransition(async () => {
-      const result = await createAgencyAction(undefined, formData);
-      setCreatingAgency(false);
-      if (result.agency) {
-        const agency = result.agency;
-        setAgencyOptions((current) =>
-          [...current, agency].sort((a, b) => a.name.localeCompare(b.name)),
-        );
-        update("hostAgencyId", agency.id);
-        setNewAgencyName("");
-      } else {
-        setAgencyError(result.error);
-      }
-    });
   }
 
   if (state?.classId && state.signInUrl && state.qrDataUrl) {
@@ -423,11 +434,6 @@ export function ClassCreationWizard({
 
       {currentKey === "fire" ? (
         <section className="stack-form">
-          <h2>Fire reporting</h2>
-          <p className="text-muted-foreground">
-            Each subject becomes a row on the Kentucky Fire Commission KFS-1A
-            roster. A second subject is scheduled after the first.
-          </p>
           <p className="text-muted-foreground">
             Lead and assisting instructors need an FFN in the format 0000-0000
             on their staff profile before they can be assigned to this Fire
@@ -501,34 +507,34 @@ export function ClassCreationWizard({
               <option value="refresher">Refresher</option>
             </select>
           </div>
-          <div className="field">
-            <Label htmlFor="courseNumber">
-              Course number
-              {values.courseType === "initial_certification" ? (
-                <span className="required-mark" aria-hidden="true">
-                  {" "}
-                  *
-                </span>
-              ) : (
-                <span className="text-muted-foreground">(optional)</span>
-              )}
-            </Label>
-            <Input
-              id="courseNumber"
+          {values.courseType === "initial_certification" ? (
+            <InitialCertNumberField
               value={values.courseNumber}
-              onChange={(event) => {
+              recentNumbers={recentInitialCertNumbers}
+              invalid={errors.includes("courseNumber")}
+              onChange={(next) => {
                 setCourseNumberTouched(true);
-                update("courseNumber", event.target.value);
+                update("courseNumber", next);
               }}
-              className={
-                values.courseType === "initial_certification"
-                  ? undefined
-                  : "text-muted-foreground"
-              }
-              aria-invalid={errors.includes("courseNumber") || undefined}
-              required={values.courseType === "initial_certification"}
             />
-          </div>
+          ) : (
+            <div className="field">
+              <Label htmlFor="courseNumber">
+                Course number
+                <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="courseNumber"
+                value={values.courseNumber}
+                onChange={(event) => {
+                  setCourseNumberTouched(true);
+                  update("courseNumber", event.target.value);
+                }}
+                className="text-muted-foreground"
+                aria-invalid={errors.includes("courseNumber") || undefined}
+              />
+            </div>
+          )}
           <div className="field">
             <Label htmlFor="objectives">
               Course description or objectives
@@ -612,28 +618,39 @@ export function ClassCreationWizard({
                 onChange={(nextId) => update("trainingSiteId", nextId)}
               />
               {canCreateSite ? (
-                <div className="inline-form">
-                  <Label htmlFor="newSiteName">Add a new site</Label>
-                  <Input
-                    id="newSiteName"
-                    value={newSiteName}
-                    onChange={(event) => setNewSiteName(event.target.value)}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSiteDialogOpen(true)}
+                >
+                  Add a new site
+                </Button>
+              ) : null}
+              <Dialog open={siteDialogOpen} onOpenChange={setSiteDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add a training site</DialogTitle>
+                    <DialogDescription>
+                      Enter the site's details. Only the name is required.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <SiteForm
+                    action={createSiteAction}
+                    submitLabel="Add site"
+                    onCreated={(site) => {
+                      setSiteOptions((current) =>
+                        current.some((existing) => existing.id === site.id)
+                          ? current
+                          : [...current, site].sort((a, b) =>
+                              a.name.localeCompare(b.name),
+                            ),
+                      );
+                      update("trainingSiteId", site.id);
+                      setSiteDialogOpen(false);
+                    }}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={createSite}
-                    disabled={creatingSite || !newSiteName.trim()}
-                  >
-                    {creatingSite ? "Creating site..." : "Add site"}
-                  </Button>
-                </div>
-              ) : null}
-              {siteError ? (
-                <p className="form-error" role="alert">
-                  {siteError}
-                </p>
-              ) : null}
+                </DialogContent>
+              </Dialog>
             </>
           ) : null}
           <div className="field">
@@ -661,28 +678,40 @@ export function ClassCreationWizard({
             </select>
           </div>
           {canCreateAgency ? (
-            <div className="inline-form">
-              <Label htmlFor="newAgencyName">Add a new agency</Label>
-              <Input
-                id="newAgencyName"
-                value={newAgencyName}
-                onChange={(event) => setNewAgencyName(event.target.value)}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAgencyDialogOpen(true)}
+            >
+              Add a new agency
+            </Button>
+          ) : null}
+          <Dialog open={agencyDialogOpen} onOpenChange={setAgencyDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add a host agency</DialogTitle>
+                <DialogDescription>
+                  Enter the agency's details. Only the name is required.
+                </DialogDescription>
+              </DialogHeader>
+              <AgencyForm
+                action={createAgencyAction}
+                tags={agencyTags}
+                submitLabel="Add agency"
+                onCreated={(agency) => {
+                  setAgencyOptions((current) =>
+                    current.some((existing) => existing.id === agency.id)
+                      ? current
+                      : [...current, agency].sort((a, b) =>
+                          a.name.localeCompare(b.name),
+                        ),
+                  );
+                  update("hostAgencyId", agency.id);
+                  setAgencyDialogOpen(false);
+                }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={createAgency}
-                disabled={creatingAgency || !newAgencyName.trim()}
-              >
-                {creatingAgency ? "Creating agency..." : "Add agency"}
-              </Button>
-            </div>
-          ) : null}
-          {agencyError ? (
-            <p className="form-error" role="alert">
-              {agencyError}
-            </p>
-          ) : null}
+            </DialogContent>
+          </Dialog>
           <div className="form-grid">
             <div className="field">
               <Label htmlFor="startsAt">
@@ -997,6 +1026,34 @@ export function ClassCreationWizard({
           </Button>
         )}
       </div>
+      <Dialog open={courseNumberAckOpen} onOpenChange={setCourseNumberAckOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Check the course number</DialogTitle>
+            <DialogDescription>
+              {`"${values.courseNumber}" is not in the expected initial-certification format (${defaultTeiNumber}-YY-CC-R|B|A|P). Continue only if this number is correct.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCourseNumberAckOpen(false)}
+            >
+              Go back
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setCourseNumberAckOpen(false);
+                advance();
+              }}
+            >
+              Use this number
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

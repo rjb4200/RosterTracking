@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,12 @@ export function SiteForm({
   action,
   submitLabel = "Create site",
   values,
+  onCreated,
 }: {
   action: (
     prev: { error?: string } | undefined,
     formData: FormData,
-  ) => Promise<{ error?: string }>;
+  ) => Promise<{ error?: string; site?: { id: string; name: string } }>;
   submitLabel?: string;
   values?: {
     id: string;
@@ -24,8 +25,17 @@ export function SiteForm({
     state: string | null;
     zip: string | null;
   };
+  onCreated?: (site: { id: string; name: string }) => void;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const handled = useRef<unknown>(null);
+
+  useEffect(() => {
+    if (state?.site && handled.current !== state) {
+      handled.current = state;
+      onCreated?.(state.site);
+    }
+  }, [state, onCreated]);
 
   return (
     <form action={formAction} className="stack-form">

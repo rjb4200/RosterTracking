@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "training_sites_name_unique" ON "training_sites" USING btree (lower(btrim("name")));
