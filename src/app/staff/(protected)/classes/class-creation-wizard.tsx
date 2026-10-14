@@ -478,11 +478,6 @@ export function ClassCreationWizard({
 
       {currentKey === "fire" ? (
         <section className="stack-form">
-          <h2>Fire reporting</h2>
-          <p className="text-muted-foreground">
-            Each subject becomes a row on the Kentucky Fire Commission KFS-1A
-            roster. A second subject is scheduled after the first.
-          </p>
           <p className="text-muted-foreground">
             Lead and assisting instructors need an FFN in the format 0000-0000
             on their staff profile before they can be assigned to this Fire
