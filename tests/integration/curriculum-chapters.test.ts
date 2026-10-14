@@ -18,6 +18,7 @@ import {
   importCurriculumChapters,
   listCurriculumChapters,
   listCurriculumChaptersForAdmin,
+  orderChaptersInBookOrder,
   reactivateCurriculumChapter,
   updateCurriculumChapter,
 } from "../../src/modules/reference/services";
@@ -330,6 +331,33 @@ describeDatabase("curriculum chapters", () => {
       curriculumChapter: "Firefighter I: Chapter 3. Communications",
     });
 
+    // Archiving the catalog chapter must not touch the class or its snapshot.
+    const [catalogChapter] = await listCurriculumChaptersForAdmin(
+      db,
+      fixture.curriculum.id,
+    );
+    if (!catalogChapter) throw new Error("Catalog chapter is missing.");
+    await archiveCurriculumChapter(
+      db,
+      { id: actorRow.id, username: actorRow.username },
+      catalogChapter.id,
+    );
+    const [afterArchive] = await db
+      .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
+      .from(finalizationRevisions)
+      .where(eq(finalizationRevisions.id, revision.id));
+    if (!afterArchive) throw new Error("Finalization revision was lost.");
+    expect(
+      JSON.parse(decryptCredential(afterArchive.encryptedSnapshot))
+        .components[0],
+    ).toMatchObject({
+      curriculumChapter: "Firefighter I: Chapter 3. Communications",
+    });
+    const afterDetail = await getClassDetail(db, fixture.instructor, classId);
+    expect(afterDetail.components[0]).toMatchObject({
+      curriculumChapter: "Firefighter I: Chapter 3. Communications",
+    });
+
     // The KFS-1A renders with the chapter present.
     const kfs = await renderOfficialRoster("kfs-1a", snapshot);
     expect((await PDFDocument.load(kfs)).getPageCount()).toBeGreaterThan(0);
@@ -371,6 +399,74 @@ describeDatabase("curriculum chapters", () => {
       curriculumName: "A Book We Do Not Track",
       curriculumChapter: "Chapter 1. Whatever",
     });
+  });
+
+  it("orders a curriculum's active chapters in book order and hides archived ones", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const [actorRow] = await db
+      .insert(users)
+      .values({
+        username: `chapter-order-${suffix}`,
+        displayName: "Orderer",
+        passwordHash: "fixture-password-hash",
+      })
+      .returning({ id: users.id, username: users.username });
+    const [curriculum] = await db
+      .insert(curricula)
+      .values({
+        publisher: "IFSTA",
+        programTitle: `Ordered ${suffix}`,
+        version: "8th Edition",
+        sourceRevision: "test",
+      })
+      .returning({ id: curricula.id });
+    if (!actorRow || !curriculum) throw new Error("Order fixture failed.");
+    const actor = { id: actorRow.id, username: actorRow.username };
+
+    // "Zulu" appears first in the catalog, so it leads despite the alphabet.
+    const zulu = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "Zulu",
+      number: "1",
+      title: "Zulu One",
+    });
+    const alpha = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "Alpha",
+      number: "10",
+      title: "Alpha Ten",
+    });
+    const loose = await createCurriculumChapter(db, actor, curriculum.id, {
+      part: "",
+      number: "Appendix A",
+      title: "Appendix",
+    });
+
+    const activeOrder = async () =>
+      orderChaptersInBookOrder(
+        (await listCurriculumChaptersForAdmin(db, curriculum.id)).filter(
+          (chapter) => !chapter.archivedAt,
+        ),
+      );
+
+    expect((await activeOrder()).map((chapter) => chapter.id)).toEqual([
+      zulu.id,
+      alpha.id,
+      loose.id,
+    ]);
+
+    await archiveCurriculumChapter(db, actor, alpha.id);
+    const after = await listCurriculumChaptersForAdmin(db, curriculum.id);
+    expect(
+      orderChaptersInBookOrder(
+        after.filter((chapter) => !chapter.archivedAt),
+      ).map((chapter) => chapter.id),
+    ).toEqual([zulu.id, loose.id]);
+    expect(
+      after
+        .filter((chapter) => chapter.archivedAt)
+        .map((chapter) => chapter.id),
+    ).toEqual([alpha.id]);
   });
 
   it("authors, edits, archives, and reactivates chapters with derived positions", async () => {

@@ -80,6 +80,24 @@ code omits `status` on insert — `createOpenClass` sets `open` explicitly — s
 is inert today, but an insert that omitted it would fail rather than default.
 Tracked as finding H-14.
 
+## Migration status
+
+`npm run db:status` is the read-only way to compare a database's applied ledger
+to the committed migrations. It writes nothing and reports each migration as one
+of:
+
+- **applied** — recorded in the ledger with a matching file.
+- **pending** — newer than the database's newest applied migration; apply it.
+- **skipped** — older than the newest applied migration but absent from the
+  ledger; the migrator will not run it, so reconcile the ledger deliberately.
+- **edited** — recorded, but the committed file changed after it was applied.
+- **applied but not committed** — a ledger row whose migration is not in the repo.
+
+It refuses the protected production database unless `--allow-production` is
+passed, matching the other maintenance commands. Continuous integration runs the
+same integrity checks — `npm run check:migrations -- set`, a schema-drift check,
+and an append-only check on promotions to the default branch.
+
 ## Failure reporting
 
 Unexpected server failures are written as a single line of JSON to the

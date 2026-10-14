@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/ui/page-heading";
 import {
   getCurriculum,
   listCurriculumChaptersForAdmin,
+  orderChaptersInBookOrder,
 } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
@@ -39,6 +40,12 @@ export default async function CurriculumDetailPage({
   if (!curriculum) notFound();
   const chapters = await listCurriculumChaptersForAdmin(db, id);
   const sections = [...new Set(chapters.map((c) => c.part).filter(Boolean))];
+  const activeChapters = orderChaptersInBookOrder(
+    chapters.filter((chapter) => !chapter.archivedAt),
+  );
+  const archivedChapters = orderChaptersInBookOrder(
+    chapters.filter((chapter) => chapter.archivedAt),
+  );
 
   return (
     <main className="admin-content">
@@ -98,11 +105,13 @@ export default async function CurriculumDetailPage({
         <h2>Chapters</h2>
         <p className="roster-note">
           Chapters are offered when staff record a Fire subject. Order is by
-          section, then the number's leading value.
+          section in catalog order, then the number's leading value. Archived
+          chapters are hidden from this list; open "Archived chapters" to
+          reactivate one.
         </p>
         <ul className="member-list">
-          {chapters.map((chapter, index) => {
-            const previous = chapters[index - 1];
+          {activeChapters.map((chapter, index) => {
+            const previous = activeChapters[index - 1];
             const showSection = !previous || previous.part !== chapter.part;
             return (
               <Fragment key={chapter.id}>
@@ -115,9 +124,6 @@ export default async function CurriculumDetailPage({
                   <span>
                     {chapter.number} · {chapter.title}
                   </span>
-                  {chapter.archivedAt ? (
-                    <Badge variant="outline">Archived</Badge>
-                  ) : null}
                   <div className="member-actions">
                     <details className="inline-form">
                       <summary>Edit</summary>
@@ -134,37 +140,52 @@ export default async function CurriculumDetailPage({
                         }}
                       />
                     </details>
-                    {chapter.archivedAt ? (
-                      <form action={reactivateChapterAction}>
-                        <input
-                          type="hidden"
-                          name="curriculumId"
-                          value={curriculum.id}
-                        />
-                        <input type="hidden" name="id" value={chapter.id} />
-                        <Button type="submit" variant="secondary">
-                          Reactivate
-                        </Button>
-                      </form>
-                    ) : (
-                      <form action={archiveChapterAction}>
-                        <input
-                          type="hidden"
-                          name="curriculumId"
-                          value={curriculum.id}
-                        />
-                        <input type="hidden" name="id" value={chapter.id} />
-                        <Button type="submit" variant="destructive">
-                          Archive
-                        </Button>
-                      </form>
-                    )}
+                    <form action={archiveChapterAction}>
+                      <input
+                        type="hidden"
+                        name="curriculumId"
+                        value={curriculum.id}
+                      />
+                      <input type="hidden" name="id" value={chapter.id} />
+                      <Button type="submit" variant="destructive">
+                        Archive
+                      </Button>
+                    </form>
                   </div>
                 </li>
               </Fragment>
             );
           })}
         </ul>
+        {archivedChapters.length ? (
+          <details className="inline-form">
+            <summary>Archived chapters ({archivedChapters.length})</summary>
+            <ul className="member-list">
+              {archivedChapters.map((chapter) => (
+                <li className="member-row" key={chapter.id}>
+                  <span>
+                    {chapter.part ? `${chapter.part} · ` : ""}
+                    {chapter.number} · {chapter.title}
+                  </span>
+                  <Badge variant="outline">Archived</Badge>
+                  <div className="member-actions">
+                    <form action={reactivateChapterAction}>
+                      <input
+                        type="hidden"
+                        name="curriculumId"
+                        value={curriculum.id}
+                      />
+                      <input type="hidden" name="id" value={chapter.id} />
+                      <Button type="submit" variant="secondary">
+                        Reactivate
+                      </Button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
         <h3>Add chapter</h3>
         <ChapterForm
           action={createChapterAction}

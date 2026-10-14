@@ -91,6 +91,19 @@ Migrations are forward-only and reviewed like code.
 4. Apply to production **deliberately**, as its own step, with the explicit override:
    take a production snapshot first, then migrate production with the approved override.
 
+Continuous integration enforces the rules: a schema edit without a committed
+migration fails the build, the committed set must stay consistent with the
+journal, and a promotion into `main` may only append migrations. To check any
+environment against the committed set, run:
+
+```
+npm run db:status
+```
+
+It is read-only, compares the database's applied ledger to the committed
+migrations, and reports anything pending, skipped, or edited. Add
+`--allow-production` to point it at the production database.
+
 ## Applying reference data to production safely
 
 ```
