@@ -1517,11 +1517,46 @@ export async function listCurriculumChaptersForAdmin(
     })
     .from(curriculumChapters)
     .where(eq(curriculumChapters.curriculumId, curriculumId))
-    .orderBy(
-      curriculumChapters.part,
-      curriculumChapters.position,
-      curriculumChapters.number,
-    );
+    .orderBy(curriculumChapters.position, curriculumChapters.number);
+}
+
+/** The minimal chapter shape the book-order helper needs. */
+export interface BookOrderChapter {
+  id: string;
+  part: string;
+  number: string;
+  position: number;
+}
+
+/**
+ * Orders chapters in book order: sections appear in the order they first occur
+ * when chapters are ordered by position then number, chapters keep that order
+ * within their section, and unsectioned chapters are listed last.
+ */
+export function orderChaptersInBookOrder<T extends BookOrderChapter>(
+  rows: readonly T[],
+): T[] {
+  const base = [...rows].sort(
+    (a, b) =>
+      a.position - b.position ||
+      a.number.localeCompare(b.number, undefined, { numeric: true }) ||
+      a.id.localeCompare(b.id),
+  );
+  const sectionOrder = new Map<string, number>();
+  for (const row of base) {
+    if (row.part && !sectionOrder.has(row.part)) {
+      sectionOrder.set(row.part, sectionOrder.size);
+    }
+  }
+  return base.sort((a, b) => {
+    const aKey = a.part
+      ? (sectionOrder.get(a.part) ?? 0)
+      : Number.MAX_SAFE_INTEGER;
+    const bKey = b.part
+      ? (sectionOrder.get(b.part) ?? 0)
+      : Number.MAX_SAFE_INTEGER;
+    return aKey - bKey;
+  });
 }
 
 /**
