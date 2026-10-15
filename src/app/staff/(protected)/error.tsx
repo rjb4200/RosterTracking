@@ -2,7 +2,16 @@
 
 import { PageHeading } from "@/components/ui/page-heading";
 
-export default function StaffError({ reset }: { reset: () => void }) {
+import { ReportIssue } from "./report-issue";
+import { reportIssueAction } from "./report-issue-action";
+
+export default function StaffError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
     <main className="admin-content">
       <PageHeading
@@ -26,6 +35,13 @@ export default function StaffError({ reset }: { reset: () => void }) {
         <a className="button" href="/staff">
           Back to workspace
         </a>
+        <ReportIssue
+          action={reportIssueAction}
+          triggerLabel="Report this problem"
+          triggerClassName="button"
+          defaultSubject="A staff page failed to load"
+          correlationId={error.digest}
+        />
       </div>
     </main>
   );

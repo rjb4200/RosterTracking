@@ -51,6 +51,10 @@ export default defineConfig({
       CREDENTIAL_ENCRYPTION_KEY:
         process.env.CREDENTIAL_ENCRYPTION_KEY ??
         "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+      // Offer the issue-report affordance in the suite, but never file a real
+      // issue: the token is blanked so a submit refuses cleanly.
+      NEXT_PUBLIC_ISSUE_REPORTING: "1",
+      GITHUB_ISSUE_TOKEN: "",
     },
   },
 });
