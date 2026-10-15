@@ -6,8 +6,6 @@ import { hasPermission, PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { isAdministrator } from "@/modules/staff-auth/workspaces";
 
 import { LogoutButton } from "../logout-button";
-import { ReportIssue } from "./report-issue";
-import { reportIssueAction } from "./report-issue-action";
 
 export const dynamic = "force-dynamic";
 
@@ -81,10 +79,7 @@ export default async function ProtectedStaffLayout({
           </span>
           <span className="staff-user">{staff.displayName}</span>
         </div>
-        <div>
-          <ReportIssue action={reportIssueAction} />
-          <LogoutButton />
-        </div>
+        <LogoutButton />
       </header>
       <nav className="admin-nav" aria-label="Staff sections">
         {navItems
