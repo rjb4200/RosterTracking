@@ -17,6 +17,195 @@ export const REPORTING_REQUIREMENT_KINDS = {
   STUDENT_FIELD: "student_field",
 } as const;
 
+/** The two kinds of training category: Fire codes and EMS categories. */
+export const TRAINING_CATEGORY_KINDS = {
+  FIRE: "fire",
+  EMS: "ems",
+} as const;
+
+export type TrainingCategoryKind =
+  (typeof TRAINING_CATEGORY_KINDS)[keyof typeof TRAINING_CATEGORY_KINDS];
+
+/** The source revision stamped on the shipped EMS category list. */
+export const EMS_CATEGORY_SOURCE_REVISION = "ems-2024";
+
+/**
+ * The initial EMS category catalog, seeded once and admin-managed afterward
+ * (mirrors the MTU catalog seed). Each entry's `sortOrder` is its alphabetical
+ * index; the five core categories are pinned to sit above the separator.
+ * Military TCCC courses are intentionally excluded.
+ */
+export const EMS_CATEGORY_SEED: readonly {
+  name: string;
+  pinned: boolean;
+  sortOrder: number;
+}[] = [
+  { name: "Airway", pinned: true, sortOrder: 1 },
+  { name: "Cardiology", pinned: true, sortOrder: 2 },
+  { name: "Medical", pinned: true, sortOrder: 3 },
+  { name: "Operations", pinned: true, sortOrder: 4 },
+  { name: "Trauma", pinned: true, sortOrder: 5 },
+  { name: "Advanced Burn Life Support", pinned: false, sortOrder: 1 },
+  { name: "Advanced Cardiac Life Support", pinned: false, sortOrder: 2 },
+  { name: "Advanced Disaster Life Support", pinned: false, sortOrder: 3 },
+  { name: "Advanced Life Support", pinned: false, sortOrder: 4 },
+  { name: "Advanced Medical Life Support", pinned: false, sortOrder: 5 },
+  {
+    name: "Advanced Pediatric Life Support",
+    pinned: false,
+    sortOrder: 6,
+  },
+  { name: "Advanced Stroke Life Support", pinned: false, sortOrder: 7 },
+  { name: "Advanced Trauma Life Support", pinned: false, sortOrder: 8 },
+  {
+    name: "All Hazards Disaster Life Support",
+    pinned: false,
+    sortOrder: 9,
+  },
+  {
+    name: "An Introduction to the Incident Command System, ICS 100",
+    pinned: false,
+    sortOrder: 10,
+  },
+  {
+    name: "An Introduction to the National Incident Management System",
+    pinned: false,
+    sortOrder: 11,
+  },
+  { name: "Basic Disaster Life Support", pinned: false, sortOrder: 12 },
+  { name: "CPR - Healthcare Professional", pinned: false, sortOrder: 13 },
+  {
+    name: "Emergency Medical Patients: Assessment, Care and Transport",
+    pinned: false,
+    sortOrder: 14,
+  },
+  {
+    name: "Emergency Neurological Life Support",
+    pinned: false,
+    sortOrder: 15,
+  },
+  { name: "Emergency Pediatric Course", pinned: false, sortOrder: 16 },
+  {
+    name: "Emergency Vehicle Operator Course / Safety",
+    pinned: false,
+    sortOrder: 17,
+  },
+  { name: "EMS Safety", pinned: false, sortOrder: 18 },
+  { name: "Geriatric Education for EMS", pinned: false, sortOrder: 19 },
+  { name: "Hazardous Materials Awareness", pinned: false, sortOrder: 20 },
+  {
+    name: "Hazardous Materials Operations",
+    pinned: false,
+    sortOrder: 21,
+  },
+  {
+    name: "Hazardous Materials Technician",
+    pinned: false,
+    sortOrder: 22,
+  },
+  {
+    name: "ICS 300: Intermediate Incident Command System for Expanding Incidents",
+    pinned: false,
+    sortOrder: 23,
+  },
+  {
+    name: "ICS 400: Advanced Incident Command System for Command and General Staff - Complex Incidents",
+    pinned: false,
+    sortOrder: 24,
+  },
+  {
+    name: "International Trauma Life Support",
+    pinned: false,
+    sortOrder: 25,
+  },
+  {
+    name: "IS-700.B: An Introduction to the National Incident Management System",
+    pinned: false,
+    sortOrder: 26,
+  },
+  {
+    name: "IS-800.D: National Response Framework, An Introduction",
+    pinned: false,
+    sortOrder: 27,
+  },
+  {
+    name: "Neonatal Resuscitation Program",
+    pinned: false,
+    sortOrder: 28,
+  },
+  {
+    name: "Pediatric Advanced Life Support",
+    pinned: false,
+    sortOrder: 29,
+  },
+  {
+    name: "Pediatric Education for Prehospital Professionals",
+    pinned: false,
+    sortOrder: 30,
+  },
+  {
+    name: "Pediatric Emergency Assessment, Recognition and Stabilization",
+    pinned: false,
+    sortOrder: 31,
+  },
+  {
+    name: "Prehospital Trauma Life Support",
+    pinned: false,
+    sortOrder: 32,
+  },
+  {
+    name: "Tactical Emergency Casualty Care (Civilian)",
+    pinned: false,
+    sortOrder: 33,
+  },
+  { name: "Traffic Incident Management", pinned: false, sortOrder: 34 },
+];
+
+/** Matching Fire code ↔ EMS category pairs, seeded symmetrically. */
+export const EMS_FIRE_CATEGORY_MAP: readonly {
+  fireCode: string;
+  emsName: string;
+}[] = [
+  { fireCode: "P0008", emsName: "Airway" },
+  { fireCode: "P0011", emsName: "Trauma" },
+  { fireCode: "P0014", emsName: "Operations" },
+  { fireCode: "P0023", emsName: "Cardiology" },
+  { fireCode: "P0010", emsName: "Medical" },
+  { fireCode: "P0001", emsName: "CPR - Healthcare Professional" },
+  { fireCode: "P0015", emsName: "Advanced Cardiac Life Support" },
+  { fireCode: "P0017", emsName: "Pediatric Advanced Life Support" },
+  { fireCode: "T0001", emsName: "Hazardous Materials Awareness" },
+  { fireCode: "T0002", emsName: "Hazardous Materials Operations" },
+  { fireCode: "T0003", emsName: "Hazardous Materials Technician" },
+  {
+    fireCode: "FF0001",
+    emsName: "An Introduction to the Incident Command System, ICS 100",
+  },
+  {
+    fireCode: "FF0002",
+    emsName: "An Introduction to the National Incident Management System",
+  },
+  {
+    fireCode: "FF0003",
+    emsName:
+      "ICS 300: Intermediate Incident Command System for Expanding Incidents",
+  },
+  {
+    fireCode: "FF0004",
+    emsName:
+      "ICS 400: Advanced Incident Command System for Command and General Staff - Complex Incidents",
+  },
+  {
+    fireCode: "FF0007",
+    emsName:
+      "IS-700.B: An Introduction to the National Incident Management System",
+  },
+  {
+    fireCode: "FF0008",
+    emsName: "IS-800.D: National Response Framework, An Introduction",
+  },
+];
+
 export const MTU_CATALOG_KINDS = {
   EQUIPMENT: "equipment",
   SUPPLIES: "supplies",

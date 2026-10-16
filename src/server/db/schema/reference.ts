@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   numeric,
@@ -253,19 +254,35 @@ export const trainingCodes = pgTable(
   "training_codes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    // The catalog holds two kinds: Fire category codes and EMS categories.
+    kind: text("kind").default("fire").notNull(),
     code: text("code").notNull(),
     title: text("title").notNull(),
+    // Pinned categories are listed and offered above a separator.
+    isPinned: boolean("is_pinned").default(false).notNull(),
+    // Alphabetical index within a kind, retained for future manual ordering.
+    sortOrder: integer("sort_order").default(0).notNull(),
+    // A matching category in the other kind, set symmetrically. FK added below.
+    mapsToId: uuid("maps_to_id"),
     sourceRevision: text("source_revision").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("training_codes_code_revision_unique").on(
+    uniqueIndex("training_codes_kind_code_revision_unique").on(
+      table.kind,
       table.code,
       table.sourceRevision,
     ),
     index("training_codes_code_idx").on(table.code),
+    index("training_codes_kind_idx").on(table.kind),
+    foreignKey({
+      columns: [table.mapsToId],
+      foreignColumns: [table.id],
+      name: "training_codes_maps_to_id_fk",
+    }).onDelete("set null"),
+    check("training_codes_kind", sql`${table.kind} in ('fire', 'ems')`),
     check(
       "training_codes_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,

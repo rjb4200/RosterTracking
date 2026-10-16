@@ -12,12 +12,58 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TRAINING_CATEGORY_KINDS } from "@/modules/reference/constants";
 import { listTrainingCodes } from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
 export const dynamic = "force-dynamic";
+
+type TrainingCode = Awaited<ReturnType<typeof listTrainingCodes>>[number];
+
+function TrainingCodeTable({ codes }: { codes: TrainingCode[] }) {
+  return (
+    <Table className="reference-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Code</TableHead>
+          <TableHead>Title</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {codes.map((code) => (
+          <TableRow key={code.id}>
+            <TableCell>
+              <Link
+                href={`/staff/training-codes/${code.id}`}
+                className="row-link"
+              >
+                {code.code}
+              </Link>
+            </TableCell>
+            <TableCell>
+              {code.title}
+              {code.isPinned ? (
+                <Badge variant="secondary" className="ml-2">
+                  Pinned
+                </Badge>
+              ) : null}
+            </TableCell>
+            <TableCell>
+              {code.isActive ? (
+                <Badge variant="secondary">Active</Badge>
+              ) : (
+                <Badge variant="outline">Inactive</Badge>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
 
 export default async function TrainingCodesPage({
   searchParams,
@@ -26,17 +72,22 @@ export default async function TrainingCodesPage({
 }) {
   await requirePagePermission(PERMISSIONS.TRAINING_CODES_MANAGE);
   const { q = "" } = await searchParams;
-  const codes = await listTrainingCodes(getDatabase(), q);
+  const db = getDatabase();
+  const [fireCodes, emsCodes] = await Promise.all([
+    listTrainingCodes(db, q, TRAINING_CATEGORY_KINDS.FIRE),
+    listTrainingCodes(db, q, TRAINING_CATEGORY_KINDS.EMS),
+  ]);
   const hasSearch = q.trim().length > 0;
+  const isEmpty = fireCodes.length === 0 && emsCodes.length === 0;
 
   return (
     <main className="admin-content">
       <PageHeading
         eyebrow="Reference data"
-        title="Training codes"
+        title="Training categories"
         primary={{
           href: "/staff/training-codes/new",
-          label: "New training code",
+          label: "New training category",
         }}
       />
 
@@ -50,76 +101,63 @@ export default async function TrainingCodesPage({
         />
       </form>
 
-      <Table className="reference-table">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Code</TableHead>
-            <TableHead>Title</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {codes.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={3}>
-                <EmptyState
-                  title={
-                    hasSearch
-                      ? `No training codes match "${q}"`
-                      : "No training codes yet"
-                  }
-                  description={
-                    hasSearch
-                      ? "Try a different search, or clear it to see every training code."
-                      : "Add your first training code to get started."
-                  }
-                  action={
-                    hasSearch ? (
-                      <Link
-                        href="/staff/training-codes"
-                        className={buttonVariants({
-                          variant: "outline",
-                          size: "sm",
-                        })}
-                      >
-                        Clear search
-                      </Link>
-                    ) : (
-                      <Link
-                        href="/staff/training-codes/new"
-                        className={buttonVariants({ size: "sm" })}
-                      >
-                        New training code
-                      </Link>
-                    )
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          ) : (
-            codes.map((code) => (
-              <TableRow key={code.id}>
-                <TableCell>
-                  <Link
-                    href={`/staff/training-codes/${code.id}`}
-                    className="row-link"
-                  >
-                    {code.code}
-                  </Link>
-                </TableCell>
-                <TableCell>{code.title}</TableCell>
-                <TableCell>
-                  {code.isActive ? (
-                    <Badge variant="secondary">Active</Badge>
-                  ) : (
-                    <Badge variant="outline">Inactive</Badge>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+      {isEmpty ? (
+        <EmptyState
+          title={
+            hasSearch
+              ? `No training categories match "${q}"`
+              : "No training categories yet"
+          }
+          description={
+            hasSearch
+              ? "Try a different search, or clear it to see every training category."
+              : "Add your first training category to get started."
+          }
+          action={
+            hasSearch ? (
+              <Link
+                href="/staff/training-codes"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "sm",
+                })}
+              >
+                Clear search
+              </Link>
+            ) : (
+              <Link
+                href="/staff/training-codes/new"
+                className={buttonVariants({ size: "sm" })}
+              >
+                New training category
+              </Link>
+            )
+          }
+        />
+      ) : (
+        <>
+          <section className="admin-section">
+            <h2>Fire</h2>
+            {fireCodes.length === 0 ? (
+              <p className="text-muted-foreground">
+                No Fire categories match the search.
+              </p>
+            ) : (
+              <TrainingCodeTable codes={fireCodes} />
+            )}
+          </section>
+          <section className="admin-section">
+            <h2>EMS</h2>
+            {emsCodes.length === 0 ? (
+              <p className="text-muted-foreground">
+                No EMS categories match the search.
+              </p>
+            ) : (
+              <TrainingCodeTable codes={emsCodes} />
+            )}
+          </section>
+        </>
+      )}
     </main>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "@/modules/reference/services";
 
 import type { Database } from "./client";
+import { applyTrainingCategoryMappings } from "./reference-seed";
 import { curricula } from "./schema";
 
 /**
@@ -171,6 +172,9 @@ export async function importReferenceData(
   }
 
   const codeCount = await importTrainingCodes(db, actor, sources.codes);
+  // The imported Fire codes arrive after the reference seed, so pair them with
+  // their matching EMS categories here.
+  await db.transaction(applyTrainingCategoryMappings);
   const mtuInserted = await reconcileMtuCatalog(db, actor, sources.mtu);
 
   return {

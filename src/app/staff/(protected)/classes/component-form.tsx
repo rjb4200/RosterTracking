@@ -22,6 +22,7 @@ export function ComponentForm({
   component,
   defaultStartsAt,
   trainingCodes = [],
+  trainingCodeKind,
   curricula = [],
   curriculumChapters = [],
   recentCurriculumIds = [],
@@ -41,7 +42,13 @@ export function ComponentForm({
     method?: string | null;
   };
   defaultStartsAt?: string;
-  trainingCodes?: Array<{ id: string; code: string; title: string }>;
+  trainingCodes?: Array<{
+    id: string;
+    code: string;
+    title: string;
+    kind?: string;
+  }>;
+  trainingCodeKind?: string;
   curricula?: Array<{
     id: string;
     publisher: string;
@@ -57,6 +64,9 @@ export function ComponentForm({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const suffix = component?.id ?? "new";
+  const categoryOptions = trainingCodeKind
+    ? trainingCodes.filter((code) => code.kind === trainingCodeKind)
+    : trainingCodes;
   const [startsAt, setStartsAt] = useState(
     component?.startsAt ?? defaultStartsAt ?? "",
   );
@@ -150,7 +160,7 @@ export function ComponentForm({
             defaultValue={component?.trainingCodeId ?? ""}
           >
             <option value="">No category</option>
-            {trainingCodes.map((code) => (
+            {categoryOptions.map((code) => (
               <option key={code.id} value={code.id}>
                 {code.code} — {code.title}
               </option>

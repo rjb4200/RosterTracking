@@ -51,7 +51,12 @@ export function FireSubjectRow({
 }: {
   index: number;
   value: FireSubjectValue;
-  trainingCodes: Array<{ id: string; code: string; title: string }>;
+  trainingCodes: Array<{
+    id: string;
+    code: string;
+    title: string;
+    isPinned: boolean;
+  }>;
   curricula: Array<{
     id: string;
     publisher: string;
@@ -77,6 +82,7 @@ export function FireSubjectRow({
   const categoryOptions = trainingCodes.map((code) => ({
     value: code.id,
     label: `${code.code} — ${code.title}`,
+    group: code.isPinned ? "Pinned" : "All codes",
   }));
 
   return (

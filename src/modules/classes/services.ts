@@ -142,6 +142,7 @@ const draftInput = z.object({
     ])
     .optional(),
   courseNumber: z.string().trim().max(100).default(""),
+  emsCategoryId: z.union([z.string().uuid(), z.literal("")]).optional(),
   mtuEquipmentUsed: z.string().trim().max(500).default(""),
   mtuMileage: z.string().trim().max(200).default(""),
   mtuUsedSupplies: z.string().trim().max(500).default(""),
@@ -322,6 +323,9 @@ async function assertKbemsCourseDetails(
   }
   if (!input.objectives.trim()) {
     throw new Error("Enter the course description or objectives.");
+  }
+  if (!input.emsCategoryId) {
+    throw new Error("Select an EMS category.");
   }
   if (
     input.courseType === "initial_certification" &&
@@ -806,6 +810,7 @@ export async function createOpenClass(
         objectives: parsed.objectives || null,
         courseType: parsed.courseType || null,
         courseNumber: parsed.courseNumber || null,
+        emsCategoryId: parsed.emsCategoryId || null,
         status: CLASS_STATUSES.OPEN,
         signInTokenHash: hashClassSignInToken(rawToken),
         signInTokenVersion: 1,
@@ -985,6 +990,7 @@ export async function updateClass(
         objectives: parsed.objectives || null,
         courseType: parsed.courseType || null,
         courseNumber: parsed.courseNumber || null,
+        emsCategoryId: parsed.emsCategoryId || null,
         accessPinEnabled: parsed.accessPinEnabled,
         accessPinEncrypted: accessPin,
         updatedAt: new Date(),
@@ -1742,6 +1748,13 @@ export async function getClassDetail(
       .from(mtuUsage)
       .where(eq(mtuUsage.classId, classId))
       .limit(1);
+    const emsCategory = classRecord.emsCategoryId
+      ? await transaction
+          .select({ id: trainingCodes.id, title: trainingCodes.title })
+          .from(trainingCodes)
+          .where(eq(trainingCodes.id, classRecord.emsCategoryId))
+          .limit(1)
+      : [];
     const itemRows = await transaction
       .select({
         itemId: classMtuUsageItems.itemId,
@@ -1826,6 +1839,7 @@ export async function getClassDetail(
       components,
       instructors,
       reportingSystems: systems,
+      emsCategory: emsCategory[0] ?? null,
       mtuUsage: usage,
       mtuActiveParticipantCount: activeParticipantCount,
     };
@@ -1891,10 +1905,17 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         id: trainingCodes.id,
         code: trainingCodes.code,
         title: trainingCodes.title,
+        kind: trainingCodes.kind,
+        isPinned: trainingCodes.isPinned,
+        mapsToId: trainingCodes.mapsToId,
       })
       .from(trainingCodes)
       .where(eq(trainingCodes.isActive, true))
-      .orderBy(trainingCodes.code),
+      .orderBy(
+        trainingCodes.kind,
+        desc(trainingCodes.isPinned),
+        sql`lower(${trainingCodes.title})`,
+      ),
     db
       .select({
         id: curricula.id,

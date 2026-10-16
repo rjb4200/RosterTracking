@@ -36,7 +36,7 @@ const navItems: Array<{ href: string; label: string; permission: string }> = [
   },
   {
     href: "/staff/training-codes",
-    label: "Training codes",
+    label: "Training categories",
     permission: PERMISSIONS.TRAINING_CODES_MANAGE,
   },
   {

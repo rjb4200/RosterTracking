@@ -1,0 +1,1 @@
+ALTER TABLE "training_codes" DROP COLUMN "category_group";

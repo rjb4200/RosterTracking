@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
-import { getTrainingCode } from "@/modules/reference/services";
+import {
+  getTrainingCode,
+  listTrainingCategoryOptions,
+} from "@/modules/reference/services";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -24,8 +27,10 @@ export default async function TrainingCodeDetailPage({
 }) {
   await requirePagePermission(PERMISSIONS.TRAINING_CODES_MANAGE);
   const { id } = await params;
-  const code = await getTrainingCode(getDatabase(), id);
+  const db = getDatabase();
+  const code = await getTrainingCode(db, id);
   if (!code) notFound();
+  const categories = await listTrainingCategoryOptions(db);
 
   return (
     <main className="admin-content">
@@ -66,14 +71,18 @@ export default async function TrainingCodeDetailPage({
         }
       />
       <section className="admin-section">
-        <h2>Edit training code</h2>
+        <h2>Edit training category</h2>
         <TrainingCodeForm
           action={updateTrainingCodeAction}
           submitLabel="Save changes"
+          categories={categories}
           values={{
             id: code.id,
+            kind: code.kind,
             code: code.code,
             title: code.title,
+            isPinned: code.isPinned,
+            mapsToId: code.mapsToId,
           }}
         />
       </section>

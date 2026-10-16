@@ -32,6 +32,7 @@ import {
   AGENCY_TAG_CODES,
   MTU_CATALOG_KINDS,
   MTU_ROUNDING_MODES,
+  type TrainingCategoryKind,
 } from "./constants";
 import { validateCredentialValue } from "./credential-format";
 import { credentialLookupHash, encryptCredential } from "./crypto";
@@ -223,8 +224,11 @@ const siteInput = z.object({
 const MANUAL_SOURCE_REVISION = "manual";
 
 const trainingCodeInput = z.object({
-  code: z.string().trim().min(1).max(50),
+  kind: z.enum(["fire", "ems"]).optional().default("fire"),
+  code: z.string().trim().min(1).max(300),
   title: z.string().trim().min(1).max(300),
+  isPinned: z.boolean().optional().default(false),
+  mapsToId: z.union([z.string().uuid(), z.literal("")]).optional(),
   sourceRevision: z.string().trim().max(50).optional().default(""),
 });
 
@@ -807,7 +811,11 @@ export async function upsertStudentCredential(
 
 // ── Training codes and sites ──────────────────────────────────────────────
 
-export async function listTrainingCodes(db: Database, query: string) {
+export async function listTrainingCodes(
+  db: Database,
+  query: string,
+  kind?: TrainingCategoryKind,
+) {
   const term = `%${query.trim()}%`;
   return db
     .select()
@@ -815,10 +823,16 @@ export async function listTrainingCodes(db: Database, query: string) {
     .where(
       and(
         isNull(trainingCodes.archivedAt),
+        kind ? eq(trainingCodes.kind, kind) : undefined,
         or(ilike(trainingCodes.code, term), ilike(trainingCodes.title, term)),
       ),
     )
-    .orderBy(trainingCodes.code)
+    .orderBy(
+      // Pinned categories sit above the rest; within a group ordering is
+      // alphabetical, so manually added rows also sort correctly.
+      desc(trainingCodes.isPinned),
+      sql`lower(${trainingCodes.title})`,
+    )
     .limit(100);
 }
 
@@ -829,6 +843,24 @@ export async function getTrainingCode(db: Database, id: string) {
     .where(eq(trainingCodes.id, id))
     .limit(1);
   return code ?? null;
+}
+
+/** Every active training category, for the mapping selector. Not paginated. */
+export async function listTrainingCategoryOptions(db: Database) {
+  return db
+    .select({
+      id: trainingCodes.id,
+      code: trainingCodes.code,
+      title: trainingCodes.title,
+      kind: trainingCodes.kind,
+    })
+    .from(trainingCodes)
+    .where(eq(trainingCodes.isActive, true))
+    .orderBy(
+      trainingCodes.kind,
+      desc(trainingCodes.isPinned),
+      sql`lower(${trainingCodes.title})`,
+    );
 }
 
 export async function listSites(db: Database, query: string) {
@@ -1001,17 +1033,22 @@ export async function archiveSite(db: Database, actor: Actor, id: string) {
 export async function importTrainingCodes(
   db: Database,
   actor: Actor,
-  rows: z.infer<typeof trainingCodeInput>[],
+  rows: z.input<typeof trainingCodeInput>[],
 ) {
   const parsed = rows.map((row) => trainingCodeInput.parse(row));
   return db.transaction(async (transaction) => {
     const importedIds: string[] = [];
+    const importedByKind = new Map<TrainingCategoryKind, string[]>();
     for (const row of parsed) {
       const result = await transaction
         .insert(trainingCodes)
         .values(row)
         .onConflictDoUpdate({
-          target: [trainingCodes.code, trainingCodes.sourceRevision],
+          target: [
+            trainingCodes.kind,
+            trainingCodes.code,
+            trainingCodes.sourceRevision,
+          ],
           set: {
             title: sql`excluded.title`,
             isActive: true,
@@ -1020,15 +1057,24 @@ export async function importTrainingCodes(
           },
         })
         .returning({ id: trainingCodes.id });
-      if (result[0]) importedIds.push(result[0].id);
+      if (result[0]) {
+        importedIds.push(result[0].id);
+        const forKind = importedByKind.get(row.kind) ?? [];
+        forKind.push(result[0].id);
+        importedByKind.set(row.kind, forKind);
+      }
     }
-    // Retire entries dropped from the approved list. This assumes a full-list
-    // import; a partial import would archive the rest of the catalog.
-    if (importedIds.length > 0) {
+    // Retire entries dropped from the approved list, but only within each kind
+    // the import supplied, so a Fire import never archives EMS categories.
+    for (const [kind, ids] of importedByKind) {
       await transaction
         .update(trainingCodes)
         .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
-        .where(notInArray(trainingCodes.id, importedIds));
+        .where(
+          and(eq(trainingCodes.kind, kind), notInArray(trainingCodes.id, ids)),
+        );
+    }
+    if (importedIds.length > 0) {
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -1229,6 +1275,63 @@ export async function archiveCurriculum(
   });
 }
 
+/**
+ * Sets a training category's mapping to a category of the other kind, keeping
+ * the pair symmetric. A category has at most one partner; changing or clearing
+ * the mapping also clears the previous partner's pointer.
+ */
+async function setTrainingCodeMapping(
+  transaction: DatabaseTransaction,
+  code: { id: string; kind: string },
+  targetId: string | null,
+): Promise<void> {
+  const [current] = await transaction
+    .select({ mapsToId: trainingCodes.mapsToId })
+    .from(trainingCodes)
+    .where(eq(trainingCodes.id, code.id))
+    .limit(1);
+  const previousId = current?.mapsToId ?? null;
+  if (previousId && previousId !== targetId) {
+    await transaction
+      .update(trainingCodes)
+      .set({ mapsToId: null, updatedAt: new Date() })
+      .where(eq(trainingCodes.id, previousId));
+  }
+  if (!targetId) {
+    await transaction
+      .update(trainingCodes)
+      .set({ mapsToId: null, updatedAt: new Date() })
+      .where(eq(trainingCodes.id, code.id));
+    return;
+  }
+  if (targetId === code.id) {
+    throw new Error("A category cannot be mapped to itself.");
+  }
+  const [target] = await transaction
+    .select({ mapsToId: trainingCodes.mapsToId, kind: trainingCodes.kind })
+    .from(trainingCodes)
+    .where(eq(trainingCodes.id, targetId))
+    .limit(1);
+  if (!target) throw new Error("The mapped category could not be found.");
+  if (target.kind === code.kind) {
+    throw new Error("Map a Fire category to an EMS category, or vice versa.");
+  }
+  if (target.mapsToId && target.mapsToId !== code.id) {
+    await transaction
+      .update(trainingCodes)
+      .set({ mapsToId: null, updatedAt: new Date() })
+      .where(eq(trainingCodes.id, target.mapsToId));
+  }
+  await transaction
+    .update(trainingCodes)
+    .set({ mapsToId: targetId, updatedAt: new Date() })
+    .where(eq(trainingCodes.id, code.id));
+  await transaction
+    .update(trainingCodes)
+    .set({ mapsToId: code.id, updatedAt: new Date() })
+    .where(eq(trainingCodes.id, targetId));
+}
+
 export async function createTrainingCode(
   db: Database,
   actor: Actor,
@@ -1236,30 +1339,40 @@ export async function createTrainingCode(
 ) {
   const parsed = trainingCodeInput.parse(input);
   const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
+  const mapsToId = parsed.mapsToId ? parsed.mapsToId : null;
   return db.transaction(async (transaction) => {
     try {
       const [code] = await transaction
         .insert(trainingCodes)
         .values({
+          kind: parsed.kind,
           code: parsed.code,
           title: parsed.title,
+          isPinned: parsed.isPinned,
           sourceRevision,
         })
         .returning();
       if (!code) throw new Error("Training code was not created.");
+      if (mapsToId) {
+        await setTrainingCodeMapping(
+          transaction,
+          { id: code.id, kind: code.kind },
+          mapsToId,
+        );
+      }
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
         action: "training_code.created",
         entityType: "training_code",
         entityId: code.id,
-        details: { code: code.code },
+        details: { code: code.code, kind: code.kind },
       });
       return code;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new Error(
-          "A training code with that code and source revision already exists.",
+          "A training code with that code and source revision already exists in this category.",
         );
       }
       throw error;
@@ -1275,32 +1388,40 @@ export async function updateTrainingCode(
 ) {
   const parsed = trainingCodeInput.parse(input);
   const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
+  const mapsToId = parsed.mapsToId ? parsed.mapsToId : null;
   return db.transaction(async (transaction) => {
     try {
       const [code] = await transaction
         .update(trainingCodes)
         .set({
+          kind: parsed.kind,
           code: parsed.code,
           title: parsed.title,
+          isPinned: parsed.isPinned,
           sourceRevision,
           updatedAt: new Date(),
         })
         .where(eq(trainingCodes.id, id))
         .returning();
       if (!code) throw new Error("Training code not found.");
+      await setTrainingCodeMapping(
+        transaction,
+        { id: code.id, kind: code.kind },
+        mapsToId,
+      );
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
         action: "training_code.updated",
         entityType: "training_code",
         entityId: code.id,
-        details: { code: code.code },
+        details: { code: code.code, kind: code.kind },
       });
       return code;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new Error(
-          "A training code with that code and source revision already exists.",
+          "A training code with that code and source revision already exists in this category.",
         );
       }
       throw error;

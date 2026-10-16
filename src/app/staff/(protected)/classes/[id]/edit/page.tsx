@@ -47,6 +47,13 @@ export default async function EditClassPage({
   }
   const options = await listClassFormOptions(db, actor);
   const newSessionStartsAt = roundDepartmentDateTimeToQuarterHour(new Date());
+  const componentKind = classRecord.reportingSystems.some(
+    (system) => system.code === "fire",
+  )
+    ? "fire"
+    : classRecord.reportingSystems.some((system) => system.code === "kbems")
+      ? "ems"
+      : undefined;
 
   return (
     <main className="admin-content">
@@ -82,6 +89,7 @@ export default async function EditClassPage({
             objectives: classRecord.objectives,
             courseType: classRecord.courseType,
             courseNumber: classRecord.courseNumber,
+            emsCategoryId: classRecord.emsCategoryId,
             mtuUsage: classRecord.mtuUsage,
           }}
         />
@@ -102,6 +110,7 @@ export default async function EditClassPage({
                 classId={classRecord.id}
                 action={saveComponentAction}
                 trainingCodes={options.trainingCodes}
+                trainingCodeKind={componentKind}
                 curricula={options.curricula}
                 curriculumChapters={options.curriculumChapters}
                 recentCurriculumIds={options.recentCurriculumIds}
@@ -127,6 +136,7 @@ export default async function EditClassPage({
           action={saveComponentAction}
           defaultStartsAt={newSessionStartsAt}
           trainingCodes={options.trainingCodes}
+          trainingCodeKind={componentKind}
           curricula={options.curricula}
           curriculumChapters={options.curriculumChapters}
           recentCurriculumIds={options.recentCurriculumIds}

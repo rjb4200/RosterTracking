@@ -14,6 +14,7 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     leadInstructorId: "user-1",
     hostAgencyId: "agency-1",
     kbemsCourseName: "",
+    emsCategoryId: "",
     courseType: "",
     objectives: "",
     courseNumber: "",
@@ -113,6 +114,7 @@ describe("wizard step validation", () => {
 
   it("requires the EMS course details and the course number only for initial certification", () => {
     expect(wizardStepErrors("kbems", base())).toEqual([
+      "emsCategoryId",
       "kbemsCourseName",
       "courseType",
       "objectives",
@@ -122,6 +124,7 @@ describe("wizard step validation", () => {
       wizardStepErrors(
         "kbems",
         base({
+          emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Refresher",
           courseType: "refresher",
           objectives: "Review of EMT skills",
@@ -133,6 +136,7 @@ describe("wizard step validation", () => {
       wizardStepErrors(
         "kbems",
         base({
+          emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Refresher",
           courseType: "refresher",
           objectives: "Review of EMT skills",
@@ -145,6 +149,7 @@ describe("wizard step validation", () => {
       wizardStepErrors(
         "kbems",
         base({
+          emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Initial",
           courseType: "initial_certification",
           objectives: "Initial EMT certification",
@@ -155,6 +160,7 @@ describe("wizard step validation", () => {
       wizardStepErrors(
         "kbems",
         base({
+          emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Initial",
           courseType: "initial_certification",
           objectives: "Initial EMT certification",
@@ -168,6 +174,7 @@ describe("wizard step validation", () => {
       wizardStepErrors(
         "kbems",
         base({
+          emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Initial",
           courseType: "initial_certification",
           objectives: "Initial EMT certification",

@@ -24,6 +24,7 @@ export function ClassForm({
   sites,
   agencies,
   reportingSystems,
+  trainingCodes = [],
   mtuCatalog = [],
   mtuActiveParticipantCount = 0,
   values,
@@ -35,6 +36,7 @@ export function ClassForm({
   sites: Option[];
   agencies: Option[];
   reportingSystems: Option[];
+  trainingCodes?: Array<{ id: string; title: string; kind: string }>;
   mtuCatalog?: MtuCatalogOption[];
   mtuActiveParticipantCount?: number;
   values?: {
@@ -48,6 +50,7 @@ export function ClassForm({
     objectives?: string | null;
     courseType?: string | null;
     courseNumber?: string | null;
+    emsCategoryId?: string | null;
     mtuUsage?: {
       equipmentUsed: string | null;
       mileage: string | null;
@@ -59,6 +62,9 @@ export function ClassForm({
   const [state, formAction, pending] = useActionState(action, undefined);
   const [reportingSystemIds, setReportingSystemIds] = useState(
     values?.reportingSystemIds ?? [],
+  );
+  const emsCategories = trainingCodes.filter(
+    (category) => category.kind === "ems",
   );
   const [mtuUsage, setMtuUsage] = useState(() =>
     mtuUsageValueFromDetail(values?.mtuUsage),
@@ -166,6 +172,22 @@ export function ClassForm({
             <option value="continuing_education">Continuing education</option>
             <option value="initial_certification">Initial certification</option>
             <option value="refresher">Refresher</option>
+          </select>
+        </div>
+        <div className="field">
+          <Label htmlFor="emsCategoryId">EMS category</Label>
+          <select
+            id="emsCategoryId"
+            name="emsCategoryId"
+            className="select-input"
+            defaultValue={values?.emsCategoryId ?? ""}
+          >
+            <option value="">No category</option>
+            {emsCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.title}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">

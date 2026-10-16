@@ -18,6 +18,9 @@ async function reachClassStep(page: import("@playwright/test").Page) {
   await page.getByLabel("EMS course name").fill("EMT Refresher");
   await page.getByLabel("Course type").selectOption("refresher");
   await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page
     .getByLabel("Course description or objectives")
     .fill("Review of EMT skills");
   await page.getByRole("button", { name: "Next", exact: true }).click();

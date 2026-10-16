@@ -21,6 +21,14 @@ export function ClassSummary({
         {classRecord.reportingSystems.map((system) => system.name).join(", ") ||
           "None selected"}
       </dd>
+      {classRecord.reportingSystems.some(
+        (system) => system.code === "kbems",
+      ) ? (
+        <>
+          <dt>EMS category</dt>
+          <dd>{classRecord.emsCategory?.title ?? "Not set"}</dd>
+        </>
+      ) : null}
       <dt>Lead instructor</dt>
       <dd>
         {classRecord.instructors

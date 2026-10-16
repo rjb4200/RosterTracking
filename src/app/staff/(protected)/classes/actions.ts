@@ -121,6 +121,7 @@ function draftValues(formData: FormData) {
       | "initial_certification"
       | "refresher",
     courseNumber: read(formData, "courseNumber"),
+    emsCategoryId: read(formData, "emsCategoryId"),
     mtuEquipmentUsed: read(formData, "mtuEquipmentUsed"),
     mtuMileage: read(formData, "mtuMileage"),
     mtuUsedSupplies: read(formData, "mtuUsedSupplies"),

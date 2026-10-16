@@ -302,6 +302,27 @@
       "when": 1792160285527,
       "tag": "0042_transport-mileage",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792187212366,
+      "tag": "0043_furry_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792192850156,
+      "tag": "0044_strange_bucky",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792192871096,
+      "tag": "0045_rare_the_hand",
+      "breakpoints": true
     }
   ]
 }
