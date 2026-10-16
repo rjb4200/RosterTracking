@@ -66,12 +66,13 @@ export default async function TrainingCodeDetailPage({
         }
       />
       <section className="admin-section">
-        <h2>Edit training code</h2>
+        <h2>Edit training category</h2>
         <TrainingCodeForm
           action={updateTrainingCodeAction}
           submitLabel="Save changes"
           values={{
             id: code.id,
+            kind: code.kind,
             code: code.code,
             title: code.title,
           }}

@@ -13,6 +13,7 @@ import {
   agencies,
   reportingSystems,
   roles,
+  trainingCodes,
   trainingSites,
   userRoles,
   users,
@@ -63,10 +64,20 @@ async function fixtureRefs(db: Db, suffix: string) {
         eq(reportingSystems.isActive, true),
       ),
     );
-  if (!site || !agency || !kbems) {
+  const [emsCategory] = await db
+    .select({ id: trainingCodes.id })
+    .from(trainingCodes)
+    .where(eq(trainingCodes.kind, "ems"))
+    .limit(1);
+  if (!site || !agency || !kbems || !emsCategory) {
     throw new Error("EMS fixture references failed.");
   }
-  return { siteId: site.id, agencyId: agency.id, kbemsId: kbems.id };
+  return {
+    siteId: site.id,
+    agencyId: agency.id,
+    kbemsId: kbems.id,
+    emsCategoryId: emsCategory.id,
+  };
 }
 
 beforeAll(async () => {
@@ -87,7 +98,10 @@ describeDatabase("EMS course details", () => {
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID().slice(0, 8);
     const instructor = await createInstructor(db, suffix);
-    const { siteId, agencyId, kbemsId } = await fixtureRefs(db, suffix);
+    const { siteId, agencyId, kbemsId, emsCategoryId } = await fixtureRefs(
+      db,
+      suffix,
+    );
     const baseInput = {
       name: "EMT Refresher",
       trainingSiteId: siteId,
@@ -98,6 +112,7 @@ describeDatabase("EMS course details", () => {
       leadInstructorId: instructor.id,
       reportingSystemIds: [kbemsId],
       accessPinEnabled: false,
+      emsCategoryId,
     };
 
     await expect(

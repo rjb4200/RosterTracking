@@ -23,7 +23,7 @@ test("typing in a search control selects the first match", async ({ page }) => {
   const suffix = crypto.randomUUID();
   const code = `K7-${suffix.slice(0, 6)}`;
   const trainingCode = await pool.query<{ id: string }>(
-    "insert into training_codes (code, title, source_revision) values ($1, 'Hose Loads', 'e2e') returning id",
+    "insert into training_codes (kind, code, title, source_revision) values ('fire', $1, 'Hose Loads', 'e2e') returning id",
     [code],
   );
   const trainingCodeId = trainingCode.rows[0]?.id;

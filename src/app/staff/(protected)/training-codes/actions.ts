@@ -23,6 +23,7 @@ export async function createTrainingCodeAction(
   const actor = await requireActor(PERMISSIONS.TRAINING_CODES_MANAGE);
   try {
     await reference.createTrainingCode(getDatabase(), actor, {
+      kind: read(formData, "kind") === "ems" ? "ems" : "fire",
       code: read(formData, "code"),
       title: read(formData, "title"),
     });
@@ -46,6 +47,7 @@ export async function updateTrainingCodeAction(
   const id = read(formData, "id");
   try {
     await reference.updateTrainingCode(getDatabase(), actor, id, {
+      kind: read(formData, "kind") === "ems" ? "ems" : "fire",
       code: read(formData, "code"),
       title: read(formData, "title"),
     });

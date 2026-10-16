@@ -93,6 +93,13 @@ export default async function ClassReviewPage({
   const isOpen = classRecord.status === "open";
   const isFinalized = classRecord.status === "finalized";
   if (!isOpen && !isFinalized) notFound();
+  const componentKind = classRecord.reportingSystems.some(
+    (system) => system.code === "fire",
+  )
+    ? "fire"
+    : classRecord.reportingSystems.some((system) => system.code === "kbems")
+      ? "ems"
+      : undefined;
 
   const [reviewData, classOptions, revisionHistory] = await Promise.all([
     isOpen
@@ -462,6 +469,7 @@ export default async function ClassReviewPage({
                 objectives: classRecord.objectives,
                 courseType: classRecord.courseType,
                 courseNumber: classRecord.courseNumber,
+                emsCategoryId: classRecord.emsCategoryId,
                 mtuUsage: classRecord.mtuUsage,
                 reportingSystemIds: classRecord.reportingSystems.map(
                   (system) => system.id,
@@ -487,6 +495,7 @@ export default async function ClassReviewPage({
                     classId={classRecord.id}
                     action={saveComponentAction}
                     trainingCodes={classOptions.trainingCodes}
+                    trainingCodeKind={componentKind}
                     curricula={classOptions.curricula}
                     curriculumChapters={classOptions.curriculumChapters}
                     recentCurriculumIds={classOptions.recentCurriculumIds}
@@ -514,6 +523,7 @@ export default async function ClassReviewPage({
               action={saveComponentAction}
               defaultStartsAt={roundDepartmentDateTimeToQuarterHour(new Date())}
               trainingCodes={classOptions.trainingCodes}
+              trainingCodeKind={componentKind}
               curricula={classOptions.curricula}
               curriculumChapters={classOptions.curriculumChapters}
               recentCurriculumIds={classOptions.recentCurriculumIds}

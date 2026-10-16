@@ -17,7 +17,7 @@ async function seedFireFixtures(pool: Pool, suffix: string) {
     [`E2E Fire Agency ${suffix}`],
   );
   const trainingCode = await pool.query<{ id: string }>(
-    "insert into training_codes (code, title, source_revision) values ($1, 'Hose Loads', 'e2e') returning id",
+    "insert into training_codes (kind, code, title, source_revision) values ('fire', $1, 'Hose Loads', 'e2e') returning id",
     [`K0000-${suffix.slice(0, 6)}`],
   );
   const curriculum = await pool.query<{ id: string }>(

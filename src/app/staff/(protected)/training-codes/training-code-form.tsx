@@ -20,6 +20,7 @@ export function TrainingCodeForm({
   submitLabel?: string;
   values?: {
     id: string;
+    kind: string;
     code: string;
     title: string;
   };
@@ -30,6 +31,19 @@ export function TrainingCodeForm({
     <form action={formAction} className="stack-form">
       {values ? <input type="hidden" name="id" value={values.id} /> : null}
       <div className="form-grid">
+        <div className="field">
+          <Label htmlFor={`kind-${suffix}`}>Category type</Label>
+          <select
+            id={`kind-${suffix}`}
+            name="kind"
+            className="select-input"
+            defaultValue={values?.kind ?? "fire"}
+            required
+          >
+            <option value="fire">Fire</option>
+            <option value="ems">EMS</option>
+          </select>
+        </div>
         <div className="field">
           <Label htmlFor={`code-${suffix}`}>Code</Label>
           <Input

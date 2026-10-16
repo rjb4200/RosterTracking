@@ -27,6 +27,7 @@ import {
   roles,
   students,
   trainingClasses,
+  trainingCodes,
   trainingSites,
   userRoles,
   users,
@@ -92,6 +93,12 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     throw new Error("Certificate fixture references failed.");
   }
   const { systemId, setId } = await activeSetId(db, "kbems");
+  const [emsCategory] = await db
+    .select({ id: trainingCodes.id })
+    .from(trainingCodes)
+    .where(eq(trainingCodes.kind, "ems"))
+    .limit(1);
+  if (!emsCategory) throw new Error("EMS category fixture is missing.");
   const created = await createOpenClass(db, instructor, {
     name: `EMS Course ${suffix}`,
     trainingSiteId: site.id,
@@ -105,6 +112,7 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     courseType: "continuing_education",
     courseNumber: `CE-${suffix.slice(0, 6)}`,
     objectives: "Continuing education for EMTs",
+    emsCategoryId: emsCategory.id,
   });
   const classId = created.classRecord.id;
 

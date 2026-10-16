@@ -101,7 +101,14 @@ export function ClassCreationWizard({
     credentialName: string | null;
     credentialCode: string | null;
   }>;
-  trainingCodes: Array<{ id: string; code: string; title: string }>;
+  trainingCodes: Array<{
+    id: string;
+    code: string;
+    title: string;
+    kind: string;
+    categoryGroup: string | null;
+    mapsToId: string | null;
+  }>;
   agencyTags: Array<{ id: string; code: string; name: string }>;
   curricula: Array<{
     id: string;
@@ -128,6 +135,7 @@ export function ClassCreationWizard({
   const [values, setValues] = useState({
     className: "",
     kbemsCourseName: "",
+    emsCategoryId: "",
     trainingSiteId: "",
     hostAgencyId: "",
     deliveryMethod: "classroom",
@@ -145,6 +153,7 @@ export function ClassCreationWizard({
     newFireSubject(),
   ]);
   const [courseNumberTouched, setCourseNumberTouched] = useState(false);
+  const [emsCategoryTouched, setEmsCategoryTouched] = useState(false);
   const [courseNumberAckOpen, setCourseNumberAckOpen] = useState(false);
 
   const curriculaWithChapters = new Set(
@@ -231,6 +240,50 @@ export function ClassCreationWizard({
   const fireSelected = selectedCodes.includes("fire");
   const kbemsSelected = selectedCodes.includes("kbems");
   const firstFireTrainingCodeId = subjects[0]?.trainingCodeId ?? "";
+  const fireCategories = trainingCodes.filter(
+    (category) => category.kind === "fire",
+  );
+  const emsCategories = trainingCodes.filter(
+    (category) => category.kind === "ems",
+  );
+  const emsCategoryOptions: SearchSelectOption[] = emsCategories.map(
+    (category) => ({
+      value: category.id,
+      label: category.title,
+      group: category.categoryGroup === "core" ? "Core categories" : "Courses",
+    }),
+  );
+  const selectedEmsCategory = emsCategories.find(
+    (category) => category.id === values.emsCategoryId,
+  );
+
+  // A dual Fire + KBEMS class pre-fills the EMS category from the first Fire
+  // subject's mapped category while the field is untouched; a manual choice is
+  // never overwritten.
+  useEffect(() => {
+    if (!fireSelected || !kbemsSelected) return;
+    if (emsCategoryTouched) return;
+    const mappedId = trainingCodes.find(
+      (category) => category.id === firstFireTrainingCodeId,
+    )?.mapsToId;
+    if (!mappedId) return;
+    const mapped = trainingCodes.find((category) => category.id === mappedId);
+    setValues((current) =>
+      current.emsCategoryId === mappedId
+        ? current
+        : {
+            ...current,
+            emsCategoryId: mappedId,
+            kbemsCourseName: mapped ? mapped.title : current.kbemsCourseName,
+          },
+    );
+  }, [
+    fireSelected,
+    kbemsSelected,
+    firstFireTrainingCodeId,
+    emsCategoryTouched,
+    trainingCodes,
+  ]);
 
   // A dual Fire + KBEMS class carries the Fire training code as its course
   // number. Seed it once from the first Fire subject while the field is
@@ -308,6 +361,7 @@ export function ClassCreationWizard({
     leadInstructorId: values.leadInstructorId,
     hostAgencyId: values.hostAgencyId,
     kbemsCourseName: values.kbemsCourseName,
+    emsCategoryId: values.emsCategoryId,
     courseType: values.courseType,
     objectives: values.objectives,
     courseNumber: values.courseNumber,
@@ -447,7 +501,7 @@ export function ClassCreationWizard({
               key={subject.id}
               index={index}
               value={subject}
-              trainingCodes={trainingCodes}
+              trainingCodes={fireCategories}
               curricula={curricula}
               curriculumChapters={curriculumChapters}
               recentCurriculumIds={recentCurriculumIds}
@@ -468,6 +522,30 @@ export function ClassCreationWizard({
       {currentKey === "kbems" ? (
         <section className="stack-form">
           <h2>KBEMS reporting</h2>
+          <SearchSelect
+            id="emsCategoryId"
+            label="Category"
+            placeholder="Search EMS categories…"
+            emptyLabel="Select an EMS category"
+            required
+            invalid={errors.includes("emsCategoryId")}
+            options={emsCategoryOptions}
+            value={values.emsCategoryId}
+            onChange={(nextId) => {
+              const selected = emsCategories.find(
+                (category) => category.id === nextId,
+              );
+              setEmsCategoryTouched(true);
+              update("emsCategoryId", nextId);
+              setValues((current) => ({
+                ...current,
+                emsCategoryId: nextId,
+                kbemsCourseName: selected
+                  ? selected.title
+                  : current.kbemsCourseName,
+              }));
+            }}
+          />
           <div className="field">
             <Label htmlFor="kbemsCourseName">
               EMS course name
@@ -854,6 +932,8 @@ export function ClassCreationWizard({
             ) : null}
             {selectedCodes.includes("kbems") ? (
               <>
+                <dt>EMS category</dt>
+                <dd>{selectedEmsCategory?.title ?? "Not provided"}</dd>
                 <dt>Course type</dt>
                 <dd>{values.courseType.replace("_", " ") || "Not provided"}</dd>
                 <dt>Course number</dt>
@@ -955,6 +1035,11 @@ export function ClassCreationWizard({
         <>
           <input type="hidden" name="objectives" value={values.objectives} />
           <input type="hidden" name="courseType" value={values.courseType} />
+          <input
+            type="hidden"
+            name="emsCategoryId"
+            value={values.emsCategoryId}
+          />
           <input
             type="hidden"
             name="courseNumber"

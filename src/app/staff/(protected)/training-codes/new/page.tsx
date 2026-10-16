@@ -18,7 +18,7 @@ export default async function NewTrainingCodePage() {
       </Link>
       <div>
         <p className="eyebrow">Reference data</p>
-        <h1 className="staff-title">New training code</h1>
+        <h1 className="staff-title">New training category</h1>
       </div>
       <section className="admin-section">
         <TrainingCodeForm action={createTrainingCodeAction} />

@@ -11,6 +11,7 @@ export interface WizardValidationInput {
   leadInstructorId: string;
   hostAgencyId: string;
   kbemsCourseName: string;
+  emsCategoryId: string;
   courseType: string;
   objectives: string;
   courseNumber: string;
@@ -61,6 +62,7 @@ export function wizardStepErrors(
     return missing;
   }
   if (key === "kbems") {
+    if (!input.emsCategoryId) missing.push("emsCategoryId");
     if (!input.kbemsCourseName.trim()) missing.push("kbemsCourseName");
     if (!input.courseType) missing.push("courseType");
     if (!input.objectives.trim()) missing.push("objectives");

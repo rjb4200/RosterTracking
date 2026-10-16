@@ -32,6 +32,7 @@ import {
   AGENCY_TAG_CODES,
   MTU_CATALOG_KINDS,
   MTU_ROUNDING_MODES,
+  type TrainingCategoryKind,
 } from "./constants";
 import { validateCredentialValue } from "./credential-format";
 import { credentialLookupHash, encryptCredential } from "./crypto";
@@ -223,7 +224,8 @@ const siteInput = z.object({
 const MANUAL_SOURCE_REVISION = "manual";
 
 const trainingCodeInput = z.object({
-  code: z.string().trim().min(1).max(50),
+  kind: z.enum(["fire", "ems"]).optional().default("fire"),
+  code: z.string().trim().min(1).max(300),
   title: z.string().trim().min(1).max(300),
   sourceRevision: z.string().trim().max(50).optional().default(""),
 });
@@ -807,7 +809,11 @@ export async function upsertStudentCredential(
 
 // ── Training codes and sites ──────────────────────────────────────────────
 
-export async function listTrainingCodes(db: Database, query: string) {
+export async function listTrainingCodes(
+  db: Database,
+  query: string,
+  kind?: TrainingCategoryKind,
+) {
   const term = `%${query.trim()}%`;
   return db
     .select()
@@ -815,10 +821,16 @@ export async function listTrainingCodes(db: Database, query: string) {
     .where(
       and(
         isNull(trainingCodes.archivedAt),
+        kind ? eq(trainingCodes.kind, kind) : undefined,
         or(ilike(trainingCodes.code, term), ilike(trainingCodes.title, term)),
       ),
     )
-    .orderBy(trainingCodes.code)
+    .orderBy(
+      // NULLS LAST keeps the EMS "core" group above the rest; within a group
+      // ordering is alphabetical, so manually added rows also sort correctly.
+      trainingCodes.categoryGroup,
+      sql`lower(${trainingCodes.title})`,
+    )
     .limit(100);
 }
 
@@ -1001,17 +1013,22 @@ export async function archiveSite(db: Database, actor: Actor, id: string) {
 export async function importTrainingCodes(
   db: Database,
   actor: Actor,
-  rows: z.infer<typeof trainingCodeInput>[],
+  rows: z.input<typeof trainingCodeInput>[],
 ) {
   const parsed = rows.map((row) => trainingCodeInput.parse(row));
   return db.transaction(async (transaction) => {
     const importedIds: string[] = [];
+    const importedByKind = new Map<TrainingCategoryKind, string[]>();
     for (const row of parsed) {
       const result = await transaction
         .insert(trainingCodes)
         .values(row)
         .onConflictDoUpdate({
-          target: [trainingCodes.code, trainingCodes.sourceRevision],
+          target: [
+            trainingCodes.kind,
+            trainingCodes.code,
+            trainingCodes.sourceRevision,
+          ],
           set: {
             title: sql`excluded.title`,
             isActive: true,
@@ -1020,15 +1037,24 @@ export async function importTrainingCodes(
           },
         })
         .returning({ id: trainingCodes.id });
-      if (result[0]) importedIds.push(result[0].id);
+      if (result[0]) {
+        importedIds.push(result[0].id);
+        const forKind = importedByKind.get(row.kind) ?? [];
+        forKind.push(result[0].id);
+        importedByKind.set(row.kind, forKind);
+      }
     }
-    // Retire entries dropped from the approved list. This assumes a full-list
-    // import; a partial import would archive the rest of the catalog.
-    if (importedIds.length > 0) {
+    // Retire entries dropped from the approved list, but only within each kind
+    // the import supplied, so a Fire import never archives EMS categories.
+    for (const [kind, ids] of importedByKind) {
       await transaction
         .update(trainingCodes)
         .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
-        .where(notInArray(trainingCodes.id, importedIds));
+        .where(
+          and(eq(trainingCodes.kind, kind), notInArray(trainingCodes.id, ids)),
+        );
+    }
+    if (importedIds.length > 0) {
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -1241,6 +1267,7 @@ export async function createTrainingCode(
       const [code] = await transaction
         .insert(trainingCodes)
         .values({
+          kind: parsed.kind,
           code: parsed.code,
           title: parsed.title,
           sourceRevision,
@@ -1253,13 +1280,13 @@ export async function createTrainingCode(
         action: "training_code.created",
         entityType: "training_code",
         entityId: code.id,
-        details: { code: code.code },
+        details: { code: code.code, kind: code.kind },
       });
       return code;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new Error(
-          "A training code with that code and source revision already exists.",
+          "A training code with that code and source revision already exists in this category.",
         );
       }
       throw error;
@@ -1280,6 +1307,7 @@ export async function updateTrainingCode(
       const [code] = await transaction
         .update(trainingCodes)
         .set({
+          kind: parsed.kind,
           code: parsed.code,
           title: parsed.title,
           sourceRevision,
@@ -1294,13 +1322,13 @@ export async function updateTrainingCode(
         action: "training_code.updated",
         entityType: "training_code",
         entityId: code.id,
-        details: { code: code.code },
+        details: { code: code.code, kind: code.kind },
       });
       return code;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new Error(
-          "A training code with that code and source revision already exists.",
+          "A training code with that code and source revision already exists in this category.",
         );
       }
       throw error;

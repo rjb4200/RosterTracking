@@ -58,6 +58,10 @@ export const trainingClasses = pgTable(
     // EMS course details printed on the completion certificate.
     courseType: text("course_type"),
     courseNumber: text("course_number"),
+    // The EMS category selected on the KBEMS step, kept for reporting/audits.
+    emsCategoryId: uuid("ems_category_id").references(() => trainingCodes.id, {
+      onDelete: "set null",
+    }),
     status: text("status").default("draft").notNull(),
     signInTokenHash: text("sign_in_token_hash").notNull(),
     signInTokenVersion: integer("sign_in_token_version").default(1).notNull(),

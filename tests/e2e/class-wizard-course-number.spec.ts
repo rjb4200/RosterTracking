@@ -18,7 +18,7 @@ const NEW_NUMBER_LABEL = "Type a new number";
 async function seedTrainingCode(code: string): Promise<string> {
   const pool = new Pool({ connectionString, max: 1 });
   const trainingCode = await pool.query<{ id: string }>(
-    "insert into training_codes (code, title, source_revision) values ($1, 'Hose Loads', 'e2e') returning id",
+    "insert into training_codes (kind, code, title, source_revision) values ('fire', $1, 'Hose Loads', 'e2e') returning id",
     [code],
   );
   await pool.end();
@@ -132,6 +132,9 @@ test("initial certification drops the Fire code and warns on a malformed number"
 
   await page.getByLabel("EMS course name").fill("EMT Initial");
   await page.getByLabel("Course type").selectOption("initial_certification");
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
 
   // The Fire training code is not carried into an initial-certification number;
   // the new-number input starts empty.
@@ -171,6 +174,9 @@ test("initial certification accepts a correctly formatted number and normalizes 
 
   await page.getByLabel("EMS course name").fill("EMT Initial");
   await page.getByLabel("Course type").selectOption("initial_certification");
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
   await page
     .getByRole("combobox", { name: "Course number" })
     .selectOption({ label: NEW_NUMBER_LABEL });
