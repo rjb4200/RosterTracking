@@ -67,7 +67,7 @@ requires an explicit target (`--database=integration`, `--database=e2e`, or
 
 `npm run smoke` covers the public class sign-in entry, staff sign-in and the
 workspace landing, the class list, class detail (when a class exists), and the
-reporting queue (when the signed-in account can see it).
+Reports workspace (when the signed-in account can see it).
 
 The smoke journeys only read. They never submit a form, so the subset can run
 against a database that has not been reset — including a live environment — to

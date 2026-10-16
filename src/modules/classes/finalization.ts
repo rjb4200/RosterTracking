@@ -1,17 +1,6 @@
 import "server-only";
 
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNull,
-  lte,
-  type SQL,
-  sql,
-} from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { buildClassSignInRecord } from "@/modules/class-sign-in-record/service";
 import {
   queueCertificateDeliveries,
@@ -374,6 +363,7 @@ export async function finalizeClass(
     equipmentIds: string[];
     supplies: { itemId: string; quantity?: string | number }[];
     transportIds?: string[];
+    transportMileage?: Record<string, string>;
     equipmentUsed?: string;
     usedSupplies?: string;
     mileage?: string;
@@ -414,6 +404,7 @@ export async function finalizeClass(
         equipmentIds: mtu.equipmentIds ?? [],
         supplies: mtu.supplies ?? [],
         transportIds: mtu.transportIds ?? [],
+        transportMileage: mtu.transportMileage ?? {},
         equipmentUsed: mtu.equipmentUsed,
         usedSupplies: mtu.usedSupplies,
         mileage: mtu.mileage,
@@ -486,7 +477,7 @@ export async function finalizeClass(
           completedAt: snapshot.class.completedAt,
           attendanceCount: snapshot.attendance.length,
           instructorCount: snapshot.instructors.length,
-          // Frozen so the Fire reporting queue can count the eligible subset
+          // Frozen so a future Fire export can count the eligible subset
           // without re-evaluating mutable credentials.
           fireEligibleCount: countFireEligible(snapshot),
         },
@@ -720,169 +711,5 @@ export async function getFinalizationHistory(
         (status) => status.revisionId === revision.id,
       ),
     }));
-  });
-}
-
-export async function listReportingQueue(
-  db: Database,
-  actor: FinalizationActor,
-  filters: {
-    reportingSystemId?: string;
-    status?: string;
-    from?: Date;
-    to?: Date;
-  } = {},
-) {
-  return db.transaction(async (transaction) => {
-    await requireReportingAccess(transaction, actor);
-    const classDate = sql<Date | null>`(
-      select min(${classComponents.startsAt})
-      from ${classComponents}
-      where ${classComponents.classId} = ${trainingClasses.id}
-    )`;
-    const leadInstructor = sql<string | null>`(
-      select ${users.displayName}
-      from ${classInstructors}
-      inner join ${users} on ${users.id} = ${classInstructors.userId}
-      where ${classInstructors.classId} = ${trainingClasses.id}
-        and ${classInstructors.isLead}
-      limit 1
-    )`;
-    const attendanceCount = sql<number>`(
-      select count(*)::int
-      from ${attendance}
-      where ${attendance.classId} = ${trainingClasses.id}
-        and ${attendance.removedAt} is null
-    )`;
-    // Only active destinations are offered as work; a retired destination
-    // (for example FEMA) keeps its history but no longer appears as queue work.
-    const baseFilters: SQL[] = [eq(reportingSystems.isActive, true)];
-    if (filters.reportingSystemId) {
-      baseFilters.push(
-        eq(
-          finalizationReportingStatuses.reportingSystemId,
-          filters.reportingSystemId,
-        ),
-      );
-    }
-    if (filters.from) baseFilters.push(gte(classDate, filters.from));
-    if (filters.to) baseFilters.push(lte(classDate, filters.to));
-    const rowFilters = [...baseFilters];
-    if (filters.status) {
-      rowFilters.push(eq(finalizationReportingStatuses.status, filters.status));
-    } else {
-      rowFilters.push(
-        inArray(finalizationReportingStatuses.status, [
-          "pending",
-          "needs_correction",
-        ]),
-      );
-    }
-
-    const rows = await transaction
-      .select({
-        revisionId: finalizationRevisions.id,
-        revisionNumber: finalizationRevisions.revisionNumber,
-        classId: trainingClasses.id,
-        classDate,
-        courseName: trainingClasses.name,
-        leadInstructor,
-        attendanceCount,
-        systemId: reportingSystems.id,
-        systemCode: reportingSystems.code,
-        systemName: reportingSystems.name,
-        status: finalizationReportingStatuses.status,
-        referenceNumber: finalizationReportingStatuses.referenceNumber,
-        notes: finalizationReportingStatuses.notes,
-        updatedAt: finalizationReportingStatuses.updatedAt,
-        summary: finalizationRevisions.summary,
-        // The immediately preceding revision of the same class, and its status
-        // for the same destination. Null for a first-time finalization.
-        supersededRevisionNumber: sql<number | null>`(
-          select max(previous_revision.revision_number)
-          from finalization_revisions previous_revision
-          where previous_revision.class_id = ${trainingClasses.id}
-            and previous_revision.revision_number < ${finalizationRevisions.revisionNumber}
-        )`,
-        supersededStatus: sql<string | null>`(
-          select previous_status.status
-          from finalization_reporting_statuses previous_status
-          inner join finalization_revisions previous_revision
-            on previous_revision.id = previous_status.revision_id
-          where previous_revision.class_id = ${trainingClasses.id}
-            and previous_revision.revision_number < ${finalizationRevisions.revisionNumber}
-            and previous_status.reporting_system_id = ${finalizationReportingStatuses.reportingSystemId}
-          order by previous_revision.revision_number desc
-          limit 1
-        )`,
-      })
-      .from(finalizationReportingStatuses)
-      .innerJoin(
-        finalizationRevisions,
-        eq(finalizationRevisions.id, finalizationReportingStatuses.revisionId),
-      )
-      .innerJoin(
-        trainingClasses,
-        eq(trainingClasses.id, finalizationRevisions.classId),
-      )
-      .innerJoin(
-        reportingSystems,
-        eq(
-          reportingSystems.id,
-          finalizationReportingStatuses.reportingSystemId,
-        ),
-      )
-      .where(and(...rowFilters))
-      .orderBy(asc(finalizationReportingStatuses.updatedAt));
-    const summaries = await transaction
-      .select({
-        systemId: reportingSystems.id,
-        systemCode: reportingSystems.code,
-        systemName: reportingSystems.name,
-        status: finalizationReportingStatuses.status,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(finalizationReportingStatuses)
-      .innerJoin(
-        finalizationRevisions,
-        eq(finalizationRevisions.id, finalizationReportingStatuses.revisionId),
-      )
-      .innerJoin(
-        trainingClasses,
-        eq(trainingClasses.id, finalizationRevisions.classId),
-      )
-      .innerJoin(
-        reportingSystems,
-        eq(
-          reportingSystems.id,
-          finalizationReportingStatuses.reportingSystemId,
-        ),
-      )
-      .where(and(...baseFilters))
-      .groupBy(
-        reportingSystems.id,
-        reportingSystems.code,
-        reportingSystems.name,
-        finalizationReportingStatuses.status,
-      )
-      .orderBy(
-        asc(reportingSystems.name),
-        asc(finalizationReportingStatuses.status),
-      );
-    // The Fire destination covers only valid-FFN attendees, so its queue count
-    // uses the frozen eligible subset rather than the full roster.
-    const countedRows = rows.map((row) => {
-      const frozen = (row.summary as { fireEligibleCount?: unknown } | null)
-        ?.fireEligibleCount;
-      return {
-        ...row,
-        attendanceCount:
-          row.systemCode === "fire" && typeof frozen === "number"
-            ? frozen
-            : row.attendanceCount,
-        summary: undefined,
-      };
-    });
-    return { rows: countedRows, summaries };
   });
 }

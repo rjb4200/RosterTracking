@@ -1,30 +1,12 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-
-import {
-  listReportingQueue,
-  updateReportingDestination,
-} from "../../src/modules/classes/finalization";
+import { updateReportingDestination } from "../../src/modules/classes/finalization";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
-import {
-  agencies,
-  auditLogs,
-  classComponents,
-  classInstructors,
-  finalizationReportingStatuses,
-  finalizationRevisions,
-  reportingSystems,
-  roles,
-  trainingClasses,
-  trainingSites,
-  userRoles,
-  users,
-} from "../../src/server/db/schema";
 import { seedFoundation } from "../../src/server/db/seed";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -32,125 +14,6 @@ const describeDatabase = connectionString ? describe : describe.skip;
 const pool = connectionString
   ? new Pool({ connectionString, max: 1 })
   : undefined;
-
-async function createUser(
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  suffix: string,
-  roleCode: string,
-) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      username: `${roleCode}-${suffix}`,
-      displayName: roleCode,
-      passwordHash: "fixture-password-hash",
-    })
-    .returning({ id: users.id, username: users.username });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(eq(roles.code, roleCode));
-  if (!user || !role)
-    throw new Error("Reporting fixture user creation failed.");
-  await db.insert(userRoles).values({ userId: user.id, roleId: role.id });
-  return user;
-}
-
-async function createReportingClassFixture(
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  suffix: string,
-) {
-  const instructor = await createUser(
-    db,
-    `${suffix}-instructor`,
-    ROLE_CODES.INSTRUCTOR,
-  );
-  const [site] = await db
-    .insert(trainingSites)
-    .values({ name: `Supersede Site ${suffix}` })
-    .returning({ id: trainingSites.id });
-  const [agency] = await db
-    .insert(agencies)
-    .values({ name: `Supersede Agency ${suffix}` })
-    .returning({ id: agencies.id });
-  const [fire] = await db
-    .select({ id: reportingSystems.id })
-    .from(reportingSystems)
-    .where(eq(reportingSystems.code, "fire"));
-  if (!site || !agency || !fire)
-    throw new Error("Supersession fixture creation failed.");
-  const [classRecord] = await db
-    .insert(trainingClasses)
-    .values({
-      name: `Supersede Course ${suffix}`,
-      trainingSiteId: site.id,
-      hostAgencyId: agency.id,
-      createdByUserId: instructor.id,
-      deliveryMethod: "classroom",
-      status: "finalized",
-      signInTokenHash: crypto.randomUUID(),
-    })
-    .returning({ id: trainingClasses.id });
-  if (!classRecord) throw new Error("Supersession fixture class failed.");
-  await db.insert(classComponents).values({
-    classId: classRecord.id,
-    startsAt: new Date("2026-09-14T13:00:00Z"),
-    endsAt: new Date("2026-09-14T17:00:00Z"),
-    creditedHours: "4",
-  });
-  await db.insert(classInstructors).values({
-    classId: classRecord.id,
-    userId: instructor.id,
-    isLead: true,
-  });
-  return {
-    classId: classRecord.id,
-    instructorId: instructor.id,
-    fireId: fire.id,
-  };
-}
-
-async function addRevision(
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  input: {
-    classId: string;
-    instructorId: string;
-    revisionNumber: number;
-    fireId: string;
-    fireStatus: string;
-  },
-) {
-  const [revision] = await db
-    .insert(finalizationRevisions)
-    .values({
-      classId: input.classId,
-      revisionNumber: input.revisionNumber,
-      finalizedByUserId: input.instructorId,
-      encryptedSnapshot: "fixture",
-      summary: {},
-    })
-    .returning({ id: finalizationRevisions.id });
-  if (!revision) throw new Error("Supersession fixture revision failed.");
-  await db.insert(finalizationReportingStatuses).values({
-    revisionId: revision.id,
-    reportingSystemId: input.fireId,
-    status: input.fireStatus,
-  });
-  return revision.id;
-}
-
-// The queue is shared, so fixture destinations are retired after each test to
-// keep unrelated pending work out of other assertions.
-async function retireRevisions(
-  db: ReturnType<typeof drizzle<typeof schema>>,
-  revisionIds: string[],
-) {
-  if (!revisionIds.length) return;
-  await db
-    .update(finalizationReportingStatuses)
-    .set({ status: "not_required", updatedAt: new Date() })
-    .where(inArray(finalizationReportingStatuses.revisionId, revisionIds));
-}
 
 beforeAll(async () => {
   if (!pool) return;
@@ -164,56 +27,51 @@ afterAll(async () => {
   await pool?.end();
 });
 
-describeDatabase("finalization reporting queue", () => {
-  it("tracks destination work independently and filters the reporting queue", async () => {
+describeDatabase("retained finalization destination statuses", () => {
+  it("retains independent destination writes, authorization, and audit history for future exports", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
-    const reporter = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
-    const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
-    const [site] = await db
-      .insert(trainingSites)
-      .values({ name: `Reporting Site ${suffix}` })
-      .returning({ id: trainingSites.id });
+    async function createUser(roleCode: string) {
+      const [user] = await db
+        .insert(schema.users)
+        .values({
+          username: `${roleCode}-${suffix}`,
+          displayName: roleCode,
+          passwordHash: "fixture",
+        })
+        .returning();
+      const [role] = await db
+        .select()
+        .from(schema.roles)
+        .where(eq(schema.roles.code, roleCode));
+      if (!user || !role) throw new Error("Destination fixture user failed.");
+      await db
+        .insert(schema.userRoles)
+        .values({ userId: user.id, roleId: role.id });
+      return user;
+    }
+    const reporter = await createUser(ROLE_CODES.TRAINING_MAJOR);
+    const instructor = await createUser(ROLE_CODES.INSTRUCTOR);
     const [agency] = await db
-      .insert(agencies)
-      .values({ name: `Reporting Agency ${suffix}` })
-      .returning({ id: agencies.id });
-    const systems = await db
-      .select({ id: reportingSystems.id, code: reportingSystems.code })
-      .from(reportingSystems)
-      .where(eq(reportingSystems.isActive, true));
-    const fire = systems.find((system) => system.code === "fire");
-    const kbems = systems.find((system) => system.code === "kbems");
-    if (!site || !agency || !fire || !kbems)
-      throw new Error("Reporting fixture reference creation failed.");
+      .insert(schema.agencies)
+      .values({ name: `Retained status agency ${suffix}` })
+      .returning();
+    if (!agency) throw new Error("Destination fixture agency failed.");
     const [classRecord] = await db
-      .insert(trainingClasses)
+      .insert(schema.trainingClasses)
       .values({
-        name: `Reporting Course ${suffix}`,
-        trainingSiteId: site.id,
+        name: `Retained status ${suffix}`,
         hostAgencyId: agency.id,
         createdByUserId: instructor.id,
-        deliveryMethod: "classroom",
+        deliveryMethod: "online",
         status: "finalized",
-        signInTokenHash: crypto.randomUUID(),
+        signInTokenHash: suffix,
       })
-      .returning({ id: trainingClasses.id });
-    if (!classRecord)
-      throw new Error("Reporting fixture class creation failed.");
-    await db.insert(classComponents).values({
-      classId: classRecord.id,
-      startsAt: new Date("2026-09-14T13:00:00Z"),
-      endsAt: new Date("2026-09-14T17:00:00Z"),
-      creditedHours: "4",
-    });
-    await db.insert(classInstructors).values({
-      classId: classRecord.id,
-      userId: instructor.id,
-      isLead: true,
-    });
+      .returning();
+    if (!classRecord) throw new Error("Destination fixture class failed.");
     const [revision] = await db
-      .insert(finalizationRevisions)
+      .insert(schema.finalizationRevisions)
       .values({
         classId: classRecord.id,
         revisionNumber: 1,
@@ -221,168 +79,54 @@ describeDatabase("finalization reporting queue", () => {
         encryptedSnapshot: "fixture",
         summary: {},
       })
-      .returning({ id: finalizationRevisions.id });
-    if (!revision)
-      throw new Error("Reporting fixture revision creation failed.");
-    await db.insert(finalizationReportingStatuses).values([
-      {
-        revisionId: revision.id,
-        reportingSystemId: fire.id,
-        status: "pending",
-      },
-      {
-        revisionId: revision.id,
-        reportingSystemId: kbems.id,
-        status: "needs_correction",
-        notes: "Missing external entry",
-      },
+      .returning();
+    const systems = await db.select().from(schema.reportingSystems);
+    const fire = systems.find((system) => system.code === "fire");
+    const kbems = systems.find((system) => system.code === "kbems");
+    if (!revision || !fire || !kbems)
+      throw new Error("Destination fixture references failed.");
+    await db.insert(schema.finalizationReportingStatuses).values([
+      { revisionId: revision.id, reportingSystemId: fire.id },
+      { revisionId: revision.id, reportingSystemId: kbems.id },
     ]);
-
-    await expect(listReportingQueue(db, instructor)).rejects.toThrow(
-      /Training Major or Administrator/i,
-    );
-    const pending = await listReportingQueue(db, reporter);
-    expect(pending.rows).toHaveLength(2);
-    expect(pending.rows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          systemId: fire.id,
-          courseName: `Reporting Course ${suffix}`,
-          leadInstructor: ROLE_CODES.INSTRUCTOR,
-          attendanceCount: 0,
-        }),
-      ]),
-    );
-
-    await updateReportingDestination(db, reporter, {
+    const input = {
       revisionId: revision.id,
       reportingSystemId: fire.id,
       status: "entered",
       referenceNumber: " FIRE-42 ",
-    });
-    const [fireStatus] = await db
+    };
+    await expect(
+      updateReportingDestination(db, instructor, input),
+    ).rejects.toThrow(/Training Major or Administrator/i);
+    await updateReportingDestination(db, reporter, input);
+    const statuses = await db
       .select()
-      .from(finalizationReportingStatuses)
-      .where(
-        and(
-          eq(finalizationReportingStatuses.revisionId, revision.id),
-          eq(finalizationReportingStatuses.reportingSystemId, fire.id),
-        ),
-      );
-    const [kbemsStatus] = await db
-      .select()
-      .from(finalizationReportingStatuses)
-      .where(
-        and(
-          eq(finalizationReportingStatuses.revisionId, revision.id),
-          eq(finalizationReportingStatuses.reportingSystemId, kbems.id),
-        ),
-      );
-    expect(fireStatus).toMatchObject({
+      .from(schema.finalizationReportingStatuses)
+      .where(eq(schema.finalizationReportingStatuses.revisionId, revision.id));
+    expect(
+      statuses.find((status) => status.reportingSystemId === fire.id),
+    ).toMatchObject({
       status: "entered",
       referenceNumber: "FIRE-42",
       reportedByUserId: reporter.id,
     });
-    expect(fireStatus?.reportedAt).toBeInstanceOf(Date);
-    expect(kbemsStatus).toMatchObject({
-      status: "needs_correction",
-      notes: "Missing external entry",
-    });
+    expect(
+      statuses.find((status) => status.reportingSystemId === kbems.id),
+    ).toMatchObject({ status: "pending" });
     await updateReportingDestination(db, reporter, {
       revisionId: revision.id,
       reportingSystemId: kbems.id,
       status: "not_required",
     });
-    const filtered = await listReportingQueue(db, reporter, {
-      reportingSystemId: kbems.id,
-      status: "not_required",
-      from: new Date("2026-09-14T00:00:00Z"),
-      to: new Date("2026-09-14T23:59:59Z"),
-    });
-    expect(filtered.rows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          revisionId: revision.id,
-          systemId: kbems.id,
-          status: "not_required",
-        }),
-      ]),
-    );
     const audit = await db
-      .select({ action: auditLogs.action, details: auditLogs.details })
-      .from(auditLogs)
-      .where(eq(auditLogs.entityId, revision.id));
-    expect(audit).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ action: "reporting.destination.updated" }),
-      ]),
-    );
-  });
-
-  it("marks a re-finalized class's destination work as revised and names the prior status", async () => {
-    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
-    const db = drizzle(pool, { schema });
-    const suffix = crypto.randomUUID();
-    const reporter = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
-    const fixture = await createReportingClassFixture(db, suffix);
-    const revisionIds: string[] = [];
-    try {
-      revisionIds.push(
-        await addRevision(db, {
-          ...fixture,
-          revisionNumber: 1,
-          fireStatus: "entered",
-        }),
+      .select()
+      .from(schema.auditLogs)
+      .where(
+        and(
+          eq(schema.auditLogs.entityId, revision.id),
+          eq(schema.auditLogs.action, "reporting.destination.updated"),
+        ),
       );
-      const secondRevisionId = await addRevision(db, {
-        ...fixture,
-        revisionNumber: 2,
-        fireStatus: "pending",
-      });
-      revisionIds.push(secondRevisionId);
-
-      const queue = await listReportingQueue(db, reporter);
-      const revised = queue.rows.find(
-        (row) =>
-          row.revisionId === secondRevisionId &&
-          row.systemId === fixture.fireId,
-      );
-      // The prior status ("entered") is outside the default filter, yet it is
-      // still carried on the revised item.
-      expect(revised).toMatchObject({
-        supersededRevisionNumber: 1,
-        supersededStatus: "entered",
-      });
-    } finally {
-      await retireRevisions(db, revisionIds);
-    }
-  });
-
-  it("does not mark a first-time finalization as revised", async () => {
-    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
-    const db = drizzle(pool, { schema });
-    const suffix = crypto.randomUUID();
-    const reporter = await createUser(db, suffix, ROLE_CODES.TRAINING_MAJOR);
-    const fixture = await createReportingClassFixture(db, suffix);
-    const revisionIds: string[] = [];
-    try {
-      const revisionId = await addRevision(db, {
-        ...fixture,
-        revisionNumber: 1,
-        fireStatus: "pending",
-      });
-      revisionIds.push(revisionId);
-
-      const queue = await listReportingQueue(db, reporter);
-      const firstTime = queue.rows.find(
-        (row) =>
-          row.revisionId === revisionId && row.systemId === fixture.fireId,
-      );
-      expect(firstTime).toBeDefined();
-      expect(firstTime?.supersededRevisionNumber).toBeNull();
-      expect(firstTime?.supersededStatus).toBeNull();
-    } finally {
-      await retireRevisions(db, revisionIds);
-    }
+    expect(audit).toHaveLength(2);
   });
 });

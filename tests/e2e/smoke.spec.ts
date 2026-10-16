@@ -87,23 +87,21 @@ test.describe("@smoke critical pages render", () => {
     }
   });
 
-  test("reporting queue renders for an operator who can see it", async ({
-    page,
-  }) => {
+  test("Reports renders for an operator who can see it", async ({ page }) => {
     test.skip(!username || !password, "Set E2E staff credentials.");
     if (!username || !password) return;
 
     await signIn(page, username, password);
-    const reportingLink = page.getByRole("link", { name: "Reporting" });
-    test.skip(
-      !(await reportingLink.count()),
-      "Account has no reporting queue.",
-    );
+    const reportingLink = page.getByRole("link", {
+      name: "Reports",
+      exact: true,
+    });
+    test.skip(!(await reportingLink.count()), "Account has no Reports access.");
     if (!(await reportingLink.count())) return;
 
     await reportingLink.click();
     await expect(
-      page.getByRole("heading", { name: "Reporting queue" }),
+      page.getByRole("heading", { name: "Reports", exact: true }),
     ).toBeVisible();
     await expectNoRenderError(page);
   });

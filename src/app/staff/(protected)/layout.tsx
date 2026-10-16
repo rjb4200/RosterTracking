@@ -2,7 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
-import { hasPermission, PERMISSIONS } from "@/modules/staff-auth/permissions";
+import {
+  hasPermission,
+  PERMISSIONS,
+  ROLE_CODES,
+} from "@/modules/staff-auth/permissions";
 import { isAdministrator } from "@/modules/staff-auth/workspaces";
 
 import { LogoutButton } from "../logout-button";
@@ -51,8 +55,8 @@ const navItems: Array<{ href: string; label: string; permission: string }> = [
     permission: PERMISSIONS.MTU_CATALOG_MANAGE,
   },
   {
-    href: "/staff/reporting",
-    label: "Reporting",
+    href: "/staff/reports",
+    label: "Reports",
     permission: PERMISSIONS.REPORTING_MANAGE,
   },
   {
@@ -86,6 +90,9 @@ export default async function ProtectedStaffLayout({
           .filter(
             (item) =>
               staff.permissions.has(item.permission) &&
+              (item.href !== "/staff/reports" ||
+                isAdministrator(staff.roleCodes) ||
+                staff.roleCodes.has(ROLE_CODES.TRAINING_MAJOR)) &&
               (item.href !== "/staff/accounts" ||
                 isAdministrator(staff.roleCodes)),
           )

@@ -1,6 +1,36 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateSupplyQuantity, hasMtuUsage, normalizeMtuUsage } from "./mtu";
+import {
+  estimateSupplyQuantity,
+  hasMtuUsage,
+  normalizeMtuUsage,
+  parseTransportMileage,
+} from "./mtu";
+
+describe("per-transport mileage", () => {
+  it.each([
+    [undefined, null],
+    ["", null],
+    ["   ", null],
+    ["0", 0],
+    [" 120.5 ", 120.5],
+    [".25", 0.25],
+  ])("parses %s as %s", (input, expected) => {
+    expect(parseTransportMileage(input)).toBe(expected);
+  });
+
+  it.each([
+    "-1",
+    "NaN",
+    "Infinity",
+    "0x10",
+    "120 miles",
+    "~120",
+    "9".repeat(400),
+  ])("rejects invalid mileage %s", (input) => {
+    expect(() => parseTransportMileage(input)).toThrow(/non-negative number/);
+  });
+});
 
 describe("supply quantity estimation", () => {
   it("estimates a per-class quantity", () => {
