@@ -23,7 +23,7 @@ export default async function ReportsPage() {
       <section className="admin-section">
         <h2>Generate a report</h2>
         <p className="text-muted-foreground">
-          Choose a time frame and report to download. Reports reflect current
+          Choose a date range and report to download. Reports reflect current
           class records, including changes made after finalization.
         </p>
         <ReportsForm

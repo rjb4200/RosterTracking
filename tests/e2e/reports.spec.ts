@@ -74,11 +74,9 @@ test("Reports generates and downloads the MTU Usage Summary PDF", async ({
     ).toHaveAttribute("href", "/staff/reports");
     const generate = page.getByRole("button", { name: "Download report PDF" });
     await expect(generate).toBeDisabled();
-    await page.getByLabel("Time frame").selectOption("last-month");
-    await expect(generate).toBeDisabled();
-    await page.getByLabel("Time frame").selectOption("custom");
     await page.getByLabel("From", { exact: true }).fill("2026-01-01");
     await page.getByLabel("To", { exact: true }).fill("2026-01-31");
+    await expect(generate).toBeDisabled();
     await page
       .getByLabel("Report", { exact: true })
       .selectOption("mtu-usage-summary");

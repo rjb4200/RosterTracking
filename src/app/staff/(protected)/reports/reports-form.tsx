@@ -8,55 +8,21 @@ export function ReportsForm({
 }: {
   reports: { id: string; label: string; description: string }[];
 }) {
-  const [timeFrame, setTimeFrame] = useState("");
   const [reportId, setReportId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  function selectTimeFrame(value: string) {
-    setTimeFrame(value);
-    setError("");
-    if (!value || value === "custom") {
-      setFrom("");
-      setTo("");
-      return;
-    }
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const start =
-      value === "this-month"
-        ? new Date(year, month, 1)
-        : value === "last-month"
-          ? new Date(year, month - 1, 1)
-          : value === "this-year"
-            ? new Date(year, 0, 1)
-            : new Date(year - 1, 0, 1);
-    const end =
-      value === "this-month"
-        ? new Date(year, month + 1, 0)
-        : value === "last-month"
-          ? new Date(year, month, 0)
-          : value === "this-year"
-            ? new Date(year, 11, 31)
-            : new Date(year - 1, 11, 31);
-    const date = (value: Date) =>
-      `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
-    setFrom(date(start));
-    setTo(date(end));
-  }
+  const ready = Boolean(from && to && reportId) && from <= to;
 
   return (
     <form
       className="mt-6 grid max-w-xl gap-4"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!timeFrame || !reportId || !from || !to) {
-          setError(
-            "Select a time frame and report, including both custom dates.",
-          );
+        if (!from || !to || !reportId) {
+          setError("Select a date range and a report.");
           return;
         }
         if (from > to) {
@@ -94,58 +60,38 @@ export function ReportsForm({
         }
       }}
     >
-      <label htmlFor="report-time-frame">Time frame</label>
-      <select
-        id="report-time-frame"
-        className="select-input"
-        value={timeFrame}
-        onChange={(event) => selectTimeFrame(event.target.value)}
+      <label htmlFor="report-from">From</label>
+      <input
+        id="report-from"
+        name="from"
+        type="date"
+        className="search-input"
+        value={from}
+        max={to || "9999-12-31"}
+        onChange={(event) => setFrom(event.target.value)}
         required
-      >
-        <option value="">Select a time frame</option>
-        <option value="this-month">This month</option>
-        <option value="last-month">Last month</option>
-        <option value="this-year">This year</option>
-        <option value="last-year">Last year</option>
-        <option value="custom">Custom dates</option>
-      </select>
-      {timeFrame === "custom" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label>
-            From
-            <input
-              className="search-input block w-full"
-              type="date"
-              required
-              value={from}
-              max={to || "9999-12-31"}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </label>
-          <label>
-            To
-            <input
-              className="search-input block w-full"
-              type="date"
-              required
-              value={to}
-              min={from}
-              max="9999-12-31"
-              onChange={(event) => setTo(event.target.value)}
-            />
-          </label>
-        </div>
-      ) : from && to ? (
-        <p className="text-muted-foreground">
-          {from} through {to} (inclusive)
-        </p>
-      ) : null}
+      />
+      <label htmlFor="report-to">To</label>
+      <input
+        id="report-to"
+        name="to"
+        type="date"
+        className="search-input"
+        value={to}
+        min={from}
+        max="9999-12-31"
+        onChange={(event) => setTo(event.target.value)}
+        required
+      />
       <label htmlFor="report-picker">Report</label>
       <select
         id="report-picker"
         className="select-input"
         value={reportId}
-        onChange={(event) => setReportId(event.target.value)}
+        onChange={(event) => {
+          setReportId(event.target.value);
+          setError("");
+        }}
         required
       >
         <option value="">Select a report</option>
@@ -160,11 +106,13 @@ export function ReportsForm({
           {reports.find((report) => report.id === reportId)?.description}
         </p>
       ) : null}
+      {from && to ? (
+        <p className="text-muted-foreground">
+          {from} through {to} (inclusive)
+        </p>
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
-      <Button
-        type="submit"
-        disabled={busy || !timeFrame || !reportId || !from || !to}
-      >
+      <Button type="submit" disabled={busy || !ready}>
         {busy ? "Generating report..." : "Download report PDF"}
       </Button>
     </form>
