@@ -288,6 +288,13 @@
       "when": 1792007793906,
       "tag": "0040_peaceful_cerebro",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792153437390,
+      "tag": "0041_seed_mtu_catalog_permission",
+      "breakpoints": true
     }
   ]
 }
