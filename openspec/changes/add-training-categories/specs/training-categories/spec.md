@@ -12,37 +12,45 @@ The system SHALL represent each training category with a kind of `fire` or `ems`
 - **WHEN** staff create a training category and choose the EMS kind
 - **THEN** the category is stored with kind `ems`
 
-### Requirement: Training categories are listed in kind sections, ordered alphabetically
+### Requirement: Training categories are listed in kind sections, pinned first
 
-The system SHALL list the training-category catalog as a Fire section followed by an EMS section, and SHALL order the categories within each section alphabetically by their label.
+The system SHALL list the training-category catalog as a Fire section followed by an EMS section, and SHALL order the categories within each section with pinned categories first and the remainder alphabetically by label. The list SHALL NOT draw a separator.
 
 #### Scenario: Fire section precedes the EMS section
 - **WHEN** staff open the training-category catalog
 - **THEN** the Fire categories are listed first and the EMS categories are listed after them
 
-#### Scenario: Alphabetical within a section
+#### Scenario: Pinned categories lead their section
 - **WHEN** a section's categories are listed
-- **THEN** they appear in alphabetical order by label
+- **THEN** the pinned categories appear first and the remainder follow in alphabetical order by label
 
-### Requirement: EMS categories group a core set above a separator
+#### Scenario: No separator in the list
+- **WHEN** the training-category catalog is listed
+- **THEN** the list shows no separator row between the pinned and unpinned categories
 
-The system SHALL place the five core EMS categories — Airway, Cardiology, Medical, Operations, and Trauma — in a separate group that is offered above a separator, and SHALL offer the remaining EMS categories as a following group, each group ordered alphabetically.
+### Requirement: Staff can pin a category to sit above a separator
 
-#### Scenario: Offer the core group first
-- **WHEN** the EMS categories are offered in a picker
-- **THEN** the core categories are shown in a group above a separator and the remaining categories follow in their own group
+The system SHALL let staff mark any training category of either kind as pinned from its record form, and SHALL offer pinned categories above a separator in the class pickers.
 
-#### Scenario: Order within the core group
-- **WHEN** the core EMS categories are offered
-- **THEN** they are ordered alphabetically
+#### Scenario: Pin a category
+- **WHEN** staff mark a training category as pinned
+- **THEN** the category is offered above a separator in its picker and is listed first in its section
+
+#### Scenario: Unpin a category
+- **WHEN** staff clear a training category's pinned mark
+- **THEN** the category is offered within the ordinary group
+
+#### Scenario: Pinning applies to Fire categories too
+- **WHEN** staff pin a Fire category
+- **THEN** it is offered above the separator in the Fire picker
 
 ### Requirement: The EMS category catalog is seeded directly
 
-The system SHALL ship the approved EMS category list as application-seeded reference data and SHALL insert it idempotently, so that re-running the seed repopulates a cleared catalog without overwriting staff edits to existing categories. The seeded list SHALL exclude military tactical casualty care (TCCC) courses, SHALL include `CPR - Healthcare Professional` and `Advanced Cardiac Life Support` as separate categories, and SHALL include `An Introduction to the National Incident Management System` and `IS-700.B: An Introduction to the National Incident Management System` as separate categories.
+The system SHALL ship the approved EMS category list as application-seeded reference data and SHALL insert it idempotently, so that re-running the seed repopulates a cleared catalog without overwriting staff edits to existing categories. The seeded list SHALL mark the five core categories — Airway, Cardiology, Medical, Operations, and Trauma — as pinned. The seeded list SHALL exclude military tactical casualty care (TCCC) courses, SHALL include `CPR - Healthcare Professional` and `Advanced Cardiac Life Support` as separate categories, and SHALL include `An Introduction to the National Incident Management System` and `IS-700.B: An Introduction to the National Incident Management System` as separate categories.
 
 #### Scenario: Seed the EMS list
 - **WHEN** the EMS category seed runs against a database with no EMS categories
-- **THEN** the approved EMS categories are inserted, with the core group set apart
+- **THEN** the approved EMS categories are inserted, with the core categories pinned
 
 #### Scenario: Re-seed without overwriting edits
 - **WHEN** the EMS category seed runs again after staff have edited a seeded category
@@ -62,12 +70,21 @@ The system SHALL offer a `fire` category only to Fire category pickers and an `e
 
 ### Requirement: Matching Fire and EMS categories can be mapped
 
-The system SHALL let a Fire category and an EMS category be mapped to each other, and SHALL resolve the mapping in either direction. A category MAY have no mapped counterpart.
+The system SHALL let a Fire category and an EMS category be mapped to each other from the category record form, and SHALL resolve the mapping in either direction. A category SHALL have at most one mapped counterpart, and a category MAY have none. Setting a mapping SHALL clear the previous counterpart's mapping, and clearing a mapping SHALL remove it from both categories.
 
 #### Scenario: Map a matching pair
-- **WHEN** staff map a Fire category to its matching EMS category
-- **THEN** selecting either category can resolve the other through the mapping
+- **WHEN** staff set a category's mapping to a category of the other kind and save
+- **THEN** both categories reference each other and selecting either resolves the other
+
+#### Scenario: Re-map a category
+- **WHEN** staff change a category's mapping to a different counterpart
+- **THEN** the previous counterpart's mapping is cleared and the new pair references each other
+
+#### Scenario: Clear a mapping
+- **WHEN** staff set a category's mapping to none
+- **THEN** neither the category nor its former counterpart references the other
 
 #### Scenario: A category without a counterpart
 - **WHEN** a category has no mapped counterpart
 - **THEN** the system resolves no mapped category for it and does not fail
+

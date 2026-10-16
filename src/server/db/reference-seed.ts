@@ -176,7 +176,7 @@ export async function seedReferenceData(
         kind: TRAINING_CATEGORY_KINDS.EMS,
         code: entry.name,
         title: entry.name,
-        categoryGroup: entry.categoryGroup,
+        isPinned: entry.pinned,
         sortOrder: entry.sortOrder,
         sourceRevision: EMS_CATEGORY_SOURCE_REVISION,
       })),

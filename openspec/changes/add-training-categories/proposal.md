@@ -5,8 +5,9 @@ EMS classes have no structured category today: staff type the EMS course name fr
 ## What Changes
 
 - Extend the existing `training_codes` catalog into **training categories** with a `kind` of `fire` or `ems`; existing rows become `fire`. The table and `/staff/training-codes` route are retained (no rename).
-- Add an EMS category list, seeded directly now, with an alphabetical `sort_order`. The five core categories (`Airway`, `Cardiology`, `Medical`, `Operations`, `Trauma`) stay in a separate group above a separator; the remaining courses follow alphabetically.
+- Add an EMS category list, seeded directly now. The five core categories (`Airway`, `Cardiology`, `Medical`, `Operations`, `Trauma`) are seeded **pinned** and sit above a separator in the pickers; the remaining courses follow alphabetically. Staff can pin or unpin any category, Fire or EMS, from its record form.
 - The `/staff/training-codes` screen presents two sections, **Fire first, then EMS**, and is relabelled "Training categories". New/edited records carry a Fire/EMS selector so staff can add, edit, deactivate, reactivate, and archive EMS categories the same way as Fire codes.
+- The record form lets staff **pin a category to the top** and **map a category to its counterpart** of the other kind; the mapping is symmetric.
 - Split the two pickers: the Fire roster step offers only Fire categories, and the KBEMS step offers only EMS categories. FD codes never appear on the EMS side and vice-versa.
 - Give the KBEMS step a required **Category** selector that fills the EMS Course Name (kept editable), mirroring how the Fire Category fills the Class Name. The class stores the selected category as a structured reference for reporting.
 - Support a symmetric mapping between matching Fire and EMS categories, so a dual Fire + KBEMS class pre-fills the EMS Category from the first Fire subject.
@@ -15,10 +16,10 @@ EMS classes have no structured category today: staff type the EMS course name fr
 ## Capabilities
 
 ### New Capabilities
-- `training-categories`: a single selectable category catalog split into Fire and EMS kinds, seeded with the EMS list, cross-kind mapped, ordered alphabetically with a grouped separator, and maintained (add/edit/archive) from one screen.
+- `training-categories`: a single selectable category catalog split into Fire and EMS kinds, seeded with the EMS list, cross-kind mapped, pinnable above a separator, ordered pinned-then-alphabetically, and maintained (add/edit/archive) from one screen.
 
 ### Modified Capabilities
-- `reference-catalog-management`: the training-code catalog becomes a two-section (Fire then EMS) "Training categories" screen and its record form gains a Fire/EMS kind selector.
+- `reference-catalog-management`: the training-code catalog becomes a two-section (Fire then EMS) "Training categories" screen and its record form gains a Fire/EMS kind selector, a pin control, and a mapping control.
 - `reference-data-lifecycle`: a training category's identity and its revive/reactivate behavior account for its kind.
 - `class-creation-wizard`: the Fire Category is drawn only from Fire categories; the KBEMS step gains a required EMS Category that fills the editable EMS Course Name, and a matching Fire selection pre-fills it on dual classes.
 - `course-catalog`: the training-code catalog is no longer Fire-only; it carries both Fire and EMS category kinds while staying distinct from curricula.

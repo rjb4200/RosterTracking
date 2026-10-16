@@ -23,3 +23,20 @@ The system SHALL present a Fire/EMS kind selector on the training-category new-r
 #### Scenario: Maintain an EMS category
 - **WHEN** staff edit, deactivate, reactivate, or archive an EMS category from its record page
 - **THEN** the record's details or state change as they would for a Fire code
+
+### Requirement: A training-category record sets its pin and mapping
+
+The system SHALL present, on the training-category new-record and record forms, a control to mark the category as pinned and a control to map the category to a category of the other kind. The mapping control SHALL offer only categories of the other kind, and SHALL NOT offer the record itself.
+
+#### Scenario: Pin from the record form
+- **WHEN** staff mark a training category as pinned and save
+- **THEN** the record is stored as pinned
+
+#### Scenario: Map from the record form
+- **WHEN** staff choose a category of the other kind in the mapping control and save
+- **THEN** the record and the chosen category are mapped to each other
+
+#### Scenario: Mapping offers only the other kind
+- **WHEN** the kind is Fire
+- **THEN** the mapping control offers only EMS categories (and only Fire categories when the kind is EMS)
+

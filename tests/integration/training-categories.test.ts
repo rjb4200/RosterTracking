@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
@@ -12,6 +12,7 @@ import {
   createTrainingCode,
   importTrainingCodes,
   listTrainingCodes,
+  updateTrainingCode,
 } from "../../src/modules/reference/services";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
@@ -79,9 +80,7 @@ describeDatabase("training categories", () => {
       "Operations",
       "Trauma",
     ]);
-    expect(ems.slice(0, 5).every((row) => row.categoryGroup === "core")).toBe(
-      true,
-    );
+    expect(ems.slice(0, 5).every((row) => row.isPinned)).toBe(true);
     expect(names).toContain("CPR - Healthcare Professional");
     expect(names).toContain("Advanced Cardiac Life Support");
     expect(names).toContain(
@@ -224,6 +223,124 @@ describeDatabase("training categories", () => {
       `Alpha ${revision}`,
       `Zulu ${revision}`,
     ]);
+  });
+
+  it("pins a category so it lists first", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const actor = await createStaffUser(db, {
+      username: `tc-pin-${crypto.randomUUID().slice(0, 8)}`,
+      displayName: "Training Category Author",
+    });
+    const revision = `pin-${crypto.randomUUID().slice(0, 8)}`;
+    const alpha = await createTrainingCode(db, actor, {
+      kind: "fire",
+      code: `PIN-${revision}-a`,
+      title: `Aardvark ${revision}`,
+      sourceRevision: revision,
+    });
+    await createTrainingCode(db, actor, {
+      kind: "fire",
+      code: `PIN-${revision}-z`,
+      title: `Zebra ${revision}`,
+      sourceRevision: revision,
+    });
+    // Alphabetically Aardvark already leads; pin the Zebra to prove pinning
+    // overrides alphabetical order.
+    const [zebra] = await db
+      .select({ id: trainingCodes.id })
+      .from(trainingCodes)
+      .where(eq(trainingCodes.title, `Zebra ${revision}`))
+      .limit(1);
+    if (!zebra) throw new Error("Pinned fixture category is missing.");
+    await updateTrainingCode(db, actor, zebra.id, {
+      kind: "fire",
+      code: `PIN-${revision}-z`,
+      title: `Zebra ${revision}`,
+      isPinned: true,
+      sourceRevision: revision,
+    });
+    const listed = await listTrainingCodes(db, revision, "fire");
+    expect(listed[0]?.title).toBe(`Zebra ${revision}`);
+    expect(listed[0]?.isPinned).toBe(true);
+    expect(listed.find((row) => row.id === alpha.id)?.isPinned).toBe(false);
+  });
+
+  it("maps matching categories symmetrically and clears the previous partner", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const actor = await createStaffUser(db, {
+      username: `tc-map-${crypto.randomUUID().slice(0, 8)}`,
+      displayName: "Training Category Author",
+    });
+    const revision = `map-${crypto.randomUUID().slice(0, 8)}`;
+    const fire = await createTrainingCode(db, actor, {
+      kind: "fire",
+      code: `MAP-${revision}`,
+      title: `Mapped Fire ${revision}`,
+      sourceRevision: revision,
+    });
+    const emsOne = await createTrainingCode(db, actor, {
+      kind: "ems",
+      code: `MAP-EMS1-${revision}`,
+      title: `Mapped EMS One ${revision}`,
+      sourceRevision: revision,
+    });
+    const emsTwo = await createTrainingCode(db, actor, {
+      kind: "ems",
+      code: `MAP-EMS2-${revision}`,
+      title: `Mapped EMS Two ${revision}`,
+      sourceRevision: revision,
+    });
+
+    await updateTrainingCode(db, actor, fire.id, {
+      kind: "fire",
+      code: `MAP-${revision}`,
+      title: `Mapped Fire ${revision}`,
+      mapsToId: emsOne.id,
+      sourceRevision: revision,
+    });
+    let rows = await db
+      .select({ id: trainingCodes.id, mapsToId: trainingCodes.mapsToId })
+      .from(trainingCodes)
+      .where(inArray(trainingCodes.id, [fire.id, emsOne.id, emsTwo.id]));
+    const byId = new Map(rows.map((row) => [row.id, row.mapsToId]));
+    expect(byId.get(fire.id)).toBe(emsOne.id);
+    expect(byId.get(emsOne.id)).toBe(fire.id);
+    expect(byId.get(emsTwo.id)).toBeNull();
+
+    // Re-mapping clears the previous partner.
+    await updateTrainingCode(db, actor, fire.id, {
+      kind: "fire",
+      code: `MAP-${revision}`,
+      title: `Mapped Fire ${revision}`,
+      mapsToId: emsTwo.id,
+      sourceRevision: revision,
+    });
+    rows = await db
+      .select({ id: trainingCodes.id, mapsToId: trainingCodes.mapsToId })
+      .from(trainingCodes)
+      .where(inArray(trainingCodes.id, [fire.id, emsOne.id, emsTwo.id]));
+    const remapped = new Map(rows.map((row) => [row.id, row.mapsToId]));
+    expect(remapped.get(fire.id)).toBe(emsTwo.id);
+    expect(remapped.get(emsTwo.id)).toBe(fire.id);
+    expect(remapped.get(emsOne.id)).toBeNull();
+
+    // Clearing removes both directions.
+    await updateTrainingCode(db, actor, fire.id, {
+      kind: "fire",
+      code: `MAP-${revision}`,
+      title: `Mapped Fire ${revision}`,
+      mapsToId: "",
+      sourceRevision: revision,
+    });
+    rows = await db
+      .select({ id: trainingCodes.id, mapsToId: trainingCodes.mapsToId })
+      .from(trainingCodes)
+      .where(inArray(trainingCodes.id, [fire.id, emsTwo.id]));
+    const cleared = new Map(rows.map((row) => [row.id, row.mapsToId]));
+    expect(cleared.get(fire.id)).toBeNull();
+    expect(cleared.get(emsTwo.id)).toBeNull();
   });
 
   it("treats the same code in different kinds as distinct records", async () => {

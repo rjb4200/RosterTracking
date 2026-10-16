@@ -26,6 +26,8 @@ export async function createTrainingCodeAction(
       kind: read(formData, "kind") === "ems" ? "ems" : "fire",
       code: read(formData, "code"),
       title: read(formData, "title"),
+      isPinned: read(formData, "isPinned") === "on",
+      mapsToId: read(formData, "mapsToId"),
     });
   } catch (error) {
     return {
@@ -50,6 +52,8 @@ export async function updateTrainingCodeAction(
       kind: read(formData, "kind") === "ems" ? "ems" : "fire",
       code: read(formData, "code"),
       title: read(formData, "title"),
+      isPinned: read(formData, "isPinned") === "on",
+      mapsToId: read(formData, "mapsToId"),
     });
     revalidatePath(`/staff/training-codes/${id}`);
     revalidatePath("/staff/training-codes");

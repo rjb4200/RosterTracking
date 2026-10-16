@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { Fragment } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -35,41 +33,33 @@ function TrainingCodeTable({ codes }: { codes: TrainingCode[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {codes.map((code, index) => {
-          const startsCourseGroup =
-            index > 0 &&
-            codes[index - 1]?.categoryGroup === "core" &&
-            code.categoryGroup !== "core";
-          return (
-            <Fragment key={code.id}>
-              {startsCourseGroup ? (
-                <TableRow>
-                  <TableCell colSpan={3}>
-                    <hr className="category-separator" />
-                  </TableCell>
-                </TableRow>
+        {codes.map((code) => (
+          <TableRow key={code.id}>
+            <TableCell>
+              <Link
+                href={`/staff/training-codes/${code.id}`}
+                className="row-link"
+              >
+                {code.code}
+              </Link>
+            </TableCell>
+            <TableCell>
+              {code.title}
+              {code.isPinned ? (
+                <Badge variant="secondary" className="ml-2">
+                  Pinned
+                </Badge>
               ) : null}
-              <TableRow>
-                <TableCell>
-                  <Link
-                    href={`/staff/training-codes/${code.id}`}
-                    className="row-link"
-                  >
-                    {code.code}
-                  </Link>
-                </TableCell>
-                <TableCell>{code.title}</TableCell>
-                <TableCell>
-                  {code.isActive ? (
-                    <Badge variant="secondary">Active</Badge>
-                  ) : (
-                    <Badge variant="outline">Inactive</Badge>
-                  )}
-                </TableCell>
-              </TableRow>
-            </Fragment>
-          );
-        })}
+            </TableCell>
+            <TableCell>
+              {code.isActive ? (
+                <Badge variant="secondary">Active</Badge>
+              ) : (
+                <Badge variant="outline">Inactive</Badge>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
       </TableBody>
     </Table>
   );

@@ -42,12 +42,15 @@ test("training-category catalog shows Fire then EMS sections and a kind selector
   await expect(kind.locator("option", { hasText: "Fire" })).toHaveCount(1);
   await expect(kind.locator("option", { hasText: "EMS" })).toHaveCount(1);
 
-  // Creating an EMS category lists it (its section is selected by kind).
+  // Creating an EMS category lists it (its section is selected by kind), and
+  // the form offers the pin and mapping controls.
   const suffix = crypto.randomUUID().slice(0, 8);
   await kind.selectOption("ems");
   await page.getByLabel("Code").fill(`E2E-EMS-${suffix}`);
   await page.getByLabel("Title").fill(`E2E EMS Category ${suffix}`);
-  await page.getByRole("button", { name: "Add training code" }).click();
+  await expect(page.getByRole("combobox", { name: /Maps to/ })).toBeVisible();
+  await page.getByLabel(/Pin to top/).check();
+  await page.getByRole("button", { name: "Add training category" }).click();
   await expect(page).toHaveURL(/\/staff\/training-codes$/);
   await expect(page.getByText(`E2E EMS Category ${suffix}`)).toBeVisible();
 });

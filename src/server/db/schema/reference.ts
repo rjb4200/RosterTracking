@@ -258,9 +258,9 @@ export const trainingCodes = pgTable(
     kind: text("kind").default("fire").notNull(),
     code: text("code").notNull(),
     title: text("title").notNull(),
-    // EMS rows use a group ("core") to sit above a separator; Fire rows leave it null.
-    categoryGroup: text("category_group"),
-    // Alphabetical index within a kind; core EMS group occupies the low range.
+    // Pinned categories are listed and offered above a separator.
+    isPinned: boolean("is_pinned").default(false).notNull(),
+    // Alphabetical index within a kind, retained for future manual ordering.
     sortOrder: integer("sort_order").default(0).notNull(),
     // A matching category in the other kind, set symmetrically. FK added below.
     mapsToId: uuid("maps_to_id"),
@@ -286,10 +286,6 @@ export const trainingCodes = pgTable(
     check(
       "training_codes_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,
-    ),
-    check(
-      "training_codes_category_group",
-      sql`${table.categoryGroup} is null or ${table.kind} = 'ems'`,
     ),
   ],
 );

@@ -106,7 +106,7 @@ export function ClassCreationWizard({
     code: string;
     title: string;
     kind: string;
-    categoryGroup: string | null;
+    isPinned: boolean;
     mapsToId: string | null;
   }>;
   agencyTags: Array<{ id: string; code: string; name: string }>;
@@ -250,7 +250,7 @@ export function ClassCreationWizard({
     (category) => ({
       value: category.id,
       label: category.title,
-      group: category.categoryGroup === "core" ? "Core categories" : "Courses",
+      group: category.isPinned ? "Pinned" : "All categories",
     }),
   );
   const selectedEmsCategory = emsCategories.find(

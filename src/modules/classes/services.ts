@@ -1906,14 +1906,14 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         code: trainingCodes.code,
         title: trainingCodes.title,
         kind: trainingCodes.kind,
-        categoryGroup: trainingCodes.categoryGroup,
+        isPinned: trainingCodes.isPinned,
         mapsToId: trainingCodes.mapsToId,
       })
       .from(trainingCodes)
       .where(eq(trainingCodes.isActive, true))
       .orderBy(
         trainingCodes.kind,
-        trainingCodes.categoryGroup,
+        desc(trainingCodes.isPinned),
         sql`lower(${trainingCodes.title})`,
       ),
     db
