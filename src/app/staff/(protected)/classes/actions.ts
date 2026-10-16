@@ -85,6 +85,12 @@ function readMtuSelections(formData: FormData) {
   return {
     equipmentIds,
     transportIds,
+    transportMileage: Object.fromEntries(
+      transportIds.map((id) => [
+        id,
+        read(formData, `mtuTransportMileage:${id}`),
+      ]),
+    ),
     supplies,
     equipmentUsed: read(formData, "mtuEquipmentUsed"),
     usedSupplies: read(formData, "mtuUsedSupplies"),
@@ -121,6 +127,7 @@ function draftValues(formData: FormData) {
     mtuEquipmentIds: readMtuSelections(formData).equipmentIds,
     mtuSupplyItems: readMtuSelections(formData).supplies,
     mtuTransportIds: readMtuSelections(formData).transportIds,
+    mtuTransportMileage: readMtuSelections(formData).transportMileage,
   };
 }
 
@@ -349,6 +356,7 @@ export async function updateMtuUsageAction(
       equipmentIds: selections.equipmentIds,
       supplies: selections.supplies,
       transportIds: selections.transportIds,
+      transportMileage: selections.transportMileage,
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
@@ -408,6 +416,7 @@ export async function finalizeClassAction(
         equipmentIds: mtuSelections.equipmentIds,
         supplies: mtuSelections.supplies,
         transportIds: mtuSelections.transportIds,
+        transportMileage: mtuSelections.transportMileage,
         equipmentUsed: mtuSelections.equipmentUsed,
         usedSupplies: mtuSelections.usedSupplies,
         mileage: mtuSelections.mileage,

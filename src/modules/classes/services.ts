@@ -64,6 +64,7 @@ import {
   type MtuUsageItem,
   type MtuUsageText,
   normalizeMtuUsage,
+  parseTransportMileage,
 } from "./mtu";
 import {
   assertClassEditable,
@@ -147,6 +148,7 @@ const draftInput = z.object({
   mtuEquipmentIds: z.array(z.string().uuid()).optional().default([]),
   mtuSupplyItems: z.array(mtuSupplySelectionInput).optional().default([]),
   mtuTransportIds: z.array(z.string().uuid()).optional().default([]),
+  mtuTransportMileage: z.record(z.string().uuid(), z.string()).default({}),
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
@@ -479,6 +481,7 @@ async function replaceMtuUsageItems(
   equipmentIds: string[],
   supplies: { itemId: string; quantity?: string | number }[],
   transportIds: string[] = [],
+  transportMileage: Record<string, string> = {},
 ): Promise<void> {
   await transaction
     .delete(classMtuUsageItems)
@@ -510,6 +513,7 @@ async function replaceMtuUsageItems(
     classId: string;
     itemId: string;
     quantity: string | null;
+    mileage?: string | null;
     source: MtuItemSource;
   }[] = [];
   for (const itemId of uniqueEquipmentIds) {
@@ -533,6 +537,8 @@ async function replaceMtuUsageItems(
       classId,
       itemId,
       quantity: null,
+      mileage:
+        parseTransportMileage(transportMileage[itemId])?.toString() ?? null,
       source: MTU_ITEM_SOURCES.MANUAL,
     });
   }
@@ -587,15 +593,21 @@ async function assertCreationMileage(
   const transportIds = input.mtuTransportIds ?? [];
   if (transportIds.length === 0) return;
   const rows = await transaction
-    .select({ requiresMileage: mtuCatalogItems.requiresMileage })
+    .select({
+      id: mtuCatalogItems.id,
+      name: mtuCatalogItems.name,
+      requiresMileage: mtuCatalogItems.requiresMileage,
+    })
     .from(mtuCatalogItems)
     .where(inArray(mtuCatalogItems.id, transportIds));
-  if (
-    rows.some((row) => row.requiresMileage) &&
-    input.mtuMileage.trim() === ""
-  ) {
+  for (const row of rows) {
+    if (
+      !row.requiresMileage ||
+      parseTransportMileage(input.mtuTransportMileage[row.id]) !== null
+    )
+      continue;
     throw new Error(
-      "Enter a mileage estimate for the selected transport before creating the class.",
+      `Enter a mileage estimate for ${row.name} before creating the class.`,
     );
   }
 }
@@ -604,6 +616,7 @@ export interface MtuUsageUpdateInput extends MtuUsageInput {
   equipmentIds?: string[];
   supplies?: { itemId: string; quantity?: string | number }[];
   transportIds?: string[];
+  transportMileage?: Record<string, string>;
 }
 
 export async function updateClassMtuUsage(
@@ -630,6 +643,7 @@ export async function updateClassMtuUsage(
         input.equipmentIds ?? [],
         input.supplies ?? [],
         input.transportIds ?? [],
+        input.transportMileage,
       );
     }
     await writeAuditLog(transaction, {
@@ -709,6 +723,7 @@ export async function confirmMtuUsageForFinalization(
     equipmentIds: string[];
     supplies: { itemId: string; quantity?: string | number }[];
     transportIds: string[];
+    transportMileage?: Record<string, string>;
     equipmentUsed?: string;
     usedSupplies?: string;
     mileage?: string;
@@ -729,6 +744,7 @@ export async function confirmMtuUsageForFinalization(
     input.equipmentIds,
     input.supplies,
     input.transportIds,
+    input.transportMileage,
   );
   await resolveMtuUsageItemsForFinalization(transaction, classId);
 }
@@ -900,6 +916,7 @@ export async function createOpenClass(
       parsed.mtuEquipmentIds,
       parsed.mtuSupplyItems,
       parsed.mtuTransportIds,
+      parsed.mtuTransportMileage,
     );
     validateClassReadiness({
       componentCount: createdComponents.length,
@@ -998,6 +1015,7 @@ export async function updateClass(
       parsed.mtuEquipmentIds,
       parsed.mtuSupplyItems,
       parsed.mtuTransportIds,
+      parsed.mtuTransportMileage,
     );
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
@@ -1728,6 +1746,7 @@ export async function getClassDetail(
       .select({
         itemId: classMtuUsageItems.itemId,
         quantity: classMtuUsageItems.quantity,
+        mileage: classMtuUsageItems.mileage,
         source: classMtuUsageItems.source,
         kind: mtuCatalogItems.kind,
         name: mtuCatalogItems.name,
@@ -1783,6 +1802,10 @@ export async function getClassDetail(
         name: row.name,
         unitLabel: row.unitLabel,
         quantity,
+        mileage:
+          kind === "transport" && row.mileage !== null
+            ? Number(row.mileage)
+            : null,
         suggestion,
         source,
       };

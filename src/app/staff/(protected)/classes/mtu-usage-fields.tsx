@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import { Label } from "@/components/ui/label";
 import {
   estimateSupplyQuantity,
@@ -24,6 +22,7 @@ export interface MtuUsageValue {
   equipmentIds: string[];
   supplyQuantities: Record<string, string>;
   transportIds: string[];
+  transportMileage: Record<string, string>;
   mileage: string;
   equipmentUsed: string;
   usedSupplies: string;
@@ -34,6 +33,7 @@ export function emptyMtuUsageValue(): MtuUsageValue {
     equipmentIds: [],
     supplyQuantities: {},
     transportIds: [],
+    transportMileage: {},
     mileage: "",
     equipmentUsed: "",
     usedSupplies: "",
@@ -58,8 +58,11 @@ export function mtuUsageValueFromDetail(
   value.usedSupplies = usage.usedSupplies ?? "";
   for (const item of usage.items ?? []) {
     if (item.kind === "equipment") value.equipmentIds.push(item.itemId);
-    else if (item.kind === "transport") value.transportIds.push(item.itemId);
-    else
+    else if (item.kind === "transport") {
+      value.transportIds.push(item.itemId);
+      value.transportMileage[item.itemId] =
+        item.mileage === null ? "" : String(item.mileage);
+    } else
       value.supplyQuantities[item.itemId] =
         item.quantity === null ? "" : String(item.quantity);
   }
@@ -89,8 +92,8 @@ function toggle(list: string[], id: string, on: boolean): string[] {
  * Structured Mobile Training Unit selection shared by class setup and the
  * review/finalization usage forms. In `select` mode it renders equipment,
  * supplies, and transport checkboxes only; in `confirm` mode it also renders
- * editable supply quantities prefilled from the roster estimate. Mileage sits
- * under a Transport subsection that opens when a driving vehicle is selected.
+ * editable supply quantities prefilled from the roster estimate. Every selected
+ * transport has independently editable mileage, required only during creation.
  */
 export function MtuUsageFields({
   catalog,
@@ -99,7 +102,7 @@ export function MtuUsageFields({
   onChange,
   activeParticipants = 0,
   requireMileage = false,
-  mileageInvalid = false,
+  invalidMileageIds = [],
 }: {
   catalog: MtuCatalogOption[];
   mode: "select" | "confirm";
@@ -107,20 +110,11 @@ export function MtuUsageFields({
   onChange: (next: MtuUsageValue) => void;
   activeParticipants?: number;
   requireMileage?: boolean;
-  mileageInvalid?: boolean;
+  invalidMileageIds?: string[];
 }) {
-  const [mileageOpen, setMileageOpen] = useState(false);
   const equipment = catalog.filter((option) => option.kind === "equipment");
   const supplies = catalog.filter((option) => option.kind === "supplies");
   const transport = catalog.filter((option) => option.kind === "transport");
-
-  const drivingSelected =
-    requireMileage &&
-    transport.some(
-      (option) =>
-        option.requiresMileage && value.transportIds.includes(option.id),
-    );
-  const mileageExpanded = drivingSelected || mileageOpen;
 
   if (
     equipment.length === 0 &&
@@ -266,50 +260,77 @@ export function MtuUsageFields({
           <legend>Transport</legend>
           <div className="checkbox-list">
             {transport.map((option) => (
-              <Label key={option.id} className="checkbox-field">
-                <input
-                  type="checkbox"
-                  name="mtuTransportIds"
-                  value={option.id}
-                  checked={value.transportIds.includes(option.id)}
-                  onChange={(event) =>
-                    update({
-                      transportIds: toggle(
-                        value.transportIds,
-                        option.id,
-                        event.target.checked,
-                      ),
-                    })
-                  }
-                />
-                {option.name}
-              </Label>
+              <div key={option.id}>
+                <Label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    name="mtuTransportIds"
+                    value={option.id}
+                    checked={value.transportIds.includes(option.id)}
+                    onChange={(event) =>
+                      update({
+                        transportIds: toggle(
+                          value.transportIds,
+                          option.id,
+                          event.target.checked,
+                        ),
+                      })
+                    }
+                  />
+                  {option.name}
+                </Label>
+                {value.transportIds.includes(option.id) ? (
+                  <div className="field">
+                    <Label htmlFor={`mtuTransportMileage:${option.id}`}>
+                      {option.name} mileage estimate{" "}
+                      {requireMileage && option.requiresMileage
+                        ? "(required)"
+                        : "(optional)"}
+                    </Label>
+                    <input
+                      id={`mtuTransportMileage:${option.id}`}
+                      name={`mtuTransportMileage:${option.id}`}
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="search-input"
+                      value={value.transportMileage[option.id] ?? ""}
+                      onChange={(event) =>
+                        update({
+                          transportMileage: {
+                            ...value.transportMileage,
+                            [option.id]: event.target.value,
+                          },
+                        })
+                      }
+                      aria-invalid={
+                        invalidMileageIds.includes(option.id) || undefined
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
-          <details
-            open={mileageExpanded}
-            onToggle={(event) => setMileageOpen(event.currentTarget.open)}
-          >
-            <summary>
-              Mileage estimate {drivingSelected ? "(required)" : "(optional)"}
-            </summary>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              className="search-input"
-              name="mtuMileage"
-              value={value.mileage}
-              onChange={(event) => update({ mileage: event.target.value })}
-              aria-invalid={mileageInvalid || undefined}
-              aria-label="Mileage estimate"
-            />
-          </details>
         </fieldset>
       ) : null}
 
       <details className="field field-wide">
         <summary>Additional details</summary>
+        <div className="field">
+          <Label htmlFor="mtuMileage">
+            Other / legacy mileage (unattributed)
+          </Label>
+          <textarea
+            id="mtuMileage"
+            name="mtuMileage"
+            className="search-input"
+            rows={2}
+            maxLength={200}
+            value={value.mileage}
+            onChange={(event) => update({ mileage: event.target.value })}
+          />
+        </div>
         <div className="field">
           <Label htmlFor="mtuEquipmentUsed">Other equipment (not listed)</Label>
           <textarea

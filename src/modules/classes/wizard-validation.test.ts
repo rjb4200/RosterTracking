@@ -17,8 +17,9 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     courseType: "",
     objectives: "",
     courseNumber: "",
-    mtuMileage: "",
-    mtuMileageRequired: false,
+    transportIds: [] as string[],
+    transportMileage: {} as Record<string, string>,
+    mileageRequiredTransportIds: [] as string[],
     subjects: [] as Array<{
       trainingCodeId: string;
       className: string;
@@ -198,28 +199,53 @@ describe("wizard step validation", () => {
   });
 
   it("requires mileage for a driving transport until it is provided", () => {
-    // A selected driving transport with no estimate blocks the step.
-    expect(wizardStepErrors("mtu", base({ mtuMileageRequired: true }))).toEqual(
-      ["mtuMileage"],
-    );
-    // Whitespace-only mileage does not satisfy the requirement.
+    const selected = {
+      transportIds: ["van", "department", "pov"],
+      mileageRequiredTransportIds: ["van", "department"],
+    };
+    expect(wizardStepErrors("mtu", base(selected))).toEqual([
+      "mtuTransportMileage:van",
+      "mtuTransportMileage:department",
+    ]);
     expect(
       wizardStepErrors(
         "mtu",
-        base({ mtuMileageRequired: true, mtuMileage: "   " }),
+        base({
+          ...selected,
+          transportMileage: { van: "120", department: "   " },
+        }),
       ),
-    ).toEqual(["mtuMileage"]);
-    // A non-empty estimate clears the requirement.
+    ).toEqual(["mtuTransportMileage:department"]);
     expect(
       wizardStepErrors(
         "mtu",
-        base({ mtuMileageRequired: true, mtuMileage: "120" }),
+        base({
+          ...selected,
+          transportMileage: { van: "120", department: "0" },
+        }),
       ),
     ).toEqual([]);
-    // No driving transport leaves mileage optional.
     expect(wizardStepErrors("mtu", base())).toEqual([]);
     expect(
-      wizardStepErrors("mtu", base({ mtuMileageRequired: false })),
+      wizardStepErrors("mtu", base({ ...selected, transportIds: ["pov"] })),
+    ).toEqual([]);
+  });
+
+  it("flags invalid numeric mileage only for selected transports", () => {
+    expect(
+      wizardStepErrors(
+        "mtu",
+        base({
+          transportIds: ["pov"],
+          transportMileage: { pov: "-2", van: "invalid" },
+        }),
+      ),
+    ).toEqual(["mtuTransportMileage:pov"]);
+    expect(
+      wizardStepErrors(
+        "class",
+        base({ transportIds: ["van"], mileageRequiredTransportIds: ["van"] }),
+      ),
     ).toEqual([]);
   });
 });

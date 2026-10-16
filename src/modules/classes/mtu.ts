@@ -37,6 +37,7 @@ export interface MtuUsageItem {
   name: string;
   unitLabel: string | null;
   quantity: number | null;
+  mileage: number | null;
   suggestion: number | null;
   source: MtuItemSource;
 }
@@ -59,6 +60,18 @@ const mtuUsageInput = z.object({
 });
 
 export type MtuUsageInput = z.input<typeof mtuUsageInput>;
+
+export function parseTransportMileage(
+  value: string | undefined,
+): number | null {
+  const text = value?.trim() ?? "";
+  if (!text) return null;
+  const mileage = Number(text);
+  if (!/^\+?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text) || !Number.isFinite(mileage)) {
+    throw new Error("Transport mileage must be a non-negative number.");
+  }
+  return mileage;
+}
 
 /**
  * Normalizes the free-text extras. Blank values are stored as null so "not

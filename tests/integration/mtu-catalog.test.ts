@@ -106,6 +106,7 @@ async function createMtuClass(
     mtuEquipmentIds?: string[];
     mtuSupplyItems?: { itemId: string; quantity?: string | number }[];
     mtuTransportIds?: string[];
+    mtuTransportMileage?: Record<string, string>;
     mtuMileage?: string;
   } = {},
 ) {
@@ -450,9 +451,17 @@ describeDatabase("MTU catalog and structured usage", () => {
     // Van with a mileage estimate is accepted.
     const withVan = await createMtuClass(db, `${suffix}-b`, {
       mtuTransportIds: [van],
-      mtuMileage: "120",
+      mtuTransportMileage: { [van]: "120" },
     });
     expect(withVan.classId).toBeTruthy();
+    const withMileage = await getClassDetail(
+      db,
+      withVan.instructor,
+      withVan.classId,
+    );
+    expect(
+      withMileage.mtuUsage?.items.find((item) => item.itemId === van)?.mileage,
+    ).toBe(120);
 
     // POV alone needs no mileage.
     const withPov = await createMtuClass(db, `${suffix}-c`, {
@@ -491,6 +500,66 @@ describeDatabase("MTU catalog and structured usage", () => {
         transportIds: [van],
       }),
     ).resolves.toBeUndefined();
+    const cleared = await getClassDetail(
+      db,
+      withVan.instructor,
+      withVan.classId,
+    );
+    expect(
+      cleared.mtuUsage?.items.find((item) => item.itemId === van)?.mileage,
+    ).toBeNull();
+  });
+
+  it("stores and confirms separate transport mileage including optional POV miles", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const van = await catalogItemId(db, "Ford Transit Van 15 passenger");
+    const pov = await catalogItemId(db, "POV");
+    const { setId } = await activeSetId(db, "mtu");
+    const { instructor, agency, classId } = await createMtuClass(
+      db,
+      crypto.randomUUID(),
+      {
+        mtuTransportIds: [van, pov],
+        mtuTransportMileage: { [van]: "125.5", [pov]: "20" },
+        mtuMileage: "Legacy shared mileage text",
+      },
+    );
+    let detail = await getClassDetail(db, instructor, classId);
+    expect(
+      detail.mtuUsage?.items.find((item) => item.itemId === van)?.mileage,
+    ).toBe(125.5);
+    expect(
+      detail.mtuUsage?.items.find((item) => item.itemId === pov)?.mileage,
+    ).toBe(20);
+    expect(detail.mtuUsage?.mileage).toBe("Legacy shared mileage text");
+    await addActiveAttendance(db, {
+      classId,
+      agencyId: agency.id,
+      requirementSetId: setId,
+    });
+    const revision = await finalizeClass(
+      db,
+      instructor,
+      classId,
+      { certified: true, typedName: "Test Instructor" },
+      {
+        confirmed: true,
+        equipmentIds: [],
+        supplies: [],
+        transportIds: [van, pov],
+        transportMileage: { [van]: "", [pov]: "22" },
+        mileage: "Legacy shared mileage text",
+      },
+    );
+    detail = await getClassDetail(db, instructor, classId);
+    expect(
+      detail.mtuUsage?.items.find((item) => item.itemId === van)?.mileage,
+    ).toBeNull();
+    expect(
+      detail.mtuUsage?.items.find((item) => item.itemId === pov)?.mileage,
+    ).toBe(22);
+    await retireRevision(db, revision.id);
   });
 
   it("stores selections without supply quantities and resolves them at finalization", async () => {

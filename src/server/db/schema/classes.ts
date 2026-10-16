@@ -227,6 +227,7 @@ export const classMtuUsageItems = pgTable(
       .notNull()
       .references(() => mtuCatalogItems.id, { onDelete: "restrict" }),
     quantity: numeric("quantity", { precision: 10, scale: 2 }),
+    mileage: numeric("mileage"),
     source: text("source").default("manual").notNull(),
     ...timestamps,
   },

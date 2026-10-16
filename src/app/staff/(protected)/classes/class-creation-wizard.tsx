@@ -213,11 +213,13 @@ export function ClassCreationWizard({
     : needsClassName
       ? values.className
       : (subjects[0]?.className ?? "");
-  const mtuMileageRequired = mtuCatalog.some(
-    (option) =>
-      option.requiresMileage === true &&
-      values.mtuUsage.transportIds.includes(option.id),
-  );
+  const mileageRequiredTransportIds = mtuCatalog
+    .filter(
+      (option) =>
+        option.requiresMileage === true &&
+        values.mtuUsage.transportIds.includes(option.id),
+    )
+    .map((option) => option.id);
 
   function update<K extends keyof typeof values>(
     key: K,
@@ -309,8 +311,9 @@ export function ClassCreationWizard({
     courseType: values.courseType,
     objectives: values.objectives,
     courseNumber: values.courseNumber,
-    mtuMileage: values.mtuUsage.mileage,
-    mtuMileageRequired,
+    transportIds: values.mtuUsage.transportIds,
+    transportMileage: values.mtuUsage.transportMileage,
+    mileageRequiredTransportIds,
     subjects,
     curriculaWithChapters,
   };
@@ -565,7 +568,9 @@ export function ClassCreationWizard({
             value={values.mtuUsage}
             onChange={(next) => update("mtuUsage", next)}
             requireMileage
-            mileageInvalid={errors.includes("mtuMileage")}
+            invalidMileageIds={values.mtuUsage.transportIds.filter((id) =>
+              errors.includes(`mtuTransportMileage:${id}`),
+            )}
           />
         </section>
       ) : null}
@@ -861,7 +866,17 @@ export function ClassCreationWizard({
               <>
                 <dt>MTU equipment used</dt>
                 <dd>{values.mtuUsage.equipmentUsed || "Not provided"}</dd>
-                <dt>MTU mileage</dt>
+                {values.mtuUsage.transportIds.map((id) => (
+                  <div key={id}>
+                    <dt>
+                      {mtuCatalog.find((item) => item.id === id)?.name} mileage
+                    </dt>
+                    <dd>
+                      {values.mtuUsage.transportMileage[id] || "Not provided"}
+                    </dd>
+                  </div>
+                ))}
+                <dt>Other / legacy mileage (unattributed)</dt>
                 <dd>{values.mtuUsage.mileage || "Not provided"}</dd>
                 <dt>MTU used supplies</dt>
                 <dd>{values.mtuUsage.usedSupplies || "Not provided"}</dd>
@@ -978,6 +993,14 @@ export function ClassCreationWizard({
               type="hidden"
               name="mtuTransportIds"
               value={id}
+            />
+          ))}
+          {values.mtuUsage.transportIds.map((id) => (
+            <input
+              key={`mtu-trm-${id}`}
+              type="hidden"
+              name={`mtuTransportMileage:${id}`}
+              value={values.mtuUsage.transportMileage[id] ?? ""}
             />
           ))}
           {Object.keys(values.mtuUsage.supplyQuantities).map((id) => (

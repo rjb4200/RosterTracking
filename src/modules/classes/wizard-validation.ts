@@ -1,3 +1,5 @@
+import { parseTransportMileage } from "./mtu";
+
 export interface WizardValidationInput {
   reportingSystemIds: string[];
   needsClassName: boolean;
@@ -12,8 +14,9 @@ export interface WizardValidationInput {
   courseType: string;
   objectives: string;
   courseNumber: string;
-  mtuMileage: string;
-  mtuMileageRequired: boolean;
+  transportIds: string[];
+  transportMileage: Record<string, string>;
+  mileageRequiredTransportIds: string[];
   subjects: ReadonlyArray<{
     trainingCodeId: string;
     className: string;
@@ -80,8 +83,18 @@ export function wizardStepErrors(
     return missing;
   }
   if (key === "mtu") {
-    if (input.mtuMileageRequired && !input.mtuMileage.trim()) {
-      missing.push("mtuMileage");
+    for (const id of input.transportIds) {
+      try {
+        const mileage = parseTransportMileage(input.transportMileage[id]);
+        if (
+          mileage === null &&
+          input.mileageRequiredTransportIds.includes(id)
+        ) {
+          missing.push(`mtuTransportMileage:${id}`);
+        }
+      } catch {
+        missing.push(`mtuTransportMileage:${id}`);
+      }
     }
     return missing;
   }
