@@ -14,7 +14,8 @@ function randomFfn() {
     .replace(/\D/g, "")
     .padEnd(8, "0")
     .slice(0, 8);
-  return digits;
+  // The profile stores and redisplays the canonical `0000-0000` form.
+  return `${digits.slice(0, 4)}-${digits.slice(4)}`;
 }
 
 test("an instructor maintains their own profile", async ({ page }) => {
@@ -59,11 +60,16 @@ test("an administrator edits a staff profile from account management", async ({
     page.getByRole("heading", { name: "Staff accounts", level: 1 }),
   ).toBeVisible();
 
-  // Edit the signed-in administrator's own row so this journey never races the
-  // instructor self-service journey.
-  const row = page.locator(".account-profile", { hasText: adminUsername });
+  // Accounts edit on a dedicated per-account page. Edit the signed-in
+  // administrator's own row so this journey never races the instructor
+  // self-service journey.
+  const row = page.getByRole("row").filter({ hasText: adminUsername });
   await expect(row).toHaveCount(1);
-  await row.getByLabel("Firefighter number (FFN)").fill(randomFfn());
-  await row.getByRole("button", { name: "Save profile" }).click();
+  await row.getByRole("link").click();
+  await expect(
+    page.getByRole("heading", { name: "Instructor profile" }),
+  ).toBeVisible();
+  await page.getByLabel("Firefighter number (FFN)").fill(randomFfn());
+  await page.getByRole("button", { name: "Save profile" }).click();
   await expect(page.getByText("Profile updated.")).toBeVisible();
 });

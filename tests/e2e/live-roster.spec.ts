@@ -104,10 +104,13 @@ test("a new sign-in appears in the roster without reloading the page", async ({
   await page.goto(`/staff/classes/${classId}`);
   await expect(page.getByText("0 signed-in students")).toBeVisible();
 
-  // A full reload would count as a navigation; a client-side refresh would not.
-  let navigations = 0;
-  page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) navigations += 1;
+  // A reload is what we must not see; a client-side refresh is fine. The `load`
+  // event fires only on a real document navigation, whereas Playwright's
+  // `framenavigated` also fires for the same-document history changes the Next
+  // dev runtime performs.
+  let reloads = 0;
+  page.on("load", () => {
+    reloads += 1;
   });
 
   await recordSignIn(classId, agencyId);
@@ -116,7 +119,7 @@ test("a new sign-in appears in the roster without reloading the page", async ({
     timeout: OBSERVATION_WINDOW_MS + 10_000,
   });
   await expect(page.getByText("1 signed-in students")).toBeVisible();
-  expect(navigations).toBe(0);
+  expect(reloads).toBe(0);
 });
 
 test("refreshing pauses while the tab is hidden", async ({ page }) => {

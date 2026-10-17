@@ -11,6 +11,10 @@ const elevatedUsername = process.env.E2E_ELEVATED_STAFF_USERNAME;
 const elevatedPassword = process.env.E2E_ELEVATED_STAFF_PASSWORD;
 const connectionString = e2eDatabaseUrl();
 
+// The full review-correct-finalize-reopen journey is heavy; under the parallel
+// suite the dev server can take longer than the 30s default.
+test.setTimeout(120_000);
+
 for (const viewport of [
   { name: "desktop", width: 1280, height: 900 },
   { name: "tablet", width: 768, height: 1024 },

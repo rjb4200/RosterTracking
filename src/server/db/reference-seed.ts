@@ -281,13 +281,26 @@ export async function applyTrainingCategoryMappings(
     const fire = rows.find((row) => row.kind === TRAINING_CATEGORY_KINDS.FIRE);
     const ems = rows.find((row) => row.kind === TRAINING_CATEGORY_KINDS.EMS);
     if (!fire || !ems) continue;
+    // Only rewrite rows whose mapping actually changes. An unconditional update
+    // would lock every paired row on every seed run, which deadlocks against a
+    // concurrent training-code import sharing the same database.
     await transaction
       .update(trainingCodes)
       .set({ mapsToId: ems.id })
-      .where(eq(trainingCodes.id, fire.id));
+      .where(
+        and(
+          eq(trainingCodes.id, fire.id),
+          sql`${trainingCodes.mapsToId} is distinct from ${ems.id}::uuid`,
+        ),
+      );
     await transaction
       .update(trainingCodes)
       .set({ mapsToId: fire.id })
-      .where(eq(trainingCodes.id, ems.id));
+      .where(
+        and(
+          eq(trainingCodes.id, ems.id),
+          sql`${trainingCodes.mapsToId} is distinct from ${fire.id}::uuid`,
+        ),
+      );
   }
 }

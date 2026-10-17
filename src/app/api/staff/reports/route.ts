@@ -1,5 +1,5 @@
 import { parseReportPeriod } from "@/modules/reports/period";
-import { getReport } from "@/modules/reports/registry";
+import { getReport, type ReportParams } from "@/modules/reports/registry";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { PERMISSIONS, ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -51,7 +51,24 @@ export async function GET(request: Request) {
         { status: 400, headers: privateHeaders },
       );
     }
-    const file = await report.builder(getDatabase(), period);
+    const params: ReportParams = {
+      studentId: query.get("student") ?? undefined,
+      agencyId: query.get("agency") ?? undefined,
+      siteId: query.get("site") ?? undefined,
+      withCertificates: query.get("certificates") === "1",
+      actor: { id: staff.id, username: staff.username },
+    };
+    const missing =
+      (report.input === "student" && !params.studentId) ||
+      (report.input === "agency" && !params.agencyId) ||
+      (report.input === "site" && !params.siteId);
+    if (missing) {
+      return Response.json(
+        { error: `Select a ${report.input} for this report.` },
+        { status: 400, headers: privateHeaders },
+      );
+    }
+    const file = await report.build(getDatabase(), period, params);
     const body = file.bytes.buffer.slice(
       file.bytes.byteOffset,
       file.bytes.byteOffset + file.bytes.byteLength,

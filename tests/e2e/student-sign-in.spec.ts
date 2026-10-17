@@ -20,6 +20,12 @@ function generatePublicCode(): string {
   ).join("");
 }
 
+// The public sign-in FFN field requires the canonical `0000-0000` form.
+function randomFfn(): string {
+  const block = () => String(Math.floor(Math.random() * 9000) + 1000);
+  return `${block()}-${block()}`;
+}
+
 async function createRememberedFixture(
   connectionString: string,
   options: { requireFfn?: boolean; pin?: string } = {},
@@ -271,7 +277,7 @@ test("update my information collects a missing credential before confirmation", 
   await page.goto(`/${fixture.code}`);
   await expect(page.getByText("Is this you?")).toBeVisible();
   await expect(page.getByText("Update my information")).toBeVisible();
-  const ffn = String(Math.floor(Math.random() * 900_000) + 100_000);
+  const ffn = randomFfn();
   await page.getByLabel("FFN").fill(ffn);
   await page.getByRole("button", { name: "Confirm & Sign In" }).click();
   await expect(
@@ -336,7 +342,7 @@ test("an unknown phone registers a new student and signs in", async ({
   const phone = `+1859${Math.floor(Math.random() * 10_000_000)
     .toString()
     .padStart(7, "0")}`;
-  const ffn = String(Math.floor(Math.random() * 900_000) + 100_000);
+  const ffn = randomFfn();
 
   await page.goto(`/${fixture.code}`);
   await page.getByLabel("Current phone number").fill(phone);

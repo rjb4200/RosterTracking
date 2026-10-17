@@ -45,6 +45,10 @@ export const EMS_CATEGORY_SEED: readonly {
   { name: "Medical", pinned: true, sortOrder: 3 },
   { name: "Operations", pinned: true, sortOrder: 4 },
   { name: "Trauma", pinned: true, sortOrder: 5 },
+  // The KBEMS-mandatory content areas referenced by the CE requirements table.
+  { name: "HIV/AIDS", pinned: true, sortOrder: 6 },
+  { name: "PAHT", pinned: true, sortOrder: 7 },
+  { name: "SVAT", pinned: true, sortOrder: 8 },
   { name: "Advanced Burn Life Support", pinned: false, sortOrder: 1 },
   { name: "Advanced Cardiac Life Support", pinned: false, sortOrder: 2 },
   { name: "Advanced Disaster Life Support", pinned: false, sortOrder: 3 },

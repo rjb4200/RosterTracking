@@ -123,7 +123,33 @@ review of the agency forms themselves.
 
 ## Known issues
 
-None currently. The class creation wizard's action row no longer overlaps the
+The browser suite passes the journeys it covers. Two checks are sensitive to a
+saturated `next dev` server and can trip only under the parallel suite; each
+passes in isolation and under `E2E_PRODUCTION=1`, and CI retries them
+(`retries: 2`):
+
+- `accessibility.spec.ts` "the public landing page has no blocking violations"
+  (axe `color-contrast`). The empty-directory text sits at the AA threshold, so
+  a scan taken before the page settles can flag it.
+- `performance.spec.ts` "the staff workspace and class list are within budget"
+  (`/staff` time-to-first-byte, 1500 ms). A cold or heavily concurrent dev server
+  can exceed the ceiling.
+
+Both are regression tripwires, not product defects. Run the browser suite with
+`E2E_PRODUCTION=1` for a pass/fail that is not sensitive to dev-server load.
+
+### Re-create the staff accounts after `db:reset:e2e`
+
+`npm run db:reset:e2e` truncates every application table and re-creates only the
+non-login `reference-import` actor, so the end-to-end **staff and instructor
+accounts are removed**. `npm run verify:full` resets before it runs the browser
+suite, so re-create them first: point `DATABASE_URL_DIRECT` at the end-to-end
+database and run `npm run admin -- bootstrap` (the `E2E_STAFF_USERNAME`
+administrator) and `npm run admin -- create instructor` (the
+`E2E_INSTRUCTOR_USERNAME` instructor). Without this, every staff journey fails
+on sign-in.
+
+The class creation wizard's action row no longer overlaps the
 step content on narrow mobile viewports - the wizard and the class command
 screen now keep their controls within the viewport, and both are covered by
 read-only narrow-viewport reachability checks on every project, including

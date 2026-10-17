@@ -1,9 +1,49 @@
-import { parseDepartmentDateTime } from "@/modules/classes/time";
+import {
+  getDepartmentCalendarDate,
+  parseDepartmentDateTime,
+} from "@/modules/classes/time";
 
 /** Half-open instant range: from is inclusive, to is exclusive. */
 export interface ReportPeriod {
   from: Date;
   to: Date;
+}
+
+/** A two-year KBEMS renewal cycle, identified by the year it ends (12/31). */
+export interface RenewalCyclePreset {
+  id: string;
+  label: string;
+  /** Inclusive first day, as a date-picker value (YYYY-MM-DD). */
+  from: string;
+  /** Inclusive last day, as a date-picker value (YYYY-MM-DD). */
+  to: string;
+  endYear: number;
+}
+
+const cycleWindow = (endYear: number): { from: string; to: string } => ({
+  from: `${endYear - 1}-01-01`,
+  to: `${endYear}-12-31`,
+});
+
+/**
+ * The last, current, and next two-year renewal cycles ending 12/31, derived
+ * from the cycle rule and the department calendar year rather than stored, so
+ * the offered presets advance each year without configuration. Cycles of both
+ * parities are offered because clinicians renew on odd or even end-years.
+ */
+export function renewalCyclePresets(
+  today: Date = new Date(),
+): RenewalCyclePreset[] {
+  const year = Number(getDepartmentCalendarDate(today).slice(0, 4));
+  return [year - 1, year, year + 1].map((endYear) => {
+    const window = cycleWindow(endYear);
+    return {
+      id: `cycle-${endYear}`,
+      endYear,
+      label: `${endYear} renewal (${window.from} through ${window.to})`,
+      ...window,
+    };
+  });
 }
 
 export function validateReportPeriod(period: ReportPeriod): ReportPeriod {

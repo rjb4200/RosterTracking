@@ -1,6 +1,7 @@
-import { PDFDocument, type PDFFont, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { getDepartmentCalendarDate } from "@/modules/classes/time";
 import type { MtuSummary } from "./mtu-summary";
+import { printable, wrap } from "./pdf-utils";
 
 const ink = rgb(0.12, 0.2, 0.27);
 const teal = rgb(0.02, 0.38, 0.4);
@@ -8,49 +9,6 @@ const muted = rgb(0.37, 0.43, 0.48);
 const pale = rgb(0.94, 0.96, 0.96);
 const number = (value: number) =>
   value.toLocaleString("en-US", { maximumFractionDigits: 2 });
-
-function printable(text: string, font: PDFFont): string {
-  return Array.from(text)
-    .map((character) => {
-      if (character === "\n" || character === "\r" || character === "\t")
-        return " ";
-      try {
-        font.encodeText(character);
-        return character;
-      } catch {
-        // Standard fonts cannot render every name. Preserve unsupported codepoints
-        // explicitly rather than dropping them or failing an entire report.
-        return `[U+${character.codePointAt(0)?.toString(16).toUpperCase()}]`;
-      }
-    })
-    .join("");
-}
-
-function wrap(
-  text: string,
-  font: PDFFont,
-  size: number,
-  width: number,
-): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of printable(text, font).split(/\s+/)) {
-    if (line && font.widthOfTextAtSize(`${line} ${word}`, size) > width) {
-      lines.push(line);
-      line = "";
-    }
-    for (const character of word) {
-      if (font.widthOfTextAtSize(line + character, size) > width) {
-        lines.push(line);
-        line = "";
-      }
-      line += character;
-    }
-    line += " ";
-  }
-  if (line.trim()) lines.push(line.trimEnd());
-  return lines.length ? lines : [""];
-}
 
 export async function renderMtuSummaryPdf(
   summary: MtuSummary,
