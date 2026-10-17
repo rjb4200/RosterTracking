@@ -2,7 +2,7 @@
 
 ### Requirement: KBEMS CE requirements reference block
 
-The training-delivered reports SHALL render a KBEMS CE requirements reference block at the top listing the hours required per content category for each clinician level (EMR, EMT, AEMT, Paramedic), a total row, and the Pediatric requirement. The block SHALL be compact and SHALL be labeled as reference requirement hours that are not the reader's or student's completed hours. The block SHALL be identical across every training-delivered report and SHALL be defined independently of the editable EMS category catalog, so adding, renaming, or archiving a category does not change it.
+The training-delivered reports SHALL render a KBEMS CE requirements reference block at the top listing the hours required per content category — including Pediatric — for each clinician level (EMR, EMT, AEMT, Paramedic), and a total row that sums every category. The block SHALL be compact and SHALL be labeled as reference requirement hours that are not the reader's or student's completed hours. The block SHALL be identical across every training-delivered report and SHALL be defined independently of the editable EMS category catalog, so adding, renaming, or archiving a category does not change it.
 
 #### Scenario: The reference block is printed
 
