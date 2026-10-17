@@ -56,3 +56,4 @@
 - [x] 9.5 Label the requirements block as REFERENCE ONLY more prominently
 - [x] 9.6 List Pediatric directly under Operations
 - [x] 9.7 Give the requirements block a solid REFERENCE ONLY banner and a warning-colored note
+- [x] 9.8 Draw a tinted, bordered card behind the requirements reference block

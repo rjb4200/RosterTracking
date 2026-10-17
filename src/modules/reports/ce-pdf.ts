@@ -12,6 +12,8 @@ const muted = rgb(0.37, 0.43, 0.48);
 const pale = rgb(0.94, 0.96, 0.96);
 const white = rgb(1, 1, 1);
 const warn = rgb(0.66, 0.16, 0.16);
+const cardFill = rgb(0.965, 0.975, 0.98);
+const cardBorder = rgb(0.02, 0.38, 0.4);
 
 const number = (value: number) =>
   value.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -78,6 +80,21 @@ export async function renderCeReportPdf(
   };
   header();
   const drawRequirementsBlock = () => {
+    // A tinted, bordered card behind the whole reference block so it reads as a
+    // separate reference panel, not part of the delivered-hours content.
+    const cardPad = 8;
+    const rowsBlock = (CE_REQUIREMENT_ROWS.length + 1) * 14;
+    const cardTop = y + 12;
+    const cardBottom = y - 53 - rowsBlock + 10;
+    page.drawRectangle({
+      x: 42 - cardPad,
+      y: cardBottom - cardPad,
+      width: 528 + cardPad * 2,
+      height: cardTop + cardPad - (cardBottom - cardPad),
+      color: cardFill,
+      borderColor: cardBorder,
+      borderWidth: 0.75,
+    });
     // A solid banner so the reference table can never be mistaken for the
     // student's completed hours.
     page.drawRectangle({

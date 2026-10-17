@@ -1,6 +1,8 @@
 import { PgDialect } from "drizzle-orm/pg-core";
+import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { buildActivityReport } from "./ce-activity";
+import { renderCeReportPdf } from "./ce-pdf";
 import {
   agencyActivityQuery,
   siteActivityQuery,
@@ -245,5 +247,40 @@ describe("activity and transcript scope queries", () => {
     expect(query.params).toContain("site-1");
     expect(query.sql).toContain("c.training_site_id");
     expect(query.sql).toContain("a3.removed_at is null");
+  });
+});
+
+describe("CE report PDF rendering", () => {
+  const base = {
+    title: "KBEMS CE - Training Delivered",
+    subtitle: "Ada Lovelace",
+    period: "01/01/2025 through 12/31/2026",
+    daysRemaining: 100,
+    columns: [
+      { heading: "DATE", width: 78 },
+      { heading: "COURSE", width: 240 },
+      { heading: "CATEGORY", width: 130 },
+      { heading: "HOURS", width: 80 },
+    ],
+    totalLine: "TOTAL DELIVERED: 2 hours",
+    note: "Reference only.",
+  };
+
+  it("renders the reference card and log as a readable PDF", async () => {
+    const bytes = await renderCeReportPdf({
+      ...base,
+      rows: [["03/04/2026", "Cardiac Arrest", "Cardiology", "2"]],
+    });
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+    const document = await PDFDocument.load(bytes);
+    expect(document.getPageCount()).toBeGreaterThan(0);
+    for (const page of document.getPages())
+      expect(page.getSize()).toEqual({ width: 612, height: 792 });
+  });
+
+  it("renders an empty period without failing", async () => {
+    const bytes = await renderCeReportPdf({ ...base, rows: [] });
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(0);
   });
 });
