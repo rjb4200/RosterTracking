@@ -621,6 +621,85 @@ h1 {
   font-size: 0.9rem;
 }
 
+.staff-email-band {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem clamp(1.2rem, 5vw, 5rem) 1.15rem;
+  background: var(--signal);
+  color: #ffffff;
+  text-align: center;
+  border-bottom: 1px solid var(--signal-dark);
+}
+
+.staff-email-band-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  max-width: 48rem;
+}
+
+.staff-email-band-copy svg {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.staff-email-band-copy p {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.staff-email-band-cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--signal-dark);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.staff-email-band-cta:hover,
+.staff-email-band-cta:focus-visible {
+  background: #f6e2e0;
+}
+
+.staff-email-band-dismiss {
+  position: absolute;
+  top: 0.5rem;
+  right: clamp(0.6rem, 4vw, 3.5rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.staff-email-band-dismiss:hover,
+.staff-email-band-dismiss:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.staff-email-band-dismiss svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
 .text-button {
   border: 0;
   background: transparent;

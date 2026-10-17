@@ -60,6 +60,7 @@ async function createUser(db: Db, suffix: string, roleCode: string) {
       username: `mtu-${roleCode}-${suffix}`,
       displayName: roleCode,
       passwordHash: "fixture-password-hash",
+      ffn: uniqueFfn(),
     })
     .returning({ id: users.id, username: users.username });
   const [role] = await db
@@ -111,7 +112,10 @@ async function createMtuClass(
   } = {},
 ) {
   const instructor = await createUser(db, suffix, ROLE_CODES.INSTRUCTOR);
+  // MTU requires an accreditation destination; pair it with Fire so the
+  // fixture class is creatable.
   const { systemId } = await activeSetId(db, "mtu");
+  const { systemId: fireSystemId } = await activeSetId(db, "fire");
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `MTU Site ${suffix}` })
@@ -129,7 +133,7 @@ async function createMtuClass(
     startsAt: "2026-09-10T09:00",
     creditedHours: 4,
     leadInstructorId: instructor.id,
-    reportingSystemIds: [systemId],
+    reportingSystemIds: [systemId, fireSystemId],
     accessPinEnabled: false,
     mtuEquipmentUsed: "",
     mtuMileage: "",

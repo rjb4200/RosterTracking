@@ -19,6 +19,7 @@ export type { StaffProfile } from "./profile-contract";
 
 const profileColumns = {
   id: users.id,
+  email: users.email,
   ffn: users.ffn,
   instructorLevel: users.instructorLevel,
   emsProviderNumber: users.emsProviderNumber,
@@ -36,6 +37,7 @@ async function loadProfile(
   if (!row) return null;
   return {
     userId: row.id,
+    email: row.email,
     ffn: row.ffn,
     instructorLevel: row.instructorLevel,
     emsProviderNumber: row.emsProviderNumber,
@@ -54,6 +56,7 @@ export async function getStaffProfile(
   if (!row) return null;
   return {
     userId: row.id,
+    email: row.email,
     ffn: row.ffn,
     instructorLevel: row.instructorLevel,
     emsProviderNumber: row.emsProviderNumber,
@@ -77,6 +80,23 @@ async function assertFfnAvailable(
   }
 }
 
+async function assertEmailAvailable(
+  transaction: DatabaseTransaction,
+  targetUserId: string,
+  before: ProfileValues,
+  after: ProfileValues,
+) {
+  if (!after.email || after.email === before.email) return;
+  const [duplicate] = await transaction
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.email, after.email), ne(users.id, targetUserId)))
+    .limit(1);
+  if (duplicate) {
+    throw new Error("That email is already assigned to another account.");
+  }
+}
+
 async function applyProfile(
   transaction: DatabaseTransaction,
   input: {
@@ -95,10 +115,17 @@ async function applyProfile(
     input.before,
     input.after,
   );
+  await assertEmailAvailable(
+    transaction,
+    input.targetUserId,
+    input.before,
+    input.after,
+  );
 
   await transaction
     .update(users)
     .set({
+      email: input.after.email,
       ffn: input.after.ffn,
       instructorLevel: input.after.instructorLevel,
       emsProviderNumber: input.after.emsProviderNumber,
@@ -117,9 +144,9 @@ async function applyProfile(
 }
 
 /**
- * Self-service update. The target is always the actor, and only the three
- * profile attributes are accepted, so this path can never change a role,
- * username, status, or password.
+ * Self-service update. The target is always the actor, and only the account
+ * email and the three credential attributes are accepted, so this path can
+ * never change a role, username, status, or password.
  */
 export async function updateOwnProfile(
   db: Database,

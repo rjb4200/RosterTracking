@@ -17,6 +17,10 @@ import { isSessionCurrent } from "./policy";
 export interface CurrentStaff {
   id: string;
   username: string;
+  email: string | null;
+  // The account's most recent successful sign-in. Used as the marker for
+  // "current login" so a one-time dismissal can reset on the next login.
+  lastLoginAt: Date | null;
   displayName: string;
   permissions: ReadonlySet<string>;
   roleCodes: ReadonlySet<string>;
@@ -65,6 +69,8 @@ export async function getCurrentStaff(): Promise<CurrentStaff | null> {
   return {
     id: account.id,
     username: account.username,
+    email: account.email,
+    lastLoginAt: account.lastLoginAt,
     displayName: account.displayName,
     permissions: new Set(permissionRows.map(({ code }) => code)),
     roleCodes: new Set(roleRows.map(({ code }) => code)),

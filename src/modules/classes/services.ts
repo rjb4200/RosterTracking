@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { REPORTING_SYSTEM_CODES } from "@/modules/reference/constants";
+import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
 import { getInitialCertTei } from "@/modules/settings/services";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { writeAuditLog } from "@/server/db/audit";
@@ -334,6 +335,30 @@ async function assertKbemsCourseDetails(
     throw new Error(
       "Enter the course number for an initial-certification class.",
     );
+  }
+}
+
+/**
+ * MTU records resource usage only and produces no participant output, so a
+ * class must also report to an accreditation destination. Enforced on creation
+ * and on edit so an MTU-only class can never be created or saved.
+ */
+async function assertMtuDestinationPaired(
+  transaction: DatabaseTransaction,
+  reportingSystemIds: string[],
+): Promise<void> {
+  if (reportingSystemIds.length === 0) return;
+  const systems = await transaction
+    .select({ code: reportingSystems.code })
+    .from(reportingSystems)
+    .where(inArray(reportingSystems.id, reportingSystemIds));
+  const codes = new Set(systems.map((system) => system.code));
+  if (
+    codes.has(REPORTING_SYSTEM_CODES.MTU) &&
+    !codes.has(REPORTING_SYSTEM_CODES.FIRE) &&
+    !codes.has(REPORTING_SYSTEM_CODES.KBEMS)
+  ) {
+    throw new Error("Select Fire or KBEMS alongside the Mobile Training Unit.");
   }
 }
 
@@ -780,6 +805,10 @@ export async function createOpenClass(
   const rawToken = generateClassSignInToken();
   return db.transaction(async (transaction) => {
     await validateReferences(transaction, parsed);
+    await assertMtuDestinationPaired(
+      transaction,
+      parsed.reportingSystemIds ?? [],
+    );
     await assertKbemsCourseDetails(transaction, parsed);
     const reportingSystemIds = parsed.reportingSystemIds ?? [];
     const [leadInstructor] = await transaction
@@ -963,6 +992,10 @@ export async function updateClass(
     const existing = await requireClassAccess(transaction, actor, classId);
     assertClassEditable(existing.status);
     await validateReferences(transaction, parsed);
+    await assertMtuDestinationPaired(
+      transaction,
+      parsed.reportingSystemIds ?? [],
+    );
     if (
       (await selectsFireDestination(
         transaction,
@@ -1014,6 +1047,7 @@ export async function updateClass(
       classId,
       parsed.reportingSystemIds ?? [],
     );
+    await reconcileAttendanceReportingContexts(transaction, classId);
     await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
     await replaceMtuUsageItems(
       transaction,

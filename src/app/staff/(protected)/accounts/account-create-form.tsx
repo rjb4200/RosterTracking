@@ -26,6 +26,10 @@ export function AccountCreateForm() {
           <Input id="new-username" name="username" required />
         </div>
         <div className="field">
+          <Label htmlFor="new-email">Email (optional)</Label>
+          <Input id="new-email" name="email" type="email" />
+        </div>
+        <div className="field">
           <Label htmlFor="new-displayName">Display name</Label>
           <Input id="new-displayName" name="displayName" required />
         </div>

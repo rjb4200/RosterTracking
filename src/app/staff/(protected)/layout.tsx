@@ -1,7 +1,12 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
+import {
+  EMAIL_PROMPT_COOKIE,
+  shouldShowEmailPrompt,
+} from "@/modules/staff-auth/email-prompt";
 import {
   hasPermission,
   PERMISSIONS,
@@ -10,6 +15,7 @@ import {
 import { isAdministrator } from "@/modules/staff-auth/workspaces";
 
 import { LogoutButton } from "../logout-button";
+import { StaffEmailBand } from "./staff-email-band";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +79,16 @@ export default async function ProtectedStaffLayout({
   if (!staff || !hasPermission(staff.permissions, PERMISSIONS.STAFF_ACCESS)) {
     redirect("/staff/login");
   }
+  const dismissedMarker =
+    (await cookies()).get(EMAIL_PROMPT_COOKIE)?.value ?? null;
+  const loginMarker = staff.lastLoginAt
+    ? String(staff.lastLoginAt.getTime())
+    : "";
+  const showEmailPrompt = shouldShowEmailPrompt(
+    staff.email,
+    loginMarker,
+    dismissedMarker,
+  );
 
   return (
     <div className="staff-shell">
@@ -85,6 +101,7 @@ export default async function ProtectedStaffLayout({
         </div>
         <LogoutButton />
       </header>
+      {showEmailPrompt ? <StaffEmailBand loginMarker={loginMarker} /> : null}
       <nav className="admin-nav" aria-label="Staff sections">
         {navItems
           .filter(

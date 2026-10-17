@@ -196,8 +196,10 @@ describeDatabase("reporting destinations", () => {
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
     const { systemId } = await activeSetId(db, "mtu");
+    const { systemId: fireSystemId } = await activeSetId(db, "fire");
     const { instructor, classId } = await createClassFixture(db, suffix, [
       systemId,
+      fireSystemId,
     ]);
 
     const detail = await getClassDetail(db, instructor, classId);
@@ -212,7 +214,7 @@ describeDatabase("reporting destinations", () => {
       trainingSiteId: detail.trainingSiteId,
       hostAgencyId: detail.hostAgencyId,
       deliveryMethod: "classroom",
-      reportingSystemIds: [systemId],
+      reportingSystemIds: [systemId, fireSystemId],
       accessPinEnabled: false,
       mtuEquipmentUsed: "",
       mtuMileage: "150",
@@ -235,7 +237,7 @@ describeDatabase("reporting destinations", () => {
         trainingSiteId: detail.trainingSiteId,
         hostAgencyId: detail.hostAgencyId,
         deliveryMethod: "classroom",
-        reportingSystemIds: [systemId],
+        reportingSystemIds: [systemId, fireSystemId],
         accessPinEnabled: false,
         mtuMileage: "999",
       }),
@@ -247,10 +249,11 @@ describeDatabase("reporting destinations", () => {
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
     const { systemId, setId } = await activeSetId(db, "mtu");
+    const { systemId: fireSystemId } = await activeSetId(db, "fire");
     const { instructor, agency, classId } = await createClassFixture(
       db,
       suffix,
-      [systemId],
+      [systemId, fireSystemId],
     );
     await addActiveAttendance(db, {
       classId,

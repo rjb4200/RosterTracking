@@ -29,6 +29,7 @@ export function ProfileForm({
   heading?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const [email, setEmail] = useState(values?.email ?? "");
   const [ffn, setFfn] = useState(values?.ffn ?? "");
   const [instructorLevel, setInstructorLevel] = useState(
     values?.instructorLevel != null ? String(values.instructorLevel) : "",
@@ -41,6 +42,17 @@ export function ProfileForm({
     <form action={formAction} className="stack-form">
       {heading ? <h2>{heading}</h2> : null}
       {userId ? <input type="hidden" name="userId" value={userId} /> : null}
+      <div className="field">
+        <Label htmlFor={`${idPrefix}-email`}>Email</Label>
+        <Input
+          id={`${idPrefix}-email`}
+          name="email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+        />
+      </div>
       <div className="field">
         <Label htmlFor={`${idPrefix}-ffn`}>Firefighter number (FFN)</Label>
         <Input

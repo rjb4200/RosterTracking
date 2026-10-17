@@ -45,7 +45,7 @@ export default async function StaffAccountsPage({
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Search name or username"
+          placeholder="Search name, username, or email"
           className="search-field"
         />
       </form>
@@ -55,6 +55,7 @@ export default async function StaffAccountsPage({
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Username</TableHead>
+            <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Last login</TableHead>
@@ -63,7 +64,7 @@ export default async function StaffAccountsPage({
         <TableBody>
           {accounts.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5}>
+              <TableCell colSpan={6}>
                 <EmptyState
                   title={
                     hasSearch
@@ -110,6 +111,7 @@ export default async function StaffAccountsPage({
                   </Link>
                 </TableCell>
                 <TableCell>{account.username}</TableCell>
+                <TableCell>{account.email ?? "—"}</TableCell>
                 <TableCell>{account.roleCodes[0] ?? "—"}</TableCell>
                 <TableCell>
                   {account.isActive ? (

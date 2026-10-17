@@ -21,6 +21,7 @@ export function AccountDetailForm({
   account: {
     id: string;
     displayName: string;
+    email: string | null;
     roleCodes: string[];
     isActive: boolean;
   };
@@ -38,6 +39,15 @@ export function AccountDetailForm({
             name="displayName"
             defaultValue={account.displayName}
             required
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="email">Email (optional)</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            defaultValue={account.email ?? ""}
           />
         </div>
         <div className="field">

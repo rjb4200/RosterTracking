@@ -19,6 +19,7 @@ export async function updateOwnProfileAction(
   if (!actor) return { error: "Authentication required." };
   try {
     await updateOwnProfile(getDatabase(), actor.id, {
+      email: read(formData, "email"),
       ffn: read(formData, "ffn"),
       instructorLevel: read(formData, "instructorLevel"),
       emsProviderNumber: read(formData, "emsProviderNumber"),

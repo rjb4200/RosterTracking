@@ -8,11 +8,9 @@ import {
   decryptCredential,
   encryptCredential,
 } from "@/modules/reference/crypto";
-import {
-  includesParticipant,
-  resolveClassInclusionRules,
-} from "@/modules/reference/inclusion";
+import { resolveClassInclusionRules } from "@/modules/reference/inclusion";
 import { credentialMaskedSuffix } from "@/modules/reference/masking";
+import { computeAttendanceSetInclusion } from "@/modules/reporting-contexts/service";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { resolveClassRequirements } from "@/modules/student-sign-in/requirements";
 import { writeAuditLog } from "@/server/db/audit";
@@ -113,41 +111,16 @@ async function recomputeAttendanceInclusion(
     resolveClassRequirements(transaction, classId),
     resolveClassInclusionRules(transaction, classId),
   ]);
-  const snapshots = await transaction
-    .select({
-      requirementSetId: attendanceCredentialSnapshots.requirementSetId,
-      code: credentialTypes.code,
-      encryptedValue: attendanceCredentialSnapshots.encryptedValue,
-    })
-    .from(attendanceCredentialSnapshots)
-    .innerJoin(
-      credentialTypes,
-      eq(credentialTypes.id, attendanceCredentialSnapshots.credentialTypeId),
-    )
-    .where(eq(attendanceCredentialSnapshots.attendanceId, attendanceId));
-
+  const inclusion = await computeAttendanceSetInclusion(
+    transaction,
+    attendanceId,
+    requirements,
+    inclusionRules,
+  );
   for (const set of requirements.sets) {
-    const values: Record<string, string | undefined> = {};
-    for (const snapshot of snapshots) {
-      if (snapshot.requirementSetId !== set.id) continue;
-      try {
-        values[snapshot.code] = decryptCredential(snapshot.encryptedValue);
-      } catch {
-        // An unreadable snapshot does not confer inclusion.
-      }
-    }
-    const rule = inclusionRules.find(
-      (entry) => entry.requirementSetId === set.id,
-    );
-    if (!rule) {
-      throw new CredentialCorrectionError(
-        "Reporting inclusion rule is unavailable.",
-      );
-    }
-    const included = includesParticipant(rule, values);
     await transaction
       .update(attendanceReportingContexts)
-      .set({ included })
+      .set({ included: inclusion.get(set.id) ?? false })
       .where(
         and(
           eq(attendanceReportingContexts.attendanceId, attendanceId),

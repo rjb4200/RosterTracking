@@ -7,6 +7,12 @@ import {
   trainingClasses,
 } from "@/server/db/schema";
 
+// These tests assert MTU mileage behavior; reconciliation's own reads are
+// exercised by the reporting-context integration suite.
+vi.mock("@/modules/reporting-contexts/service", () => ({
+  reconcileAttendanceReportingContexts: async () => {},
+}));
+
 import {
   confirmMtuUsageForFinalization,
   createOpenClass,
@@ -113,6 +119,7 @@ function creationReads() {
   return [
     [{ id: agency }],
     [{ id: system }],
+    [{ code: "fire" }],
     [],
     [{ id: actor.id }],
     [],
@@ -160,6 +167,7 @@ describe("per-transport mileage services", () => {
       [],
       [{ id: agency }],
       [{ id: system }],
+      [{ code: "fire" }],
       [],
       catalog,
       [{ count: 0 }],

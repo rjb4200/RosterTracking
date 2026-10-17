@@ -16,6 +16,7 @@ import {
   countFireEligible,
   isFireEligibleFromSnapshots,
 } from "@/modules/reference/fire-eligibility";
+import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
 import { ROLE_CODES } from "@/modules/staff-auth/permissions";
 import { resolveClassRequirements } from "@/modules/student-sign-in/requirements";
 import { writeAuditLog } from "@/server/db/audit";
@@ -381,6 +382,9 @@ export async function finalizeClass(
       classId,
     );
     validateFinalizationTransition(classRecord.status);
+    // A destination changed after students signed in leaves their reporting
+    // context stale; reconcile it so the lock is not blocked by a derived fact.
+    await reconcileAttendanceReportingContexts(transaction, classId);
     await validateRosterCompletion(transaction, classId);
     const [nextRevision] = await transaction
       .select({

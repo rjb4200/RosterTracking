@@ -5,6 +5,7 @@ import { wizardStepErrors } from "./wizard-validation";
 function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
   return {
     reportingSystemIds: [] as string[],
+    destinationCodes: [] as string[],
     needsClassName: false,
     className: "",
     needsSite: false,
@@ -39,6 +40,33 @@ describe("wizard step validation", () => {
     ]);
     expect(
       wizardStepErrors("destinations", base({ reportingSystemIds: ["fire"] })),
+    ).toEqual([]);
+  });
+
+  it("requires an accreditation destination alongside MTU", () => {
+    expect(
+      wizardStepErrors(
+        "destinations",
+        base({ reportingSystemIds: ["mtu"], destinationCodes: ["mtu"] }),
+      ),
+    ).toEqual(["mtuRequiresAccreditation"]);
+    expect(
+      wizardStepErrors(
+        "destinations",
+        base({
+          reportingSystemIds: ["kbems", "mtu"],
+          destinationCodes: ["kbems", "mtu"],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      wizardStepErrors(
+        "destinations",
+        base({
+          reportingSystemIds: ["fire", "mtu"],
+          destinationCodes: ["fire", "mtu"],
+        }),
+      ),
     ).toEqual([]);
   });
 

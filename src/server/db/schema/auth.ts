@@ -27,6 +27,9 @@ export const users = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     username: text("username").notNull(),
+    // An optional account email used as an alternate login identifier and as
+    // the address for account-addressed notifications. Stored normalized.
+    email: text("email"),
     displayName: text("display_name").notNull(),
     passwordHash: text("password_hash").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -42,10 +45,17 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex("users_username_unique").on(table.username),
+    uniqueIndex("users_email_unique")
+      .on(sql`lower(${table.email})`)
+      .where(sql`${table.email} is not null`),
     index("users_active_idx").on(table.isActive),
     check(
       "users_username_normalized",
       sql`${table.username} = lower(btrim(${table.username}))`,
+    ),
+    check(
+      "users_email_normalized",
+      sql`${table.email} is null or ${table.email} = lower(btrim(${table.email}))`,
     ),
     check(
       "users_failed_login_count_nonnegative",

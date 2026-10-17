@@ -18,6 +18,9 @@ const serverEnvSchema = z.object({
   AUTH_SECRET: z.string().min(32),
   NEXTAUTH_URL: z.string().url().optional(),
   DEPARTMENT_TIME_ZONE: timeZone.default("America/New_York"),
+  // Bearer token Vercel Cron presents to the scheduled reminder route. Absent
+  // in development, where no scheduled run is allowed.
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -33,6 +36,7 @@ export function getServerEnv(): ServerEnv {
     AUTH_SECRET: process.env.AUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     DEPARTMENT_TIME_ZONE: process.env.DEPARTMENT_TIME_ZONE,
+    CRON_SECRET: process.env.CRON_SECRET,
   });
 
   return cachedEnv;

@@ -18,8 +18,19 @@ test("the wizard blocks the MTU step until a driving transport has mileage", asy
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
 
-  // Select the MTU destination and advance to its step.
+  // Select the MTU destination. MTU requires an accreditation destination, so
+  // pair it with KBEMS, whose step is ordered before the MTU step.
   await page.getByLabel("Mobile Training Unit").check();
+  await page.getByLabel("KBEMS / KEMSIS").check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page.getByLabel("EMS course name").fill("E2E EMS");
+  await page.getByLabel("Course type").selectOption("continuing_education");
+  await page
+    .getByLabel("Course description or objectives")
+    .fill("Airway management");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Mobile Training Unit usage" }),
@@ -65,6 +76,16 @@ test("deselecting a driving transport drops its mileage requirement", async ({
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
   await page.getByLabel("Mobile Training Unit").check();
+  await page.getByLabel("KBEMS / KEMSIS").check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page.getByLabel("EMS course name").fill("E2E EMS");
+  await page.getByLabel("Course type").selectOption("continuing_education");
+  await page
+    .getByLabel("Course description or objectives")
+    .fill("Airway management");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page
     .getByLabel("Ford Transit Van 15 passenger", { exact: true })
