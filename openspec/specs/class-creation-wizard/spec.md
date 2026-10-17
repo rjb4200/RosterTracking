@@ -5,7 +5,7 @@
 Give authorized instructors a fast, reviewable guided path to create a scheduled class that is open for sign-in as soon as it is created, without exposing all setup choices at once.
 ## Requirements
 ### Requirement: Guided class creation
-The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select any combination of Fire, KBEMS, and MTU and SHALL NOT offer FEMA. The class-and-schedule step SHALL collect the delivery method, training site when required, scheduled start and duration, lead instructor, host agency, and optional student access PIN. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
+The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect the delivery method, training site when required, scheduled start and duration, lead instructor, host agency, and optional student access PIN. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -22,6 +22,10 @@ The system SHALL present class creation as a Destinations step first, then one s
 #### Scenario: Remove a destination step
 - **WHEN** staff clear a destination that had been selected
 - **THEN** that destination's step is removed from the workflow and its values are not submitted
+
+#### Scenario: Require an accreditation destination with MTU
+- **WHEN** staff select MTU on the Destinations step without also selecting Fire or KBEMS
+- **THEN** the system blocks advancement and identifies that MTU requires Fire or KBEMS
 
 #### Scenario: Offer no FEMA destination
 - **WHEN** staff view the Destinations step
@@ -80,15 +84,19 @@ When MTU is a selected destination, the system SHALL provide an MTU step that ca
 - **THEN** the workflow does not present an MTU step
 
 ### Requirement: Fire destination step collects subject rows
-When Fire is a selected destination, the system SHALL provide a Fire step that collects up to two subject rows. Each subject row SHALL capture a Category from the searchable training-code catalog, a Class Name, a Curriculum from the searchable approved-curricula catalog, and a free-text Lesson Plan. Selecting a training code SHALL pre-fill the Class Name, and staff SHALL be able to overwrite the Class Name manually.
+When Fire is a selected destination, the system SHALL provide a Fire step that collects up to two subject rows. Each subject row SHALL capture a Category from the searchable Fire training-category catalog, a Class Name, a Curriculum from the searchable approved-curricula catalog, and a free-text Lesson Plan. Selecting a Fire category SHALL pre-fill the Class Name, and staff SHALL be able to overwrite the Class Name manually.
 
-#### Scenario: Select a training code
-- **WHEN** staff choose a training code on a Fire subject row
-- **THEN** the system pre-fills the Class Name from the training code's title and keeps it editable
+#### Scenario: Select a Fire category
+- **WHEN** staff choose a Fire category on a Fire subject row
+- **THEN** the system pre-fills the Class Name from the category's title and keeps it editable
+
+#### Scenario: Only Fire categories are offered
+- **WHEN** staff open the Category picker on a Fire subject row
+- **THEN** the picker offers only Fire categories and no EMS categories
 
 #### Scenario: Override the class name
 - **WHEN** staff edit a pre-filled Class Name
-- **THEN** the system keeps the typed Class Name while retaining the selected training code as the category
+- **THEN** the system keeps the typed Class Name while retaining the selected category
 
 #### Scenario: Add a second subject
 - **WHEN** staff add a second Fire subject row
@@ -104,7 +112,27 @@ When Fire is a selected destination, the system SHALL provide a Fire step that c
 
 ### Requirement: KBEMS destination step collects EMS course details
 
-When KBEMS is a selected destination, the system SHALL require the EMS course name as free text, a Course type from a selectable set, and the course description or objectives on the KBEMS step. It SHALL offer a Course number for every course type. For an Initial certification class the Course number SHALL be required and SHALL be expected in the format `<TEI>-<YY>-<CC>-<T>`, where TEI is the configured initial-certification TEI number, YY is a two-digit year, CC is a two-digit Class ID, and T is one of `R`, `B`, `A`, or `P`; the system SHALL match the format case-insensitively and store the value uppercase. For an Initial certification class the system SHALL offer the five most recently used initial-certification numbers for selection and SHALL let staff type a new number; a non-empty value whose shape does not match SHALL raise a warning that the instructor acknowledges, and the step SHALL advance only after acknowledgement and SHALL NOT block on the number's shape. For every other course type the Course number SHALL remain an optional field shown with muted styling that stays editable. When both Fire and KBEMS are selected and the course type is not Initial certification, the system SHALL pre-fill the Course number from the first Fire subject's training code, and staff SHALL be able to overwrite the pre-filled value; for Initial certification the system SHALL NOT pre-fill the Course number from the Fire training code.
+When KBEMS is a selected destination, the system SHALL require a Category from the searchable EMS training-category catalog, the EMS course name, a Course type from a selectable set, and the course description or objectives on the KBEMS step. Selecting an EMS category SHALL pre-fill the EMS course name, and staff SHALL be able to overwrite it manually; the selected EMS category SHALL be retained on the class as its structured category. When both Fire and KBEMS are selected, the system SHALL pre-fill the EMS category from the first Fire subject's mapped category, and staff SHALL be able to overwrite it. It SHALL offer a Course number for every course type. For an Initial certification class the Course number SHALL be required and SHALL be expected in the format `<TEI>-<YY>-<CC>-<T>`, where TEI is the configured initial-certification TEI number, YY is a two-digit year, CC is a two-digit Class ID, and T is one of `R`, `B`, `A`, or `P`; the system SHALL match the format case-insensitively and store the value uppercase. For an Initial certification class the system SHALL offer the five most recently used initial-certification numbers for selection and SHALL let staff type a new number; a non-empty value whose shape does not match SHALL raise a warning that the instructor acknowledges, and the step SHALL advance only after acknowledgement and SHALL NOT block on the number's shape. For every other course type the Course number SHALL remain an optional field shown with muted styling that stays editable. When both Fire and KBEMS are selected and the course type is not Initial certification, the system SHALL pre-fill the Course number from the first Fire subject's training code, and staff SHALL be able to overwrite the pre-filled value; for Initial certification the system SHALL NOT pre-fill the Course number from the Fire training code.
+
+#### Scenario: Select an EMS category
+- **WHEN** staff choose an EMS category on the KBEMS step
+- **THEN** the system pre-fills the EMS course name from the category and keeps it editable, and retains the category as the class's category
+
+#### Scenario: Override the EMS course name
+- **WHEN** staff edit a pre-filled EMS course name
+- **THEN** the system keeps the typed name while retaining the selected EMS category
+
+#### Scenario: Only EMS categories are offered
+- **WHEN** staff open the Category picker on the KBEMS step
+- **THEN** the picker offers only EMS categories and no Fire categories
+
+#### Scenario: Require the EMS category
+- **WHEN** staff try to leave the KBEMS step without choosing an EMS category
+- **THEN** the system blocks the step and identifies the missing category
+
+#### Scenario: Pre-fill the EMS category for a dual Fire and EMS class
+- **WHEN** Fire and KBEMS are both selected and the first Fire subject's category has a mapped EMS category
+- **THEN** the KBEMS step pre-fills that mapped EMS category while leaving it editable
 
 #### Scenario: Enter the EMS course name
 - **WHEN** staff enter the EMS course name on the KBEMS step
@@ -259,7 +287,7 @@ The system SHALL present the approved-curricula selection and the not-listed fre
 - **THEN** any typed curriculum name is cleared and the free-text name field is hidden
 
 ### Requirement: Class name comes from the destination
-The system SHALL set the class name from the first Fire subject's class name when Fire is selected, from the EMS course name when KBEMS is selected, and from a class name entered on the class-and-schedule step when neither Fire nor KBEMS is selected.
+The system SHALL set the class name from the first Fire subject's class name when Fire is selected, and from the EMS course name when KBEMS is selected.
 
 #### Scenario: Name a Fire class
 - **WHEN** Fire is selected and staff enter a class name on the first Fire subject row
@@ -268,10 +296,6 @@ The system SHALL set the class name from the first Fire subject's class name whe
 #### Scenario: Name an EMS class
 - **WHEN** KBEMS is selected and staff enter the EMS course name
 - **THEN** the class name is the EMS course name
-
-#### Scenario: Name an MTU-only class
-- **WHEN** only MTU is selected
-- **THEN** the class-and-schedule step collects a class name and the class uses it
 
 ### Requirement: Class duration defaults to two hours
 The class-and-schedule step SHALL default the scheduled duration to two hours and SHALL let staff change it.

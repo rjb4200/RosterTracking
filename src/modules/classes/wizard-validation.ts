@@ -2,6 +2,7 @@ import { parseTransportMileage } from "./mtu";
 
 export interface WizardValidationInput {
   reportingSystemIds: string[];
+  destinationCodes: string[];
   needsClassName: boolean;
   className: string;
   needsSite: boolean;
@@ -40,6 +41,13 @@ export function wizardStepErrors(
   if (key === "destinations") {
     if (input.reportingSystemIds.length === 0) {
       missing.push("reportingSystemIds");
+    } else if (
+      input.destinationCodes.includes("mtu") &&
+      !input.destinationCodes.includes("fire") &&
+      !input.destinationCodes.includes("kbems")
+    ) {
+      // MTU records resource usage only; it needs an accreditation destination.
+      missing.push("mtuRequiresAccreditation");
     }
     return missing;
   }

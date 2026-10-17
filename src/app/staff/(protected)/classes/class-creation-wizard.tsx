@@ -215,8 +215,9 @@ export function ClassCreationWizard({
     })),
   ];
   const needsSite = values.deliveryMethod !== "online";
-  const needsClassName =
-    !selectedCodes.includes("fire") && !selectedCodes.includes("kbems");
+  // MTU now requires Fire or KBEMS, so every class has a destination-derived
+  // name; the entered-name fallback is no longer reachable.
+  const needsClassName = false;
   const resolvedClassName = selectedCodes.includes("kbems")
     ? values.kbemsCourseName
     : needsClassName
@@ -352,6 +353,7 @@ export function ClassCreationWizard({
   const [attempted, setAttempted] = useState(false);
   const validationInput: WizardValidationInput = {
     reportingSystemIds: values.reportingSystemIds,
+    destinationCodes: selectedCodes,
     needsClassName,
     className: values.className,
     needsSite,
@@ -473,6 +475,15 @@ export function ClassCreationWizard({
               ))}
             </div>
           </fieldset>
+          {selectedCodes.includes("mtu") &&
+          !selectedCodes.includes("fire") &&
+          !selectedCodes.includes("kbems") ? (
+            <p className="form-error" role="alert">
+              Select Fire or KBEMS alongside the Mobile Training Unit. The
+              Mobile Training Unit records resource usage only and produces no
+              attendee roster or completion certificates on its own.
+            </p>
+          ) : null}
           <div className="wizard-requirements">
             <h2>Reporting inclusion</h2>
             <p>No student credential is required to sign in.</p>

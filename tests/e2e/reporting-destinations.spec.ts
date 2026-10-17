@@ -53,7 +53,20 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
   await expect(stepItems.filter({ hasText: "Fire" })).toBeVisible();
   await page.getByLabel("Kentucky Fire Commission").uncheck();
   await expect(stepItems.filter({ hasText: "Fire" })).toHaveCount(0);
+  // MTU requires an accreditation destination; pair it with KBEMS.
+  await page.getByLabel("KBEMS / KEMSIS").check();
 
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // KBEMS step (ordered before MTU).
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page.getByLabel("EMS course name").fill(`E2E EMS ${suffix}`);
+  await page.getByLabel("Course type").selectOption("continuing_education");
+  await page
+    .getByLabel("Course description or objectives")
+    .fill("Airway management");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // MTU step captures usage.
@@ -68,8 +81,7 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
   await page.getByLabel("Other supplies (not listed)").fill("Gloves");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // Class and schedule step. MTU-only, so it collects the class name.
-  await page.getByLabel("Class name").fill("MTU In-Service");
+  // Class and schedule step. KBEMS sets the class name, so no name field here.
   await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
   await page.getByLabel("Scheduled duration (hours)").fill("4");

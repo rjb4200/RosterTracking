@@ -62,6 +62,7 @@ describe("Fire class instructor mutation guards", () => {
     const { db, transaction } = databaseWithSelections([
       [{ id: agencyId }],
       [{ id: fireId }],
+      [{ code: "fire" }],
       [],
       [{ id: leadId }],
       [{ id: fireId }],
@@ -84,6 +85,7 @@ describe("Fire class instructor mutation guards", () => {
       [{ id: "elevated-role" }],
       [{ id: agencyId }],
       [{ id: fireId }],
+      [{ code: "fire" }],
       [{ id: fireId }],
       [],
       [{ id: leadId }, { id: assistantId }],

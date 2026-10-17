@@ -97,6 +97,25 @@ The system SHALL present the finalize-and-sign action on the review screen only 
 - **WHEN** an authorized operator opens the review screen for a finalized class
 - **THEN** the screen presents the recorded signer and signed timestamp for the latest revision
 
+### Requirement: Finalization reconciles reporting context before locking
+Before it reports readiness or validates the roster for an open class, the system SHALL reconcile every active attendance's reporting context with the class's currently resolved reporting requirement sets, so a destination changed after attendance was recorded neither withholds the finalize action nor blocks finalization. A class whose selected reporting systems changed after sign-in SHALL present as ready, finalize successfully, and — when a certificate-bearing reporting system is among its destinations — queue a completion certificate for every active participant with a deliverable email. A context that cannot be derived from the class's selected reporting systems SHALL still be reported as missing and SHALL withhold finalization.
+
+#### Scenario: Review a class whose destinations changed after sign-in
+- **WHEN** an authorized operator opens the review screen for an open class whose selected reporting systems changed after attendance was recorded and no save has reconciled the contexts
+- **THEN** the system reconciles each active attendance's reporting context and presents the roster as ready to finalize
+
+#### Scenario: Finalize a class whose destinations changed after sign-in
+- **WHEN** the lead instructor finalizes a class whose selected reporting systems changed after attendance was recorded
+- **THEN** the system reconciles each active attendance's reporting context before validation, finalization succeeds, and the revision is created
+
+#### Scenario: Issue certificates after a destination-driven finalization
+- **WHEN** a reopened class is re-finalized with a certificate-bearing reporting system selected among its destinations
+- **THEN** the system queues a completion certificate for every active participant with a deliverable email
+
+#### Scenario: Leave a genuinely missing context unresolved
+- **WHEN** an active attendance lacks a reporting context that cannot be derived from the class's selected reporting systems
+- **THEN** the system still identifies that record and withholds finalization
+
 ### Requirement: The review screen manages certificate delivery
 
 The review screen SHALL present, for a finalized EMS class, the certificate delivery state of each active participant: delivered, undeliverable, or failed. It SHALL offer authorized staff a resend action for an individual participant, optionally with a different address, and SHALL list participants without a deliverable email as delivery exceptions with an action to provide an address and send. It SHALL present these controls only to operators who may generate certificates.

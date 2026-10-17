@@ -5,6 +5,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { CLASS_STATUSES } from "@/modules/classes/constants";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
 import { listClassCredentialCorrections } from "@/modules/credential-correction/service";
+import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import {
@@ -295,6 +296,10 @@ export async function getRosterReadiness(
     );
     if (classRecord.status !== CLASS_STATUSES.OPEN)
       throw new Error("Roster unavailable.");
+
+    // A destination changed after sign-in leaves reporting context stale; bring
+    // it into line so the review screen presents an accurate readiness state.
+    await reconcileAttendanceReportingContexts(transaction, classId);
 
     const scheduledHours = await getScheduledClassHours(transaction, classId);
     const requirements = await resolveClassRequirements(transaction, classId);

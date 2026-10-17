@@ -48,15 +48,27 @@ test("authorized staff can create and open a class in one pass", async ({
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
 
-  // Step 1: destinations.
+  // Step 1: destinations. MTU requires an accreditation destination; pair it
+  // with KBEMS so the class can be created.
   await page.getByLabel(systemName).check();
+  await page.getByLabel("KBEMS / KEMSIS").check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // The selected destination's step (MTU) needs no input.
+  // KBEMS step (ordered before MTU).
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page.getByLabel("EMS course name").fill(`E2E EMS ${suffix}`);
+  await page.getByLabel("Course type").selectOption("continuing_education");
+  await page
+    .getByLabel("Course description or objectives")
+    .fill("Airway management");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  // Class and schedule step. An MTU-only class needs a class name.
-  await page.getByLabel("Class name").fill(`E2E MTU Class ${suffix}`);
+  // The MTU step needs no input.
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  // Class and schedule step. KBEMS sets the class name, so no name field here.
   await page
     .getByRole("combobox", { name: "Training site" })
     .selectOption(siteId);
@@ -147,8 +159,18 @@ test("class start time defaults to the nearest quarter hour and snaps typed time
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
 
-  // Advance past Destinations and the destination step to the class details.
+  // Advance past Destinations and the destination steps to the class details.
   await page.getByLabel("Mobile Training Unit").check();
+  await page.getByLabel("KBEMS / KEMSIS").check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page.getByLabel("EMS course name").fill("E2E EMS");
+  await page.getByLabel("Course type").selectOption("continuing_education");
+  await page
+    .getByLabel("Course description or objectives")
+    .fill("Airway management");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
