@@ -60,13 +60,16 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
   await expect(
     page.getByRole("heading", { name: "Mobile Training Unit usage" }),
   ).toBeVisible();
+  // The free-text MTU fields live inside a collapsed "Additional details"
+  // disclosure, and the legacy mileage field was relabeled.
+  await page.getByText("Additional details", { exact: true }).click();
   await page.getByLabel("Other equipment (not listed)").fill("Trailer 4");
-  await page.getByLabel("Mileage").fill("120");
+  await page.getByLabel("Other / legacy mileage (unattributed)").fill("120");
   await page.getByLabel("Other supplies (not listed)").fill("Gloves");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Class and schedule step. MTU-only, so it collects the class name.
-  await page.getByLabel("Class name", { exact: true }).fill("MTU In-Service");
+  await page.getByLabel("Class name").fill("MTU In-Service");
   await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
   await page.getByLabel("Scheduled duration (hours)").fill("4");
@@ -75,7 +78,9 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
 
   // Review summarizes the destination and its captured values.
   await expect(page.getByText("Review class")).toBeVisible();
-  await expect(page.getByText("Mobile Training Unit")).toBeVisible();
+  await expect(
+    page.getByText("Mobile Training Unit", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("120")).toBeVisible();
   await page.getByRole("button", { name: "Create & open" }).click();
   await expect(page.getByText("Class is open")).toBeVisible();

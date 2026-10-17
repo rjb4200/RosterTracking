@@ -35,6 +35,17 @@ async function seedFireFixtures(pool: Pool, suffix: string) {
   return { siteId, agencyId, trainingCodeId, curriculumId };
 }
 
+// A Fire class requires every assigned instructor to hold a valid FFN, and the
+// class creator becomes the lead instructor, so the operator must have one.
+async function setLeadInstructorFfn(pool: Pool, seed: string) {
+  if (!username) return;
+  const digits = seed.replace(/\D/g, "").padEnd(8, "0").slice(0, 8);
+  await pool.query("update users set ffn = $1 where username = $2", [
+    `${digits.slice(0, 4)}-${digits.slice(4)}`,
+    username,
+  ]);
+}
+
 async function completeClassStep(
   page: Page,
   fixture: { siteId: string; agencyId: string },
@@ -65,6 +76,7 @@ test("captures a single Fire subject", async ({ page }) => {
   const suffix = crypto.randomUUID();
   const pool = new Pool({ connectionString, max: 1 });
   const fixture = await seedFireFixtures(pool, suffix);
+  await setLeadInstructorFfn(pool, suffix);
   await pool.end();
 
   await signIn(page, username, password);
@@ -73,7 +85,9 @@ test("captures a single Fire subject", async ({ page }) => {
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   const row1 = subjectRow(page, 1);
-  await row1.getByLabel("Category").selectOption(fixture.trainingCodeId);
+  await row1
+    .getByLabel("Category", { exact: true })
+    .selectOption(fixture.trainingCodeId);
   // Selecting a training code pre-fills the editable class name.
   await expect(row1.getByLabel("Class name")).toHaveValue("Hose Loads");
   await row1
@@ -104,6 +118,7 @@ test("captures a second Fire subject", async ({ page }) => {
   const suffix = crypto.randomUUID();
   const pool = new Pool({ connectionString, max: 1 });
   const fixture = await seedFireFixtures(pool, suffix);
+  await setLeadInstructorFfn(pool, suffix);
   await pool.end();
 
   await signIn(page, username, password);
@@ -112,12 +127,16 @@ test("captures a second Fire subject", async ({ page }) => {
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   const row1 = subjectRow(page, 1);
-  await row1.getByLabel("Category").selectOption(fixture.trainingCodeId);
+  await row1
+    .getByLabel("Category", { exact: true })
+    .selectOption(fixture.trainingCodeId);
   await row1.getByLabel("Lesson plan").fill("Chapter 10");
 
   await page.getByRole("button", { name: "Add second subject" }).click();
   const row2 = subjectRow(page, 2);
-  await row2.getByLabel("Category").selectOption(fixture.trainingCodeId);
+  await row2
+    .getByLabel("Category", { exact: true })
+    .selectOption(fixture.trainingCodeId);
   await row2.getByLabel("Class name").fill("SCBA Donning");
 
   await page.getByRole("button", { name: "Next", exact: true }).click();

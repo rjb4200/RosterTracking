@@ -105,6 +105,7 @@ export function SearchSelect({
         <select
           id={selectId}
           className="search-select-value"
+          aria-label={label}
           value={value}
           required={required}
           aria-invalid={invalid || undefined}

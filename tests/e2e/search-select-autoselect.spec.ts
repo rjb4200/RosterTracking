@@ -22,9 +22,12 @@ test("typing in a search control selects the first match", async ({ page }) => {
   const pool = new Pool({ connectionString, max: 1 });
   const suffix = crypto.randomUUID();
   const code = `K7-${suffix.slice(0, 6)}`;
+  // Seeded catalog titles also contain common words like "hose", so the filter
+  // term must be unique to the fixture for the "first match" to be it.
+  const uniqueTerm = suffix.slice(0, 8);
   const trainingCode = await pool.query<{ id: string }>(
-    "insert into training_codes (kind, code, title, source_revision) values ('fire', $1, 'Hose Loads', 'e2e') returning id",
-    [code],
+    "insert into training_codes (kind, code, title, source_revision) values ('fire', $1, $2, 'e2e') returning id",
+    [code, `Hose Loads ${uniqueTerm}`],
   );
   const trainingCodeId = trainingCode.rows[0]?.id;
   const fire = await pool.query<{ name: string }>(
@@ -42,7 +45,7 @@ test("typing in a search control selects the first match", async ({ page }) => {
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   const category = page.getByLabel("Category", { exact: true });
-  await page.getByLabel("Filter Category").fill("hose");
+  await page.getByLabel("Filter Category").fill(uniqueTerm);
   await expect(category).toHaveValue(trainingCodeId);
 
   // A filter with no matches keeps the current selection.

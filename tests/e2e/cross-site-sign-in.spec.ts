@@ -50,8 +50,8 @@ async function createOpenClassFixture(connectionString: string) {
     .toString()
     .padStart(7, "0")}`;
   await pool.query(
-    "insert into students (first_name, last_name, phone) values ('Cross-site', $1, $2)",
-    [`Student ${suffix}`, phone],
+    "insert into students (first_name, last_name, phone, email) values ('Cross-site', $1, $2, $3)",
+    [`Student ${suffix}`, phone, `cross-site-${suffix}@example.com`],
   );
   await pool.end();
   return { publicCode, phone, agencyName };
