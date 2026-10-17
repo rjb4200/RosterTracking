@@ -2,8 +2,15 @@ import "server-only";
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import fontkit from "@pdf-lib/fontkit";
 import { and, eq, inArray } from "drizzle-orm";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import {
+  PDFDocument,
+  type PDFFont,
+  PDFName,
+  StandardFonts,
+  TextAlignment,
+} from "pdf-lib";
 import { z } from "zod";
 
 import {
@@ -418,28 +425,80 @@ function fillKfsPage(
   );
 }
 
+const TEMPLATE_ASSET_DIR = join(
+  process.cwd(),
+  "src",
+  "modules",
+  "official-roster-pdfs",
+);
+
+const TEMPLATE_FONT_DIR = join(TEMPLATE_ASSET_DIR, "fonts");
+
+export interface TemplateRenderFonts {
+  // The face used for fields without a specific override.
+  body: PDFFont;
+  // Resolves the face a named field renders in.
+  forField: (name: string) => PDFFont;
+}
+
+/** Embeds a bundled template font, subset to the glyphs the document uses. */
+async function embedTemplateFont(
+  pdf: PDFDocument,
+  assetName: string,
+): Promise<PDFFont> {
+  // Custom fonts require fontkit; standard fonts do not.
+  pdf.registerFontkit(fontkit);
+  const bytes = await readFile(join(TEMPLATE_FONT_DIR, assetName));
+  return pdf.embedFont(bytes, { subset: true });
+}
+
 export async function renderPage(
   mapping: TemplateMapping,
-  fill: (pdf: PDFDocument) => void | Promise<void>,
+  fill: (pdf: PDFDocument, fonts: TemplateRenderFonts) => void | Promise<void>,
   options: { flatten?: boolean } = {},
 ): Promise<PDFDocument> {
-  const source = await readFile(
-    join(
-      process.cwd(),
-      "src",
-      "modules",
-      "official-roster-pdfs",
-      mapping.assetName,
-    ),
-  );
+  const source = await readFile(join(TEMPLATE_ASSET_DIR, mapping.assetName));
   const pdf = await PDFDocument.load(source);
-  await fill(pdf);
+
+  // Embed the template fonts first so field values are measured and written in
+  // the same face their appearance streams will use.
+  const bodyFont = mapping.fonts
+    ? await embedTemplateFont(pdf, mapping.fonts.body)
+    : await pdf.embedFont(StandardFonts.Helvetica);
+  const overrideFonts = new Map<string, PDFFont>();
+  for (const [name, assetName] of Object.entries(mapping.fonts?.fields ?? {})) {
+    overrideFonts.set(name, await embedTemplateFont(pdf, assetName));
+  }
+  const fonts: TemplateRenderFonts = {
+    body: bodyFont,
+    forField: (name) => overrideFonts.get(name) ?? bodyFont,
+  };
+
+  await fill(pdf, fonts);
+
   const form = pdf.getForm();
+  if (mapping.clearFieldBackgrounds) {
+    for (const field of form.getFields()) {
+      for (const widget of field.acroField.getWidgets()) {
+        widget.getAppearanceCharacteristics()?.dict.delete(PDFName.of("BG"));
+      }
+    }
+  }
+  for (const name of mapping.centerFields ?? []) {
+    form.getTextField(name).setAlignment(TextAlignment.Center);
+  }
   for (const name of mapping.wrapFields ?? []) {
     form.getTextField(name).enableMultiline();
   }
-  form.updateFieldAppearances(await pdf.embedFont(StandardFonts.Helvetica));
-  if (options.flatten ?? true) form.flatten();
+
+  form.updateFieldAppearances(bodyFont);
+  for (const [name, font] of overrideFonts) {
+    form.getTextField(name).updateAppearances(font);
+  }
+  if (options.flatten ?? true) {
+    // Appearances already carry the per-field fonts; do not regenerate them.
+    form.flatten({ updateFieldAppearances: false });
+  }
   return pdf;
 }
 

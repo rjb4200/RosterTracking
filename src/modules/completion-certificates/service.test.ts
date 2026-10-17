@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import { PDFDocument } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import { PDFContentStream, PDFDocument, PDFName, TextAlignment } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { COMPLETION_CERTIFICATE_TEMPLATE } from "@/modules/official-roster-pdfs/mappings";
@@ -13,6 +14,7 @@ import {
   courseTypeLabel,
   instructorTitleCourse,
   participantName,
+  renderCertificateForParticipant,
   renderCertificatePage,
   renderCompletionCertificateBatch,
   renderCompletionCertificates,
@@ -60,6 +62,44 @@ const snapshot: FinalizationSnapshot = {
   ],
   fieldSnapshots: [],
   credentialSnapshots: [],
+};
+
+/** The font a field's rendered appearance draws its text in. */
+function appearanceFontName(
+  page: PDFDocument,
+  fieldName: string,
+): string | null {
+  const widget = page
+    .getForm()
+    .getTextField(fieldName)
+    .acroField.getWidgets()[0];
+  const normal = widget?.getAppearances()?.normal;
+  if (!(normal instanceof PDFContentStream)) return null;
+  return (
+    /(\/[A-Za-z0-9+-]+)\s+[\d.]+\s+Tf/.exec(normal.getContentsString())?.[1] ??
+    null
+  );
+}
+
+/** True when a field still carries a template highlight background. */
+function hasFieldBackground(page: PDFDocument, fieldName: string): boolean {
+  const widget = page
+    .getForm()
+    .getTextField(fieldName)
+    .acroField.getWidgets()[0];
+  return (
+    widget?.getAppearanceCharacteristics()?.dict.lookup(PDFName.of("BG")) !==
+    undefined
+  );
+}
+
+const signedSnapshot: FinalizationSnapshot = {
+  ...snapshot,
+  signature: {
+    name: "Lead Medic",
+    signedAt: "2026-09-05T18:00:00.000Z",
+    attestationVersion: "roster-attestation-001",
+  },
 };
 
 describe("completion certificates", () => {
@@ -291,5 +331,125 @@ describe("completion certificates", () => {
     const size = Number(/([\d.]+)\s+Tf/.exec(appearance ?? "")?.[1] ?? 0);
     expect(size).toBeGreaterThanOrEqual(6);
     expect(size).toBeLessThan(9);
+  });
+
+  it("clears the template field highlight background", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    for (const field of page.getForm().getFields()) {
+      expect(hasFieldBackground(page, field.getName())).toBe(false);
+    }
+  });
+
+  it("keeps the mapped values after clearing the backgrounds", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    const form = page.getForm();
+    expect(form.getTextField("Student_Name").getText()).toBe("Ada Lovelace");
+    expect(form.getTextField("Class_Hours").getText()).toBe(
+      "2 Continuing Education",
+    );
+    expect(form.getTextField("Course_Type").getText()).toBe(
+      "Airway Management",
+    );
+    expect(form.getTextField("Course_Number").getText()).toBe("CE-2026-14");
+  });
+
+  it("centers the participant and inline course fields", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    const form = page.getForm();
+    for (const name of [
+      "Student_Name",
+      "Class_Hours",
+      "Course_Type",
+      "Course_Number",
+    ]) {
+      expect(form.getTextField(name).getAlignment()).toBe(TextAlignment.Center);
+    }
+  });
+
+  it("leaves the date and instructor fields left-aligned", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    const form = page.getForm();
+    for (const name of [
+      "Completion_Date",
+      "Instructor_Name",
+      "Instructor_Title_Course",
+      "Instructor_Signature",
+    ]) {
+      expect(form.getTextField(name).getAlignment()).toBe(TextAlignment.Left);
+    }
+  });
+
+  it("renders the signature in Allura and the body in Libre Baskerville", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(signedSnapshot, participant, {
+      flatten: false,
+    });
+    expect(appearanceFontName(page, "Instructor_Signature")).toContain(
+      "Allura",
+    );
+    expect(appearanceFontName(page, "Student_Name")).toContain(
+      "LibreBaskerville",
+    );
+    expect(appearanceFontName(page, "Course_Type")).toContain(
+      "LibreBaskerville",
+    );
+  });
+
+  it("embeds subset copies of both certificate fonts", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const bytes = await renderCertificateForParticipant(snapshot, participant);
+    const text = Buffer.from(bytes).toString("latin1");
+    expect(text).toContain("Allura");
+    expect(text).toContain("LibreBaskerville");
+    expect(text).toContain("FontFile2");
+  });
+
+  it("covers the signature-line glyphs in the bundled fonts", async () => {
+    const libreBaskerville = await fontkit.create(
+      await readFile(
+        new URL(
+          "../official-roster-pdfs/fonts/LibreBaskerville-Regular.ttf",
+          import.meta.url,
+        ),
+      ),
+    );
+    const allura = await fontkit.create(
+      await readFile(
+        new URL(
+          "../official-roster-pdfs/fonts/Allura-Regular.ttf",
+          import.meta.url,
+        ),
+      ),
+    );
+    for (const font of [libreBaskerville, allura]) {
+      expect(font.characterSet).toContain(0x2013);
+      expect(font.characterSet).toContain(0x2019);
+    }
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const page = await renderCertificatePage(snapshot, participant, {
+      flatten: false,
+    });
+    expect(
+      page.getForm().getTextField("Instructor_Title_Course").getText(),
+    ).toContain("–");
   });
 });

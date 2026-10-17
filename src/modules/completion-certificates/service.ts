@@ -33,6 +33,7 @@ import {
   formatDate,
   readSnapshot,
   renderPage,
+  type TemplateRenderFonts,
 } from "@/modules/official-roster-pdfs/service";
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -142,7 +143,7 @@ export function fitFontSize(
  */
 function setFittedText(
   pdf: PDFDocument,
-  font: PDFFont,
+  fonts: TemplateRenderFonts,
   name: string | undefined,
   value: string,
   start: number,
@@ -150,6 +151,7 @@ function setFittedText(
 ) {
   if (!name) throw new Error("Certificate template mapping is incomplete.");
   const field = pdf.getForm().getTextField(name);
+  const font = fonts.forField(name);
   // The template stores the default appearance with an escaped leading slash
   // ("\057Helv ..."), which pdf-lib's setFontSize cannot parse; normalize it.
   const current = field.acroField.getDefaultAppearance();
@@ -166,11 +168,11 @@ function setFittedText(
 
 async function fillCertificate(
   pdf: PDFDocument,
+  fonts: TemplateRenderFonts,
   snapshot: FinalizationSnapshot,
   participant: CertificateParticipant,
 ) {
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
   const lead =
     snapshot.instructors.find((instructor) => instructor.isLead) ??
     snapshot.instructors[0];
@@ -186,30 +188,30 @@ async function fillCertificate(
     .join(" ");
   setFittedText(
     pdf,
-    font,
+    fonts,
     mapping.fields.studentName,
     participantName(participant),
     22,
     12,
   );
-  setFittedText(pdf, font, mapping.fields.classHours, firstBlank, 9);
+  setFittedText(pdf, fonts, mapping.fields.classHours, firstBlank, 9);
   setFittedText(
     pdf,
-    font,
+    fonts,
     mapping.fields.courseType,
     snapshot.class.courseName,
     9,
   );
   setFittedText(
     pdf,
-    font,
+    fonts,
     mapping.fields.courseNumber,
     snapshot.class.courseNumber ?? "",
     9,
   );
   setFittedText(
     pdf,
-    font,
+    fonts,
     mapping.fields.completionDate,
     formatDate(snapshot.class.completedAt),
     11,
@@ -217,7 +219,7 @@ async function fillCertificate(
   );
   setFittedText(
     pdf,
-    font,
+    fonts,
     mapping.fields.instructorName,
     lead?.name ?? "",
     10,
@@ -234,16 +236,17 @@ async function fillCertificate(
   const fullTitle = instructorTitleCourse(snapshot);
   const title =
     fullTitle &&
-    font.widthOfTextAtSize(fullTitle, CERTIFICATE_MIN_FONT_SIZE) <= titleWidth
+    fonts.body.widthOfTextAtSize(fullTitle, CERTIFICATE_MIN_FONT_SIZE) <=
+      titleWidth
       ? fullTitle
       : snapshot.class.courseName;
-  setFittedText(pdf, font, titleFieldName, title, 9);
+  setFittedText(pdf, fonts, titleFieldName, title, 9);
 
   // The lead instructor's typed-name electronic signature, taken from the
   // revision's attestation. Blank only when the revision has no attestation.
   setFittedText(
     pdf,
-    font,
+    fonts,
     mapping.fields.instructorSignature,
     snapshot.signature?.name ?? "",
     11,
@@ -269,7 +272,7 @@ export async function renderCertificatePage(
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
   return renderPage(
     mapping,
-    (pdf) => fillCertificate(pdf, snapshot, participant),
+    (pdf, fonts) => fillCertificate(pdf, fonts, snapshot, participant),
     { flatten: options.flatten ?? true },
   );
 }
@@ -292,8 +295,8 @@ export async function renderCompletionCertificates(
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
   const output = await PDFDocument.create();
   for (const participant of snapshot.attendance) {
-    const page = await renderPage(mapping, (pdf) =>
-      fillCertificate(pdf, snapshot, participant),
+    const page = await renderPage(mapping, (pdf, fonts) =>
+      fillCertificate(pdf, fonts, snapshot, participant),
     );
     const copied = await output.copyPages(page, [0]);
     output.addPage(copied[0]);
@@ -385,8 +388,8 @@ export async function renderCompletionCertificateBatch(
     output.addPage(page);
   }
   for (const participant of snapshot.attendance) {
-    const page = await renderPage(mapping, (pdf) =>
-      fillCertificate(pdf, snapshot, participant),
+    const page = await renderPage(mapping, (pdf, fonts) =>
+      fillCertificate(pdf, fonts, snapshot, participant),
     );
     const copied = await output.copyPages(page, [0]);
     output.addPage(copied[0]);

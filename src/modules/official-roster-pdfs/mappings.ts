@@ -13,6 +13,15 @@ export const DOCUMENT_TYPES = {
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[keyof typeof DOCUMENT_TYPES];
 
+export interface TemplateFonts {
+  // Filename under src/modules/official-roster-pdfs/fonts/ used for fields with
+  // no explicit override.
+  body: string;
+  // Form field name to font filename override (for example a script font for
+  // the signature field).
+  fields?: Readonly<Record<string, string>>;
+}
+
 export interface TemplateMapping {
   formType: DocumentType;
   templateVersion: string;
@@ -34,6 +43,14 @@ export interface TemplateMapping {
   // Field-name prefix for the per-attendee initials column (for example
   // "INITIALSRow", used as INITIALSRow1..N). Absent when the form has none.
   attendeeInitialsField?: string;
+  // Clear the template's field highlight background before appearances are
+  // regenerated. Absent keeps the supplied template background.
+  clearFieldBackgrounds?: boolean;
+  // Form field names to center within their boxes. Absent keeps the supplied
+  // alignment.
+  centerFields?: readonly string[];
+  // Embedded fonts for this template. Absent keeps the standard Helvetica path.
+  fonts?: TemplateFonts;
 }
 
 export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
@@ -134,6 +151,15 @@ export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {
   // The lead instructor's typed-name electronic signature is rendered from the
   // revision attestation; nothing is left permanently blank.
   blankFields: [],
+  // The template ships with a light-blue highlight behind every field; the
+  // certificate wants the text directly on the page background.
+  clearFieldBackgrounds: true,
+  centerFields: ["Student_Name", "Class_Hours", "Course_Type", "Course_Number"],
+  // A serif reads as a formal certificate; the signature uses a script face.
+  fonts: {
+    body: "LibreBaskerville-Regular.ttf",
+    fields: { Instructor_Signature: "Allura-Regular.ttf" },
+  },
 };
 
 // The KFS-1B individual training notice. The Light-Yellow and White forms are
