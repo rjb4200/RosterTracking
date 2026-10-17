@@ -52,3 +52,6 @@
 - [x] 9.1 Order the transcript and activity logs by category (then by date)
 - [x] 9.2 Make the requirements reference block compact and label it as reference hours
 - [x] 9.3 Put the report selector first and reveal only the inputs (and period controls) the selected report needs
+- [x] 9.4 Count Pediatric as a content category above the total
+- [x] 9.5 Label the requirements block as REFERENCE ONLY more prominently
+- [x] 9.6 List Pediatric directly under Operations

@@ -1,6 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import {
-  CE_PEDIATRIC_ROW,
   CE_REQUIREMENT_LEVELS,
   CE_REQUIREMENT_ROWS,
   CE_TOTAL_ROW,
@@ -78,15 +77,22 @@ export async function renderCeReportPdf(
   };
   header();
   const drawRequirementsBlock = () => {
-    text("KBEMS REQUIREMENT HOURS BY LEVEL (reference)", 42, y, 9, true, teal);
+    text(
+      "KBEMS REQUIREMENT HOURS BY LEVEL (REFERENCE ONLY)",
+      42,
+      y,
+      9,
+      true,
+      teal,
+    );
     y -= 11;
     text(
-      "Required hours per level - reference only, not this student's completed hours.",
+      "REFERENCE ONLY: these are the required hours per level, not hours completed or credited on this report.",
       42,
       y,
       7,
-      false,
-      muted,
+      true,
+      ink,
     );
     y -= 15;
     const categoryWidth = 156;
@@ -127,7 +133,6 @@ export async function renderCeReportPdf(
     };
     for (const entry of CE_REQUIREMENT_ROWS) drawRow(entry);
     drawRow(CE_TOTAL_ROW, true);
-    drawRow(CE_PEDIATRIC_ROW);
     y -= 8;
   };
   drawRequirementsBlock();

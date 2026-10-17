@@ -33,23 +33,21 @@ const hours = (
     CE_REQUIREMENT_LEVELS.map((level, index) => [level, values[index]]),
   ) as Record<CeRequirementLevel, number>;
 
-/** Content categories that require hours, by clinician level. */
+/**
+ * Content categories that require hours, by clinician level. Pediatric is one
+ * of them, so it counts toward the total like every other category.
+ */
 export const CE_REQUIREMENT_ROWS: readonly CeRequirementRow[] = [
   { category: "Airway", hours: hours([1.5, 4, 5, 6]) },
   { category: "Cardiology", hours: hours([2, 5, 6, 7]) },
   { category: "Trauma", hours: hours([1, 3, 4, 5]) },
   { category: "Medical", hours: hours([2.5, 6, 7, 8]) },
   { category: "Operations", hours: hours([1, 2, 3, 4]) },
+  { category: "Pediatric", hours: hours([1, 2, 2.5, 3]) },
   { category: "HIV/AIDS", hours: hours([1, 1, 1, 1]) },
   { category: "PAHT", hours: hours([1, 1, 1, 1]) },
   { category: "SVAT", hours: hours([1, 1, 1, 1]) },
 ];
-
-/** The Pediatric requirement, shown below the total (it is a separate need). */
-export const CE_PEDIATRIC_ROW: CeRequirementRow = {
-  category: "Pediatric",
-  hours: hours([1, 2, 2.5, 3]),
-};
 
 /** The column total of the content-category requirements, by level. */
 export const CE_TOTAL_ROW: CeRequirementRow = {
