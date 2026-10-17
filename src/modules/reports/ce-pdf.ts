@@ -86,11 +86,28 @@ export async function renderCeReportPdf(
     const rowsBlock = (CE_REQUIREMENT_ROWS.length + 1) * 14;
     const cardTop = y + 12;
     const cardBottom = y - 53 - rowsBlock + 10;
-    page.drawRectangle({
-      x: 42 - cardPad,
-      y: cardBottom - cardPad,
-      width: 528 + cardPad * 2,
-      height: cardTop + cardPad - (cardBottom - cardPad),
+    const cardLeft = 42 - cardPad;
+    const cardWidth = 528 + cardPad * 2;
+    const cardTopY = cardTop + cardPad;
+    const cardHeight = cardTopY - (cardBottom - cardPad);
+    const radius = 9;
+    // drawSvgPath flips the y-axis, so the path is written top-down with its
+    // origin at the card's top-left (cardLeft, cardTopY).
+    const cardPath = [
+      `M ${radius},0`,
+      `L ${cardWidth - radius},0`,
+      `Q ${cardWidth},0 ${cardWidth},${radius}`,
+      `L ${cardWidth},${cardHeight - radius}`,
+      `Q ${cardWidth},${cardHeight} ${cardWidth - radius},${cardHeight}`,
+      `L ${radius},${cardHeight}`,
+      `Q 0,${cardHeight} 0,${cardHeight - radius}`,
+      `L 0,${radius}`,
+      `Q 0,0 ${radius},0`,
+      "Z",
+    ].join(" ");
+    page.drawSvgPath(cardPath, {
+      x: cardLeft,
+      y: cardTopY,
       color: cardFill,
       borderColor: cardBorder,
       borderWidth: 0.75,
