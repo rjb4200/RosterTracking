@@ -77,43 +77,53 @@ export async function renderCeReportPdf(
     header();
   };
   header();
-
   const drawRequirementsBlock = () => {
-    text("KBEMS REQUIREMENTS BY LEVEL (hours)", 42, y, 11, true, teal);
-    y -= 22;
-    const categoryWidth = 176;
+    text("KBEMS REQUIREMENT HOURS BY LEVEL (reference)", 42, y, 9, true, teal);
+    y -= 11;
+    text(
+      "Required hours per level - reference only, not this student's completed hours.",
+      42,
+      y,
+      7,
+      false,
+      muted,
+    );
+    y -= 15;
+    const categoryWidth = 156;
     const levelWidth = (528 - categoryWidth) / CE_REQUIREMENT_LEVELS.length;
     const widths = [
       categoryWidth,
       ...CE_REQUIREMENT_LEVELS.map(() => levelWidth),
     ];
-    page.drawRectangle({ x: 42, y: y - 7, width: 528, height: 22, color: ink });
+    const rowHeight = 14;
+    page.drawRectangle({ x: 42, y: y - 5, width: 528, height: 15, color: ink });
     let x = 49;
     ["Category", ...CE_REQUIREMENT_LEVELS].forEach((heading, index) => {
-      text(heading, x, y, 8, true, white);
+      text(heading, x, y, 7, true, white);
       x += widths[index] ?? 0;
     });
-    y -= 23;
+    y -= 16;
     const drawRow = (
       entry: (typeof CE_REQUIREMENT_ROWS)[number],
       strong = false,
     ) => {
-      page.drawRectangle({
-        x: 42,
-        y: y - 6,
-        width: 528,
-        height: 18,
-        color: strong ? pale : white,
-      });
+      if (strong)
+        page.drawRectangle({
+          x: 42,
+          y: y - 4,
+          width: 528,
+          height: rowHeight,
+          color: pale,
+        });
       let cx = 49;
       [
         entry.category,
         ...CE_REQUIREMENT_LEVELS.map((level) => number(entry.hours[level])),
       ].forEach((cell, index) => {
-        text(cell, cx, y, 9, strong);
+        text(cell, cx, y, 8, strong);
         cx += widths[index] ?? 0;
       });
-      y -= 18;
+      y -= rowHeight;
     };
     for (const entry of CE_REQUIREMENT_ROWS) drawRow(entry);
     drawRow(CE_TOTAL_ROW, true);

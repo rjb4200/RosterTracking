@@ -51,25 +51,19 @@ export function classifyCeCategory(input: {
 const round = (value: number) => Math.round(value * 100) / 100;
 
 /**
- * Builds the flat, chronological transcript. Rows are keyed on the class so a
- * student's attendance can only ever produce one line per class; the total sums
- * the per-student credited hours.
+ * Builds the flat transcript, ordered by category (then date within a category)
+ * so the reader can line the delivered hours up against the requirements block.
+ * Rows are keyed on the class so a student's attendance can only ever produce
+ * one line per class; the total sums the per-student credited hours.
  */
 export function buildStudentTranscript(
   rows: readonly StudentTranscriptSourceRow[],
   period: ReportPeriod,
 ): StudentTranscript {
-  const ordered = [...rows].sort(
-    (a, b) =>
-      new Date(a.classDate).getTime() - new Date(b.classDate).getTime() ||
-      a.classId.localeCompare(b.classId),
-  );
-  const seenClasses = new Set<string>();
-  const mapped: StudentTranscriptRow[] = [];
-  for (const row of ordered) {
-    if (seenClasses.has(row.classId)) continue;
-    seenClasses.add(row.classId);
-    mapped.push({
+  const byClass = new Map<string, StudentTranscriptRow>();
+  for (const row of rows) {
+    if (byClass.has(row.classId)) continue;
+    byClass.set(row.classId, {
       classId: row.classId,
       attendanceId: row.attendanceId,
       revisionId: row.revisionId,
@@ -82,6 +76,12 @@ export function buildStudentTranscript(
       hours: row.creditedHours,
     });
   }
+  const mapped = [...byClass.values()].sort(
+    (a, b) =>
+      a.category.localeCompare(b.category) ||
+      a.date.getTime() - b.date.getTime() ||
+      a.classId.localeCompare(b.classId),
+  );
   return {
     period,
     rows: mapped,

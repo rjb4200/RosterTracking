@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { ReportInputKind } from "@/modules/reports/catalog";
+import type {
+  ReportInputKind,
+  ReportPeriodKind,
+} from "@/modules/reports/catalog";
 
 interface Option {
   value: string;
@@ -22,6 +25,7 @@ export function ReportsForm({
     label: string;
     description: string;
     input: ReportInputKind | null;
+    period: ReportPeriodKind;
   }[];
   presets: { id: string; label: string; from: string; to: string }[];
   students: Option[];
@@ -49,21 +53,35 @@ export function ReportsForm({
 
   const selected = reports.find((report) => report.id === reportId);
   const input = selected?.input ?? null;
+  // The period controls appear only once a report that needs one is chosen; the
+  // renewal-cycle presets appear only for reports driven by a renewal cycle.
+  const periodKind = selected?.period ?? "none";
+  const periodShown = periodKind !== "none";
+  const renewalPresetsShown = periodKind === "renewal";
   const inputValue =
     input === "student" ? studentId : input === "agency" ? agencyId : siteId;
   const inputReady = !input || Boolean(inputValue);
-  const ready = Boolean(from && to && reportId) && from <= to && inputReady;
+  const periodReady = !periodShown || Boolean(from && to && from <= to);
+  const ready = Boolean(reportId) && inputReady && periodReady;
 
   return (
     <form
       className="mt-6 grid max-w-xl gap-4"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!from || !to || !reportId) {
-          setError("Select a period and a report.");
+        if (!reportId) {
+          setError("Select a report.");
           return;
         }
-        if (from > to) {
+        if (periodShown && !from) {
+          setError("Select a period.");
+          return;
+        }
+        if (periodShown && !to) {
+          setError("Select a period.");
+          return;
+        }
+        if (periodShown && from > to) {
           setError("The start date must be on or before the end date.");
           return;
         }
@@ -74,7 +92,11 @@ export function ReportsForm({
         setBusy(true);
         setError("");
         try {
-          const query = new URLSearchParams({ report: reportId, from, to });
+          const query = new URLSearchParams({ report: reportId });
+          if (periodShown) {
+            query.set("from", from);
+            query.set("to", to);
+          }
           if (input === "student") query.set("student", studentId);
           if (input === "agency") query.set("agency", agencyId);
           if (input === "site") query.set("site", siteId);
@@ -107,58 +129,6 @@ export function ReportsForm({
         }
       }}
     >
-      <label htmlFor="report-preset">Renewal period</label>
-      <select
-        id="report-preset"
-        className="select-input"
-        value={presetId}
-        onChange={(event) => {
-          const next = event.target.value;
-          setPresetId(next);
-          const preset = presets.find((entry) => entry.id === next);
-          if (preset) {
-            setFrom(preset.from);
-            setTo(preset.to);
-            setError("");
-          }
-        }}
-      >
-        <option value="">Custom dates</option>
-        {presets.map((preset) => (
-          <option key={preset.id} value={preset.id}>
-            {preset.label}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="report-from">From</label>
-      <input
-        id="report-from"
-        name="from"
-        type="date"
-        className="search-input"
-        value={from}
-        max={to || "9999-12-31"}
-        onChange={(event) => {
-          setFrom(event.target.value);
-          setPresetId("");
-        }}
-        required
-      />
-      <label htmlFor="report-to">To</label>
-      <input
-        id="report-to"
-        name="to"
-        type="date"
-        className="search-input"
-        value={to}
-        min={from}
-        max="9999-12-31"
-        onChange={(event) => {
-          setTo(event.target.value);
-          setPresetId("");
-        }}
-        required
-      />
       <label htmlFor="report-picker">Report</label>
       <select
         id="report-picker"
@@ -254,7 +224,67 @@ export function ReportsForm({
           </select>
         </>
       ) : null}
-      {from && to ? (
+      {renewalPresetsShown ? (
+        <>
+          <label htmlFor="report-preset">Renewal period</label>
+          <select
+            id="report-preset"
+            className="select-input"
+            value={presetId}
+            onChange={(event) => {
+              const next = event.target.value;
+              setPresetId(next);
+              const preset = presets.find((entry) => entry.id === next);
+              if (preset) {
+                setFrom(preset.from);
+                setTo(preset.to);
+                setError("");
+              }
+            }}
+          >
+            <option value="">Custom dates</option>
+            {presets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : null}
+      {periodShown ? (
+        <>
+          <label htmlFor="report-from">From</label>
+          <input
+            id="report-from"
+            name="from"
+            type="date"
+            className="search-input"
+            value={from}
+            max={to || "9999-12-31"}
+            onChange={(event) => {
+              setFrom(event.target.value);
+              setPresetId("");
+            }}
+            required
+          />
+          <label htmlFor="report-to">To</label>
+          <input
+            id="report-to"
+            name="to"
+            type="date"
+            className="search-input"
+            value={to}
+            min={from}
+            max="9999-12-31"
+            onChange={(event) => {
+              setTo(event.target.value);
+              setPresetId("");
+            }}
+            required
+          />
+        </>
+      ) : null}
+      {periodShown && from && to ? (
         <p className="text-muted-foreground">
           {from} through {to} (inclusive)
         </p>

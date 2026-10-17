@@ -46,3 +46,9 @@
 - [x] 8.3 Unit-test agency and site scoping (in-period and correct agency/site only)
 - [x] 8.4 Add end-to-end coverage: generate and download the student transcript, and the transcript with certificates
 - [x] 8.5 Run lint, typecheck, and the test suite
+
+## 9. Refinements
+
+- [x] 9.1 Order the transcript and activity logs by category (then by date)
+- [x] 9.2 Make the requirements reference block compact and label it as reference hours
+- [x] 9.3 Put the report selector first and reveal only the inputs (and period controls) the selected report needs

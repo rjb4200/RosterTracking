@@ -2,7 +2,7 @@
 
 ### Requirement: KBEMS CE requirements reference block
 
-The training-delivered reports SHALL render a KBEMS CE requirements reference block at the top listing the hours required per content category for each clinician level (EMR, EMT, AEMT, Paramedic), a total row, and the Pediatric requirement. The block SHALL be identical across every training-delivered report and SHALL be defined independently of the editable EMS category catalog, so adding, renaming, or archiving a category does not change it.
+The training-delivered reports SHALL render a KBEMS CE requirements reference block at the top listing the hours required per content category for each clinician level (EMR, EMT, AEMT, Paramedic), a total row, and the Pediatric requirement. The block SHALL be compact and SHALL be labeled as reference requirement hours that are not the reader's or student's completed hours. The block SHALL be identical across every training-delivered report and SHALL be defined independently of the editable EMS category catalog, so adding, renaming, or archiving a category does not change it.
 
 #### Scenario: The reference block is printed
 
@@ -62,14 +62,38 @@ The Reports workspace SHALL support reports that require an additional input bey
 - **WHEN** the user attempts to generate the site report without selecting a training site
 - **THEN** the system blocks generation and asks for a training site
 
+### Requirement: The workspace selects the report first
+
+The Reports workspace SHALL present the report selector before the report's other inputs, and SHALL reveal only the inputs a selected report needs. The renewal-cycle presets SHALL be shown only for reports driven by a renewal cycle, and the period controls SHALL be hidden for a report that does not use a period.
+
+#### Scenario: Selecting a report reveals its inputs
+
+- **WHEN** the user selects a report
+- **THEN** the workspace shows that report's additional input and its period controls
+
+#### Scenario: The renewal presets are hidden for a plain date range
+
+- **WHEN** the user selects a report that uses a custom date range rather than a renewal cycle
+- **THEN** the workspace shows the start and end dates without the renewal-cycle presets
+
+#### Scenario: A report without a period hides the period controls
+
+- **WHEN** the user selects a report that does not use a period
+- **THEN** the workspace hides the period controls
+
 ### Requirement: Student CE transcript
 
-The system SHALL generate a student CE transcript as a downloadable PDF containing the requirements reference block and a flat, chronological list of the training delivered to the selected student within the period. Each included class SHALL contribute a row with the class date, course name, category, and credited hours, and the log SHALL total the credited hours. Each included class SHALL be classified exactly once: the class's EMS category; otherwise "Uncategorized" for a class that reported to KBEMS but has no EMS category; otherwise "Other" for a class that reported only to Fire. A class SHALL be included only when the student has active (non-removed) attendance in it, it is not cancelled, and its class date — the earliest scheduled component start — falls within the period.
+The system SHALL generate a student CE transcript as a downloadable PDF containing the requirements reference block and a flat list of the training delivered to the selected student within the period, ordered by category and then by date. Each included class SHALL contribute a row with the class date, course name, category, and credited hours, and the log SHALL total the credited hours. Each included class SHALL be classified exactly once: the class's EMS category; otherwise "Uncategorized" for a class that reported to KBEMS but has no EMS category; otherwise "Other" for a class that reported only to Fire. A class SHALL be included only when the student has active (non-removed) attendance in it, it is not cancelled, and its class date — the earliest scheduled component start — falls within the period.
 
 #### Scenario: The transcript lists delivered training
 
 - **WHEN** a Training Major generates the student transcript for a period containing the student's classes
 - **THEN** the PDF shows the requirements block and each in-period class with its date, course, category, and credited hours, and a total of the credited hours
+
+#### Scenario: The log is ordered by category, not by date
+
+- **WHEN** the transcript includes classes in more than one category
+- **THEN** the rows appear in category order, and within a category in date order
 
 #### Scenario: Other and Uncategorized classification
 
@@ -107,7 +131,7 @@ The student CE transcript SHALL offer a second download that appends each includ
 
 ### Requirement: Agency training delivered report
 
-The system SHALL generate an agency report as a downloadable PDF listing the training delivered for the selected agency over the period — the classes, courses, categories, hours, and students — and SHALL include only classes whose class date falls within the period.
+The system SHALL generate an agency report as a downloadable PDF listing the training delivered for the selected agency over the period — the classes, courses, categories, hours, and students, ordered by category and then by date — and SHALL include only classes whose class date falls within the period.
 
 #### Scenario: Agency activity is listed
 
@@ -121,7 +145,7 @@ The system SHALL generate an agency report as a downloadable PDF listing the tra
 
 ### Requirement: Training-site training delivered report
 
-The system SHALL generate a training-site report as a downloadable PDF listing the training delivered at the selected training site over the period — the classes, courses, categories, hours, and students — and SHALL include only classes held at that site whose class date falls within the period.
+The system SHALL generate a training-site report as a downloadable PDF listing the training delivered at the selected training site over the period — the classes, courses, categories, hours, and students, ordered by category and then by date — and SHALL include only classes held at that site whose class date falls within the period.
 
 #### Scenario: Site activity is listed
 

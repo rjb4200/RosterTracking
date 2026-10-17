@@ -50,6 +50,7 @@ export function buildActivityReport(
     }))
     .sort(
       (a, b) =>
+        a.category.localeCompare(b.category) ||
         a.date.getTime() - b.date.getTime() ||
         a.classId.localeCompare(b.classId),
     );

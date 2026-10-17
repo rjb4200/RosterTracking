@@ -53,12 +53,15 @@ export default async function ReportsPage({
           class records, including changes made after finalization.
         </p>
         <ReportsForm
-          reports={reportCatalog.map(({ id, label, description, input }) => ({
-            id,
-            label,
-            description,
-            input,
-          }))}
+          reports={reportCatalog.map(
+            ({ id, label, description, input, period }) => ({
+              id,
+              label,
+              description,
+              input,
+              period,
+            }),
+          )}
           presets={renewalCyclePresets()}
           students={students.map((student) => ({
             value: student.id,

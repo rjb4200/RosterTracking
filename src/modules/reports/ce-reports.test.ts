@@ -114,6 +114,38 @@ describe("transcript classification and totals", () => {
     expect(transcript.totalHours).toBe(3.5);
   });
 
+  it("orders the log by category, not by date", () => {
+    const transcript = buildStudentTranscript(
+      [
+        {
+          classId: "trauma-late",
+          course: "Trauma Assessment",
+          classDate: "2026-03-02T13:00:00Z",
+          emsCategoryName: "Trauma",
+          reportsToKbems: true,
+          revisionId: null,
+          attendanceId: "att-t",
+          creditedHours: 2,
+        },
+        {
+          classId: "airway-early",
+          course: "Airway Mastery",
+          classDate: "2026-03-20T13:00:00Z",
+          emsCategoryName: "Airway",
+          reportsToKbems: true,
+          revisionId: null,
+          attendanceId: "att-a",
+          creditedHours: 1,
+        },
+      ],
+      period,
+    );
+    expect(transcript.rows.map((row) => row.category)).toEqual([
+      "Airway",
+      "Trauma",
+    ]);
+  });
+
   it("produces an empty transcript with a zero total", () => {
     expect(buildStudentTranscript([], period)).toMatchObject({
       rows: [],
@@ -150,6 +182,36 @@ describe("activity report", () => {
     expect(report.rows.map((row) => row.category)).toEqual(["Airway", "Other"]);
     expect(report.totalHours).toBe(7);
     expect(report.totalAttendees).toBe(3);
+  });
+
+  it("orders rows by category, not by date", () => {
+    const report = buildActivityReport(
+      [
+        {
+          classId: "trauma-late",
+          course: "Trauma Assessment",
+          classDate: "2026-03-02T13:00:00Z",
+          emsCategoryName: "Trauma",
+          reportsToKbems: true,
+          classHours: 2,
+          attendees: ["Ada"],
+        },
+        {
+          classId: "airway-early",
+          course: "Airway Mastery",
+          classDate: "2026-03-20T13:00:00Z",
+          emsCategoryName: "Airway",
+          reportsToKbems: true,
+          classHours: 1,
+          attendees: ["Ada"],
+        },
+      ],
+      period,
+    );
+    expect(report.rows.map((row) => row.category)).toEqual([
+      "Airway",
+      "Trauma",
+    ]);
   });
 });
 
