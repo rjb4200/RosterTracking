@@ -336,7 +336,7 @@ describe("live query and registry", () => {
     const report = getReport("mtu-usage-summary");
     expect(report?.label).toBe(reportCatalog[0].label);
     expect(getReport("unknown")).toBeUndefined();
-    const file = await report?.builder(db, period);
+    const file = await report?.build(db, period, {});
     expect(execute).toHaveBeenCalledTimes(1);
     expect(file?.bytes).toBeInstanceOf(Uint8Array);
     expect(file?.filename).toBe("mtu-usage-summary_2026-03-01_2026-03-31.pdf");

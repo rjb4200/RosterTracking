@@ -61,6 +61,12 @@ export default async function StudentDetailPage({
             >
               Back
             </Link>
+            <Link
+              href={`/staff/reports?report=student-ce-transcript&student=${student.id}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              CE transcript
+            </Link>
             <form action={setStudentActiveAction}>
               <input type="hidden" name="id" value={student.id} />
               <input

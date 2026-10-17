@@ -73,14 +73,19 @@ describeDatabase("training categories", () => {
       (row) => row.sourceRevision === "ems-2024",
     );
     const names = ems.map((row) => row.title);
-    expect(names.slice(0, 5)).toEqual([
+    // The pinned group carries the five core content areas plus the three
+    // KBEMS-mandatory content areas, listed alphabetically above the separator.
+    expect(names.slice(0, 8)).toEqual([
       "Airway",
       "Cardiology",
+      "HIV/AIDS",
       "Medical",
       "Operations",
+      "PAHT",
+      "SVAT",
       "Trauma",
     ]);
-    expect(ems.slice(0, 5).every((row) => row.isPinned)).toBe(true);
+    expect(ems.slice(0, 8).every((row) => row.isPinned)).toBe(true);
     expect(names).toContain("CPR - Healthcare Professional");
     expect(names).toContain("Advanced Cardiac Life Support");
     expect(names).toContain(
@@ -88,7 +93,7 @@ describeDatabase("training categories", () => {
     );
     expect(names.some((name) => name.includes("TCCC"))).toBe(false);
     // The course group is the full seeded list in alphabetical order.
-    const courses = names.slice(5);
+    const courses = names.slice(8);
     expect(courses).toEqual([
       "Advanced Burn Life Support",
       "Advanced Cardiac Life Support",

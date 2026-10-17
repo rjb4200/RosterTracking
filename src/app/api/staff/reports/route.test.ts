@@ -12,8 +12,12 @@ vi.mock("@/modules/staff-auth/authorization", () => ({
 }));
 vi.mock("@/server/db/client", () => ({ getDatabase: () => database }));
 vi.mock("@/modules/reports/registry", () => ({
-  getReport: (id: string) =>
-    id === "mtu-usage-summary" ? { builder } : undefined,
+  getReport: (id: string) => {
+    if (id === "mtu-usage-summary") return { input: null, build: builder };
+    if (id === "student-ce-transcript")
+      return { input: "student", build: builder };
+    return undefined;
+  },
 }));
 
 import { GET } from "./route";
@@ -23,6 +27,8 @@ const validQuery = "report=mtu-usage-summary&from=2026-01-01&to=2026-01-31";
 beforeEach(() => {
   vi.resetAllMocks();
   currentStaff.mockResolvedValue({
+    id: "staff-1",
+    username: "tester",
     permissions: new Set([
       PERMISSIONS.STAFF_ACCESS,
       PERMISSIONS.REPORTING_MANAGE,
@@ -60,9 +66,20 @@ describe("report downloads", () => {
           from: expect.any(Date),
           to: expect.any(Date),
         }),
+        expect.objectContaining({ withCertificates: false }),
       );
     },
   );
+
+  it("requires the report's extra input before generating", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/staff/reports?report=student-ce-transcript&from=2026-01-01&to=2026-01-31",
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(builder).not.toHaveBeenCalled();
+  });
 
   it.each([
     [null, 401],
