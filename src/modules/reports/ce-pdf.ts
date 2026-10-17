@@ -11,6 +11,7 @@ const teal = rgb(0.02, 0.38, 0.4);
 const muted = rgb(0.37, 0.43, 0.48);
 const pale = rgb(0.94, 0.96, 0.96);
 const white = rgb(1, 1, 1);
+const warn = rgb(0.66, 0.16, 0.16);
 
 const number = (value: number) =>
   value.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -77,22 +78,31 @@ export async function renderCeReportPdf(
   };
   header();
   const drawRequirementsBlock = () => {
+    // A solid banner so the reference table can never be mistaken for the
+    // student's completed hours.
+    page.drawRectangle({
+      x: 42,
+      y: y - 4,
+      width: 528,
+      height: 16,
+      color: teal,
+    });
     text(
-      "KBEMS REQUIREMENT HOURS BY LEVEL (REFERENCE ONLY)",
-      42,
+      "KBEMS REQUIREMENT HOURS BY LEVEL   -   REFERENCE ONLY",
+      49,
       y,
-      9,
+      8,
       true,
-      teal,
+      white,
     );
-    y -= 11;
+    y -= 22;
     text(
-      "REFERENCE ONLY: these are the required hours per level, not hours completed or credited on this report.",
+      "Reference only: required hours per level, NOT this student's completed or credited hours.",
       42,
       y,
       7,
       true,
-      ink,
+      warn,
     );
     y -= 15;
     const categoryWidth = 156;
