@@ -95,8 +95,10 @@ function slug(value: string): string {
   return cleaned || "student";
 }
 
-const CE_NOTE =
+const CE_TRANSCRIPT_NOTE =
   "Reference only: hours reflect the category recorded at class creation; a course may satisfy additional KBEMS content. Pediatric hours are shown in the requirements above and are not tracked against this log.";
+const CE_ACTIVITY_NOTE =
+  "Hours reflect the category recorded at class creation; a course may satisfy additional KBEMS content. This is a delivery log, not a compliance calculation.";
 
 export async function buildMtuUsageSummary(
   db: Database,
@@ -168,6 +170,7 @@ async function buildStudentTranscriptReport(
     subtitle,
     period: periodLabel(period),
     daysRemaining: daysToPeriodEnd(period),
+    showRequirements: true,
     columns: [
       { heading: "DATE", width: 78 },
       { heading: "COURSE", width: 240 },
@@ -181,7 +184,7 @@ async function buildStudentTranscriptReport(
       number(row.hours),
     ]),
     totalLine: `TOTAL DELIVERED: ${number(transcript.totalHours)} hours`,
-    note: CE_NOTE,
+    note: CE_TRANSCRIPT_NOTE,
   });
   const baseFilename = `ce-transcript_${slug(student.lastName)}_${periodFileStamp(period)}`;
   if (params.withCertificates) {
@@ -223,6 +226,7 @@ async function buildAgencyActivityReport(
       subtitle: agency.name,
       period: periodLabel(period),
       daysRemaining: daysToPeriodEnd(period),
+      showRequirements: false,
       columns: [
         { heading: "DATE", width: 74 },
         { heading: "COURSE", width: 196 },
@@ -238,7 +242,7 @@ async function buildAgencyActivityReport(
         String(row.attendees.length),
       ]),
       totalLine: `${report.rows.length} classes  -  ${number(report.totalHours)} hours  -  ${report.totalAttendees} attendances`,
-      note: CE_NOTE,
+      note: CE_ACTIVITY_NOTE,
     }),
     filename: `agency-training_${slug(agency.name)}_${periodFileStamp(period)}.pdf`,
     contentType: "application/pdf",
@@ -264,6 +268,7 @@ async function buildSiteActivityReport(
       subtitle: site.name,
       period: periodLabel(period),
       daysRemaining: daysToPeriodEnd(period),
+      showRequirements: false,
       columns: [
         { heading: "DATE", width: 74 },
         { heading: "COURSE", width: 196 },
@@ -279,7 +284,7 @@ async function buildSiteActivityReport(
         String(row.attendees.length),
       ]),
       totalLine: `${report.rows.length} classes  -  ${number(report.totalHours)} hours  -  ${report.totalAttendees} attendances`,
-      note: CE_NOTE,
+      note: CE_ACTIVITY_NOTE,
     }),
     filename: `site-training_${slug(site.name)}_${periodFileStamp(period)}.pdf`,
     contentType: "application/pdf",

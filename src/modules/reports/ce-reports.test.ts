@@ -256,6 +256,7 @@ describe("CE report PDF rendering", () => {
     subtitle: "Ada Lovelace",
     period: "01/01/2025 through 12/31/2026",
     daysRemaining: 100,
+    showRequirements: true,
     columns: [
       { heading: "DATE", width: 78 },
       { heading: "COURSE", width: 240 },
@@ -280,6 +281,16 @@ describe("CE report PDF rendering", () => {
 
   it("renders an empty period without failing", async () => {
     const bytes = await renderCeReportPdf({ ...base, rows: [] });
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(0);
+  });
+
+  it("renders without the requirements block when it is not shown", async () => {
+    const bytes = await renderCeReportPdf({
+      ...base,
+      showRequirements: false,
+      rows: [["03/04/2026", "Cardiac Arrest", "Cardiology", "2"]],
+    });
     expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
     expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(0);
   });

@@ -58,3 +58,4 @@
 - [x] 9.7 Give the requirements block a solid REFERENCE ONLY banner and a warning-colored note
 - [x] 9.8 Draw a tinted, bordered card behind the requirements reference block
 - [x] 9.9 Round the corners of the reference card
+- [x] 9.10 Omit the requirements chart from the agency and site reports

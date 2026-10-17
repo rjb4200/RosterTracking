@@ -23,6 +23,8 @@ export interface CeReportPdfInput {
   subtitle: string;
   period: string;
   daysRemaining: number | null;
+  /** Draw the KBEMS requirements reference card (student transcript only). */
+  showRequirements: boolean;
   columns: { heading: string; width: number }[];
   rows: string[][];
   totalLine: string;
@@ -179,7 +181,9 @@ export async function renderCeReportPdf(
     drawRow(CE_TOTAL_ROW, true);
     y -= 8;
   };
-  drawRequirementsBlock();
+  // The requirements chart is a reference for the student transcript only; the
+  // agency and site reports show just the delivered training.
+  if (input.showRequirements) drawRequirementsBlock();
 
   for (const line of wrap(input.note, regular, 8, 528)) {
     if (y < 64) nextPage();
