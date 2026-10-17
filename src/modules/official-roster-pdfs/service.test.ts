@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import { PDFContentStream, PDFDocument } from "pdf-lib";
+import { PDFContentStream, PDFDocument, PDFName } from "pdf-lib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encryptCredential } from "@/modules/reference/crypto";
@@ -189,6 +189,44 @@ describe("official roster PDF templates", () => {
     await expect(renderOfficialRoster("kfs-1a", snapshot)).resolves.toEqual(
       await renderOfficialRoster("kfs-1a", snapshot),
     );
+  });
+
+  it("keeps the official roster's template backgrounds and alignment", async () => {
+    const page = await renderRosterPage(
+      "kfs-1a",
+      snapshot,
+      snapshot.attendance.slice(0, 1),
+      { flatten: false },
+    );
+    const form = page.getForm();
+    const checkbox = form.getCheckBox("Check Box2").acroField.getWidgets()[0];
+    expect(
+      checkbox?.getAppearanceCharacteristics()?.dict.lookup(PDFName.of("BG")),
+    ).toBeDefined();
+    const source = await PDFDocument.load(
+      await readFile(new URL("./kfs-1a-october-2023.pdf", import.meta.url)),
+    );
+    expect(form.getTextField("LAST NAMERow1").getAlignment()).toBe(
+      source.getForm().getTextField("LAST NAMERow1").getAlignment(),
+    );
+  });
+
+  it("renders official rosters in the standard Helvetica face", async () => {
+    const page = await renderRosterPage(
+      "kfs-1a",
+      snapshot,
+      snapshot.attendance.slice(0, 1),
+      { flatten: false },
+    );
+    const widget = page
+      .getForm()
+      .getTextField("LAST NAMERow1")
+      .acroField.getWidgets()[0];
+    const normal = widget?.getAppearances()?.normal;
+    if (!(normal instanceof PDFContentStream)) {
+      throw new Error("no appearance stream for LAST NAMERow1");
+    }
+    expect(normal.getContentsString()).toContain("Helvetica");
   });
 
   it("omits attendees without a valid FFN from the KFS-1A", async () => {
