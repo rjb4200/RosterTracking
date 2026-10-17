@@ -35,6 +35,7 @@ export async function accountAction(
     if (read(formData, "operation") === "create") {
       await createStaffAccount(getDatabase(), actor.id, {
         username: read(formData, "username"),
+        email: read(formData, "email"),
         displayName: read(formData, "displayName"),
         password: read(formData, "password"),
         roleCode: read(formData, "roleCode") as
@@ -46,6 +47,7 @@ export async function accountAction(
       await updateStaffAccount(getDatabase(), actor.id, {
         userId: read(formData, "userId"),
         displayName: read(formData, "displayName") || undefined,
+        email: read(formData, "email"),
         roleCode: read(formData, "roleCode") || undefined,
         isActive: read(formData, "isActive") === "true",
         password: read(formData, "password") || undefined,
@@ -85,6 +87,7 @@ export async function profileAction(
       actor.id,
       read(formData, "userId"),
       {
+        email: read(formData, "email"),
         ffn: read(formData, "ffn"),
         instructorLevel: read(formData, "instructorLevel"),
         emsProviderNumber: read(formData, "emsProviderNumber"),

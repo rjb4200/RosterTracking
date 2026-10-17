@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { instructorLabel, renderCertificateEmail } from "./templates";
+import {
+  instructorLabel,
+  renderCertificateEmail,
+  renderClassReminderEmail,
+} from "./templates";
 
 describe("certificate email template", () => {
   const input = {
@@ -71,5 +75,55 @@ describe("certificate email template", () => {
     });
     expect(message.text).not.toContain("Completion date:");
     expect(message.text).not.toContain("Class hours:");
+  });
+});
+
+describe("class reminder email template", () => {
+  it("lists each overdue class with a review link", () => {
+    const message = renderClassReminderEmail({
+      instructorName: "Lead Medic",
+      classes: [
+        {
+          name: "Airway Management",
+          date: "Sep 5, 2026, 2:00 PM",
+          url: "https://example.test/staff/classes/c1/review",
+        },
+        {
+          name: "Incident Command",
+          date: "Sep 6, 2026, 9:00 AM",
+          url: "https://example.test/staff/classes/c2/review",
+        },
+      ],
+    });
+    expect(message.subject).toBe("2 rosters await finalization");
+    expect(message.html).toContain("Lead Medic");
+    expect(message.html).toContain("Airway Management");
+    expect(message.html).toContain("Incident Command");
+    expect(message.html).toContain(
+      "https://example.test/staff/classes/c1/review",
+    );
+    expect(message.html).toContain("<!doctype html>");
+    expect(message.html).toContain('src="cid:wfd-logo"');
+    expect(message.text).toContain("Airway Management");
+  });
+
+  it("uses a singular subject for one class", () => {
+    const message = renderClassReminderEmail({
+      instructorName: "Lead Medic",
+      classes: [
+        { name: "Airway", date: "Sep 5, 2026", url: "https://x.test/r" },
+      ],
+    });
+    expect(message.subject).toBe("1 roster awaits finalization");
+  });
+
+  it("escapes HTML in class names", () => {
+    const message = renderClassReminderEmail({
+      instructorName: "Lead & Co",
+      classes: [{ name: "<script>", date: "Sep 5", url: "https://x.test/r" }],
+    });
+    expect(message.html).not.toContain("<script>");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).toContain("Lead &amp; Co");
   });
 });

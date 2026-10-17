@@ -4,6 +4,8 @@ import {
   normalizeFfn,
 } from "@/modules/reference/credential-format";
 
+import { normalizeEmail } from "./email";
+
 export const INSTRUCTOR_LEVELS = [1, 2, 3] as const;
 
 export type InstructorLevel = (typeof INSTRUCTOR_LEVELS)[number];
@@ -11,6 +13,7 @@ export type InstructorLevel = (typeof INSTRUCTOR_LEVELS)[number];
 export { FFN_PATTERN } from "@/modules/reference/credential-format";
 
 export interface ProfileValues {
+  email: string | null;
   ffn: string | null;
   instructorLevel: number | null;
   emsProviderNumber: string | null;
@@ -26,8 +29,10 @@ export interface ProfileActionState {
 }
 
 const optionalText = z.string().trim().max(100).default("");
+const optionalEmailText = z.string().trim().max(320).default("");
 
 const profileInputSchema = z.object({
+  email: optionalEmailText,
   ffn: optionalText,
   instructorLevel: optionalText,
   emsProviderNumber: optionalText,
@@ -48,6 +53,8 @@ export function isInstructorLevel(value: number): value is InstructorLevel {
 export function parseProfileInput(input: ProfileInput): ProfileValues {
   const parsed = profileInputSchema.parse(input);
 
+  const email = parsed.email === "" ? null : normalizeEmail(parsed.email);
+
   let ffn: string | null = null;
   if (parsed.ffn !== "") {
     ffn = normalizeFfn(parsed.ffn);
@@ -67,7 +74,7 @@ export function parseProfileInput(input: ProfileInput): ProfileValues {
   const emsProviderNumber =
     parsed.emsProviderNumber === "" ? null : parsed.emsProviderNumber;
 
-  return { ffn, instructorLevel, emsProviderNumber };
+  return { email, ffn, instructorLevel, emsProviderNumber };
 }
 
 export function changedProfileAttributes(
@@ -75,6 +82,7 @@ export function changedProfileAttributes(
   after: ProfileValues,
 ): string[] {
   const changed: string[] = [];
+  if (before.email !== after.email) changed.push("email");
   if (before.ffn !== after.ffn) changed.push("ffn");
   if (before.instructorLevel !== after.instructorLevel) {
     changed.push("instructorLevel");

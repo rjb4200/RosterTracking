@@ -1,8 +1,10 @@
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { writeAuditLog } from "@/server/db/audit";
+import type { Database } from "@/server/db/client";
 import { getDatabase } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 
+import { normalizeEmail } from "./email";
 import { normalizeUsername, verifyPassword } from "./password";
 
 const MAX_FAILED_ATTEMPTS = 5;
@@ -18,24 +20,31 @@ export interface AuthenticatedStaff {
 }
 
 export async function authenticateStaff(
-  submittedUsername: string,
+  submittedIdentifier: string,
   submittedPassword: string,
   ipAddress?: string,
+  database?: Database,
 ): Promise<AuthenticatedStaff | null> {
-  let username: string;
-
+  // A username can never contain "@", so the character cleanly separates the
+  // two identifier namespaces without any precedence rule.
+  const isEmail = submittedIdentifier.includes("@");
+  let normalized: string;
   try {
-    username = normalizeUsername(submittedUsername);
+    normalized = isEmail
+      ? normalizeEmail(submittedIdentifier)
+      : normalizeUsername(submittedIdentifier);
   } catch {
     await verifyPassword(DUMMY_PASSWORD_HASH, submittedPassword);
     return null;
   }
 
-  const db = getDatabase();
+  const db = database ?? getDatabase();
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.username, username))
+    .where(
+      isEmail ? eq(users.email, normalized) : eq(users.username, normalized),
+    )
     .limit(1);
 
   if (!user) {

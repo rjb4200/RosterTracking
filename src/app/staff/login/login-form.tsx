@@ -27,14 +27,14 @@ export function LoginForm() {
     setError(
       result?.error && result.error !== "CredentialsSignin"
         ? "Something went wrong signing you in. Please try again, and contact an administrator if the problem continues."
-        : "The username or password is incorrect.",
+        : "The username, email, or password is incorrect.",
     );
     setIsSubmitting(false);
   }
 
   return (
     <form className="login-form" onSubmit={handleSubmit}>
-      <label htmlFor="username">Username</label>
+      <label htmlFor="username">Username or email</label>
       <input
         autoComplete="username"
         id="username"

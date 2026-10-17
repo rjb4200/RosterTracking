@@ -41,8 +41,13 @@ export const emailDeliveries = pgTable(
     templateVersion: text("template_version").notNull(),
     // The immutable source this message was derived from (for example a
     // finalization revision). Kept generic so more messages can reuse the box.
+    // For a scheduled message addressed to an account, this is that account.
     referenceType: text("reference_type").notNull(),
     referenceId: uuid("reference_id").notNull(),
+    // The period a scheduled message covers (a department calendar day), empty
+    // for per-participant messages. Part of the delivery identity so one digest
+    // per account and period is sent.
+    period: text("period").default("").notNull(),
     // The participant this message belongs to, when the message is personal.
     attendanceId: uuid("attendance_id").references(() => attendance.id, {
       onDelete: "restrict",
@@ -64,7 +69,15 @@ export const emailDeliveries = pgTable(
       table.referenceId,
       table.attendanceId,
       table.template,
+      table.period,
     ),
+    // A scheduled message addressed to an account has no attendance row, so the
+    // participant index above cannot dedupe it (nulls are distinct). This
+    // partial index makes one scheduled message per source, template, and
+    // period.
+    uniqueIndex("email_deliveries_scheduled_unique")
+      .on(table.referenceId, table.template, table.period)
+      .where(sql`${table.attendanceId} is null`),
     index("email_deliveries_reference_idx").on(table.referenceId),
     index("email_deliveries_attendance_status_idx").on(
       table.attendanceId,

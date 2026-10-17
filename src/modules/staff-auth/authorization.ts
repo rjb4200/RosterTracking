@@ -17,6 +17,7 @@ import { isSessionCurrent } from "./policy";
 export interface CurrentStaff {
   id: string;
   username: string;
+  email: string | null;
   displayName: string;
   permissions: ReadonlySet<string>;
   roleCodes: ReadonlySet<string>;
@@ -65,6 +66,7 @@ export async function getCurrentStaff(): Promise<CurrentStaff | null> {
   return {
     id: account.id,
     username: account.username,
+    email: account.email,
     displayName: account.displayName,
     permissions: new Set(permissionRows.map(({ code }) => code)),
     roleCodes: new Set(roleRows.map(({ code }) => code)),

@@ -23,6 +23,9 @@ export interface EnqueueEmailInput {
   templateVersion: string;
   referenceType: string;
   referenceId: string;
+  // Empty for per-participant messages; a period (department calendar day) for
+  // scheduled messages addressed to an account.
+  period?: string;
   attendanceId?: string | null;
   recipient: string;
   contentFingerprint: string;
@@ -32,11 +35,13 @@ export interface EnqueueEmailInput {
 function deliveryIdentity(input: {
   referenceId: string;
   template: string;
+  period: string;
   attendanceId?: string | null;
 }) {
   const filters = [
     eq(emailDeliveries.referenceId, input.referenceId),
     eq(emailDeliveries.template, input.template),
+    eq(emailDeliveries.period, input.period),
   ];
   filters.push(
     input.attendanceId
@@ -56,6 +61,7 @@ export async function enqueueEmail(
   input: EnqueueEmailInput,
 ): Promise<EmailDelivery> {
   const attendeeKey = input.attendanceId ?? null;
+  const period = input.period ?? "";
   const [inserted] = await transaction
     .insert(emailDeliveries)
     .values({
@@ -63,6 +69,7 @@ export async function enqueueEmail(
       templateVersion: input.templateVersion,
       referenceType: input.referenceType,
       referenceId: input.referenceId,
+      period,
       attendanceId: attendeeKey,
       recipient: input.recipient,
       sender: EMAIL_SENDER,
@@ -79,6 +86,7 @@ export async function enqueueEmail(
       deliveryIdentity({
         referenceId: input.referenceId,
         template: input.template,
+        period,
         attendanceId: attendeeKey,
       }),
     )

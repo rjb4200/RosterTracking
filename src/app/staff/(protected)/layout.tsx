@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
+import { needsEmailPrompt } from "@/modules/staff-auth/email";
 import {
   hasPermission,
   PERMISSIONS,
@@ -102,6 +103,15 @@ export default async function ProtectedStaffLayout({
             </Link>
           ))}
       </nav>
+      {needsEmailPrompt(staff.email) ? (
+        <div className="staff-email-prompt" role="status">
+          <span>
+            Add an email to your profile so you can sign in with it and receive
+            class reminders.
+          </span>
+          <Link href="/staff/profile">Add email</Link>
+        </div>
+      ) : null}
       {children}
     </div>
   );

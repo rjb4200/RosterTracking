@@ -323,6 +323,20 @@
       "when": 1792192871096,
       "tag": "0045_rare_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792254816699,
+      "tag": "0046_green_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792257047850,
+      "tag": "0047_dazzling_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

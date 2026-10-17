@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "email_deliveries_scheduled_unique" ON "email_deliveries" USING btree ("reference_id","template","period") WHERE "email_deliveries"."attendance_id" is null;

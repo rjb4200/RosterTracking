@@ -621,6 +621,25 @@ h1 {
   font-size: 0.9rem;
 }
 
+.staff-email-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin: 1rem clamp(1.2rem, 5vw, 5rem) 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--signal-dark);
+  background: #fff8e6;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.staff-email-prompt a {
+  font-weight: 700;
+}
+
 .text-button {
   border: 0;
   background: transparent;

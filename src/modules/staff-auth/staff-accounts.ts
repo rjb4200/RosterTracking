@@ -1,12 +1,12 @@
 import "server-only";
 
-import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { writeAuditLog } from "@/server/db/audit";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 import { roles, userRoles, users } from "@/server/db/schema";
-
+import { normalizeEmail } from "./email";
 import { hashPassword, normalizeUsername, validatePassword } from "./password";
 import { ROLE_CODES } from "./permissions";
 
@@ -18,10 +18,38 @@ const roleSchema = z.enum([
 
 const accountInput = z.object({
   username: z.string(),
+  email: z.string().optional(),
   displayName: z.string().trim().min(1).max(100),
   password: z.string(),
   roleCode: roleSchema,
 });
+
+/** Normalizes an optional email, treating blank input as "not set". */
+function optionalEmail(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? normalizeEmail(trimmed) : null;
+}
+
+/** Rejects an email already held by another account, ignoring case. */
+async function assertEmailAvailable(
+  transaction: DatabaseTransaction,
+  email: string | null,
+  exceptUserId?: string,
+) {
+  if (!email) return;
+  const [duplicate] = await transaction
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      exceptUserId
+        ? and(eq(users.email, email), ne(users.id, exceptUserId))
+        : eq(users.email, email),
+    )
+    .limit(1);
+  if (duplicate) {
+    throw new Error("That email is already assigned to another account.");
+  }
+}
 
 export async function requireAdministrator(
   transaction: DatabaseTransaction,
@@ -98,6 +126,7 @@ async function ensureNotFinalAdministrator(
 const accountColumns = {
   id: users.id,
   username: users.username,
+  email: users.email,
   displayName: users.displayName,
   isActive: users.isActive,
   lastLoginAt: users.lastLoginAt,
@@ -110,6 +139,7 @@ const accountColumns = {
 type AccountRow = {
   id: string;
   username: string;
+  email: string | null;
   displayName: string;
   isActive: boolean;
   lastLoginAt: Date | null;
@@ -153,7 +183,11 @@ export async function listStaffAccounts(
         and(
           isNull(users.archivedAt),
           query.trim()
-            ? or(ilike(users.username, term), ilike(users.displayName, term))
+            ? or(
+                ilike(users.username, term),
+                ilike(users.displayName, term),
+                ilike(users.email, term),
+              )
             : undefined,
         ),
       );
@@ -185,10 +219,12 @@ export async function createStaffAccount(
 ) {
   const parsed = accountInput.parse(input);
   const username = normalizeUsername(parsed.username);
+  const email = optionalEmail(parsed.email);
   const passwordHash = await hashPassword(validatePassword(parsed.password));
   return db.transaction(async (transaction) => {
     await requireAdministrator(transaction, actorId);
     const role = await requireRole(transaction, parsed.roleCode);
+    await assertEmailAvailable(transaction, email);
     const [existing] = await transaction
       .select({ id: users.id, archivedAt: users.archivedAt })
       .from(users)
@@ -203,6 +239,7 @@ export async function createStaffAccount(
         .update(users)
         .set({
           displayName: parsed.displayName,
+          email,
           passwordHash,
           isActive: true,
           archivedAt: null,
@@ -228,13 +265,18 @@ export async function createStaffAccount(
         action: "staff.account.revived",
         entityType: "user",
         entityId: existing.id,
-        details: { username, roleCode: parsed.roleCode },
+        details: { username, email, roleCode: parsed.roleCode },
       });
       return revived;
     }
     const [account] = await transaction
       .insert(users)
-      .values({ username, displayName: parsed.displayName, passwordHash })
+      .values({
+        username,
+        email,
+        displayName: parsed.displayName,
+        passwordHash,
+      })
       .returning({ id: users.id });
     if (!account) throw new Error("Staff account was not created.");
     await transaction.insert(userRoles).values({
@@ -248,7 +290,7 @@ export async function createStaffAccount(
       action: "staff.account.created",
       entityType: "user",
       entityId: account.id,
-      details: { username, roleCode: parsed.roleCode },
+      details: { username, email, roleCode: parsed.roleCode },
     });
     return account;
   });
@@ -294,6 +336,7 @@ export async function updateStaffAccount(
   input: {
     userId: string;
     displayName?: string;
+    email?: string | null;
     roleCode?: string;
     isActive?: boolean;
     password?: string;
@@ -303,11 +346,14 @@ export async function updateStaffAccount(
     .object({
       userId: z.string().uuid(),
       displayName: z.string().trim().min(1).max(100).optional(),
+      email: z.string().nullable().optional(),
       roleCode: roleSchema.optional(),
       isActive: z.boolean().optional(),
       password: z.string().optional(),
     })
     .parse(input);
+  const email =
+    parsed.email === undefined ? undefined : optionalEmail(parsed.email);
   const passwordHash = parsed.password
     ? await hashPassword(validatePassword(parsed.password))
     : undefined;
@@ -318,6 +364,9 @@ export async function updateStaffAccount(
       (parsed.roleCode && parsed.roleCode !== ROLE_CODES.ADMINISTRATOR)
     ) {
       await ensureNotFinalAdministrator(transaction, parsed.userId);
+    }
+    if (email !== undefined) {
+      await assertEmailAvailable(transaction, email, parsed.userId);
     }
     if (parsed.roleCode) {
       const role = await requireRole(transaction, parsed.roleCode);
@@ -334,11 +383,12 @@ export async function updateStaffAccount(
       parsed.isActive !== undefined ||
       Boolean(passwordHash) ||
       Boolean(parsed.roleCode);
-    if (parsed.displayName || invalidatesSessions) {
+    if (parsed.displayName || email !== undefined || invalidatesSessions) {
       await transaction
         .update(users)
         .set({
           ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
+          ...(email !== undefined ? { email } : {}),
           ...(parsed.isActive === undefined
             ? {}
             : { isActive: parsed.isActive }),
@@ -358,6 +408,7 @@ export async function updateStaffAccount(
       entityId: parsed.userId,
       details: {
         displayNameChanged: Boolean(parsed.displayName),
+        emailChanged: email !== undefined,
         roleCode: parsed.roleCode,
         isActive: parsed.isActive,
         passwordReset: Boolean(passwordHash),
