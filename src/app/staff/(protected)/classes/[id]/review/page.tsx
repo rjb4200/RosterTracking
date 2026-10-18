@@ -524,6 +524,16 @@ export default async function ClassReviewPage({
       ) : (
         <>
           <section className="admin-section">
+            <h2>Roster finalized</h2>
+            <p className="roster-note">
+              This roster is locked.
+              {canReopen
+                ? " Reopen it from the bottom of this page to make corrections."
+                : ""}
+            </p>
+          </section>
+
+          <section className="admin-section">
             <h2>Class details</h2>
             <ClassSummary classRecord={classRecord} />
           </section>
