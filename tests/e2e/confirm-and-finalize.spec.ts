@@ -8,6 +8,7 @@ import { e2eDatabaseUrl } from "./support/database";
 
 const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
+const instructorUsername = process.env.E2E_INSTRUCTOR_USERNAME;
 const connectionString = e2eDatabaseUrl();
 
 // The correct-and-finalize journey is heavy; under the parallel suite the dev
@@ -253,14 +254,29 @@ test("an MTU class presents one MTU editor and withholds finalization without us
     mtuArea.getByRole("button", { name: "Save supplies and equipment" }),
   ).toHaveCount(1);
 
-  // Missing usage is a readiness blocker that withholds finalization.
+  // The area states nothing is recorded, and missing usage withholds finalization.
+  await expect(mtuArea.locator(".workspace-area-summary")).toContainText(
+    "Not recorded",
+  );
   await expect(page.getByText("No MTU usage recorded.")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Finalize roster" }),
   ).toBeDisabled();
+
+  // Recording free-text usage summarises it and clears the blocker.
+  await mtuArea.getByText("Additional details").click();
+  await mtuArea.getByLabel("Other equipment (not listed)").fill("Test kit");
+  await mtuArea
+    .getByRole("button", { name: "Save supplies and equipment" })
+    .click();
+  await expect(mtuArea.locator(".workspace-area-summary")).toContainText(
+    "Test kit",
+    { timeout: 15_000 },
+  );
+  await expect(page.getByText("No MTU usage recorded.")).toHaveCount(0);
 });
 
-test("the roster expands only the row that needs attention", async ({
+test("the roster flags a row that needs attention without expanding it", async ({
   page,
 }) => {
   skipUnlessEnabled();
@@ -277,7 +293,10 @@ test("the roster expands only the row that needs attention", async ({
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}/review`);
 
+  // The flagged row stays compact until the operator opens it.
   await expect(page.locator(".roster-row-attention")).toHaveCount(1);
+  await expect(page.getByLabel("Credit", { exact: true })).toBeHidden();
+  await page.locator(".roster-row-actions summary").first().click();
   await expect(page.getByLabel("Credit", { exact: true })).toBeVisible();
   // The blocker names the participant and links to the area that resolves it.
   await expect(
@@ -339,4 +358,46 @@ test("the workspace opens one correction area at a time", async ({ page }) => {
   await scheduleArea.getByRole("button", { name: "Edit" }).click();
   await expect(scheduleArea.getByText("Training session")).toBeVisible();
   await expect(classArea.getByLabel("Class name")).toHaveCount(0);
+});
+
+test("instructors can be added, the lead changed, and the only lead kept", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString || !instructorUsername)
+    return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  // The assisting instructor's display name, for the picker and the row.
+  const pool = new Pool({ connectionString, max: 1 });
+  const instructor = await pool.query<{ display_name: string }>(
+    "select display_name from users where username = $1",
+    [instructorUsername],
+  );
+  await pool.end();
+  const instructorName = instructor.rows[0]?.display_name;
+  if (!instructorName) throw new Error("E2E instructor was not found.");
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const area = page.locator("#area-instructors");
+  await area.getByRole("button", { name: "Edit" }).click();
+
+  // Add the instructor as an assisting instructor.
+  await area.getByLabel("Instructor").selectOption({ label: instructorName });
+  await area.getByRole("button", { name: "Add instructor" }).click();
+
+  const row = area.locator(".member-row", { hasText: instructorName });
+  await expect(row.getByText("Assisting")).toBeVisible({ timeout: 15_000 });
+
+  // Make them the lead; the previous lead becomes assisting.
+  await row.getByRole("button", { name: "Make lead" }).click();
+  await expect(row.getByText("Lead")).toBeVisible({ timeout: 15_000 });
+
+  // Removing the only lead is refused.
+  await row.getByRole("button", { name: "Remove" }).click();
+  await expect(
+    area.getByText(/Assign another lead instructor before removing the lead/i),
+  ).toBeVisible({ timeout: 15_000 });
 });

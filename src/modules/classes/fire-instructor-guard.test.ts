@@ -103,6 +103,7 @@ describe("Fire class instructor mutation guards", () => {
       [{ id: classId, status: "open" }],
       [{ id: "elevated-role" }],
       [{ id: assistantId }],
+      [],
       [{ id: fireId }],
       [{ id: leadId }],
     ]);
@@ -119,6 +120,7 @@ describe("Fire class instructor mutation guards", () => {
       [{ id: classId, status: "open" }],
       [{ id: "elevated-role" }],
       [{ id: assistantId }],
+      [],
       [],
     ]);
     const write = Object.assign(Promise.resolve([]), {

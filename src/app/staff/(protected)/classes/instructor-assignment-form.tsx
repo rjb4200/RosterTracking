@@ -22,7 +22,6 @@ export function InstructorAssignmentForm({
   return (
     <form action={formAction} className="inline-form">
       <input type="hidden" name="classId" value={classId} />
-      <input type="hidden" name="isLead" value="true" />
       <select
         name="userId"
         className="select-input"
@@ -35,8 +34,17 @@ export function InstructorAssignmentForm({
           </option>
         ))}
       </select>
+      <select
+        name="isLead"
+        className="select-input"
+        aria-label="Role"
+        defaultValue="false"
+      >
+        <option value="false">Assisting instructor</option>
+        <option value="true">Lead instructor</option>
+      </select>
       <Button type="submit" variant="secondary" disabled={pending}>
-        {pending ? "Assigning..." : "Set lead instructor"}
+        {pending ? "Adding..." : "Add instructor"}
       </Button>
       {state?.error ? <p role="alert">{state.error}</p> : null}
       {state?.success ? <p role="status">{state.success}</p> : null}

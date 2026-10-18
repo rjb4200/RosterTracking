@@ -18,6 +18,7 @@ import {
   assignClassInstructor,
   createOpenClass,
   getClassPublicAccess,
+  removeClassInstructor,
   rotateClassSignInToken,
   saveClassComponent,
   transitionClass,
@@ -343,6 +344,33 @@ export async function transitionClassAction(
   revalidatePath(`/staff/classes/${classId}`);
   revalidatePath("/staff/classes");
   return { classId };
+}
+
+export async function removeInstructorAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await removeClassInstructor(
+      getDatabase(),
+      actor,
+      classId,
+      read(formData, "userId"),
+    );
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    revalidatePath(`/staff/classes/${classId}/edit`);
+    return { success: "Instructor removed." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not remove the instructor.",
+    };
+  }
 }
 
 export async function updateMtuUsageAction(

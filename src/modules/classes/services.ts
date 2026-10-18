@@ -1236,6 +1236,37 @@ export async function assignClassInstructor(
       .where(and(eq(users.id, userId), eq(users.isActive, true)))
       .limit(1);
     if (!activeUser) throw new Error("Select an active staff user.");
+    // Assigning the current lead as an assisting instructor must not leave the
+    // class without a lead.
+    if (!isLead) {
+      const [isCurrentLead] = await transaction
+        .select({ userId: classInstructors.userId })
+        .from(classInstructors)
+        .where(
+          and(
+            eq(classInstructors.classId, classId),
+            eq(classInstructors.userId, userId),
+            eq(classInstructors.isLead, true),
+          ),
+        )
+        .limit(1);
+      if (isCurrentLead) {
+        const leads = await transaction
+          .select({ userId: classInstructors.userId })
+          .from(classInstructors)
+          .where(
+            and(
+              eq(classInstructors.classId, classId),
+              eq(classInstructors.isLead, true),
+            ),
+          );
+        if (leads.length <= 1) {
+          throw new Error(
+            "That instructor is the class's lead. Assign another lead first.",
+          );
+        }
+      }
+    }
     if (await classSelectsFire(transaction, classId)) {
       await requireFireInstructorFfns(transaction, [
         ...(await assignedInstructorIds(transaction, classId)),
@@ -1262,6 +1293,71 @@ export async function assignClassInstructor(
       entityType: "class",
       entityId: classId,
       details: { userId, isLead },
+    });
+  });
+}
+
+export async function removeClassInstructor(
+  db: Database,
+  actor: ClassActor,
+  classId: string,
+  userId: string,
+): Promise<void> {
+  await db.transaction(async (transaction) => {
+    const classRecord = await requireClassAccess(transaction, actor, classId);
+    assertClassEditable(classRecord.status);
+    const [assignment] = await transaction
+      .select({ isLead: classInstructors.isLead })
+      .from(classInstructors)
+      .where(
+        and(
+          eq(classInstructors.classId, classId),
+          eq(classInstructors.userId, userId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!assignment) {
+      throw new Error("That instructor is not assigned to this class.");
+    }
+    // A class must keep a lead instructor; a Fire class must keep a fire one.
+    if (assignment.isLead) {
+      const leads = await transaction
+        .select({ userId: classInstructors.userId })
+        .from(classInstructors)
+        .where(
+          and(
+            eq(classInstructors.classId, classId),
+            eq(classInstructors.isLead, true),
+          ),
+        );
+      if (leads.length <= 1) {
+        throw new Error(
+          "Assign another lead instructor before removing the lead.",
+        );
+      }
+    }
+    await transaction
+      .delete(classInstructors)
+      .where(
+        and(
+          eq(classInstructors.classId, classId),
+          eq(classInstructors.userId, userId),
+        ),
+      );
+    if (await classSelectsFire(transaction, classId)) {
+      await requireFireInstructorFfns(
+        transaction,
+        await assignedInstructorIds(transaction, classId),
+      );
+    }
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.instructor.removed",
+      entityType: "class",
+      entityId: classId,
+      details: { userId },
     });
   });
 }

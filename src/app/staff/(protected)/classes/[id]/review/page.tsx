@@ -33,6 +33,7 @@ import {
   correctCredentialAction,
   emailTrainingNoticeAction,
   finalizeClassAction,
+  removeInstructorAction,
   reopenClassAction,
   resendParticipantCertificateAction,
   saveComponentAction,
@@ -48,6 +49,7 @@ import {
   ReopenControl,
 } from "../../finalization-controls";
 import { InstructorAssignmentForm } from "../../instructor-assignment-form";
+import { InstructorRowActions } from "../../instructor-controls";
 import { MtuUsageForm } from "../../mtu-usage-form";
 import {
   CompletionCertificateControls,
@@ -188,7 +190,7 @@ function RosterTable({
                 {isFinalized ? (
                   <span className="text-muted-foreground">Locked</span>
                 ) : (
-                  <details className="roster-row-actions" open={needsAttention}>
+                  <details className="roster-row-actions">
                     <summary>Adjust</summary>
                     <AttendanceControls
                       classId={classId}
@@ -332,6 +334,27 @@ export default async function ClassReviewPage({
         usage.mileage ||
         usage.usedSupplies),
   );
+  const mtuNames = new Map(
+    mtuCatalog.map((option) => [option.id, option.name]),
+  );
+  const mtuSummary = (() => {
+    if (!usage) return "Not recorded";
+    const parts: string[] = [];
+    for (const item of usage.items ?? []) {
+      const name = mtuNames.get(item.itemId) ?? "Item";
+      if (item.kind === "equipment") parts.push(name);
+      else if (item.kind === "supplies")
+        parts.push(item.quantity == null ? name : `${item.quantity} × ${name}`);
+      else if (item.kind === "transport")
+        parts.push(item.mileage == null ? name : `${name} ${item.mileage} mi`);
+    }
+    if (usage.equipmentUsed) parts.push(usage.equipmentUsed);
+    if (usage.usedSupplies) parts.push(usage.usedSupplies);
+    if (usage.mileage) parts.push(`${usage.mileage} mi`);
+    if (!parts.length) return "Not recorded";
+    const shown = parts.slice(0, 3).join(" · ");
+    return parts.length > 3 ? `${shown} +${parts.length - 3}` : shown;
+  })();
   // Readiness the workspace acts on: each blocker opens the area that fixes it.
   const blockers: { message: string; area: string; label: string }[] = [
     ...(reviewData?.readiness.issues ?? []).map((message) => ({
@@ -516,7 +539,20 @@ export default async function ClassReviewPage({
                 {classRecord.instructors.map((instructor) => (
                   <li key={instructor.userId} className="member-row">
                     <span>{instructor.displayName}</span>
-                    {instructor.isLead ? <Badge>Lead</Badge> : null}
+                    {instructor.isLead ? (
+                      <Badge>Lead</Badge>
+                    ) : (
+                      <Badge variant="secondary">Assisting</Badge>
+                    )}
+                    {classOptions ? (
+                      <InstructorRowActions
+                        classId={classRecord.id}
+                        userId={instructor.userId}
+                        isLead={instructor.isLead}
+                        assignAction={assignInstructorAction}
+                        removeAction={removeInstructorAction}
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -541,11 +577,7 @@ export default async function ClassReviewPage({
             </WorkspaceArea>
 
             {isMtuClass ? (
-              <WorkspaceArea
-                id="mtu"
-                label="MTU usage"
-                summary={mtuRecorded ? "Recorded" : "Not recorded"}
-              >
+              <WorkspaceArea id="mtu" label="MTU usage" summary={mtuSummary}>
                 <MtuUsageForm
                   classId={id}
                   usage={classRecord.mtuUsage}
