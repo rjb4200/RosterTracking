@@ -42,7 +42,6 @@ export function MtuUsageForm({
         value={value}
         onChange={setValue}
         activeParticipants={activeParticipants}
-        collapsible
       />
       <Button type="submit" variant="secondary" disabled={pending}>
         Save supplies and equipment

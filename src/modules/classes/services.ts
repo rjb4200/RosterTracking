@@ -152,6 +152,9 @@ const draftInput = z.object({
   mtuSupplyItems: z.array(mtuSupplySelectionInput).optional().default([]),
   mtuTransportIds: z.array(z.string().uuid()).optional().default([]),
   mtuTransportMileage: z.record(z.string().uuid(), z.string()).default({}),
+  // When false the caller does not manage MTU usage — for example the review
+  // workspace's class card — so an update leaves recorded usage untouched.
+  mtuManaged: z.boolean().default(true),
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
@@ -1052,15 +1055,17 @@ export async function updateClass(
       parsed.reportingSystemIds ?? [],
     );
     await reconcileAttendanceReportingContexts(transaction, classId);
-    await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
-    await replaceMtuUsageItems(
-      transaction,
-      classId,
-      parsed.mtuEquipmentIds,
-      parsed.mtuSupplyItems,
-      parsed.mtuTransportIds,
-      parsed.mtuTransportMileage,
-    );
+    if (parsed.mtuManaged) {
+      await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
+      await replaceMtuUsageItems(
+        transaction,
+        classId,
+        parsed.mtuEquipmentIds,
+        parsed.mtuSupplyItems,
+        parsed.mtuTransportIds,
+        parsed.mtuTransportMileage,
+      );
+    }
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",

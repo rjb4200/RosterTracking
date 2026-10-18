@@ -129,6 +129,9 @@ function draftValues(formData: FormData) {
     mtuSupplyItems: readMtuSelections(formData).supplies,
     mtuTransportIds: readMtuSelections(formData).transportIds,
     mtuTransportMileage: readMtuSelections(formData).transportMileage,
+    // Absent means the caller manages MTU (create and the edit form); only the
+    // review workspace's class card opts out.
+    mtuManaged: read(formData, "mtuManaged") !== "false",
   };
 }
 

@@ -97,12 +97,16 @@ for (const viewport of [
     await expect(page).toHaveURL(
       new RegExp(`/staff/classes/${classId}/review$`),
     );
-    await expect(page.getByText("Review and finalize")).toBeVisible();
+    await expect(page.getByText("Post-class review")).toBeVisible();
     await page.locator(".roster-row-actions summary").first().click();
     await page.getByLabel("Credit", { exact: true }).fill("3.5");
     await page.getByLabel("Adjustment reason").selectOption("Left Early");
     await page.getByRole("button", { name: "Update credit" }).click();
-    await expect(page.getByText("Roster updated.")).toBeVisible();
+    // The row reflects the adjustment (the transient toast is not asserted).
+    await expect(page.getByText("3.50 / 4")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("cell", { name: "Left Early" })).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.getByRole("checkbox", { name: /I certify/i }).check();
     await page.getByLabel("Signature").fill("Tablet Lead");
@@ -111,6 +115,10 @@ for (const viewport of [
     // review instead of a 404.
     await expect(page.getByText("Finalized class review")).toBeVisible();
     await expect(page.getByText("Roster finalized")).toBeVisible();
+    // Documents and delivery appear only once a revision exists.
+    await expect(
+      page.getByRole("heading", { name: "Documents & delivery" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Update credit" }),
     ).toHaveCount(0);
@@ -180,5 +188,5 @@ test("elevated staff can open an unassigned class review", async ({ page }) => {
 
   await signIn(page, elevatedUsername, elevatedPassword);
   await page.goto(`/staff/classes/${classId}/review`);
-  await expect(page.getByText("Review and finalize")).toBeVisible();
+  await expect(page.getByText("Post-class review")).toBeVisible();
 });

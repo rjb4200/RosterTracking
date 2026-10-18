@@ -1080,6 +1080,71 @@ h1 {
   max-width: 32rem;
 }
 
+/* The post-class workspace: summary areas with one editor open at a time. */
+.workspace {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 1.15rem;
+  overflow-x: auto;
+}
+
+.workspace-heading {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+}
+
+.workspace-status {
+  margin: 0;
+}
+
+.workspace-area {
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.workspace-area-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workspace-area-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.workspace-area-summary {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+}
+
+.workspace-area-toggle {
+  flex: none;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.workspace-area-body {
+  margin-top: 0.85rem;
+}
+
+.workspace-area-opener {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--signal-dark);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
 .operational-class-heading,
 .operational-class-actions {
   display: flex;

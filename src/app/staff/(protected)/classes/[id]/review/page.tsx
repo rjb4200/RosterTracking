@@ -41,7 +41,6 @@ import {
 } from "../../actions";
 import { CertificateDeliveryControls } from "../../certificate-delivery-controls";
 import { ClassForm } from "../../class-form";
-import { ClassSummary } from "../../class-summary";
 import { ComponentForm } from "../../component-form";
 import { CredentialCorrectionControl } from "../../credential-correction-control";
 import {
@@ -57,6 +56,11 @@ import {
 } from "../../official-roster-controls";
 import { AttendanceControls } from "../../roster-controls";
 import { TrainingNoticeControls } from "../../training-notice-controls";
+import {
+  AreaOpener,
+  WorkspaceArea,
+  WorkspaceProvider,
+} from "../../workspace-areas";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +137,7 @@ function DocumentsList({
   );
 }
 
-/** The compact roster table. Only a row that needs attention expands. */
+/** The workspace's review core: the roster, compact, expanding only on issues. */
 function RosterTable({
   entries,
   scheduledHours,
@@ -172,9 +176,6 @@ function RosterTable({
             >
               <td>
                 <strong>{entry.name}</strong>
-                <span className="text-muted-foreground">
-                  {entry.agencyName} · {entry.signInMethod}
-                </span>
               </td>
               <td>{needsAttention ? "Needs attention" : "Present"}</td>
               <td>
@@ -323,14 +324,31 @@ export default async function ClassReviewPage({
     }
   }
   const attentionIds = reviewData?.readiness.attentionIds ?? [];
+  const usage = classRecord.mtuUsage;
+  const mtuRecorded = Boolean(
+    usage &&
+      ((usage.items?.length ?? 0) > 0 ||
+        usage.equipmentUsed ||
+        usage.mileage ||
+        usage.usedSupplies),
+  );
+  // Readiness the workspace acts on: each blocker opens the area that fixes it.
+  const blockers: { message: string; area: string; label: string }[] = [
+    ...(reviewData?.readiness.issues ?? []).map((message) => ({
+      message,
+      area: "roster",
+      label: "roster",
+    })),
+    ...(isMtuClass && !mtuRecorded
+      ? [{ message: "No MTU usage recorded.", area: "mtu", label: "MTU usage" }]
+      : []),
+  ];
+  const ready = blockers.length === 0;
 
   const renderRemoved = (entry: RosterEntry) => (
     <li className="roster-row" key={entry.id}>
       <div>
         <strong>{entry.name}</strong>
-        <span>
-          {entry.agencyName} · {entry.signInMethod}
-        </span>
       </div>
       <div className="roster-credit">
         <span>
@@ -343,7 +361,7 @@ export default async function ClassReviewPage({
   return (
     <main className="admin-content">
       <PageHeading
-        eyebrow={isFinalized ? "Finalized class review" : "Review and finalize"}
+        eyebrow={isFinalized ? "Finalized class review" : "Post-class review"}
         title={classRecord.name ?? "Class roster"}
         meta={
           <p>
@@ -367,25 +385,33 @@ export default async function ClassReviewPage({
       />
 
       {isOpen ? (
-        <>
-          <section className="review-card" id="confirm-class">
-            <header className="review-card-head">
-              <span className="review-step" aria-hidden>
-                1
-              </span>
-              <h2>Confirm class</h2>
-            </header>
+        <WorkspaceProvider>
+          <section className="workspace" aria-label="Class summary">
+            <p className="workspace-status">
+              {ready ? (
+                <Badge>Ready to finalize</Badge>
+              ) : (
+                <Badge variant="secondary">
+                  Needs correction ({blockers.length})
+                </Badge>
+              )}
+            </p>
 
-            <details className="review-group">
-              <summary>
-                Class details — {classRecord.name ?? "Untitled"} ·{" "}
-                {reportingLabel}
-              </summary>
-              <ClassSummary classRecord={classRecord} />
+            <WorkspaceArea
+              id="class"
+              label="Class & reporting"
+              summary={
+                <>
+                  {classRecord.name ?? "Untitled"} ·{" "}
+                  {classRecord.site?.name ?? "Online"} · {reportingLabel}
+                </>
+              }
+            >
               {classOptions ? (
                 <ClassForm
                   action={updateClassAction}
                   {...classOptions}
+                  hideMtuUsage
                   values={{
                     id: classRecord.id,
                     name: classRecord.name,
@@ -403,15 +429,22 @@ export default async function ClassReviewPage({
                     ),
                   }}
                 />
-              ) : null}
-            </details>
+              ) : (
+                <p className="roster-note">Class editing is unavailable.</p>
+              )}
+            </WorkspaceArea>
 
-            <details className="review-group">
-              <summary>
-                Sessions — {classRecord.components.length} session
-                {classRecord.components.length === 1 ? "" : "s"} ·{" "}
-                {roster.scheduledHours} hours
-              </summary>
+            <WorkspaceArea
+              id="schedule"
+              label="Schedule & hours"
+              summary={
+                <>
+                  {classRecord.components.length} session
+                  {classRecord.components.length === 1 ? "" : "s"} ·{" "}
+                  {roster.scheduledHours} hours
+                </>
+              }
+            >
               <p className="roster-note">
                 A class that ran long is recorded by raising a session&apos;s
                 credited hours. Everyone still credited at the full total
@@ -472,10 +505,13 @@ export default async function ClassReviewPage({
                   recentCurriculumIds={classOptions.recentCurriculumIds}
                 />
               ) : null}
-            </details>
+            </WorkspaceArea>
 
-            <details className="review-group">
-              <summary>Instructors — {instructorNames}</summary>
+            <WorkspaceArea
+              id="instructors"
+              label="Instructors"
+              summary={instructorNames}
+            >
               <ul className="member-list">
                 {classRecord.instructors.map((instructor) => (
                   <li key={instructor.userId} className="member-row">
@@ -484,6 +520,17 @@ export default async function ClassReviewPage({
                   </li>
                 ))}
               </ul>
+              <p className="roster-note">
+                The lead instructor signs the roster.
+              </p>
+              {classRecord.reportingSystems.some(
+                (system) => system.code === "fire",
+              ) ? (
+                <p className="roster-note">
+                  Fire reporting requires an assigned instructor with a valid
+                  Fire FFN and instructor level.
+                </p>
+              ) : null}
               {classOptions ? (
                 <InstructorAssignmentForm
                   action={assignInstructorAction}
@@ -491,31 +538,26 @@ export default async function ClassReviewPage({
                   staff={classOptions.staff}
                 />
               ) : null}
-            </details>
+            </WorkspaceArea>
 
             {isMtuClass ? (
-              <details className="review-group">
-                <summary>
-                  Supplies &amp; equipment — Mobile Training Unit
-                </summary>
+              <WorkspaceArea
+                id="mtu"
+                label="MTU usage"
+                summary={mtuRecorded ? "Recorded" : "Not recorded"}
+              >
                 <MtuUsageForm
                   classId={id}
                   usage={classRecord.mtuUsage}
                   mtuCatalog={mtuCatalog}
                   activeParticipants={roster.active.length}
                 />
-              </details>
+              </WorkspaceArea>
             ) : null}
           </section>
 
-          <section className="review-card" id="review-roster">
-            <header className="review-card-head">
-              <span className="review-step" aria-hidden>
-                2
-              </span>
-              <h2>Review roster</h2>
-              <Badge variant="outline">{roster.active.length} active</Badge>
-            </header>
+          <section className="workspace" aria-label="Roster" id="roster">
+            <h2 className="workspace-heading">Roster</h2>
             <RosterTable
               entries={roster.active}
               scheduledHours={roster.scheduledHours}
@@ -524,7 +566,7 @@ export default async function ClassReviewPage({
               classId={id}
             />
             {roster.removed.length ? (
-              <details className="review-group">
+              <details className="review-subsection">
                 <summary>Removed attendance ({roster.removed.length})</summary>
                 <ul className="roster-list">
                   {roster.removed.map((entry) => renderRemoved(entry))}
@@ -533,23 +575,22 @@ export default async function ClassReviewPage({
             ) : null}
           </section>
 
-          <section className="review-card" id="finalize">
-            <header className="review-card-head">
-              <span className="review-step" aria-hidden>
-                3
-              </span>
-              <h2>Finalize &amp; export</h2>
-              <Badge
-                variant={reviewData?.readiness.ready ? "default" : "secondary"}
-              >
-                {reviewData?.readiness.ready ? "Ready" : "Needs attention"}
-              </Badge>
-            </header>
-            {reviewData && !reviewData.readiness.ready ? (
+          <section className="workspace" aria-label="Finalize">
+            <h2 className="workspace-heading">Finalize</h2>
+            {blockers.length ? (
               <ul className="member-list">
-                {reviewData.readiness.issues.map((issue) => (
-                  <li className="member-row" key={issue}>
-                    {issue}
+                {blockers.map((blocker) => (
+                  <li className="member-row" key={blocker.message}>
+                    <span>{blocker.message}</span>
+                    {blocker.area === "roster" ? (
+                      <a href="#roster" className="workspace-area-opener">
+                        Fix roster
+                      </a>
+                    ) : (
+                      <AreaOpener area={blocker.area}>
+                        Fix {blocker.label}
+                      </AreaOpener>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -562,25 +603,11 @@ export default async function ClassReviewPage({
               classId={id}
               status={classRecord.status}
               finalizeAction={finalizeClassAction}
-              canFinalize={reviewData?.readiness.ready ?? false}
+              canFinalize={ready}
               isLeadInstructor={isLeadInstructor}
             />
-            <details className="review-group">
-              <summary>Reporting &amp; records</summary>
-              <p className="roster-note">Reporting: {reportingLabel}.</p>
-              <DocumentsList
-                classId={id}
-                isFinalized={false}
-                latestRevision={null}
-                canManageOfficialRosters={false}
-              />
-              <p className="roster-note">
-                Finalizing produces the official roster and completion
-                certificates.
-              </p>
-            </details>
           </section>
-        </>
+        </WorkspaceProvider>
       ) : (
         <>
           <section className="admin-section">
@@ -595,7 +622,11 @@ export default async function ClassReviewPage({
 
           <section className="admin-section">
             <h2>Class details</h2>
-            <ClassSummary classRecord={classRecord} />
+            <p className="roster-note">
+              {classRecord.name ?? "Untitled"} ·{" "}
+              {classRecord.site?.name ?? "Online"} · {reportingLabel} ·{" "}
+              {instructorNames}
+            </p>
           </section>
 
           <section className="admin-section">
@@ -608,7 +639,7 @@ export default async function ClassReviewPage({
               classId={id}
             />
             {roster.removed.length ? (
-              <details className="review-group">
+              <details className="review-subsection">
                 <summary>Removed attendance ({roster.removed.length})</summary>
                 <ul className="roster-list">
                   {roster.removed.map((entry) => renderRemoved(entry))}
@@ -618,7 +649,7 @@ export default async function ClassReviewPage({
           </section>
 
           <section className="admin-section">
-            <h2>Documents</h2>
+            <h2>Documents &amp; delivery</h2>
             <p className="roster-note">
               View a document to open its PDF. Use the browser viewer to print
               or save a copy.
