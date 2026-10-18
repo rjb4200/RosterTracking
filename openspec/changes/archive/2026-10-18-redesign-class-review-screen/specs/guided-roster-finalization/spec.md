@@ -18,6 +18,10 @@ While the class is finalized the review screen SHALL present the signed class an
 
 The review screen SHALL present the class sign-in record, the class audit log, the KFS-1A roster, and the completion-certificate batch as peer rows in one documents section, each with a View action that opens the rendered PDF inline; the sign-in record and audit log SHALL be available at any reviewed status, and the roster and certificate batch SHALL be available when a finalized revision exists. The completion-certificate batch row SHALL appear only when the latest finalized revision reported to KBEMS. The KFS-1A roster row SHALL additionally offer an Email action whose recipient field is revealed only when the action is chosen and is hidden otherwise. The reopening section SHALL be presented only to operators who may reopen the class. While the class is open the documents section SHALL indicate that the official roster and certificates require finalization.
 
+#### Scenario: Review an open class
+- **WHEN** an authorized operator opens the review screen for an open class
+- **THEN** the system presents the class details, the class and roster facts, and the review and finalization actions in one workflow
+
 #### Scenario: Present the three finalization steps
 - **WHEN** an authorized operator opens the review screen for an open class
 - **THEN** the system presents Confirm class, Review roster, and Finalize & export in order
@@ -94,6 +98,30 @@ The review screen SHALL present the class sign-in record, the class audit log, t
 - **WHEN** an authorized operator chooses View for a document
 - **THEN** the system opens the rendered PDF inline for viewing, printing, or downloading through the browser
 
+### Requirement: The lead instructor finalizes and signs from the review screen
+
+The system SHALL present the finalize-and-sign action on the review screen only to the class's lead instructor while the class is open, and SHALL require only the certification and the typed name to finalize — for a class whose destinations include the Mobile Training Unit, the class first requiring recorded MTU usage from the Confirm class step. The finalize action SHALL NOT require a draft, a second submission, or any editing. It SHALL present the finalized revision's recorded signer and signed timestamp to authorized operators. A non-lead operator SHALL still see the review, its documents, and its readiness, but SHALL NOT be offered the finalize-and-sign action.
+
+#### Scenario: Lead instructor finalizes and signs
+- **WHEN** the class's lead instructor opens the review screen for a roster-ready open class
+- **THEN** the screen offers a single finalize-and-sign action requiring the certification and typed name
+
+#### Scenario: Withhold the action from non-lead operators
+- **WHEN** a Training Major, Administrator, or assisting instructor opens the review screen for an open class
+- **THEN** the screen presents the review and its documents but does not offer the finalize-and-sign action
+
+#### Scenario: Show the recorded signature
+- **WHEN** an authorized operator opens the review screen for a finalized class
+- **THEN** the screen presents the recorded signer and signed timestamp for the latest revision
+
+## REMOVED Requirements
+
+### Requirement: MTU classes require a usage confirmation step before signing
+**Reason**: The finalize action no longer presents a separate MTU confirmation step; MTU usage is recorded on the review screen's Confirm class step.
+**Migration**: Record MTU usage on the Confirm class step before finalizing.
+
+## ADDED Requirements
+
 ### Requirement: MTU classes require recorded usage before signing
 
 For a class whose selected destinations include the Mobile Training Unit, the system SHALL present the equipment, supplies, and transport as grouped, collapsible sections inside the Confirm class step — one group each for Equipment used, Supplies used, Transport, and Additional details — and SHALL record the usage as operational MTU usage when the operator saves that step. Finalizing SHALL require that the class has recorded MTU usage, and SHALL NOT present a separate MTU confirmation step in the finalize action. Completing the step SHALL record the usage without altering the finalized participant count or revision number.
@@ -121,24 +149,6 @@ For a class whose selected destinations include the Mobile Training Unit, the sy
 #### Scenario: Keep the finalized roster stable
 - **WHEN** the MTU usage is recorded and the roster is finalized
 - **THEN** the finalized participant count and revision number are unaffected by the MTU usage
-
-### Requirement: The lead instructor finalizes and signs from the review screen
-
-The system SHALL present the finalize-and-sign action on the review screen only to the class's lead instructor while the class is open, and SHALL require only the certification and the typed name to finalize — for a class whose destinations include the Mobile Training Unit, the class first requiring recorded MTU usage from the Confirm class step. The finalize action SHALL NOT require a draft, a second submission, or any editing. It SHALL present the finalized revision's recorded signer and signed timestamp to authorized operators. A non-lead operator SHALL still see the review, its documents, and its readiness, but SHALL NOT be offered the finalize-and-sign action.
-
-#### Scenario: Lead instructor finalizes and signs
-- **WHEN** the class's lead instructor opens the review screen for a roster-ready open class
-- **THEN** the screen offers a single finalize-and-sign action requiring the certification and typed name
-
-#### Scenario: Withhold the action from non-lead operators
-- **WHEN** a Training Major, Administrator, or assisting instructor opens the review screen for an open class
-- **THEN** the screen presents the review and its documents but does not offer the finalize-and-sign action
-
-#### Scenario: Show the recorded signature
-- **WHEN** an authorized operator opens the review screen for a finalized class
-- **THEN** the screen presents the recorded signer and signed timestamp for the latest revision
-
-## ADDED Requirements
 
 ### Requirement: The review screen adjusts a class that ran long
 
