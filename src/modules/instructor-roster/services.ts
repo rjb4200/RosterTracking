@@ -93,6 +93,49 @@ export function validateCreditedHours(
   }
 }
 
+/**
+ * The active participants who follow a raised class scheduled total: those still
+ * credited at the previous total. Participants adjusted below the previous total
+ * (with a reason) keep their credited hours, so a class that runs long credits
+ * only the people who were present for the full session.
+ */
+export function participantsFollowingRaisedTotal(
+  participants: ReadonlyArray<{ id: string; creditedHours: string | null }>,
+  previousTotal: number,
+  newTotal: number,
+): string[] {
+  if (!(newTotal > previousTotal)) return [];
+  return participants
+    .filter(
+      (participant) => Number(participant.creditedHours) === previousTotal,
+    )
+    .map((participant) => participant.id);
+}
+
+/** A participant's display name for roster messages, never an internal id. */
+export function participantLabel(entry: {
+  studentId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  guestFirstName: string | null;
+  guestLastName: string | null;
+}): string {
+  const name = entry.studentId
+    ? `${entry.firstName ?? ""} ${entry.lastName ?? ""}`
+    : `${entry.guestFirstName ?? ""} ${entry.guestLastName ?? ""}`;
+  return name.trim() || "A participant";
+}
+
+/** A roster-readiness issue that names the participant it concerns. */
+export function readinessIssue(
+  name: string,
+  problem: "credit" | "context",
+): string {
+  return problem === "credit"
+    ? `${name} has invalid credited hours.`
+    : `${name} is missing required reporting context.`;
+}
+
 export async function getScheduledClassHours(
   transaction: DatabaseTransaction,
   classId: string,
@@ -304,8 +347,18 @@ export async function getRosterReadiness(
     const scheduledHours = await getScheduledClassHours(transaction, classId);
     const requirements = await resolveClassRequirements(transaction, classId);
     const active = await transaction
-      .select({ id: attendance.id, creditedHours: attendance.creditedHours })
+      .select({
+        id: attendance.id,
+        creditedHours: attendance.creditedHours,
+        studentId: attendance.studentId,
+        firstName: students.firstName,
+        lastName: students.lastName,
+        guestFirstName: classGuests.firstName,
+        guestLastName: classGuests.lastName,
+      })
       .from(attendance)
+      .leftJoin(students, eq(students.id, attendance.studentId))
+      .leftJoin(classGuests, eq(classGuests.id, attendance.guestId))
       .where(
         and(eq(attendance.classId, classId), isNull(attendance.removedAt)),
       );
@@ -313,10 +366,11 @@ export async function getRosterReadiness(
     if (!active.length)
       issues.push("At least one participant must sign in before finalizing.");
     for (const entry of active) {
+      const name = participantLabel(entry);
       const credit =
         entry.creditedHours === null ? Number.NaN : Number(entry.creditedHours);
       if (!Number.isFinite(credit) || credit < 0 || credit > scheduledHours)
-        issues.push(`Attendance ${entry.id} has invalid credited hours.`);
+        issues.push(readinessIssue(name, "credit"));
       const contexts = await transaction
         .select({
           requirementSetId: attendanceReportingContexts.requirementSetId,
@@ -324,9 +378,7 @@ export async function getRosterReadiness(
         .from(attendanceReportingContexts)
         .where(eq(attendanceReportingContexts.attendanceId, entry.id));
       if (contexts.length !== requirements.sets.length)
-        issues.push(
-          `Attendance ${entry.id} is missing required reporting context.`,
-        );
+        issues.push(readinessIssue(name, "context"));
     }
     return { ready: issues.length === 0, issues, scheduledHours };
   });

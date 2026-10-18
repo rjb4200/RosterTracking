@@ -49,7 +49,6 @@ import {
   ReopenControl,
 } from "../../finalization-controls";
 import { InstructorAssignmentForm } from "../../instructor-assignment-form";
-import { MtuUsageForm } from "../../mtu-usage-form";
 import {
   CompletionCertificateControls,
   OfficialRosterControls,
@@ -60,6 +59,10 @@ import { TrainingNoticeControls } from "../../training-notice-controls";
 
 export const dynamic = "force-dynamic";
 
+type LatestRevision =
+  | Awaited<ReturnType<typeof getFinalizationHistory>>[number]
+  | null;
+
 function DocumentLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
@@ -69,6 +72,62 @@ function DocumentLink({ href, label }: { href: string; label: string }) {
     >
       View {label}
     </Link>
+  );
+}
+
+function DocumentsList({
+  classId,
+  isFinalized,
+  latestRevision,
+  canManageOfficialRosters,
+}: {
+  classId: string;
+  isFinalized: boolean;
+  latestRevision: LatestRevision;
+  canManageOfficialRosters: boolean;
+}) {
+  return (
+    <ul className="member-list">
+      <li className="member-row">
+        <span>Class sign-in record</span>
+        <DocumentLink
+          href={`/api/staff/class-sign-in-record/${classId}?disposition=inline`}
+          label="sign-in record"
+        />
+      </li>
+      <li className="member-row">
+        <span>Class audit log</span>
+        <DocumentLink
+          href={`/api/staff/class-audit-log/${classId}?disposition=inline`}
+          label="audit log"
+        />
+      </li>
+      {isFinalized && latestRevision && canManageOfficialRosters ? (
+        <>
+          {Object.values(TEMPLATE_MAPPINGS).map((mapping) => (
+            <li key={mapping.formType} className="member-row">
+              <span>{mapping.formType.toUpperCase()} roster</span>
+              <RosterDocumentActions
+                revisionId={latestRevision.id}
+                formType={mapping.formType}
+                emailAction={sendOfficialRosterEmailAction}
+              />
+            </li>
+          ))}
+          {latestRevision.destinations.some(
+            (destination) => destination.systemCode === "kbems",
+          ) ? (
+            <li className="member-row">
+              <span>Completion certificates</span>
+              <DocumentLink
+                href={`/api/staff/completion-certificates/${latestRevision.id}?disposition=inline`}
+                label="certificates"
+              />
+            </li>
+          ) : null}
+        </>
+      ) : null}
+    </ul>
   );
 }
 
@@ -100,6 +159,12 @@ export default async function ClassReviewPage({
     : classRecord.reportingSystems.some((system) => system.code === "kbems")
       ? "ems"
       : undefined;
+  const isMtuClass = classRecord.reportingSystems.some(
+    (system) => system.code === "mtu",
+  );
+  const reportingLabel =
+    classRecord.reportingSystems.map((system) => system.name).join(", ") ||
+    "None selected";
 
   const [reviewData, classOptions, revisionHistory] = await Promise.all([
     isOpen
@@ -245,351 +310,366 @@ export default async function ClassReviewPage({
         }
       />
 
-      <section className="admin-section">
-        <h2>Class details</h2>
-        <ClassSummary classRecord={classRecord} />
-      </section>
+      {isOpen ? (
+        <>
+          <section className="review-card" id="attendance">
+            <header className="review-card-head">
+              <span className="review-step" aria-hidden>
+                1
+              </span>
+              <h2>Attendance</h2>
+              <Badge variant="outline">{roster.active.length} active</Badge>
+            </header>
+            <p className="roster-note">
+              Class hours: {roster.scheduledHours}. A class that ran long is
+              recorded by raising the session hours —{" "}
+              <a href="#correct">adjust the schedule</a> and every participant
+              credited at the full session follows the new total.
+            </p>
+            {roster.active.length ? (
+              <ul className="roster-list">
+                {roster.active.map((entry) => renderEntry(entry))}
+              </ul>
+            ) : (
+              <p className="roster-note">No one has signed in yet.</p>
+            )}
+            {roster.removed.length ? (
+              <details className="review-subsection">
+                <summary>Removed attendance ({roster.removed.length})</summary>
+                <ul className="roster-list">
+                  {roster.removed.map((entry) => renderEntry(entry, true))}
+                </ul>
+              </details>
+            ) : null}
+          </section>
 
-      <section className="admin-section">
-        <p className="eyebrow">Finalization</p>
-        <h2>
-          {isFinalized
-            ? "Roster finalized"
-            : reviewData?.readiness.ready
-              ? "Roster ready to finalize"
-              : "Corrections needed"}
-        </h2>
-        {isFinalized ? (
-          <p>
-            {canReopen
-              ? "This roster is locked. Reopen it from the bottom of this page to make corrections."
-              : "This roster is locked."}
-          </p>
-        ) : reviewData && !reviewData.readiness.ready ? (
-          <ul className="member-list">
-            {reviewData.readiness.issues.map((issue) => (
-              <li className="member-row" key={issue}>
-                {issue}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>All active attendance has valid credit and reporting context.</p>
-        )}
-        <FinalizationControls
-          classId={id}
-          status={classRecord.status}
-          finalizeAction={finalizeClassAction}
-          canFinalize={reviewData?.readiness.ready ?? false}
-          isLeadInstructor={isLeadInstructor}
-          isMtuClass={classRecord.reportingSystems.some(
-            (system) => system.code === "mtu",
-          )}
-          mtuCatalog={mtuCatalog}
-          mtuUsage={classRecord.mtuUsage}
-          activeParticipants={roster.active.length}
-        />
-      </section>
+          <section className="review-card" id="reporting">
+            <header className="review-card-head">
+              <span className="review-step" aria-hidden>
+                2
+              </span>
+              <h2>Reporting &amp; MTU</h2>
+            </header>
+            <p className="roster-note">Reporting: {reportingLabel}.</p>
+            {isMtuClass ? (
+              <p className="roster-note">
+                MTU usage is confirmed in step 3 when the roster is signed.
+              </p>
+            ) : null}
+          </section>
 
-      <section className="admin-section">
-        <h2>Documents</h2>
-        <p className="roster-note">
-          View a document to open its PDF. Use the browser viewer to print or
-          save a copy.
-        </p>
-        <ul className="member-list">
-          <li className="member-row">
-            <span>Class sign-in record</span>
-            <DocumentLink
-              href={`/api/staff/class-sign-in-record/${id}?disposition=inline`}
-              label="sign-in record"
+          <section className="review-card" id="sign">
+            <header className="review-card-head">
+              <span className="review-step" aria-hidden>
+                3
+              </span>
+              <h2>Sign &amp; finalize</h2>
+              <Badge
+                variant={reviewData?.readiness.ready ? "default" : "secondary"}
+              >
+                {reviewData?.readiness.ready ? "Ready" : "Needs attention"}
+              </Badge>
+            </header>
+            {reviewData && !reviewData.readiness.ready ? (
+              <ul className="member-list">
+                {reviewData.readiness.issues.map((issue) => (
+                  <li className="member-row" key={issue}>
+                    {issue}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>
+                All active attendance has valid credit and reporting context.
+              </p>
+            )}
+            <FinalizationControls
+              classId={id}
+              status={classRecord.status}
+              finalizeAction={finalizeClassAction}
+              canFinalize={reviewData?.readiness.ready ?? false}
+              isLeadInstructor={isLeadInstructor}
+              isMtuClass={isMtuClass}
+              mtuCatalog={mtuCatalog}
+              mtuUsage={classRecord.mtuUsage}
+              activeParticipants={roster.active.length}
             />
-          </li>
-          <li className="member-row">
-            <span>Class audit log</span>
-            <DocumentLink
-              href={`/api/staff/class-audit-log/${id}?disposition=inline`}
-              label="audit log"
+          </section>
+
+          <details className="admin-section">
+            <summary>Class details</summary>
+            <ClassSummary classRecord={classRecord} />
+          </details>
+
+          <details className="admin-section">
+            <summary>Documents</summary>
+            <p className="roster-note">
+              View a document to open its PDF. Use the browser viewer to print
+              or save a copy.
+            </p>
+            <DocumentsList
+              classId={id}
+              isFinalized={isFinalized}
+              latestRevision={latestRevision}
+              canManageOfficialRosters={canManageOfficialRosters}
             />
-          </li>
-          {isFinalized && latestRevision && canManageOfficialRosters ? (
-            <>
-              {Object.values(TEMPLATE_MAPPINGS).map((mapping) => (
-                <li key={mapping.formType} className="member-row">
-                  <span>{mapping.formType.toUpperCase()} roster</span>
-                  <RosterDocumentActions
-                    revisionId={latestRevision.id}
-                    formType={mapping.formType}
-                    emailAction={sendOfficialRosterEmailAction}
-                  />
-                </li>
-              ))}
-              {latestRevision.destinations.some(
-                (destination) => destination.systemCode === "kbems",
-              ) ? (
-                <li className="member-row">
-                  <span>Completion certificates</span>
-                  <DocumentLink
-                    href={`/api/staff/completion-certificates/${latestRevision.id}?disposition=inline`}
-                    label="certificates"
-                  />
-                </li>
-              ) : null}
-            </>
+            <p className="roster-note">
+              Finalize the roster to produce the official roster and completion
+              certificates.
+            </p>
+          </details>
+
+          {classOptions ? (
+            <details className="admin-section" id="correct">
+              <summary>
+                Correct class details, sessions, and instructors
+              </summary>
+              <section className="admin-section">
+                <h3>Class details</h3>
+                <ClassForm
+                  action={updateClassAction}
+                  {...classOptions}
+                  values={{
+                    id: classRecord.id,
+                    name: classRecord.name,
+                    trainingSiteId: classRecord.trainingSiteId,
+                    hostAgencyId: classRecord.hostAgencyId,
+                    deliveryMethod: classRecord.deliveryMethod,
+                    accessPinEnabled: classRecord.accessPinEnabled,
+                    objectives: classRecord.objectives,
+                    courseType: classRecord.courseType,
+                    courseNumber: classRecord.courseNumber,
+                    emsCategoryId: classRecord.emsCategoryId,
+                    mtuUsage: classRecord.mtuUsage,
+                    reportingSystemIds: classRecord.reportingSystems.map(
+                      (system) => system.id,
+                    ),
+                  }}
+                />
+              </section>
+
+              <section className="admin-section">
+                <h3>Sessions</h3>
+                <ul className="member-list">
+                  {classRecord.components.map((component) => (
+                    <li key={component.id} className="member-row">
+                      <span>{component.title ?? "Training session"}</span>
+                      <span>
+                        {formatDepartmentDateTime(component.startsAt)} to{" "}
+                        {formatDepartmentDateTime(component.endsAt)}
+                      </span>
+                      <Badge variant="outline">
+                        {component.creditedHours} hours
+                      </Badge>
+                      <ComponentForm
+                        classId={classRecord.id}
+                        action={saveComponentAction}
+                        trainingCodes={classOptions.trainingCodes}
+                        trainingCodeKind={componentKind}
+                        curricula={classOptions.curricula}
+                        curriculumChapters={classOptions.curriculumChapters}
+                        recentCurriculumIds={classOptions.recentCurriculumIds}
+                        component={{
+                          id: component.id,
+                          title: component.title,
+                          creditedHours: component.creditedHours,
+                          startsAt: formatDepartmentDateTimeInput(
+                            component.startsAt,
+                          ),
+                          trainingCodeId: component.trainingCodeId,
+                          className: component.className,
+                          curriculumId: component.curriculumId,
+                          curriculumName: component.curriculumName,
+                          curriculumChapter: component.curriculumChapter,
+                          lessonPlan: component.lessonPlan,
+                          method: component.method,
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                <ComponentForm
+                  classId={classRecord.id}
+                  action={saveComponentAction}
+                  defaultStartsAt={roundDepartmentDateTimeToQuarterHour(
+                    new Date(),
+                  )}
+                  trainingCodes={classOptions.trainingCodes}
+                  trainingCodeKind={componentKind}
+                  curricula={classOptions.curricula}
+                  curriculumChapters={classOptions.curriculumChapters}
+                  recentCurriculumIds={classOptions.recentCurriculumIds}
+                />
+              </section>
+
+              <section className="admin-section">
+                <h3>Instructors</h3>
+                <ul className="member-list">
+                  {classRecord.instructors.map((instructor) => (
+                    <li key={instructor.userId} className="member-row">
+                      <span>{instructor.displayName}</span>
+                      {instructor.isLead ? <Badge>Lead</Badge> : null}
+                    </li>
+                  ))}
+                </ul>
+                <InstructorAssignmentForm
+                  action={assignInstructorAction}
+                  classId={classRecord.id}
+                  staff={classOptions.staff}
+                />
+              </section>
+            </details>
           ) : null}
-        </ul>
-        {!isFinalized ? (
-          <p className="roster-note">
-            Finalize the roster to produce the official roster and completion
-            certificates.
-          </p>
-        ) : null}
-      </section>
-
-      {isFinalized &&
-      latestRevision &&
-      canManageOfficialRosters &&
-      latestReportsToKbems &&
-      certificateDeliveries.length ? (
-        <section className="admin-section">
-          <h2>Certificate delivery</h2>
-          <p className="roster-note">
-            Each participant is emailed their own certificate when the class is
-            finalized. Resend one, or send to a different address.
-          </p>
-          <CertificateDeliveryControls
-            revisionId={latestRevision.id}
-            classId={id}
-            participants={certificateDeliveries}
-            action={resendParticipantCertificateAction}
-          />
-        </section>
-      ) : null}
-
-      {isFinalized &&
-      latestRevision &&
-      canManageOfficialRosters &&
-      latestReportsToFire ? (
-        <details className="admin-section">
-          <summary>Training notices</summary>
-          <p className="roster-note">
-            View or email an individual training notice for any participant.
-            Yellow is the department copy; White is the participant copy.
-          </p>
-          <TrainingNoticeControls
-            revisionId={latestRevision.id}
-            classId={id}
-            participants={noticeDeliveries}
-            action={emailTrainingNoticeAction}
-          />
-        </details>
-      ) : null}
-
-      {isFinalized && revisionHistory.length ? (
-        <section className="admin-section">
-          <h2>Revision history</h2>
-          <ul className="member-list">
-            {revisionHistory.map((revision, index) => {
-              const isLatest = index === 0;
-              const hasKbems = revision.destinations.some(
-                (destination) => destination.systemCode === "kbems",
-              );
-              return (
-                <li key={revision.id} className="member-row">
-                  <div>
-                    <strong>Revision {revision.revisionNumber}</strong>
-                    <span className="text-muted-foreground">
-                      Finalized by {revision.finalizedBy} on{" "}
-                      {formatDepartmentDateTime(revision.finalizedAt)}
-                    </span>
-                    {revision.signedByName ? (
-                      <span className="text-muted-foreground">
-                        Signed by {revision.signedByName} on{" "}
-                        {revision.signedAt
-                          ? formatDepartmentDateTime(revision.signedAt)
-                          : "—"}
-                      </span>
-                    ) : null}
-                    <span className="text-muted-foreground">
-                      {revision.reopenReason
-                        ? `Reopened: ${revision.reopenReason}`
-                        : "Current or retained revision"}
-                    </span>
-                    <span>
-                      {revision.destinations
-                        .map(
-                          (destination) =>
-                            `${destination.systemName}: ${destination.status}`,
-                        )
-                        .join(", ")}
-                    </span>
-                  </div>
-                  {canManageOfficialRosters ? (
-                    isLatest ? (
-                      <span className="text-muted-foreground">
-                        Latest revision — see Documents
-                      </span>
-                    ) : (
-                      <div className="member-actions">
-                        <OfficialRosterControls
-                          revisionId={revision.id}
-                          emailAction={sendOfficialRosterEmailAction}
-                          showEmail={false}
-                        />
-                        {hasKbems ? (
-                          <CompletionCertificateControls
-                            revisionId={revision.id}
-                          />
-                        ) : null}
-                      </div>
-                    )
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-
-      {isOpen && classOptions ? (
-        <details className="admin-section">
-          <summary>Correct class details, sessions, and instructors</summary>
+        </>
+      ) : (
+        <>
           <section className="admin-section">
             <h2>Class details</h2>
-            <ClassForm
-              action={updateClassAction}
-              {...classOptions}
-              values={{
-                id: classRecord.id,
-                name: classRecord.name,
-                trainingSiteId: classRecord.trainingSiteId,
-                hostAgencyId: classRecord.hostAgencyId,
-                deliveryMethod: classRecord.deliveryMethod,
-                accessPinEnabled: classRecord.accessPinEnabled,
-                objectives: classRecord.objectives,
-                courseType: classRecord.courseType,
-                courseNumber: classRecord.courseNumber,
-                emsCategoryId: classRecord.emsCategoryId,
-                mtuUsage: classRecord.mtuUsage,
-                reportingSystemIds: classRecord.reportingSystems.map(
-                  (system) => system.id,
-                ),
-              }}
-            />
+            <ClassSummary classRecord={classRecord} />
           </section>
 
           <section className="admin-section">
-            <h2>Sessions</h2>
-            <ul className="member-list">
-              {classRecord.components.map((component) => (
-                <li key={component.id} className="member-row">
-                  <span>{component.title ?? "Training session"}</span>
-                  <span>
-                    {formatDepartmentDateTime(component.startsAt)} to{" "}
-                    {formatDepartmentDateTime(component.endsAt)}
-                  </span>
-                  <Badge variant="outline">
-                    {component.creditedHours} hours
-                  </Badge>
-                  <ComponentForm
-                    classId={classRecord.id}
-                    action={saveComponentAction}
-                    trainingCodes={classOptions.trainingCodes}
-                    trainingCodeKind={componentKind}
-                    curricula={classOptions.curricula}
-                    curriculumChapters={classOptions.curriculumChapters}
-                    recentCurriculumIds={classOptions.recentCurriculumIds}
-                    component={{
-                      id: component.id,
-                      title: component.title,
-                      creditedHours: component.creditedHours,
-                      startsAt: formatDepartmentDateTimeInput(
-                        component.startsAt,
-                      ),
-                      trainingCodeId: component.trainingCodeId,
-                      className: component.className,
-                      curriculumId: component.curriculumId,
-                      curriculumName: component.curriculumName,
-                      curriculumChapter: component.curriculumChapter,
-                      lessonPlan: component.lessonPlan,
-                      method: component.method,
-                    }}
-                  />
-                </li>
-              ))}
+            <h2>Roster ({roster.active.length})</h2>
+            <ul className="roster-list">
+              {roster.active.map((entry) => renderEntry(entry))}
             </ul>
-            <ComponentForm
-              classId={classRecord.id}
-              action={saveComponentAction}
-              defaultStartsAt={roundDepartmentDateTimeToQuarterHour(new Date())}
-              trainingCodes={classOptions.trainingCodes}
-              trainingCodeKind={componentKind}
-              curricula={classOptions.curricula}
-              curriculumChapters={classOptions.curriculumChapters}
-              recentCurriculumIds={classOptions.recentCurriculumIds}
-            />
+            {roster.removed.length ? (
+              <details className="review-subsection">
+                <summary>Removed attendance ({roster.removed.length})</summary>
+                <ul className="roster-list">
+                  {roster.removed.map((entry) => renderEntry(entry, true))}
+                </ul>
+              </details>
+            ) : null}
           </section>
 
           <section className="admin-section">
-            <h2>Instructors</h2>
-            <ul className="member-list">
-              {classRecord.instructors.map((instructor) => (
-                <li key={instructor.userId} className="member-row">
-                  <span>{instructor.displayName}</span>
-                  {instructor.isLead ? <Badge>Lead</Badge> : null}
-                </li>
-              ))}
-            </ul>
-            <InstructorAssignmentForm
-              action={assignInstructorAction}
-              classId={classRecord.id}
-              staff={classOptions.staff}
+            <h2>Documents</h2>
+            <p className="roster-note">
+              View a document to open its PDF. Use the browser viewer to print
+              or save a copy.
+            </p>
+            <DocumentsList
+              classId={id}
+              isFinalized={isFinalized}
+              latestRevision={latestRevision}
+              canManageOfficialRosters={canManageOfficialRosters}
             />
           </section>
-        </details>
-      ) : null}
 
-      <section className="admin-section">
-        <h2>Active attendance ({roster.active.length})</h2>
-        <ul className="roster-list">
-          {roster.active.map((entry) => renderEntry(entry))}
-        </ul>
-      </section>
+          {latestRevision &&
+          canManageOfficialRosters &&
+          latestReportsToKbems &&
+          certificateDeliveries.length ? (
+            <section className="admin-section">
+              <h2>Certificate delivery</h2>
+              <p className="roster-note">
+                Each participant is emailed their own certificate when the class
+                is finalized. Resend one, or send to a different address.
+              </p>
+              <CertificateDeliveryControls
+                revisionId={latestRevision.id}
+                classId={id}
+                participants={certificateDeliveries}
+                action={resendParticipantCertificateAction}
+              />
+            </section>
+          ) : null}
 
-      <section className="admin-section">
-        <h2>Removed attendance ({roster.removed.length})</h2>
-        <ul className="roster-list">
-          {roster.removed.map((entry) => renderEntry(entry, true))}
-        </ul>
-      </section>
+          {latestRevision && canManageOfficialRosters && latestReportsToFire ? (
+            <details className="admin-section">
+              <summary>Training notices</summary>
+              <p className="roster-note">
+                View or email an individual training notice for any participant.
+                Yellow is the department copy; White is the participant copy.
+              </p>
+              <TrainingNoticeControls
+                revisionId={latestRevision.id}
+                classId={id}
+                participants={noticeDeliveries}
+                action={emailTrainingNoticeAction}
+              />
+            </details>
+          ) : null}
 
-      {classRecord.reportingSystems.some((system) => system.code === "mtu") ||
-      classRecord.mtuUsage ? (
-        <section className="admin-section">
-          <h2>MTU usage</h2>
-          <p className="roster-note">
-            Operational usage can be updated after finalization without changing
-            the signed roster.
-          </p>
-          <MtuUsageForm
-            classId={id}
-            usage={classRecord.mtuUsage}
-            mtuCatalog={mtuCatalog}
-            activeParticipants={roster.active.length}
-          />
-        </section>
-      ) : null}
+          {revisionHistory.length ? (
+            <section className="admin-section">
+              <h2>Revision history</h2>
+              <ul className="member-list">
+                {revisionHistory.map((revision, index) => {
+                  const isLatest = index === 0;
+                  const hasKbems = revision.destinations.some(
+                    (destination) => destination.systemCode === "kbems",
+                  );
+                  return (
+                    <li key={revision.id} className="member-row">
+                      <div>
+                        <strong>Revision {revision.revisionNumber}</strong>
+                        <span className="text-muted-foreground">
+                          Finalized by {revision.finalizedBy} on{" "}
+                          {formatDepartmentDateTime(revision.finalizedAt)}
+                        </span>
+                        {revision.signedByName ? (
+                          <span className="text-muted-foreground">
+                            Signed by {revision.signedByName} on{" "}
+                            {revision.signedAt
+                              ? formatDepartmentDateTime(revision.signedAt)
+                              : "—"}
+                          </span>
+                        ) : null}
+                        <span className="text-muted-foreground">
+                          {revision.reopenReason
+                            ? `Reopened: ${revision.reopenReason}`
+                            : "Current or retained revision"}
+                        </span>
+                        <span>
+                          {revision.destinations
+                            .map(
+                              (destination) =>
+                                `${destination.systemName}: ${destination.status}`,
+                            )
+                            .join(", ")}
+                        </span>
+                      </div>
+                      {canManageOfficialRosters ? (
+                        isLatest ? (
+                          <span className="text-muted-foreground">
+                            Latest revision — see Documents
+                          </span>
+                        ) : (
+                          <div className="member-actions">
+                            <OfficialRosterControls
+                              revisionId={revision.id}
+                              emailAction={sendOfficialRosterEmailAction}
+                              showEmail={false}
+                            />
+                            {hasKbems ? (
+                              <CompletionCertificateControls
+                                revisionId={revision.id}
+                              />
+                            ) : null}
+                          </div>
+                        )
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
 
-      {isFinalized && canReopen ? (
-        <section className="admin-section">
-          <h2>Reopen roster</h2>
-          <p className="roster-note">
-            Reopening unlocks the class for corrections and retains this
-            revision. Only an Administrator can reopen.
-          </p>
-          <ReopenControl classId={id} reopenAction={reopenClassAction} />
-        </section>
-      ) : null}
+          {canReopen ? (
+            <section className="admin-section">
+              <h2>Reopen roster</h2>
+              <p className="roster-note">
+                Reopening unlocks the class for corrections and retains this
+                revision. Only an Administrator can reopen.
+              </p>
+              <ReopenControl classId={id} reopenAction={reopenClassAction} />
+            </section>
+          ) : null}
+        </>
+      )}
     </main>
   );
 }

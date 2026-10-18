@@ -86,6 +86,16 @@ async function classStatus(classId: string) {
   return result.rows[0]?.status;
 }
 
+async function addReportingSystem(classId: string, code: string) {
+  if (!connectionString) throw new Error("E2E_DATABASE_URL is required.");
+  const pool = new Pool({ connectionString, max: 1 });
+  await pool.query(
+    "insert into class_reporting_systems (class_id, reporting_system_id) select $1, id from reporting_systems where code = $2",
+    [classId, code],
+  );
+  await pool.end();
+}
+
 test("the open class primary action opens the review screen", async ({
   page,
 }) => {
@@ -180,4 +190,34 @@ test("correct the roster on the review screen and finalize from it", async ({
   await page.getByLabel("Sign with your name").fill("E2E Lead");
   await page.getByRole("button", { name: "Finalize and sign roster" }).click();
   await expect.poll(() => classStatus(classId)).toBe("finalized");
+});
+
+test("the review screen omits the removed-attendance section when nothing was removed", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  await expect(page.getByText("Removed attendance")).toHaveCount(0);
+});
+
+test("an MTU class presents the MTU editor once, in the sign step", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+  await addReportingSystem(classId, "mtu");
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  await expect(page.getByText("Step 1: Confirm MTU usage")).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Save MTU usage" }),
+  ).toHaveCount(0);
 });

@@ -994,6 +994,50 @@ h1 {
   padding: 1.15rem;
 }
 
+/* The review screen's open-class workflow: an ordered checklist of cards. */
+.review-card {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 1.15rem;
+}
+
+.review-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.review-card-head h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+}
+
+.review-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--signal-dark);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.review-card .roster-note,
+.review-subsection summary {
+  margin: 0;
+}
+
+.review-subsection {
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
 .operational-class-heading,
 .operational-class-actions {
   display: flex;

@@ -17,6 +17,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
+import { participantsFollowingRaisedTotal } from "@/modules/instructor-roster/services";
 import { REPORTING_SYSTEM_CODES } from "@/modules/reference/constants";
 import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
 import { getInitialCertTei } from "@/modules/settings/services";
@@ -1077,6 +1078,63 @@ export async function updateClass(
   });
 }
 
+async function scheduledHoursTotal(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<number> {
+  const [row] = await transaction
+    .select({
+      hours: sql<string>`coalesce(sum(${classComponents.creditedHours}), 0)`,
+    })
+    .from(classComponents)
+    .where(eq(classComponents.classId, classId));
+  return Number(row?.hours ?? 0);
+}
+
+/**
+ * A class that ran long is recorded by raising the scheduled total. Every active
+ * participant still credited at the previous total follows the new total, while
+ * participants adjusted below the previous total keep their credited hours and
+ * reason. Runs on the shared schedule write path so every editing surface agrees.
+ */
+async function carryRaisedScheduledTotal(
+  transaction: DatabaseTransaction,
+  actor: ClassActor,
+  classId: string,
+  previousTotal: number,
+): Promise<void> {
+  const newTotal = await scheduledHoursTotal(transaction, classId);
+  if (!(newTotal > previousTotal)) return;
+  const active = await transaction
+    .select({ id: attendance.id, creditedHours: attendance.creditedHours })
+    .from(attendance)
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const following = participantsFollowingRaisedTotal(
+    active,
+    previousTotal,
+    newTotal,
+  );
+  for (const id of following) {
+    await transaction
+      .update(attendance)
+      .set({
+        creditedHours: String(newTotal),
+        creditAdjustmentReason: null,
+        creditAdjustedByUserId: null,
+        creditAdjustedAt: null,
+      })
+      .where(eq(attendance.id, id));
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "attendance.credit_followed_schedule",
+      entityType: "attendance",
+      entityId: id,
+      details: { classId, creditedHours: newTotal, previousTotal },
+    });
+  }
+}
+
 export async function saveClassComponent(
   db: Database,
   actor: ClassActor,
@@ -1110,6 +1168,7 @@ export async function saveClassComponent(
     ) {
       throw new Error("All class sessions must occur on one roster day.");
     }
+    const previousTotal = await scheduledHoursTotal(transaction, classId);
     const values = {
       classId,
       title: parsed.title || null,
@@ -1148,6 +1207,7 @@ export async function saveClassComponent(
       entityId: classId,
       details: { componentId: component.id },
     });
+    await carryRaisedScheduledTotal(transaction, actor, classId, previousTotal);
     return component;
   });
 }
