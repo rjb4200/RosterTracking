@@ -11,6 +11,8 @@ import type { FinalizationSnapshot } from "@/modules/official-roster-pdfs/servic
 import {
   certificateClassHours,
   certificateContentFingerprint,
+  certificateCoverHeader,
+  certificateCoverRowHours,
   courseTypeLabel,
   instructorTitleCourse,
   participantName,
@@ -451,5 +453,37 @@ describe("completion certificates", () => {
     expect(
       page.getForm().getTextField("Instructor_Title_Course").getText(),
     ).toContain("–");
+  });
+
+  it("states the class hours in the cover header", () => {
+    const header = certificateCoverHeader(snapshot);
+    expect(header).toContain("2 participants");
+    expect(header).toContain("2 hours");
+  });
+
+  it("keeps class hours in the header while rows keep participant credits", () => {
+    const mixed = {
+      ...snapshot,
+      components: [
+        {
+          title: null,
+          startsAt: "2026-09-05T13:00:00.000Z",
+          endsAt: "2026-09-05T18:00:00.000Z",
+          creditedHours: "5",
+        },
+      ],
+      attendance: snapshot.attendance.map((participant) => ({
+        ...participant,
+        creditedHours: "2",
+      })),
+    } satisfies FinalizationSnapshot;
+
+    const header = certificateCoverHeader(mixed);
+    expect(header).toContain("5 hours");
+    expect(header).not.toContain("2 hours");
+
+    const participant = mixed.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    expect(certificateCoverRowHours(participant)).toBe("2");
   });
 });
