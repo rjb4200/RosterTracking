@@ -22,6 +22,7 @@ import {
   saveClassComponent,
   transitionClass,
   updateClass,
+  updateClassMtuUsage,
 } from "@/modules/classes/services";
 import {
   dispatchCertificateDeliveries,
@@ -339,6 +340,34 @@ export async function transitionClassAction(
   revalidatePath(`/staff/classes/${classId}`);
   revalidatePath("/staff/classes");
   return { classId };
+}
+
+export async function updateMtuUsageAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    const selections = readMtuSelections(formData);
+    await updateClassMtuUsage(getDatabase(), actor, classId, {
+      equipmentUsed: selections.equipmentUsed,
+      mileage: selections.mileage,
+      usedSupplies: selections.usedSupplies,
+      equipmentIds: selections.equipmentIds,
+      supplies: selections.supplies,
+      transportIds: selections.transportIds,
+      transportMileage: selections.transportMileage,
+    });
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return { success: "MTU usage saved." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not update MTU usage.",
+    };
+  }
 }
 
 export async function rotateTokenAction(

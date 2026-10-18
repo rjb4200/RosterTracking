@@ -1038,6 +1038,48 @@ h1 {
   padding-top: 0.75rem;
 }
 
+/* An editable group inside a review step, collapsed to a summary. */
+.review-group {
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.review-group > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* The compact roster. Only a row that needs attention is marked. */
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.roster-table th,
+.roster-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.roster-table td span {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.roster-row-attention {
+  box-shadow: inset 3px 0 0 var(--signal-dark);
+}
+
+.roster-row-actions > summary {
+  cursor: pointer;
+}
+
+.finalize-form {
+  max-width: 32rem;
+}
+
 .operational-class-heading,
 .operational-class-actions {
   display: flex;

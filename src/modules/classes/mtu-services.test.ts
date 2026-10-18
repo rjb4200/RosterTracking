@@ -182,9 +182,21 @@ describe("per-transport mileage services", () => {
     ]);
   });
 
-  it("keeps finalized usage editable and ignores mileage for deselected vehicles", async () => {
+  it("rejects editing MTU usage after finalization", async () => {
     const test = fixture([
       [{ id: classId, status: "finalized", createdByUserId: actor.id }],
+      [],
+      catalog,
+      [{ count: 0 }],
+    ]);
+    await expect(
+      updateClassMtuUsage(test.db, actor, classId, { transportIds: [pov] }),
+    ).rejects.toThrow(/cannot be edited/);
+  });
+
+  it("ignores mileage for deselected vehicles", async () => {
+    const test = fixture([
+      [{ id: classId, status: "open", createdByUserId: actor.id }],
       [],
       catalog,
       [{ count: 0 }],

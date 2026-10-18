@@ -49,6 +49,7 @@ import {
   ReopenControl,
 } from "../../finalization-controls";
 import { InstructorAssignmentForm } from "../../instructor-assignment-form";
+import { MtuUsageForm } from "../../mtu-usage-form";
 import {
   CompletionCertificateControls,
   OfficialRosterControls,
@@ -62,6 +63,7 @@ export const dynamic = "force-dynamic";
 type LatestRevision =
   | Awaited<ReturnType<typeof getFinalizationHistory>>[number]
   | null;
+type RosterEntry = Awaited<ReturnType<typeof getClassRoster>>["active"][number];
 
 function DocumentLink({ href, label }: { href: string; label: string }) {
   return (
@@ -131,6 +133,88 @@ function DocumentsList({
   );
 }
 
+/** The compact roster table. Only a row that needs attention expands. */
+function RosterTable({
+  entries,
+  scheduledHours,
+  isFinalized,
+  attentionIds,
+  classId,
+}: {
+  entries: RosterEntry[];
+  scheduledHours: number;
+  isFinalized: boolean;
+  attentionIds: string[];
+  classId: string;
+}) {
+  if (!entries.length) {
+    return <p className="roster-note">No one has signed in yet.</p>;
+  }
+  return (
+    <table className="roster-table">
+      <thead>
+        <tr>
+          <th>Participant</th>
+          <th>Status</th>
+          <th>Credited hours</th>
+          <th>Adjustment</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((entry) => {
+          const needsAttention =
+            attentionIds.includes(entry.id) || entry.corrections.length > 0;
+          return (
+            <tr
+              key={entry.id}
+              className={needsAttention ? "roster-row-attention" : undefined}
+            >
+              <td>
+                <strong>{entry.name}</strong>
+                <span className="text-muted-foreground">
+                  {entry.agencyName} · {entry.signInMethod}
+                </span>
+              </td>
+              <td>{needsAttention ? "Needs attention" : "Present"}</td>
+              <td>
+                <Badge variant="outline">
+                  {entry.creditedHours ?? "Unset"} / {scheduledHours}
+                </Badge>
+              </td>
+              <td>{entry.creditAdjustmentReason ?? "—"}</td>
+              <td>
+                {isFinalized ? (
+                  <span className="text-muted-foreground">Locked</span>
+                ) : (
+                  <details className="roster-row-actions" open={needsAttention}>
+                    <summary>Adjust</summary>
+                    <AttendanceControls
+                      classId={classId}
+                      attendanceId={entry.id}
+                      creditedHours={entry.creditedHours}
+                      scheduledHours={scheduledHours}
+                    />
+                    {entry.corrections.length > 0 ? (
+                      <CredentialCorrectionControl
+                        classId={classId}
+                        attendanceId={entry.id}
+                        participantName={entry.name}
+                        credentials={entry.corrections}
+                        action={correctCredentialAction}
+                      />
+                    ) : null}
+                  </details>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 export default async function ClassReviewPage({
   params,
 }: {
@@ -165,6 +249,10 @@ export default async function ClassReviewPage({
   const reportingLabel =
     classRecord.reportingSystems.map((system) => system.name).join(", ") ||
     "None selected";
+  const instructorNames =
+    classRecord.instructors
+      .map((instructor) => instructor.displayName)
+      .join(", ") || "None assigned";
 
   const [reviewData, classOptions, revisionHistory] = await Promise.all([
     isOpen
@@ -186,9 +274,6 @@ export default async function ClassReviewPage({
     );
   const canReopen = staff ? isAdministrator(staff.roleCodes) : false;
   const latestRevision = revisionHistory[0] ?? null;
-  // Credentials may be corrected only while the class is open; a finalized
-  // revision is immutable and is changed through the reopen path.
-  const canCorrectRosterCredentials = isOpen;
   const latestReportsToKbems = Boolean(
     latestRevision?.destinations.some(
       (destination) => destination.systemCode === "kbems",
@@ -237,49 +322,20 @@ export default async function ClassReviewPage({
       noticeDeliveries = [];
     }
   }
+  const attentionIds = reviewData?.readiness.attentionIds ?? [];
 
-  const renderEntry = (
-    entry: (typeof roster.active)[number],
-    removed = false,
-  ) => (
+  const renderRemoved = (entry: RosterEntry) => (
     <li className="roster-row" key={entry.id}>
       <div>
         <strong>{entry.name}</strong>
         <span>
-          {entry.participantType} | {entry.agencyName} | {entry.signInMethod}
+          {entry.agencyName} · {entry.signInMethod}
         </span>
       </div>
       <div className="roster-credit">
-        <Badge variant="outline">
-          {entry.creditedHours ?? "Unset"} / {roster.scheduledHours} hours
-        </Badge>
-        {removed ? (
-          <span>
-            Removed by {entry.removedBy ?? "staff"}: {entry.removalReason}
-          </span>
-        ) : (
-          <>
-            {isFinalized ? (
-              <span className="text-muted-foreground">Locked</span>
-            ) : (
-              <AttendanceControls
-                classId={id}
-                attendanceId={entry.id}
-                creditedHours={entry.creditedHours}
-                scheduledHours={roster.scheduledHours}
-              />
-            )}
-            {canCorrectRosterCredentials && entry.corrections.length > 0 ? (
-              <CredentialCorrectionControl
-                classId={id}
-                attendanceId={entry.id}
-                participantName={entry.name}
-                credentials={entry.corrections}
-                action={correctCredentialAction}
-              />
-            ) : null}
-          </>
-        )}
+        <span>
+          Removed by {entry.removedBy ?? "staff"}: {entry.removalReason}
+        </span>
       </div>
     </li>
   );
@@ -312,58 +368,177 @@ export default async function ClassReviewPage({
 
       {isOpen ? (
         <>
-          <section className="review-card" id="attendance">
+          <section className="review-card" id="confirm-class">
             <header className="review-card-head">
               <span className="review-step" aria-hidden>
                 1
               </span>
-              <h2>Attendance</h2>
+              <h2>Confirm class</h2>
+            </header>
+
+            <details className="review-group">
+              <summary>
+                Class details — {classRecord.name ?? "Untitled"} ·{" "}
+                {reportingLabel}
+              </summary>
+              <ClassSummary classRecord={classRecord} />
+              {classOptions ? (
+                <ClassForm
+                  action={updateClassAction}
+                  {...classOptions}
+                  values={{
+                    id: classRecord.id,
+                    name: classRecord.name,
+                    trainingSiteId: classRecord.trainingSiteId,
+                    hostAgencyId: classRecord.hostAgencyId,
+                    deliveryMethod: classRecord.deliveryMethod,
+                    accessPinEnabled: classRecord.accessPinEnabled,
+                    objectives: classRecord.objectives,
+                    courseType: classRecord.courseType,
+                    courseNumber: classRecord.courseNumber,
+                    emsCategoryId: classRecord.emsCategoryId,
+                    mtuUsage: classRecord.mtuUsage,
+                    reportingSystemIds: classRecord.reportingSystems.map(
+                      (system) => system.id,
+                    ),
+                  }}
+                />
+              ) : null}
+            </details>
+
+            <details className="review-group">
+              <summary>
+                Sessions — {classRecord.components.length} session
+                {classRecord.components.length === 1 ? "" : "s"} ·{" "}
+                {roster.scheduledHours} hours
+              </summary>
+              <p className="roster-note">
+                A class that ran long is recorded by raising a session&apos;s
+                credited hours. Everyone still credited at the full total
+                follows the new total; a participant already adjusted down keeps
+                their value.
+              </p>
+              <ul className="member-list">
+                {classRecord.components.map((component) => (
+                  <li key={component.id} className="member-row">
+                    <span>{component.title ?? "Training session"}</span>
+                    <span>
+                      {formatDepartmentDateTime(component.startsAt)} to{" "}
+                      {formatDepartmentDateTime(component.endsAt)}
+                    </span>
+                    <Badge variant="outline">
+                      {component.creditedHours} hours
+                    </Badge>
+                    {classOptions ? (
+                      <ComponentForm
+                        classId={classRecord.id}
+                        action={saveComponentAction}
+                        trainingCodes={classOptions.trainingCodes}
+                        trainingCodeKind={componentKind}
+                        curricula={classOptions.curricula}
+                        curriculumChapters={classOptions.curriculumChapters}
+                        recentCurriculumIds={classOptions.recentCurriculumIds}
+                        component={{
+                          id: component.id,
+                          title: component.title,
+                          creditedHours: component.creditedHours,
+                          startsAt: formatDepartmentDateTimeInput(
+                            component.startsAt,
+                          ),
+                          trainingCodeId: component.trainingCodeId,
+                          className: component.className,
+                          curriculumId: component.curriculumId,
+                          curriculumName: component.curriculumName,
+                          curriculumChapter: component.curriculumChapter,
+                          lessonPlan: component.lessonPlan,
+                          method: component.method,
+                        }}
+                      />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              {classOptions ? (
+                <ComponentForm
+                  classId={classRecord.id}
+                  action={saveComponentAction}
+                  defaultStartsAt={roundDepartmentDateTimeToQuarterHour(
+                    new Date(),
+                  )}
+                  trainingCodes={classOptions.trainingCodes}
+                  trainingCodeKind={componentKind}
+                  curricula={classOptions.curricula}
+                  curriculumChapters={classOptions.curriculumChapters}
+                  recentCurriculumIds={classOptions.recentCurriculumIds}
+                />
+              ) : null}
+            </details>
+
+            <details className="review-group">
+              <summary>Instructors — {instructorNames}</summary>
+              <ul className="member-list">
+                {classRecord.instructors.map((instructor) => (
+                  <li key={instructor.userId} className="member-row">
+                    <span>{instructor.displayName}</span>
+                    {instructor.isLead ? <Badge>Lead</Badge> : null}
+                  </li>
+                ))}
+              </ul>
+              {classOptions ? (
+                <InstructorAssignmentForm
+                  action={assignInstructorAction}
+                  classId={classRecord.id}
+                  staff={classOptions.staff}
+                />
+              ) : null}
+            </details>
+
+            {isMtuClass ? (
+              <details className="review-group">
+                <summary>
+                  Supplies &amp; equipment — Mobile Training Unit
+                </summary>
+                <MtuUsageForm
+                  classId={id}
+                  usage={classRecord.mtuUsage}
+                  mtuCatalog={mtuCatalog}
+                  activeParticipants={roster.active.length}
+                />
+              </details>
+            ) : null}
+          </section>
+
+          <section className="review-card" id="review-roster">
+            <header className="review-card-head">
+              <span className="review-step" aria-hidden>
+                2
+              </span>
+              <h2>Review roster</h2>
               <Badge variant="outline">{roster.active.length} active</Badge>
             </header>
-            <p className="roster-note">
-              Class hours: {roster.scheduledHours}. A class that ran long is
-              recorded by raising the session hours —{" "}
-              <a href="#correct">adjust the schedule</a> and every participant
-              credited at the full session follows the new total.
-            </p>
-            {roster.active.length ? (
-              <ul className="roster-list">
-                {roster.active.map((entry) => renderEntry(entry))}
-              </ul>
-            ) : (
-              <p className="roster-note">No one has signed in yet.</p>
-            )}
+            <RosterTable
+              entries={roster.active}
+              scheduledHours={roster.scheduledHours}
+              isFinalized={false}
+              attentionIds={attentionIds}
+              classId={id}
+            />
             {roster.removed.length ? (
-              <details className="review-subsection">
+              <details className="review-group">
                 <summary>Removed attendance ({roster.removed.length})</summary>
                 <ul className="roster-list">
-                  {roster.removed.map((entry) => renderEntry(entry, true))}
+                  {roster.removed.map((entry) => renderRemoved(entry))}
                 </ul>
               </details>
             ) : null}
           </section>
 
-          <section className="review-card" id="reporting">
-            <header className="review-card-head">
-              <span className="review-step" aria-hidden>
-                2
-              </span>
-              <h2>Reporting &amp; MTU</h2>
-            </header>
-            <p className="roster-note">Reporting: {reportingLabel}.</p>
-            {isMtuClass ? (
-              <p className="roster-note">
-                MTU usage is confirmed in step 3 when the roster is signed.
-              </p>
-            ) : null}
-          </section>
-
-          <section className="review-card" id="sign">
+          <section className="review-card" id="finalize">
             <header className="review-card-head">
               <span className="review-step" aria-hidden>
                 3
               </span>
-              <h2>Sign &amp; finalize</h2>
+              <h2>Finalize &amp; export</h2>
               <Badge
                 variant={reviewData?.readiness.ready ? "default" : "secondary"}
               >
@@ -389,137 +564,22 @@ export default async function ClassReviewPage({
               finalizeAction={finalizeClassAction}
               canFinalize={reviewData?.readiness.ready ?? false}
               isLeadInstructor={isLeadInstructor}
-              isMtuClass={isMtuClass}
-              mtuCatalog={mtuCatalog}
-              mtuUsage={classRecord.mtuUsage}
-              activeParticipants={roster.active.length}
             />
-          </section>
-
-          <details className="admin-section">
-            <summary>Class details</summary>
-            <ClassSummary classRecord={classRecord} />
-          </details>
-
-          <details className="admin-section">
-            <summary>Documents</summary>
-            <p className="roster-note">
-              View a document to open its PDF. Use the browser viewer to print
-              or save a copy.
-            </p>
-            <DocumentsList
-              classId={id}
-              isFinalized={isFinalized}
-              latestRevision={latestRevision}
-              canManageOfficialRosters={canManageOfficialRosters}
-            />
-            <p className="roster-note">
-              Finalize the roster to produce the official roster and completion
-              certificates.
-            </p>
-          </details>
-
-          {classOptions ? (
-            <details className="admin-section" id="correct">
-              <summary>
-                Correct class details, sessions, and instructors
-              </summary>
-              <section className="admin-section">
-                <h3>Class details</h3>
-                <ClassForm
-                  action={updateClassAction}
-                  {...classOptions}
-                  values={{
-                    id: classRecord.id,
-                    name: classRecord.name,
-                    trainingSiteId: classRecord.trainingSiteId,
-                    hostAgencyId: classRecord.hostAgencyId,
-                    deliveryMethod: classRecord.deliveryMethod,
-                    accessPinEnabled: classRecord.accessPinEnabled,
-                    objectives: classRecord.objectives,
-                    courseType: classRecord.courseType,
-                    courseNumber: classRecord.courseNumber,
-                    emsCategoryId: classRecord.emsCategoryId,
-                    mtuUsage: classRecord.mtuUsage,
-                    reportingSystemIds: classRecord.reportingSystems.map(
-                      (system) => system.id,
-                    ),
-                  }}
-                />
-              </section>
-
-              <section className="admin-section">
-                <h3>Sessions</h3>
-                <ul className="member-list">
-                  {classRecord.components.map((component) => (
-                    <li key={component.id} className="member-row">
-                      <span>{component.title ?? "Training session"}</span>
-                      <span>
-                        {formatDepartmentDateTime(component.startsAt)} to{" "}
-                        {formatDepartmentDateTime(component.endsAt)}
-                      </span>
-                      <Badge variant="outline">
-                        {component.creditedHours} hours
-                      </Badge>
-                      <ComponentForm
-                        classId={classRecord.id}
-                        action={saveComponentAction}
-                        trainingCodes={classOptions.trainingCodes}
-                        trainingCodeKind={componentKind}
-                        curricula={classOptions.curricula}
-                        curriculumChapters={classOptions.curriculumChapters}
-                        recentCurriculumIds={classOptions.recentCurriculumIds}
-                        component={{
-                          id: component.id,
-                          title: component.title,
-                          creditedHours: component.creditedHours,
-                          startsAt: formatDepartmentDateTimeInput(
-                            component.startsAt,
-                          ),
-                          trainingCodeId: component.trainingCodeId,
-                          className: component.className,
-                          curriculumId: component.curriculumId,
-                          curriculumName: component.curriculumName,
-                          curriculumChapter: component.curriculumChapter,
-                          lessonPlan: component.lessonPlan,
-                          method: component.method,
-                        }}
-                      />
-                    </li>
-                  ))}
-                </ul>
-                <ComponentForm
-                  classId={classRecord.id}
-                  action={saveComponentAction}
-                  defaultStartsAt={roundDepartmentDateTimeToQuarterHour(
-                    new Date(),
-                  )}
-                  trainingCodes={classOptions.trainingCodes}
-                  trainingCodeKind={componentKind}
-                  curricula={classOptions.curricula}
-                  curriculumChapters={classOptions.curriculumChapters}
-                  recentCurriculumIds={classOptions.recentCurriculumIds}
-                />
-              </section>
-
-              <section className="admin-section">
-                <h3>Instructors</h3>
-                <ul className="member-list">
-                  {classRecord.instructors.map((instructor) => (
-                    <li key={instructor.userId} className="member-row">
-                      <span>{instructor.displayName}</span>
-                      {instructor.isLead ? <Badge>Lead</Badge> : null}
-                    </li>
-                  ))}
-                </ul>
-                <InstructorAssignmentForm
-                  action={assignInstructorAction}
-                  classId={classRecord.id}
-                  staff={classOptions.staff}
-                />
-              </section>
+            <details className="review-group">
+              <summary>Reporting &amp; records</summary>
+              <p className="roster-note">Reporting: {reportingLabel}.</p>
+              <DocumentsList
+                classId={id}
+                isFinalized={false}
+                latestRevision={null}
+                canManageOfficialRosters={false}
+              />
+              <p className="roster-note">
+                Finalizing produces the official roster and completion
+                certificates.
+              </p>
             </details>
-          ) : null}
+          </section>
         </>
       ) : (
         <>
@@ -540,14 +600,18 @@ export default async function ClassReviewPage({
 
           <section className="admin-section">
             <h2>Roster ({roster.active.length})</h2>
-            <ul className="roster-list">
-              {roster.active.map((entry) => renderEntry(entry))}
-            </ul>
+            <RosterTable
+              entries={roster.active}
+              scheduledHours={roster.scheduledHours}
+              isFinalized
+              attentionIds={attentionIds}
+              classId={id}
+            />
             {roster.removed.length ? (
-              <details className="review-subsection">
+              <details className="review-group">
                 <summary>Removed attendance ({roster.removed.length})</summary>
                 <ul className="roster-list">
-                  {roster.removed.map((entry) => renderEntry(entry, true))}
+                  {roster.removed.map((entry) => renderRemoved(entry))}
                 </ul>
               </details>
             ) : null}

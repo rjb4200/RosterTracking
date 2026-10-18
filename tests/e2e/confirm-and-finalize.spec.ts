@@ -180,15 +180,25 @@ test("correct the roster on the review screen and finalize from it", async ({
   await page.getByRole("link", { name: "Review and finalize" }).click();
   await expect(page).toHaveURL(new RegExp(`/staff/classes/${classId}/review$`));
   await expect(page.getByText("Review and finalize")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Confirm class" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Review roster" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Finalize & export" }),
+  ).toBeVisible();
 
+  await page.locator(".roster-row-actions summary").first().click();
   await page.getByLabel("Credit", { exact: true }).fill("3.5");
   await page.getByLabel("Adjustment reason").selectOption("Left Early");
   await page.getByRole("button", { name: "Update credit" }).click();
   await expect(page.getByText("Roster updated.")).toBeVisible();
 
   await page.getByRole("checkbox", { name: /I certify/i }).check();
-  await page.getByLabel("Sign with your name").fill("E2E Lead");
-  await page.getByRole("button", { name: "Finalize and sign roster" }).click();
+  await page.getByLabel("Signature").fill("E2E Lead");
+  await page.getByRole("button", { name: "Finalize roster" }).click();
   await expect.poll(() => classStatus(classId)).toBe("finalized");
 });
 
@@ -205,7 +215,7 @@ test("the review screen omits the removed-attendance section when nothing was re
   await expect(page.getByText("Removed attendance")).toHaveCount(0);
 });
 
-test("an MTU class presents the MTU editor once, in the sign step", async ({
+test("an MTU class presents the MTU editor once, in the confirm-class step", async ({
   page,
 }) => {
   skipUnlessEnabled();
@@ -216,8 +226,35 @@ test("an MTU class presents the MTU editor once, in the sign step", async ({
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}/review`);
 
-  await expect(page.getByText("Step 1: Confirm MTU usage")).toHaveCount(1);
+  await expect(
+    page.getByText("Supplies & equipment — Mobile Training Unit"),
+  ).toHaveCount(1);
+  await page.getByText("Supplies & equipment — Mobile Training Unit").click();
+  await expect(
+    page.getByRole("button", { name: "Save supplies and equipment" }),
+  ).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Save MTU usage" }),
   ).toHaveCount(0);
+});
+
+test("the roster expands only the row that needs attention", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+  // An invalid credit flags the participant's row for attention.
+  const pool = new Pool({ connectionString, max: 1 });
+  await pool.query(
+    "update attendance set credited_hours = 99 where class_id = $1",
+    [classId],
+  );
+  await pool.end();
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  await expect(page.locator(".roster-row-attention")).toHaveCount(1);
+  await expect(page.getByLabel("Credit", { exact: true })).toBeVisible();
 });

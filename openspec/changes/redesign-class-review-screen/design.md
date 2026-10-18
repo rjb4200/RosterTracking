@@ -1,45 +1,46 @@
 ## Context
 
-The review screen (`src/app/staff/(protected)/classes/[id]/review/page.tsx`) is a single route that serves two roles: an open class is finalized there, and a finalized class is read there. It renders its content as one flat column of roughly a dozen sections; the ones that matter for signing (attendance credits) sit below the sign action, empty sections always render, the same MTU data appears in two separate editors, and readiness issues leak attendance record identifiers.
+The review screen (`src/app/staff/(protected)/classes/[id]/review/page.tsx`) is where an open class is finalized and a finalized class is read. It grew into three jobs at once — a finalization workbench, a class editor, and a session/instructor editor — because the guided-finalization spec required class, session, and instructor editing "without leaving that screen". The result is a long single column: the sign action near the top, the records it depends on near the bottom, the same MTU data edited twice, and readiness issues that name internal record identifiers.
 
-Two independent hours concepts meet here. The class scheduled total is derived, never stored: it is the sum of `class_components.credited_hours`. Each participant's `attendance.credited_hours` defaults to that total at sign-in and may be set only from zero through the current total. A session's end time is likewise derived (`endsAt = startsAt + creditedHours`), so "a class that ran long" has no stored actual-end signal — the only lever is the schedule.
+A class carries **one or more sessions** (subjects) that must fall on one roster day, each with its own reporting attributes and credited hours. The class scheduled total is always the sum of `class_components.credited_hours`; a session's end time is derived (`endsAt = startsAt + creditedHours`), so "the class ran long" is recorded by raising a session's hours. Participant credits default to the scheduled total and are bounded by it.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Make the open-class workflow read as an ordered checklist: reconcile attendance, confirm reporting/MTU, sign.
-- Let an operator record a class that ran long by raising the scheduled total, carrying the increase to the participants who were present.
-- Present at most one MTU editor, and hide sections that have no content.
-- Replace internal identifiers in readiness issues with the participant they concern.
+- Read as one workflow: **1 Confirm class → 2 Review roster → 3 Finalize & export**.
+- Make finalizing a few-second action: certification + signature only, nothing to edit.
+- Show the roster as a compact table, expanding a row only when it needs attention.
+- Present MTU usage as grouped collapsible sections on the Confirm class step, once.
 
 **Non-Goals:**
-- Consolidating the review and edit screens (the edit screen is a separate in-flight change).
-- Changing the per-participant bound, sign-in defaults, output generation, certificates, or the reopen path.
-- Allowing an individual participant to exceed the class scheduled total.
+- Removing multi-session classes (sessions map to distinct subjects on one roster day).
+- A draft/save-state for finalization.
+- Changing the per-participant credit bound, sign-in, outputs, or the reopen path.
 - Any schema change.
 
 ## Decisions
 
-**One change, not two.** The hours behavior and the layout both land on `review/page.tsx` and `roster-controls.tsx`; splitting them would leave two in-flight changes editing the same files. The concerns stay separate as distinct capability deltas (`instructor-roster` for the rule, `guided-roster-finalization` for the screen, `mtu-usage-tracking` for the retired editor). *Alternative:* a dedicated behavior change plus a layout change — rejected for the file-ownership overlap.
+**Three ordered steps replace the flat column.** Confirm class (inline, collapsing the class/instructor/session/MTU editors), Review roster (compact table), Finalize & export (one action block). *Alternative:* keep the previous card order — rejected; it left an informational card that did nothing and buried the sign action.
 
-**Propagation lives on the schedule write path, not only the review affordance.** Raising the total must credit participants-at-the-previous-total no matter which surface raised it, so the rule belongs where the class scheduled total changes (session save), not in a review-only action. *Alternative:* implement propagation only in the review action — rejected because the edit screen's session editor changes the same total and would silently diverge.
+**No draft; finalize is atomic.** The user does not want a save-state, so the finalize step carries only the certification, the signature, and the button. *Alternative:* a persisted draft finalization — rejected as unnecessary state.
 
-**Raise only participants at the previous total.** A participant adjusted below the total (late arrival, left early) keeps their value and reason; a participant at the full total follows the new total. This preserves the invariant that class hours are the hours of record and keeps the row, header, and certificate in agreement. *Alternative:* proportional scaling or blanket assignment — rejected as surprising and destructive to recorded adjustments.
+**MTU is captured once, on the Confirm class step.** The equipment, supplies, transport, and additional-details groups are editable and saved there; finalizing requires recorded usage rather than re-confirming it. *Alternative:* keep the confirm-at-finalize editor — rejected because it duplicated the editor and buried the attestation.
 
-**The finalize step is the only MTU editor.** The confirmation already exists and carries the required attestation, so the standalone editable section is retired. *Alternative:* keep the standalone section and drop the finalize editor — rejected because the attestation is a signing requirement.
+**The roster is a compact table that expands on issues.** One row per participant (name, status, credited hours, adjustment, actions); the detail (credential corrections, credit form) appears only when the row needs attention. *Alternative:* the current per-row stacked controls — rejected as the main source of clutter and length.
+
+**Propagation stays on the shared schedule write path.** Raising the scheduled total credits participants still at the previous total no matter which surface raised it.
 
 ## Risks / Trade-offs
 
-- [Retiring the standalone MTU section removes the after-finalization edit path and the "editable at any time" requirement] → Flag it in the proposal and spec (removal with reason and migration); correcting MTU after signing requires reopening. If post-signing corrections turn out to be needed, add a read-only view plus a reopen-based edit instead of restoring the second editor.
-- [Propagation writes many attendance rows at once] → Perform it in one transaction with per-row audit, and only for participants at the previous total, so a partial-credit participant is never silently rewritten.
-- [Raising the total can strand participants who were at the old total via a different surface] → Put the rule on the shared schedule write path so no surface bypasses it.
-- [Collapsing sections could hide something an operator needs] → Keep the three workflow cards open by default and collapse only secondary content (documents, revision history, corrections); hide only sections with no content.
+- [Changing finalize to require recorded MTU usage rather than a confirm checkbox touches the finalization server path and its tests] → Keep the recorded usage as the input; validate it at finalize; update the digital-signing and MTU tests alongside.
+- [The compact table hides detail] → Expand a row on any invalid credit or missing reporting context, and keep the readiness summary in the finalize step.
+- [Collapsing Confirm class could hide a needed edit] → Each group keeps a one-line summary with a visible edit affordance; nothing is removed, only collapsed.
+- [Moving MTU editing inline while open relaxes "editable at any time"] → MTU changes after finalization go through reopen; recorded as an explicit spec change.
 
 ## Migration Plan
 
-No schema change and no data migration. Ship the page and rule change; existing classes keep their stored credits. Rollback is reverting the change.
+No schema change and no data migration. Existing classes keep their stored credits and usage. Rollback is reverting the change.
 
 ## Open Questions
 
-- The early-leaver rule is locked to "stays put" for this change; confirm it is the intended business rule before implementation.
-- Whether to delete the standalone MTU form/action outright or leave it dormant pending the finalization-step work.
+- None blocking. Roster row status is Present/Removed with an issue flag.

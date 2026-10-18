@@ -657,8 +657,11 @@ export async function updateClassMtuUsage(
 ) {
   const usage = normalizeMtuUsage(input);
   return db.transaction(async (transaction) => {
-    // Class access is required, but operational usage is not a signed fact.
-    await requireClassAccess(transaction, actor, classId);
+    // Class access is required, but operational usage is not a signed fact. It
+    // is edited only while the class is open; after finalization it changes
+    // through the reopen path.
+    const classRecord = await requireClassAccess(transaction, actor, classId);
+    assertClassEditable(classRecord.status);
     await replaceMtuUsage(transaction, classId, usage);
     // Only touch structured selections when the caller supplies them, so a
     // free-text-only update never wipes catalog picks.

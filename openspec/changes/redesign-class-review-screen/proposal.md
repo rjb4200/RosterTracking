@@ -1,33 +1,37 @@
 ## Why
 
-The review screen is the one place an instructor reconciles attendance and signs a class, yet it renders roughly a dozen flat sections in a single column. The sign action sits near the top while the records it depends on (attendance credits) sit near the bottom; empty sections always render (for example "Removed attendance (0)"); roster-readiness issues name raw attendance IDs; and a Mobile Training Unit class shows two identical MTU editors — one embedded in the finalize step and one in a separate "MTU usage" section. Instructors also cannot record a class that ran long: credited hours are capped at the class scheduled total, and raising a session's hours raises that ceiling without carrying the extra hours to the participants who were actually present.
+The review screen is the one place an instructor reconciles attendance and signs a class, but it tries to be three things at once: a finalization workbench, a class editor, and a session/instructor editor. The result is a long single column where the sign action sits near the top, the records it depends on sit near the bottom, empty sections always render, readiness issues name raw attendance IDs, and a Mobile Training Unit class shows the same MTU editor twice. The certification and MTU confirmations are buried between form fields, so finalizing takes more than a few seconds. Instructors also could not record a class that ran long: raising a session's hours raised the ceiling without carrying the extra hours to the participants who attended.
 
 ## What Changes
 
-- Reorganize the open-class review screen as an ordered checklist of cards — Attendance, Reporting & MTU, Sign & finalize — with documents, revision history, and corrections collapsed behind summaries.
-- Add a class-ran-long adjustment: raising the class scheduled hours carries the new total to every active participant still at the previous total, leaving individually adjusted participants unchanged.
-- Reduce the review screen to a single MTU editor — the confirmation inside the finalize step — and retire the separate operational MTU section.
-- Render optional sections only when they have content, such as "Removed attendance" when a participant was actually removed.
-- Name roster-readiness issues in operator terms (participant names) instead of raw attendance IDs.
-- Not changing: the per-participant bound (credit remains zero through the scheduled total), sign-in defaults, destination-driven reporting, official roster and certificate PDFs, or the reopen path.
+- Restructure the open-class review screen into three ordered steps: **1 Confirm class** (class details, instructors, sessions, and MTU usage, each editable inline and collapsed to a summary), **2 Review roster** (a compact table with one row per participant that expands only when a row needs attention), and **3 Finalize & export** (one action block: certification, signature, finalize).
+- Make finalizing a few-second action: certification and signature only, with no draft and no editing in the finalize step.
+- Capture MTU usage once, on the Confirm class step, as grouped collapsible sections for equipment, supplies, transport, and additional details; finalizing requires recorded usage instead of a separate confirm step.
+- Record a class that ran long by raising the scheduled total, carrying the new total to every active participant still at the previous total and leaving individually adjusted participants unchanged.
+- Name roster-readiness issues by participant, and render optional sections only when they have content.
+- Keep multi-session classes (sessions map to distinct subjects on one roster day).
+- Not changing: the per-participant credit bound, sign-in, destination-driven reporting, official roster and certificate PDFs, or the reopen path.
 
 ## Capabilities
 
 ### New Capabilities
 
-<!-- None: this change reorganizes an existing screen and adjusts an existing credit rule. -->
+<!-- None: this change reorganizes an existing screen and adjusts existing rules. -->
 
 ### Modified Capabilities
 
-- `guided-roster-finalization`: the review screen is organized as an ordered checklist of cards with collapsed secondary sections, hides sections that have no content, names readiness issues by participant, presents a single MTU editor at the finalize step, and offers the class-ran-long schedule adjustment.
+- `guided-roster-finalization`: the review screen is three ordered steps; Confirm class edits inline and the roster is a compact table that expands on issues; the finalize step is certification and signature only; MTU usage is grouped and saved on the Confirm class step; readiness issues name participants; empty sections are omitted.
 - `instructor-roster`: raising the class scheduled total carries the new total to active participants still at the previous total, while individually adjusted participants keep their credited hours and reason.
-- `mtu-usage-tracking`: MTU usage is recorded at finalization only; the review screen no longer maintains an independent operational MTU editor after the class is signed.
+- `mtu-usage-tracking`: MTU usage is edited on the review screen's Confirm class step while the class is open, replacing the standalone editor that was editable at any time; changing it after finalization requires reopening.
 
 ## Impact
 
-- `src/app/staff/(protected)/classes/[id]/review/page.tsx` — rebuilt around ordered cards and collapsed sections.
-- `finalization-controls.tsx`, `mtu-usage-form.tsx` — one MTU editor; the standalone form retired.
-- `roster-controls.tsx`, `roster-actions.ts` — the class-ran-long adjustment action.
-- `src/modules/instructor-roster/services.ts` — propagate the scheduled total to participants at the previous total.
-- `src/app/globals.css` — card and checklist styles.
+- `src/app/staff/(protected)/classes/[id]/review/page.tsx` — rebuilt as three ordered steps with a compact roster and inline Confirm class editing.
+- `roster-controls.tsx`, `roster-actions.ts` — the class-ran-long adjustment; the compact roster row.
+- `mtu-usage-form.tsx` / `mtu-usage-fields.tsx` — MTU editing moves to the Confirm class step with grouped sections.
+- `finalization-controls.tsx` — the finalize step becomes certification + signature only.
+- `src/modules/classes/finalization.ts` — require recorded MTU usage instead of a confirm payload.
+- `src/modules/classes/services.ts` — propagate a raised scheduled total to participants at the previous total.
+- `src/modules/instructor-roster/services.ts` — the propagation rule and participant-named readiness issues.
+- `src/app/globals.css` — step, roster-table, and grouped-section styles.
 - No schema migration and no change to sign-in, output generation, or the reopen path.

@@ -98,16 +98,15 @@ for (const viewport of [
       new RegExp(`/staff/classes/${classId}/review$`),
     );
     await expect(page.getByText("Review and finalize")).toBeVisible();
+    await page.locator(".roster-row-actions summary").first().click();
     await page.getByLabel("Credit", { exact: true }).fill("3.5");
     await page.getByLabel("Adjustment reason").selectOption("Left Early");
     await page.getByRole("button", { name: "Update credit" }).click();
     await expect(page.getByText("Roster updated.")).toBeVisible();
 
     await page.getByRole("checkbox", { name: /I certify/i }).check();
-    await page.getByLabel("Sign with your name").fill("Tablet Lead");
-    await page
-      .getByRole("button", { name: "Finalize and sign roster" })
-      .click();
+    await page.getByLabel("Signature").fill("Tablet Lead");
+    await page.getByRole("button", { name: "Finalize roster" }).click();
     // Regression: finalizing from the review route must render the finalized
     // review instead of a 404.
     await expect(page.getByText("Finalized class review")).toBeVisible();

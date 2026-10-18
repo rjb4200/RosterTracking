@@ -363,24 +363,34 @@ export async function getRosterReadiness(
         and(eq(attendance.classId, classId), isNull(attendance.removedAt)),
       );
     const issues: string[] = [];
+    const attentionIds = new Set<string>();
     if (!active.length)
       issues.push("At least one participant must sign in before finalizing.");
     for (const entry of active) {
       const name = participantLabel(entry);
       const credit =
         entry.creditedHours === null ? Number.NaN : Number(entry.creditedHours);
-      if (!Number.isFinite(credit) || credit < 0 || credit > scheduledHours)
+      if (!Number.isFinite(credit) || credit < 0 || credit > scheduledHours) {
         issues.push(readinessIssue(name, "credit"));
+        attentionIds.add(entry.id);
+      }
       const contexts = await transaction
         .select({
           requirementSetId: attendanceReportingContexts.requirementSetId,
         })
         .from(attendanceReportingContexts)
         .where(eq(attendanceReportingContexts.attendanceId, entry.id));
-      if (contexts.length !== requirements.sets.length)
+      if (contexts.length !== requirements.sets.length) {
         issues.push(readinessIssue(name, "context"));
+        attentionIds.add(entry.id);
+      }
     }
-    return { ready: issues.length === 0, issues, scheduledHours };
+    return {
+      ready: issues.length === 0,
+      issues,
+      scheduledHours,
+      attentionIds: [...attentionIds],
+    };
   });
 }
 
@@ -411,6 +421,7 @@ export async function getClassRoster(
         guestId: attendance.guestId,
         signedInAt: attendance.signedInAt,
         creditedHours: attendance.creditedHours,
+        creditAdjustmentReason: attendance.creditAdjustmentReason,
         isManual: attendance.isManual,
         removedAt: attendance.removedAt,
         removalReason: attendance.removalReason,

@@ -30,12 +30,14 @@ import {
   classComponents,
   classGuests,
   classInstructors,
+  classMtuUsageItems,
   classReportingSystems,
   credentialTypes,
   curricula,
   finalizationReopens,
   finalizationReportingStatuses,
   finalizationRevisions,
+  mtuUsage,
   reportingSystems,
   roles,
   students,
@@ -395,24 +397,41 @@ export async function finalizeClass(
     const next = nextRevision?.next ?? 1;
     const finalizedAt = new Date();
     const snapshot = await buildSnapshot(transaction, classId, finalizedAt);
-    // An MTU class must confirm usage before signing. This writes only the
-    // operational usage tables; it never touches the participant count or the
-    // revision number captured below.
+    // An MTU class must have its usage recorded before signing. New flow: the
+    // operator records usage on the Confirm class step, so only its presence is
+    // required here. Legacy callers may still confirm usage in the finalize
+    // payload, which writes the same operational tables and never touches the
+    // participant count or the revision number captured below.
     if (
       snapshot.destinations.some((destination) => destination.code === "mtu")
     ) {
-      if (!mtu?.confirmed) {
-        throw new Error("Confirm the MTU usage before finalizing.");
+      if (mtu?.confirmed) {
+        await confirmMtuUsageForFinalization(transaction, classId, {
+          equipmentIds: mtu.equipmentIds ?? [],
+          supplies: mtu.supplies ?? [],
+          transportIds: mtu.transportIds ?? [],
+          transportMileage: mtu.transportMileage ?? {},
+          equipmentUsed: mtu.equipmentUsed,
+          usedSupplies: mtu.usedSupplies,
+          mileage: mtu.mileage,
+        });
+      } else {
+        const [recorded] = await transaction
+          .select({ classId: mtuUsage.classId })
+          .from(mtuUsage)
+          .where(eq(mtuUsage.classId, classId))
+          .limit(1);
+        const [recordedItem] = await transaction
+          .select({ classId: classMtuUsageItems.classId })
+          .from(classMtuUsageItems)
+          .where(eq(classMtuUsageItems.classId, classId))
+          .limit(1);
+        if (!recorded && !recordedItem) {
+          throw new Error(
+            "Record the MTU usage in the Confirm class step before finalizing.",
+          );
+        }
       }
-      await confirmMtuUsageForFinalization(transaction, classId, {
-        equipmentIds: mtu.equipmentIds ?? [],
-        supplies: mtu.supplies ?? [],
-        transportIds: mtu.transportIds ?? [],
-        transportMileage: mtu.transportMileage ?? {},
-        equipmentUsed: mtu.equipmentUsed,
-        usedSupplies: mtu.usedSupplies,
-        mileage: mtu.mileage,
-      });
     }
     const revisionRows = await transaction
       .select({
