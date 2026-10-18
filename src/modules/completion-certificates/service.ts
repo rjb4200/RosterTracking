@@ -76,6 +76,31 @@ export function certificateClassHours(snapshot: FinalizationSnapshot): string {
   return snapshot.attendance[0]?.creditedHours ?? "";
 }
 
+/**
+ * The batch cover-page header line: date, participant count, and the class's
+ * scheduled hours — the same hours the certificate pages carry.
+ */
+export function certificateCoverHeader(snapshot: FinalizationSnapshot): string {
+  const hours = certificateClassHours(snapshot);
+  return [
+    formatDate(snapshot.class.completedAt),
+    `${snapshot.attendance.length} participants`,
+    hours ? `${hours} ${hours === "1" ? "hour" : "hours"}` : null,
+  ]
+    .filter(Boolean)
+    .join("  -  ");
+}
+
+/**
+ * The cover page's per-participant Hours column: that participant's credited
+ * hours, which may differ from the class's scheduled hours in the header.
+ */
+export function certificateCoverRowHours(
+  participant: CertificateParticipant,
+): string {
+  return participant.creditedHours ?? "";
+}
+
 /** The signature line reads "<class type> – <course>". */
 export function instructorTitleCourse(snapshot: FinalizationSnapshot): string {
   return [courseTypeLabel(snapshot.class.courseType), snapshot.class.courseName]
@@ -331,13 +356,7 @@ async function renderStudentListCover(
     font,
   });
   y -= 18;
-  const meta = [
-    formatDate(snapshot.class.completedAt),
-    `${snapshot.attendance.length} participants`,
-  ]
-    .filter(Boolean)
-    .join("  -  ");
-  page.drawText(meta, { x: 56, y, size: 11, font });
+  page.drawText(certificateCoverHeader(snapshot), { x: 56, y, size: 11, font });
   y -= 30;
   page.drawText("Participant", { x: 56, y, size: 11, font: bold });
   page.drawText("Agency", { x: 360, y, size: 11, font: bold });
@@ -363,7 +382,7 @@ async function renderStudentListCover(
       size: 11,
       font,
     });
-    page.drawText(participant.creditedHours ?? "", {
+    page.drawText(certificateCoverRowHours(participant), {
       x: 700,
       y,
       size: 11,
