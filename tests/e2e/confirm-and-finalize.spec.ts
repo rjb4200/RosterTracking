@@ -8,7 +8,12 @@ import { e2eDatabaseUrl } from "./support/database";
 
 const username = process.env.E2E_STAFF_USERNAME;
 const password = process.env.E2E_STAFF_PASSWORD;
+const instructorUsername = process.env.E2E_INSTRUCTOR_USERNAME;
 const connectionString = e2eDatabaseUrl();
+
+// The correct-and-finalize journey is heavy; under the parallel suite the dev
+// server can take longer than the 30s default.
+test.setTimeout(120_000);
 
 function skipUnlessEnabled() {
   test.skip(
@@ -86,6 +91,16 @@ async function classStatus(classId: string) {
   return result.rows[0]?.status;
 }
 
+async function addReportingSystem(classId: string, code: string) {
+  if (!connectionString) throw new Error("E2E_DATABASE_URL is required.");
+  const pool = new Pool({ connectionString, max: 1 });
+  await pool.query(
+    "insert into class_reporting_systems (class_id, reporting_system_id) select $1, id from reporting_systems where code = $2",
+    [classId, code],
+  );
+  await pool.end();
+}
+
 test("the open class primary action opens the review screen", async ({
   page,
 }) => {
@@ -98,7 +113,7 @@ test("the open class primary action opens the review screen", async ({
   await page.getByRole("link", { name: "Review and finalize" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/staff/classes/${classId}/review$`));
-  await expect(page.getByText("Review and finalize")).toBeVisible();
+  await expect(page.getByText("Post-class review")).toBeVisible();
 });
 
 test("class command controls stay reachable on a narrow viewport", async ({
@@ -169,15 +184,220 @@ test("correct the roster on the review screen and finalize from it", async ({
   await page.goto(`/staff/classes/${classId}`);
   await page.getByRole("link", { name: "Review and finalize" }).click();
   await expect(page).toHaveURL(new RegExp(`/staff/classes/${classId}/review$`));
-  await expect(page.getByText("Review and finalize")).toBeVisible();
+  await expect(page.getByText("Post-class review")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Class & reporting" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Roster" })).toBeVisible();
 
+  await page.locator(".roster-row-actions summary").first().click();
   await page.getByLabel("Credit", { exact: true }).fill("3.5");
   await page.getByLabel("Adjustment reason").selectOption("Left Early");
   await page.getByRole("button", { name: "Update credit" }).click();
-  await expect(page.getByText("Roster updated.")).toBeVisible();
+  // The saved value is the source of truth; the row's own refresh is not asserted.
+  await expect
+    .poll(
+      async () => {
+        const pool = new Pool({ connectionString, max: 1 });
+        const result = await pool.query<{ credited_hours: string }>(
+          "select credited_hours from attendance where class_id = $1",
+          [classId],
+        );
+        await pool.end();
+        return result.rows[0]?.credited_hours;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe("3.50");
+  await expect(page.getByText("3.50 / 4")).toBeVisible();
 
   await page.getByRole("checkbox", { name: /I certify/i }).check();
-  await page.getByLabel("Sign with your name").fill("E2E Lead");
-  await page.getByRole("button", { name: "Finalize and sign roster" }).click();
+  await page.getByLabel("Signature").fill("E2E Lead");
+  await page.getByRole("button", { name: "Finalize roster" }).click();
   await expect.poll(() => classStatus(classId)).toBe("finalized");
+});
+
+test("the review screen omits the removed-attendance section when nothing was removed", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  await expect(page.getByText("Removed attendance")).toHaveCount(0);
+  // A class that does not report to the MTU has no MTU usage area, and the
+  // documents-and-delivery section is absent until a revision exists.
+  await expect(page.locator("#area-mtu")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Documents & delivery" }),
+  ).toHaveCount(0);
+});
+
+test("an MTU class presents one MTU editor and withholds finalization without usage", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+  await addReportingSystem(classId, "mtu");
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const mtuArea = page.locator("#area-mtu");
+  await expect(mtuArea).toHaveCount(1);
+  await mtuArea.getByRole("button", { name: "Edit" }).click();
+  await expect(
+    mtuArea.getByRole("button", { name: "Save supplies and equipment" }),
+  ).toHaveCount(1);
+
+  // The area states nothing is recorded, and missing usage withholds finalization.
+  await expect(mtuArea.locator(".workspace-area-summary")).toContainText(
+    "Not recorded",
+  );
+  await expect(page.getByText("No MTU usage recorded.")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Finalize roster" }),
+  ).toBeDisabled();
+
+  // Recording free-text usage summarises it and clears the blocker.
+  await mtuArea.getByText("Additional details").click();
+  await mtuArea.getByLabel("Other equipment (not listed)").fill("Test kit");
+  await mtuArea
+    .getByRole("button", { name: "Save supplies and equipment" })
+    .click();
+  await expect(mtuArea.locator(".workspace-area-summary")).toContainText(
+    "Test kit",
+    { timeout: 15_000 },
+  );
+  await expect(page.getByText("No MTU usage recorded.")).toHaveCount(0);
+});
+
+test("the roster flags a row that needs attention without expanding it", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+  // An invalid credit flags the participant's row for attention.
+  const pool = new Pool({ connectionString, max: 1 });
+  await pool.query(
+    "update attendance set credited_hours = 99 where class_id = $1",
+    [classId],
+  );
+  await pool.end();
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  // The flagged row stays compact until the operator opens it.
+  await expect(page.locator(".roster-row-attention")).toHaveCount(1);
+  await expect(page.getByLabel("Credit", { exact: true })).toBeHidden();
+  await page.locator(".roster-row-actions summary").first().click();
+  await expect(page.getByLabel("Credit", { exact: true })).toBeVisible();
+  // The blocker names the participant and links to the area that resolves it.
+  await expect(
+    page.getByText("Confirmed Guest has invalid credited hours."),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Fix roster" })).toBeVisible();
+});
+
+test("raising a session's hours carries the full credit to the participant", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  // Raise the session's credited hours from the schedule area.
+  const schedule = page.locator("#area-schedule");
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  await schedule.getByLabel("Credited hours").first().fill("5");
+  await schedule
+    .getByRole("button", { name: "Update session" })
+    .first()
+    .click();
+
+  // The participant at the previous total follows the new total.
+  await expect
+    .poll(
+      async () => {
+        const pool = new Pool({ connectionString, max: 1 });
+        const result = await pool.query<{ credited_hours: string }>(
+          "select credited_hours from attendance where class_id = $1",
+          [classId],
+        );
+        await pool.end();
+        return result.rows[0]?.credited_hours;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe("5.00");
+});
+
+test("the workspace opens one correction area at a time", async ({ page }) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const classArea = page.locator("#area-class");
+  const scheduleArea = page.locator("#area-schedule");
+
+  await classArea.getByRole("button", { name: "Edit" }).click();
+  await expect(classArea.getByLabel("Class name")).toBeVisible();
+
+  await scheduleArea.getByRole("button", { name: "Edit" }).click();
+  await expect(scheduleArea.getByText("Training session")).toBeVisible();
+  await expect(classArea.getByLabel("Class name")).toHaveCount(0);
+});
+
+test("instructors can be added, the lead changed, and the only lead kept", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString || !instructorUsername)
+    return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  // The assisting instructor's display name, for the picker and the row.
+  const pool = new Pool({ connectionString, max: 1 });
+  const instructor = await pool.query<{ display_name: string }>(
+    "select display_name from users where username = $1",
+    [instructorUsername],
+  );
+  await pool.end();
+  const instructorName = instructor.rows[0]?.display_name;
+  if (!instructorName) throw new Error("E2E instructor was not found.");
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const area = page.locator("#area-instructors");
+  await area.getByRole("button", { name: "Edit" }).click();
+
+  // Add the instructor as an assisting instructor.
+  await area.getByLabel("Instructor").selectOption({ label: instructorName });
+  await area.getByRole("button", { name: "Add instructor" }).click();
+
+  const row = area.locator(".member-row", { hasText: instructorName });
+  await expect(row.getByText("Assisting")).toBeVisible({ timeout: 15_000 });
+
+  // Make them the lead; the previous lead becomes assisting.
+  await row.getByRole("button", { name: "Make lead" }).click();
+  await expect(row.getByText("Lead")).toBeVisible({ timeout: 15_000 });
+
+  // Removing the only lead is refused.
+  await row.getByRole("button", { name: "Remove" }).click();
+  await expect(
+    area.getByText(/Assign another lead instructor before removing the lead/i),
+  ).toBeVisible({ timeout: 15_000 });
 });

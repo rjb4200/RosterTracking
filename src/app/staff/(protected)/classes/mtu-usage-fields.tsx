@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { Label } from "@/components/ui/label";
 import {
   estimateSupplyQuantity,
@@ -89,11 +91,42 @@ function toggle(list: string[], id: string, on: boolean): string[] {
 }
 
 /**
+ * A usage group. On the review screen the groups collapse (Equipment used,
+ * Supplies used, Transport) so the confirmation step is scannable; the wizard
+ * keeps always-open fieldsets.
+ */
+function UsageGroup({
+  label,
+  collapsible,
+  children,
+}: {
+  label: string;
+  collapsible: boolean;
+  children: ReactNode;
+}) {
+  if (collapsible) {
+    return (
+      <details className="field field-wide">
+        <summary>{label}</summary>
+        {children}
+      </details>
+    );
+  }
+  return (
+    <fieldset className="field field-wide">
+      <legend>{label}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+/**
  * Structured Mobile Training Unit selection shared by class setup and the
  * review/finalization usage forms. In `select` mode it renders equipment,
  * supplies, and transport checkboxes only; in `confirm` mode it also renders
  * editable supply quantities prefilled from the roster estimate. Every selected
  * transport has independently editable mileage, required only during creation.
+ * With `collapsible`, each usage group collapses behind its summary.
  */
 export function MtuUsageFields({
   catalog,
@@ -103,6 +136,7 @@ export function MtuUsageFields({
   activeParticipants = 0,
   requireMileage = false,
   invalidMileageIds = [],
+  collapsible = false,
 }: {
   catalog: MtuCatalogOption[];
   mode: "select" | "confirm";
@@ -111,6 +145,7 @@ export function MtuUsageFields({
   activeParticipants?: number;
   requireMileage?: boolean;
   invalidMileageIds?: string[];
+  collapsible?: boolean;
 }) {
   const equipment = catalog.filter((option) => option.kind === "equipment");
   const supplies = catalog.filter((option) => option.kind === "supplies");
@@ -185,8 +220,7 @@ export function MtuUsageFields({
   return (
     <>
       {equipment.length > 0 ? (
-        <fieldset className="field field-wide">
-          <legend>Equipment used</legend>
+        <UsageGroup label="Equipment used" collapsible={collapsible}>
           <div className="checkbox-list">
             {equipment.map((option) => (
               <Label key={option.id} className="checkbox-field">
@@ -209,12 +243,11 @@ export function MtuUsageFields({
               </Label>
             ))}
           </div>
-        </fieldset>
+        </UsageGroup>
       ) : null}
 
       {supplies.length > 0 ? (
-        <fieldset className="field field-wide">
-          <legend>Supplies used</legend>
+        <UsageGroup label="Supplies used" collapsible={collapsible}>
           {mode === "confirm" ? (
             (() => {
               const rows = supplies.map((option) => ({
@@ -252,12 +285,11 @@ export function MtuUsageFields({
               {supplies.map((option) => renderSupplyRow(option))}
             </div>
           )}
-        </fieldset>
+        </UsageGroup>
       ) : null}
 
       {transport.length > 0 ? (
-        <fieldset className="field field-wide">
-          <legend>Transport</legend>
+        <UsageGroup label="Transport" collapsible={collapsible}>
           <div className="checkbox-list">
             {transport.map((option) => (
               <div key={option.id}>
@@ -312,7 +344,7 @@ export function MtuUsageFields({
               </div>
             ))}
           </div>
-        </fieldset>
+        </UsageGroup>
       ) : null}
 
       <details className="field field-wide">

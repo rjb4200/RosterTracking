@@ -27,6 +27,7 @@ export function ClassForm({
   trainingCodes = [],
   mtuCatalog = [],
   mtuActiveParticipantCount = 0,
+  hideMtuUsage = false,
   values,
 }: {
   action: (
@@ -39,6 +40,7 @@ export function ClassForm({
   trainingCodes?: Array<{ id: string; title: string; kind: string }>;
   mtuCatalog?: MtuCatalogOption[];
   mtuActiveParticipantCount?: number;
+  hideMtuUsage?: boolean;
   values?: {
     id: string;
     name: string | null;
@@ -208,13 +210,17 @@ export function ClassForm({
             defaultValue={values?.objectives ?? ""}
           />
         </div>
-        <MtuUsageFields
-          catalog={mtuCatalog}
-          mode="select"
-          value={mtuUsage}
-          onChange={setMtuUsage}
-          activeParticipants={mtuActiveParticipantCount}
-        />
+        {hideMtuUsage ? (
+          <input type="hidden" name="mtuManaged" value="false" />
+        ) : (
+          <MtuUsageFields
+            catalog={mtuCatalog}
+            mode="select"
+            value={mtuUsage}
+            onChange={setMtuUsage}
+            activeParticipants={mtuActiveParticipantCount}
+          />
+        )}
         <Label className="checkbox-field field-wide">
           <Input
             defaultChecked={values?.accessPinEnabled ?? false}

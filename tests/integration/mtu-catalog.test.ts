@@ -328,62 +328,49 @@ describeDatabase("MTU catalog and structured usage", () => {
     expect(supply?.source).toBe("suggested");
   });
 
-  it("requires MTU confirmation to finalize and skips it for non-MTU classes", async () => {
+  it("requires recorded MTU usage to finalize and skips it for non-MTU classes", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
     const { setId } = await activeSetId(db, "mtu");
     const chestSeal = await catalogItemId(db, "Chest Seal");
-    const { instructor, agency, classId } = await createMtuClass(db, suffix, {
-      mtuSupplyItems: [{ itemId: chestSeal }],
-    });
+    const { instructor, agency, classId } = await createMtuClass(db, suffix);
     await addActiveAttendance(db, {
       classId,
       agencyId: agency.id,
       requirementSetId: setId,
     });
 
+    // Finalizing requires recorded MTU usage; the Confirm class step records it.
     await expect(
       finalizeClass(db, instructor, classId, {
         certified: true,
         typedName: "Test Instructor",
       }),
-    ).rejects.toThrow(/confirm the mtu usage/i);
+    ).rejects.toThrow(/record the mtu usage/i);
 
-    const revision = await finalizeClass(
-      db,
-      instructor,
-      classId,
-      { certified: true, typedName: "Test Instructor" },
-      {
-        confirmed: true,
-        equipmentIds: [],
-        supplies: [{ itemId: chestSeal }],
-      },
-    );
+    await updateClassMtuUsage(db, instructor, classId, {
+      supplies: [{ itemId: chestSeal, quantity: "1" }],
+    });
+    const revision = await finalizeClass(db, instructor, classId, {
+      certified: true,
+      typedName: "Test Instructor",
+    });
     expect(revision.revisionNumber).toBe(1);
 
-    // The confirmed usage is frozen (manual) and stays editable after lock
-    // without changing the revision or participant count.
+    // The recorded usage is retained on the class.
     const frozen = await getClassDetail(db, instructor, classId);
     const frozenSeal = frozen.mtuUsage?.items.find(
       (item) => item.itemId === chestSeal,
     );
-    expect(frozenSeal?.source).toBe("manual");
     expect(frozenSeal?.quantity).toBe(1);
 
-    await updateClassMtuUsage(db, instructor, classId, {
-      equipmentUsed: "",
-      mileage: "",
-      usedSupplies: "",
-      supplies: [{ itemId: chestSeal, quantity: "9" }],
-    });
-    const edited = await getClassDetail(db, instructor, classId);
-    const editedSeal = edited.mtuUsage?.items.find(
-      (item) => item.itemId === chestSeal,
-    );
-    expect(editedSeal?.quantity).toBe(9);
-    expect(edited.mtuActiveParticipantCount).toBe(1);
+    // It is not editable after finalization until the class is reopened.
+    await expect(
+      updateClassMtuUsage(db, instructor, classId, {
+        supplies: [{ itemId: chestSeal, quantity: "9" }],
+      }),
+    ).rejects.toThrow(/cannot be edited/i);
     await retireRevision(db, revision.id);
   });
 

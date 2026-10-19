@@ -244,7 +244,7 @@ describeDatabase("reporting destinations", () => {
     ).rejects.toThrow(/cannot be edited/i);
   });
 
-  it("treats MTU usage as operational: editable after finalization and not in the revision", async () => {
+  it("treats MTU usage as operational: recorded before finalizing and not in the revision", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID();
@@ -279,18 +279,18 @@ describeDatabase("reporting destinations", () => {
     const snapshot = JSON.parse(decryptCredential(row.encryptedSnapshot));
     expect(snapshot.mtuUsage).toBeUndefined();
 
-    // MTU is operational: it changes after finalization without reopening.
-    await updateClassMtuUsage(db, instructor, classId, {
-      equipmentUsed: "",
-      mileage: "175",
-      usedSupplies: "",
-    });
+    // MTU is operational, but it is edited only while the class is open; after
+    // finalization it changes through the reopen path.
+    await expect(
+      updateClassMtuUsage(db, instructor, classId, {
+        equipmentUsed: "",
+        mileage: "175",
+        usedSupplies: "",
+      }),
+    ).rejects.toThrow(/cannot be edited/i);
+
     const detail = await getClassDetail(db, instructor, classId);
-    expect(detail.mtuUsage).toMatchObject({
-      equipmentUsed: null,
-      mileage: "175",
-      usedSupplies: null,
-    });
+    expect(detail.mtuUsage?.mileage ?? null).toBeNull();
     await retireRevision(db, revision.id);
   });
 

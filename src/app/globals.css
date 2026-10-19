@@ -994,6 +994,157 @@ h1 {
   padding: 1.15rem;
 }
 
+/* The review screen's open-class workflow: an ordered checklist of cards. */
+.review-card {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 1.15rem;
+}
+
+.review-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.review-card-head h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+}
+
+.review-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--signal-dark);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.review-card .roster-note,
+.review-subsection summary {
+  margin: 0;
+}
+
+.review-subsection {
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+/* An editable group inside a review step, collapsed to a summary. */
+.review-group {
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.review-group > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* The compact roster. Only a row that needs attention is marked. */
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.roster-table th,
+.roster-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.roster-table td span {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.roster-row-attention {
+  box-shadow: inset 3px 0 0 var(--signal-dark);
+}
+
+.roster-row-actions > summary {
+  cursor: pointer;
+}
+
+.finalize-form {
+  max-width: 32rem;
+}
+
+/* The post-class workspace: summary areas with one editor open at a time. */
+.workspace {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 1.15rem;
+  overflow-x: auto;
+}
+
+.workspace-heading {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+}
+
+.workspace-status {
+  margin: 0;
+}
+
+.workspace-area {
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.workspace-area-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workspace-area-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.workspace-area-summary {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+}
+
+.workspace-area-toggle {
+  flex: none;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.workspace-area-body {
+  margin-top: 0.85rem;
+}
+
+.workspace-area-opener {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--signal-dark);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
 .operational-class-heading,
 .operational-class-actions {
   display: flex;

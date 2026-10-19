@@ -24,21 +24,6 @@ When MTU is a selected destination, the system SHALL record the class's Mobile T
 - **WHEN** staff type an item that is not in the catalog into a free-text box
 - **THEN** the system stores the free text alongside the catalog selections
 
-### Requirement: MTU usage is editable at any time
-The system SHALL allow instructors assigned to the class and administrators to change a class's MTU usage at any time, including while the class is open and after it is finalized. The review page SHALL display and edit the current operational MTU usage independently of the class and roster lock. MTU changes SHALL be audited and SHALL NOT alter signed revision facts — the finalized participant count and revision number — or official roster PDFs.
-
-#### Scenario: Edit MTU usage while open
-- **WHEN** an instructor assigned to the class changes its MTU mileage while the class is open
-- **THEN** the system saves the new value
-
-#### Scenario: Edit MTU usage after finalization
-- **WHEN** an instructor assigned to the class or an administrator changes its MTU usage after the class is finalized
-- **THEN** the system saves the new value without requiring the class to be reopened and the finalized participant count and revision number are unchanged
-
-#### Scenario: Deny an unassigned operator
-- **WHEN** an operator who is neither assigned to the class nor an administrator attempts to change its MTU usage
-- **THEN** the system denies the change
-
 ### Requirement: Expected supply quantities are suggested from the roster
 For each selected supply that has a consumption rule, the system SHALL suggest a quantity equal to the supply's per-class base plus its per-student quantity multiplied by the number of active participants on the class roster, rounded by the supply's rounding mode. An operator MAY override a suggested quantity. The system SHALL recompute non-overridden suggestions as the roster changes until the class is finalized, and SHALL stop recomputing once the class is finalized.
 
@@ -93,3 +78,20 @@ When a class is created with one or more selected transport entries that require
 #### Scenario: Leave POV mileage optional
 - **WHEN** staff create a class whose only selected transport is POV and enter no mileage
 - **THEN** the class is created without a mileage estimate
+
+### Requirement: MTU usage is edited on the review screen while the class is open
+
+The system SHALL let an assigned instructor or an elevated operator edit a class's MTU usage on the review screen's Confirm class step while the class is open, presented as grouped collapsible sections for equipment, supplies, transport, and additional details. The edit SHALL be audited and SHALL NOT alter signed revision facts — the finalized participant count and revision number — or official roster PDFs. After finalization, MTU usage SHALL be changed only through the reopen path.
+
+#### Scenario: Edit MTU usage while open
+- **WHEN** an instructor assigned to the class saves MTU usage on the Confirm class step
+- **THEN** the system saves the new value
+
+#### Scenario: Deny an unassigned operator
+- **WHEN** an operator who is neither assigned to the class nor an elevated role attempts to change its MTU usage
+- **THEN** the system denies the change
+
+#### Scenario: Require reopening after finalization
+- **WHEN** a class is finalized
+- **THEN** its MTU usage is not editable until the class is reopened
+

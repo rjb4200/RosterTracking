@@ -17,6 +17,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
+import { participantsFollowingRaisedTotal } from "@/modules/instructor-roster/services";
 import { REPORTING_SYSTEM_CODES } from "@/modules/reference/constants";
 import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
 import { getInitialCertTei } from "@/modules/settings/services";
@@ -151,6 +152,9 @@ const draftInput = z.object({
   mtuSupplyItems: z.array(mtuSupplySelectionInput).optional().default([]),
   mtuTransportIds: z.array(z.string().uuid()).optional().default([]),
   mtuTransportMileage: z.record(z.string().uuid(), z.string()).default({}),
+  // When false the caller does not manage MTU usage — for example the review
+  // workspace's class card — so an update leaves recorded usage untouched.
+  mtuManaged: z.boolean().default(true),
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
@@ -656,8 +660,11 @@ export async function updateClassMtuUsage(
 ) {
   const usage = normalizeMtuUsage(input);
   return db.transaction(async (transaction) => {
-    // Class access is required, but operational usage is not a signed fact.
-    await requireClassAccess(transaction, actor, classId);
+    // Class access is required, but operational usage is not a signed fact. It
+    // is edited only while the class is open; after finalization it changes
+    // through the reopen path.
+    const classRecord = await requireClassAccess(transaction, actor, classId);
+    assertClassEditable(classRecord.status);
     await replaceMtuUsage(transaction, classId, usage);
     // Only touch structured selections when the caller supplies them, so a
     // free-text-only update never wipes catalog picks.
@@ -1048,15 +1055,17 @@ export async function updateClass(
       parsed.reportingSystemIds ?? [],
     );
     await reconcileAttendanceReportingContexts(transaction, classId);
-    await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
-    await replaceMtuUsageItems(
-      transaction,
-      classId,
-      parsed.mtuEquipmentIds,
-      parsed.mtuSupplyItems,
-      parsed.mtuTransportIds,
-      parsed.mtuTransportMileage,
-    );
+    if (parsed.mtuManaged) {
+      await replaceMtuUsage(transaction, classId, mtuUsageFromDraft(parsed));
+      await replaceMtuUsageItems(
+        transaction,
+        classId,
+        parsed.mtuEquipmentIds,
+        parsed.mtuSupplyItems,
+        parsed.mtuTransportIds,
+        parsed.mtuTransportMileage,
+      );
+    }
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -1075,6 +1084,63 @@ export async function updateClass(
     });
     return updated;
   });
+}
+
+async function scheduledHoursTotal(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<number> {
+  const [row] = await transaction
+    .select({
+      hours: sql<string>`coalesce(sum(${classComponents.creditedHours}), 0)`,
+    })
+    .from(classComponents)
+    .where(eq(classComponents.classId, classId));
+  return Number(row?.hours ?? 0);
+}
+
+/**
+ * A class that ran long is recorded by raising the scheduled total. Every active
+ * participant still credited at the previous total follows the new total, while
+ * participants adjusted below the previous total keep their credited hours and
+ * reason. Runs on the shared schedule write path so every editing surface agrees.
+ */
+async function carryRaisedScheduledTotal(
+  transaction: DatabaseTransaction,
+  actor: ClassActor,
+  classId: string,
+  previousTotal: number,
+): Promise<void> {
+  const newTotal = await scheduledHoursTotal(transaction, classId);
+  if (!(newTotal > previousTotal)) return;
+  const active = await transaction
+    .select({ id: attendance.id, creditedHours: attendance.creditedHours })
+    .from(attendance)
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const following = participantsFollowingRaisedTotal(
+    active,
+    previousTotal,
+    newTotal,
+  );
+  for (const id of following) {
+    await transaction
+      .update(attendance)
+      .set({
+        creditedHours: String(newTotal),
+        creditAdjustmentReason: null,
+        creditAdjustedByUserId: null,
+        creditAdjustedAt: null,
+      })
+      .where(eq(attendance.id, id));
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "attendance.credit_followed_schedule",
+      entityType: "attendance",
+      entityId: id,
+      details: { classId, creditedHours: newTotal, previousTotal },
+    });
+  }
 }
 
 export async function saveClassComponent(
@@ -1110,6 +1176,7 @@ export async function saveClassComponent(
     ) {
       throw new Error("All class sessions must occur on one roster day.");
     }
+    const previousTotal = await scheduledHoursTotal(transaction, classId);
     const values = {
       classId,
       title: parsed.title || null,
@@ -1148,6 +1215,7 @@ export async function saveClassComponent(
       entityId: classId,
       details: { componentId: component.id },
     });
+    await carryRaisedScheduledTotal(transaction, actor, classId, previousTotal);
     return component;
   });
 }
@@ -1168,6 +1236,37 @@ export async function assignClassInstructor(
       .where(and(eq(users.id, userId), eq(users.isActive, true)))
       .limit(1);
     if (!activeUser) throw new Error("Select an active staff user.");
+    // Assigning the current lead as an assisting instructor must not leave the
+    // class without a lead.
+    if (!isLead) {
+      const [isCurrentLead] = await transaction
+        .select({ userId: classInstructors.userId })
+        .from(classInstructors)
+        .where(
+          and(
+            eq(classInstructors.classId, classId),
+            eq(classInstructors.userId, userId),
+            eq(classInstructors.isLead, true),
+          ),
+        )
+        .limit(1);
+      if (isCurrentLead) {
+        const leads = await transaction
+          .select({ userId: classInstructors.userId })
+          .from(classInstructors)
+          .where(
+            and(
+              eq(classInstructors.classId, classId),
+              eq(classInstructors.isLead, true),
+            ),
+          );
+        if (leads.length <= 1) {
+          throw new Error(
+            "That instructor is the class's lead. Assign another lead first.",
+          );
+        }
+      }
+    }
     if (await classSelectsFire(transaction, classId)) {
       await requireFireInstructorFfns(transaction, [
         ...(await assignedInstructorIds(transaction, classId)),
@@ -1194,6 +1293,71 @@ export async function assignClassInstructor(
       entityType: "class",
       entityId: classId,
       details: { userId, isLead },
+    });
+  });
+}
+
+export async function removeClassInstructor(
+  db: Database,
+  actor: ClassActor,
+  classId: string,
+  userId: string,
+): Promise<void> {
+  await db.transaction(async (transaction) => {
+    const classRecord = await requireClassAccess(transaction, actor, classId);
+    assertClassEditable(classRecord.status);
+    const [assignment] = await transaction
+      .select({ isLead: classInstructors.isLead })
+      .from(classInstructors)
+      .where(
+        and(
+          eq(classInstructors.classId, classId),
+          eq(classInstructors.userId, userId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!assignment) {
+      throw new Error("That instructor is not assigned to this class.");
+    }
+    // A class must keep a lead instructor; a Fire class must keep a fire one.
+    if (assignment.isLead) {
+      const leads = await transaction
+        .select({ userId: classInstructors.userId })
+        .from(classInstructors)
+        .where(
+          and(
+            eq(classInstructors.classId, classId),
+            eq(classInstructors.isLead, true),
+          ),
+        );
+      if (leads.length <= 1) {
+        throw new Error(
+          "Assign another lead instructor before removing the lead.",
+        );
+      }
+    }
+    await transaction
+      .delete(classInstructors)
+      .where(
+        and(
+          eq(classInstructors.classId, classId),
+          eq(classInstructors.userId, userId),
+        ),
+      );
+    if (await classSelectsFire(transaction, classId)) {
+      await requireFireInstructorFfns(
+        transaction,
+        await assignedInstructorIds(transaction, classId),
+      );
+    }
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.instructor.removed",
+      entityType: "class",
+      entityId: classId,
+      details: { userId },
     });
   });
 }

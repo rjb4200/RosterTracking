@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import type { MtuUsage } from "@/modules/classes/mtu";
+
 import { updateMtuUsageAction } from "./actions";
 import {
   type MtuCatalogOption,
@@ -10,6 +12,11 @@ import {
   mtuUsageValueFromDetail,
 } from "./mtu-usage-fields";
 
+/**
+ * The Mobile Training Unit supplies and equipment for the Confirm class step.
+ * Each usage group collapses; saving records the operational usage without
+ * changing the signed roster.
+ */
 export function MtuUsageForm({
   classId,
   usage,
@@ -37,7 +44,7 @@ export function MtuUsageForm({
         activeParticipants={activeParticipants}
       />
       <Button type="submit" variant="secondary" disabled={pending}>
-        Save MTU usage
+        Save supplies and equipment
       </Button>
       <p
         aria-live="polite"

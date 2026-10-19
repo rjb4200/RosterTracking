@@ -18,6 +18,7 @@ import {
   assignClassInstructor,
   createOpenClass,
   getClassPublicAccess,
+  removeClassInstructor,
   rotateClassSignInToken,
   saveClassComponent,
   transitionClass,
@@ -129,6 +130,9 @@ function draftValues(formData: FormData) {
     mtuSupplyItems: readMtuSelections(formData).supplies,
     mtuTransportIds: readMtuSelections(formData).transportIds,
     mtuTransportMileage: readMtuSelections(formData).transportMileage,
+    // Absent means the caller manages MTU (create and the edit form); only the
+    // review workspace's class card opts out.
+    mtuManaged: read(formData, "mtuManaged") !== "false",
   };
 }
 
@@ -342,6 +346,33 @@ export async function transitionClassAction(
   return { classId };
 }
 
+export async function removeInstructorAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await removeClassInstructor(
+      getDatabase(),
+      actor,
+      classId,
+      read(formData, "userId"),
+    );
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    revalidatePath(`/staff/classes/${classId}/edit`);
+    return { success: "Instructor removed." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not remove the instructor.",
+    };
+  }
+}
+
 export async function updateMtuUsageAction(
   _prev: ActionState | undefined,
   formData: FormData,
@@ -361,7 +392,6 @@ export async function updateMtuUsageAction(
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);
-    revalidatePath(`/staff/classes/${classId}/edit`);
     return { success: "MTU usage saved." };
   } catch (error) {
     return {
