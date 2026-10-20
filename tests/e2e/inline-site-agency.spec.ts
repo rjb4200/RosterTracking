@@ -24,7 +24,7 @@ async function reachClassStep(page: import("@playwright/test").Page) {
     .getByLabel("Course description or objectives")
     .fill("Review of EMT skills");
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(page.getByLabel("Delivery method")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
 }
 
 test("adds a site and an agency with details from the wizard popups", async ({

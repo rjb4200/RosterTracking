@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
+import { formatHours } from "@/modules/classes/time";
 import type { RosterRefreshPayload } from "@/modules/instructor-roster/refresh";
 
 import {
@@ -151,7 +152,7 @@ export function LiveRoster({
                   </span>
                 </div>
                 <Badge variant="outline">
-                  {entry.creditedHours ?? roster.scheduledHours} hours
+                  {formatHours(entry.creditedHours ?? roster.scheduledHours)}
                 </Badge>
                 {entry.corrections.length > 0 ? (
                   <CredentialCorrectionControl

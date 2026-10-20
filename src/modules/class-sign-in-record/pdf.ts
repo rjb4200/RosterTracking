@@ -1,5 +1,7 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
+import { deliveryMethodLabels } from "@/modules/classes/delivery-methods";
+import { formatHours } from "@/modules/classes/time";
 import { ATTENDANCE_ATTESTATION_VERSION } from "@/modules/student-sign-in/attendance";
 
 export interface ClassSignInRecordEntry {
@@ -102,7 +104,7 @@ function entryLines(row: SignInRow): EntryLine[] {
   const lines: EntryLine[] = [
     { text: `${entry.participantName}${suffix}`, size: 11, bold: true },
     {
-      text: `  ${entry.participantType} | ${entry.agencyName} | ${entry.signInMethod} | ${entry.creditedHours} hours`,
+      text: `  ${entry.participantType} | ${entry.agencyName} | ${entry.signInMethod} | ${formatHours(entry.creditedHours)}`,
       size: 9,
       bold: false,
     },
@@ -179,7 +181,7 @@ export async function renderClassSignInRecordPdf(
     line("Class sign-in record", 16, true);
     line(`${record.courseName}`, 12, true);
     line(
-      `Location: ${record.siteName ?? "Online"}   Delivery: ${record.deliveryMethod.replace("_", " ")}`,
+      `Location: ${record.siteName ?? "No site"}   Delivery: ${deliveryMethodLabels(record.deliveryMethod)}`,
     );
     line(`Host agency: ${record.hostAgencyName}`);
     line(

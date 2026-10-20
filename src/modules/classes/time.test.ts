@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateDepartmentEndTimeInput,
   formatDepartmentDateTimeInput,
+  formatHours,
   normalizeDepartmentStartTime,
   normalizeDepartmentStartTimeInput,
   parseDepartmentDateTime,
@@ -67,5 +68,13 @@ describe("department class times", () => {
     expect(normalizeDepartmentStartTime("2026-09-10T09:07").toISOString()).toBe(
       parseDepartmentDateTime("2026-09-10T09:00").toISOString(),
     );
+  });
+
+  it("formats hours as hours and minutes rather than decimals", () => {
+    expect(formatHours(3.5)).toBe("3h 30m");
+    expect(formatHours("3.50")).toBe("3h 30m");
+    expect(formatHours(4)).toBe("4h");
+    expect(formatHours(0.25)).toBe("15m");
+    expect(formatHours(0)).toBe("0m");
   });
 });

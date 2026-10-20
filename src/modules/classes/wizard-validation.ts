@@ -5,7 +5,7 @@ export interface WizardValidationInput {
   destinationCodes: string[];
   needsClassName: boolean;
   className: string;
-  needsSite: boolean;
+  deliveryMethod: string;
   trainingSiteId: string;
   startsAt: string;
   creditedHours: string;
@@ -84,10 +84,11 @@ export function wizardStepErrors(
   }
   if (key === "class") {
     if (input.needsClassName && !input.className) missing.push("className");
-    if (input.needsSite && !input.trainingSiteId)
-      missing.push("trainingSiteId");
+    if (!input.deliveryMethod.trim()) missing.push("deliveryMethod");
+    if (!input.trainingSiteId) missing.push("trainingSiteId");
     if (!input.startsAt) missing.push("startsAt");
-    if (!input.creditedHours) missing.push("creditedHours");
+    if (!input.creditedHours || Number(input.creditedHours) <= 0)
+      missing.push("creditedHours");
     if (!input.leadInstructorId) missing.push("leadInstructorId");
     if (!input.hostAgencyId) missing.push("hostAgencyId");
     return missing;

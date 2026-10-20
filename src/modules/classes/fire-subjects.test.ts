@@ -44,20 +44,33 @@ describe("fire subjects", () => {
     ).toBe(false);
   });
 
-  it("maps delivery methods to KFS-1A method codes", () => {
+  it("maps every delivery set to its KFS-1A method union", () => {
     expect(componentMethodsForDelivery("classroom")).toEqual(["cr"]);
     expect(componentMethodsForDelivery("hands_on")).toEqual(["ho"]);
     expect(componentMethodsForDelivery("online")).toEqual(["ol"]);
-    // Hybrid is taught partly in a classroom and partly online, so it marks
-    // both the CR and OL boxes.
+    expect(componentMethodsForDelivery("classroom,hands_on")).toEqual([
+      "cr",
+      "ho",
+    ]);
+    expect(componentMethodsForDelivery("hands_on,online")).toEqual([
+      "ho",
+      "ol",
+    ]);
+    expect(componentMethodsForDelivery("classroom,hands_on,online")).toEqual([
+      "cr",
+      "ho",
+      "ol",
+    ]);
+    // Legacy hybrid reads as classroom + online.
     expect(componentMethodsForDelivery("hybrid")).toEqual(["cr", "ol"]);
     expect(componentMethodsForDelivery("unknown")).toEqual([]);
   });
 
-  it("stores the mapped method for a delivery method", () => {
+  it("stores the canonical method set for a delivery set", () => {
     expect(defaultComponentMethod("classroom")).toBe("cr");
     expect(defaultComponentMethod("hands_on")).toBe("ho");
     expect(defaultComponentMethod("online")).toBe("ol");
+    expect(defaultComponentMethod("classroom,hands_on")).toBe("cr,ho");
     expect(defaultComponentMethod("hybrid")).toBe("cr,ol");
     expect(defaultComponentMethod("unknown")).toBeNull();
   });

@@ -106,13 +106,9 @@ function draftValues(formData: FormData) {
     .map((value) => value.toString());
   return {
     name: read(formData, "name"),
-    trainingSiteId: site || null,
+    trainingSiteId: site,
     hostAgencyId: read(formData, "hostAgencyId"),
-    deliveryMethod: read(formData, "deliveryMethod") as
-      | "classroom"
-      | "hands_on"
-      | "online"
-      | "hybrid",
+    deliveryMethod: read(formData, "deliveryMethod"),
     reportingSystemIds,
     accessPinEnabled: read(formData, "accessPinEnabled") === "on",
     objectives: read(formData, "objectives"),
@@ -279,7 +275,7 @@ export async function saveComponentAction(
       curriculumName: read(formData, "curriculumName"),
       curriculumChapter: read(formData, "curriculumChapter"),
       lessonPlan: read(formData, "lessonPlan"),
-      method: read(formData, "method") as "" | "cr" | "ho" | "ol" | "cr,ol",
+      method: read(formData, "method"),
     });
     revalidatePath(`/staff/classes/${classId}`);
     return { classId };

@@ -143,3 +143,19 @@ export function calculateDepartmentEndTimeInput(
     ),
   );
 }
+
+/**
+ * Formats quarter-step hours for people: "3h 30m", "4h", or "45m". Hours are
+ * stored as decimals (0.25 = 15 minutes); the interface never shows them that
+ * way. Minutes are derived from whole minutes to avoid floating-point drift.
+ */
+export function formatHours(hours: number | string | null | undefined): string {
+  const value = Number(hours ?? 0);
+  if (!Number.isFinite(value)) return "";
+  const totalMinutes = Math.max(0, Math.round(value * 60));
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (wholeHours > 0 && minutes > 0) return `${wholeHours}h ${minutes}m`;
+  if (wholeHours > 0) return `${wholeHours}h`;
+  return `${minutes}m`;
+}

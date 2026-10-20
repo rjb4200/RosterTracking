@@ -28,7 +28,7 @@ function ClassCard({ classRecord }: { classRecord: OperationalClass }) {
       <div className="operational-class-heading">
         <div>
           <h3>{classRecord.courseName}</h3>
-          <p>{classRecord.siteName ?? "Virtual"}</p>
+          <p>{classRecord.siteName ?? "No site"}</p>
         </div>
         <Badge variant={classRecord.isOverdue ? "destructive" : "secondary"}>
           {classRecord.isOverdue ? "Overdue" : classRecord.status}

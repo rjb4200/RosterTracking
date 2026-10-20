@@ -132,7 +132,7 @@ export async function renderClassAuditLogPdf(
 
     line("Class audit log", 16, true);
     line(log.className || "Class", 12, true);
-    line(`Location: ${log.siteName ?? "Online"}`);
+    line(`Location: ${log.siteName ?? "No site"}`);
     line(`Status: ${log.status}`);
     line(
       `Generated: ${formatDepartmentDateTime(log.generatedAt)}   Page ${pageIndex + 1} of ${pageGroups.length}`,

@@ -18,6 +18,11 @@ function Status({ state }: { state: RosterActionState | undefined }) {
   );
 }
 
+/**
+ * Credit adjustment in hours and minutes. Class hours move in quarter-hour
+ * steps, so the minutes menu offers only 00/15/30/45 and never exceeds the
+ * class scheduled total. The submitted value stays the stored decimal.
+ */
 export function AttendanceControls({
   classId,
   attendanceId,
@@ -32,6 +37,24 @@ export function AttendanceControls({
   const [state, action, pending] = useActionState(rosterAction, undefined);
   const [confirming, setConfirming] = useState(false);
   const [reasonPreset, setReasonPreset] = useState("");
+  const totalMinutes = Math.max(0, Math.round(scheduledHours * 60));
+  const initialMinutes =
+    creditedHours === null
+      ? totalMinutes
+      : Math.min(
+          totalMinutes,
+          Math.max(0, Math.round(Number(creditedHours) * 60)),
+        );
+  const [creditMinutes, setCreditMinutes] = useState(initialMinutes);
+  const selectedHours = Math.floor(creditMinutes / 60);
+  const selectedMinute = creditMinutes % 60;
+  const hourOptions = Array.from(
+    { length: Math.floor(totalMinutes / 60) + 1 },
+    (_, index) => index,
+  );
+  const minuteOptions = [0, 15, 30, 45].filter(
+    (minute) => selectedHours * 60 + minute <= totalMinutes,
+  );
   return (
     <div className="roster-entry-controls">
       <Status state={state} />
@@ -39,18 +62,49 @@ export function AttendanceControls({
         <input type="hidden" name="classId" value={classId} />
         <input type="hidden" name="attendanceId" value={attendanceId} />
         <input type="hidden" name="operation" value="credit" />
+        <input
+          type="hidden"
+          name="creditedHours"
+          value={String(creditMinutes / 60)}
+        />
         <label>
-          Credit{" "}
-          <input
-            className="search-input credit-input"
-            name="creditedHours"
-            type="number"
-            min="0"
-            max={scheduledHours}
-            step="0.01"
-            defaultValue={creditedHours ?? scheduledHours}
-            required
-          />
+          Hours{" "}
+          <select
+            className="select-input"
+            aria-label="Hours"
+            value={selectedHours}
+            onChange={(event) => {
+              const hours = Number(event.target.value);
+              const minute =
+                hours * 60 + selectedMinute <= totalMinutes
+                  ? selectedMinute
+                  : 0;
+              setCreditMinutes(hours * 60 + minute);
+            }}
+          >
+            {hourOptions.map((hour) => (
+              <option key={hour} value={hour}>
+                {hour}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Minutes{" "}
+          <select
+            className="select-input"
+            aria-label="Minutes"
+            value={selectedMinute}
+            onChange={(event) =>
+              setCreditMinutes(selectedHours * 60 + Number(event.target.value))
+            }
+          >
+            {minuteOptions.map((minute) => (
+              <option key={minute} value={minute}>
+                {String(minute).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Adjustment reason

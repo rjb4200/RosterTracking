@@ -16,6 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  DELIVERY_METHOD_ORDER,
+  deliveryMethodLabel,
+  deliveryMethodLabels,
+} from "@/modules/classes/delivery-methods";
+import {
   buildWizardSteps,
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
@@ -24,6 +29,7 @@ import {
   normalizeInitialCertNumber,
 } from "@/modules/classes/initial-cert-code";
 import {
+  formatHours,
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
@@ -40,6 +46,7 @@ import type {
   CreateAgencyActionState,
   CreateSiteActionState,
 } from "./actions";
+import { DurationFields } from "./duration-fields";
 import {
   type CurriculumChapterOption,
   FireSubjectRow,
@@ -138,7 +145,7 @@ export function ClassCreationWizard({
     emsCategoryId: "",
     trainingSiteId: "",
     hostAgencyId: "",
-    deliveryMethod: "classroom",
+    deliveryMethods: ["classroom"],
     startsAt: roundDepartmentDateTimeToQuarterHour(new Date()),
     creditedHours: "2",
     leadInstructorId: defaultLeadInstructorId,
@@ -214,7 +221,6 @@ export function ClassCreationWizard({
       group: "All sites",
     })),
   ];
-  const needsSite = values.deliveryMethod !== "online";
   // MTU now requires Fire or KBEMS, so every class has a destination-derived
   // name; the entered-name fallback is no longer reachable.
   const needsClassName = false;
@@ -236,6 +242,15 @@ export function ClassCreationWizard({
     value: (typeof values)[K],
   ) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function toggleDeliveryMethod(method: string, selected: boolean) {
+    update(
+      "deliveryMethods",
+      selected
+        ? [...new Set([...values.deliveryMethods, method])]
+        : values.deliveryMethods.filter((value) => value !== method),
+    );
   }
 
   const fireSelected = selectedCodes.includes("fire");
@@ -356,7 +371,7 @@ export function ClassCreationWizard({
     destinationCodes: selectedCodes,
     needsClassName,
     className: values.className,
-    needsSite,
+    deliveryMethod: values.deliveryMethods.join(","),
     trainingSiteId: values.trainingSiteId,
     startsAt: values.startsAt,
     creditedHours: values.creditedHours,
@@ -684,69 +699,71 @@ export function ClassCreationWizard({
               />
             </div>
           ) : null}
-          <div className="field">
-            <Label htmlFor="deliveryMethod">Delivery method</Label>
-            <select
-              id="deliveryMethod"
-              className="select-input"
-              value={values.deliveryMethod}
-              onChange={(event) => update("deliveryMethod", event.target.value)}
-            >
-              <option value="classroom">Classroom</option>
-              <option value="hands_on">Hands-On</option>
-              <option value="online">Online</option>
-              <option value="hybrid">Hybrid</option>
-            </select>
-          </div>
-          {needsSite ? (
-            <>
-              <SearchSelect
-                id="trainingSiteId"
-                label="Training site"
-                placeholder="Search training sites…"
-                emptyLabel="Select a site"
-                required
-                invalid={errors.includes("trainingSiteId")}
-                options={siteSearchOptions}
-                value={values.trainingSiteId}
-                onChange={(nextId) => update("trainingSiteId", nextId)}
-              />
-              {canCreateSite ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSiteDialogOpen(true)}
-                >
-                  Add a new site
-                </Button>
-              ) : null}
-              <Dialog open={siteDialogOpen} onOpenChange={setSiteDialogOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add a training site</DialogTitle>
-                    <DialogDescription>
-                      Enter the site's details. Only the name is required.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <SiteForm
-                    action={createSiteAction}
-                    submitLabel="Add site"
-                    onCreated={(site) => {
-                      setSiteOptions((current) =>
-                        current.some((existing) => existing.id === site.id)
-                          ? current
-                          : [...current, site].sort((a, b) =>
-                              a.name.localeCompare(b.name),
-                            ),
-                      );
-                      update("trainingSiteId", site.id);
-                      setSiteDialogOpen(false);
-                    }}
+          <div className="field field-wide">
+            <span className="field-label">Delivery method</span>
+            <div className="checkbox-list">
+              {DELIVERY_METHOD_ORDER.map((method) => (
+                <Label key={method} className="checkbox-field">
+                  <Input
+                    type="checkbox"
+                    checked={values.deliveryMethods.includes(method)}
+                    onChange={(event) =>
+                      toggleDeliveryMethod(method, event.target.checked)
+                    }
                   />
-                </DialogContent>
-              </Dialog>
-            </>
+                  {deliveryMethodLabel(method)}
+                </Label>
+              ))}
+            </div>
+            {errors.includes("deliveryMethod") ? (
+              <p className="form-error">Select at least one delivery method.</p>
+            ) : null}
+          </div>
+          <SearchSelect
+            id="trainingSiteId"
+            label="Training site"
+            placeholder="Search training sites…"
+            emptyLabel="Select a site"
+            required
+            invalid={errors.includes("trainingSiteId")}
+            options={siteSearchOptions}
+            value={values.trainingSiteId}
+            onChange={(nextId) => update("trainingSiteId", nextId)}
+          />
+          {canCreateSite ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSiteDialogOpen(true)}
+            >
+              Add a new site
+            </Button>
           ) : null}
+          <Dialog open={siteDialogOpen} onOpenChange={setSiteDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add a training site</DialogTitle>
+                <DialogDescription>
+                  Enter the site's details. Only the name is required.
+                </DialogDescription>
+              </DialogHeader>
+              <SiteForm
+                action={createSiteAction}
+                submitLabel="Add site"
+                onCreated={(site) => {
+                  setSiteOptions((current) =>
+                    current.some((existing) => existing.id === site.id)
+                      ? current
+                      : [...current, site].sort((a, b) =>
+                          a.name.localeCompare(b.name),
+                        ),
+                  );
+                  update("trainingSiteId", site.id);
+                  setSiteDialogOpen(false);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
           <div className="field">
             <Label htmlFor="hostAgencyId">
               Host agency
@@ -835,27 +852,14 @@ export function ClassCreationWizard({
                 required
               />
             </div>
-            <div className="field">
-              <Label htmlFor="creditedHours">
-                Scheduled duration (hours)
-                <span className="required-mark" aria-hidden="true">
-                  {" "}
-                  *
-                </span>
-              </Label>
-              <Input
-                id="creditedHours"
-                type="number"
-                min="0.25"
-                step="0.25"
-                value={values.creditedHours}
-                onChange={(event) =>
-                  update("creditedHours", event.target.value)
-                }
-                aria-invalid={errors.includes("creditedHours") || undefined}
-                required
-              />
-            </div>
+            <DurationFields
+              fieldLabel="Scheduled duration"
+              value={values.creditedHours}
+              onChange={(next) => update("creditedHours", next)}
+            />
+            {errors.includes("creditedHours") ? (
+              <p className="form-error">Choose a duration greater than zero.</p>
+            ) : null}
             <div className="field">
               <Label htmlFor="leadInstructorId">
                 Lead instructor
@@ -919,13 +923,13 @@ export function ClassCreationWizard({
             <dt>Class name</dt>
             <dd>{resolvedClassName || "Not provided"}</dd>
             <dt>Training site</dt>
-            <dd>{selectedSite?.name ?? "Online"}</dd>
+            <dd>{selectedSite?.name ?? "No site"}</dd>
             <dt>Schedule</dt>
             <dd>
-              {values.startsAt} for {values.creditedHours} hours
+              {values.startsAt} for {formatHours(values.creditedHours)}
             </dd>
             <dt>Delivery</dt>
-            <dd>{values.deliveryMethod.replace("_", " ")}</dd>
+            <dd>{deliveryMethodLabels(values.deliveryMethods.join(","))}</dd>
             <dt>Host agency</dt>
             <dd>{selectedAgency?.name ?? "Not selected"}</dd>
             <dt>Lead instructor</dt>
@@ -987,7 +991,7 @@ export function ClassCreationWizard({
       <input
         type="hidden"
         name="deliveryMethod"
-        value={values.deliveryMethod}
+        value={values.deliveryMethods.join(",")}
       />
       <input type="hidden" name="startsAt" value={values.startsAt} />
       <input type="hidden" name="creditedHours" value={values.creditedHours} />

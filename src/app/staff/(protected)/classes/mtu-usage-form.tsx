@@ -2,7 +2,6 @@
 
 import { useActionState, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import type { MtuUsage } from "@/modules/classes/mtu";
 
 import { updateMtuUsageAction } from "./actions";
@@ -11,11 +10,14 @@ import {
   MtuUsageFields,
   mtuUsageValueFromDetail,
 } from "./mtu-usage-fields";
+import { useAreaForm, useCloseOnSaved, useWorkspace } from "./workspace-areas";
+
+const FORM_ID = "mtu-usage-form";
 
 /**
- * The Mobile Training Unit supplies and equipment for the Confirm class step.
- * Each usage group collapses; saving records the operational usage without
- * changing the signed roster.
+ * The Mobile Training Unit supplies and equipment for the post-class workspace.
+ * Its submit lives in the area header; saving records the operational usage
+ * without changing the signed roster.
  */
 export function MtuUsageForm({
   classId,
@@ -32,9 +34,18 @@ export function MtuUsageForm({
     updateMtuUsageAction,
     undefined,
   );
+  const { setDirty } = useWorkspace();
+  useAreaForm(FORM_ID);
+  useCloseOnSaved(state?.success);
   const [value, setValue] = useState(() => mtuUsageValueFromDetail(usage));
   return (
-    <form action={action} className="stack-form" aria-label="MTU usage">
+    <form
+      action={action}
+      className="stack-form"
+      id={FORM_ID}
+      aria-label="MTU usage"
+      onChange={() => setDirty(true)}
+    >
       <input type="hidden" name="classId" value={classId} />
       <MtuUsageFields
         catalog={mtuCatalog}
@@ -43,15 +54,17 @@ export function MtuUsageForm({
         onChange={setValue}
         activeParticipants={activeParticipants}
       />
-      <Button type="submit" variant="secondary" disabled={pending}>
-        Save supplies and equipment
-      </Button>
       <p
         aria-live="polite"
         className={state?.error ? "form-error" : "form-success"}
       >
         {state?.error ?? state?.success}
       </p>
+      {pending ? (
+        <p className="roster-note" aria-live="polite">
+          Saving...
+        </p>
+      ) : null}
     </form>
   );
 }

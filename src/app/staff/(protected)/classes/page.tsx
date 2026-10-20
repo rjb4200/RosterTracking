@@ -18,6 +18,7 @@ import {
   type ClassStatus,
   getClassStatusTone,
 } from "@/modules/classes/constants";
+import { deliveryMethodLabels } from "@/modules/classes/delivery-methods";
 import {
   CLASS_LIST_DEFAULT_LOOKBACK_DAYS,
   CLASS_LIST_FINALIZED_GRACE_DAYS,
@@ -112,9 +113,9 @@ function ClassTable({
                 {classRecord.courseName}
               </Link>
             </TableCell>
-            <TableCell>{classRecord.siteName ?? "Virtual"}</TableCell>
+            <TableCell>{classRecord.siteName ?? "No site"}</TableCell>
             <TableCell>
-              {classRecord.deliveryMethod.replace("_", " ")}
+              {deliveryMethodLabels(classRecord.deliveryMethod)}
             </TableCell>
             <TableCell>
               <span className="class-status-cell">

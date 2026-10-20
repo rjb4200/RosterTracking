@@ -1,17 +1,4 @@
-import {
-  CLASS_DELIVERY_METHODS,
-  CLASS_STATUSES,
-  type ClassStatus,
-} from "./constants";
-
-export function validateDeliverySite(
-  deliveryMethod: string,
-  trainingSiteId: string | null,
-): void {
-  if (deliveryMethod !== CLASS_DELIVERY_METHODS.ONLINE && !trainingSiteId) {
-    throw new Error("A training site is required for this delivery method.");
-  }
-}
+import { CLASS_STATUSES, type ClassStatus } from "./constants";
 
 export function validateComponentRange(
   startsAt: Date,

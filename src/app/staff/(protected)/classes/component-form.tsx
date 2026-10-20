@@ -5,6 +5,11 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  KFS_METHOD_CODES,
+  kfsMethodLabel,
+  parseComponentMethod,
+} from "@/modules/classes/delivery-methods";
 import { chapterLabel } from "@/modules/classes/fire-subjects";
 import {
   calculateDepartmentEndTimeInput,
@@ -14,13 +19,18 @@ import {
 
 import type { ActionState } from "./actions";
 import { CurriculumSelect } from "./curriculum-select";
+import { DurationFields } from "./duration-fields";
 import type { CurriculumChapterOption } from "./fire-subject-fields";
+import { useAreaForm, useCloseOnSaved, useWorkspace } from "./workspace-areas";
 
 export function ComponentForm({
   classId,
   action,
   component,
   defaultStartsAt,
+  defaultMethod,
+  formId,
+  hideSubmit = false,
   trainingCodes = [],
   trainingCodeKind,
   curricula = [],
@@ -42,6 +52,9 @@ export function ComponentForm({
     method?: string | null;
   };
   defaultStartsAt?: string;
+  defaultMethod?: string | null;
+  formId?: string;
+  hideSubmit?: boolean;
   trainingCodes?: Array<{
     id: string;
     code: string;
@@ -63,6 +76,9 @@ export function ComponentForm({
   ) => Promise<ActionState>;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const { setDirty } = useWorkspace();
+  useAreaForm(formId);
+  useCloseOnSaved(state?.classId);
   const suffix = component?.id ?? "new";
   const categoryOptions = trainingCodeKind
     ? trainingCodes.filter((code) => code.kind === trainingCodeKind)
@@ -72,6 +88,9 @@ export function ComponentForm({
   );
   const [creditedHours, setCreditedHours] = useState(
     component?.creditedHours ?? "2.00",
+  );
+  const [methods, setMethods] = useState(() =>
+    parseComponentMethod(component?.method ?? defaultMethod),
   );
   const [curriculumId, setCurriculumId] = useState(
     component?.curriculumId ?? "",
@@ -93,7 +112,12 @@ export function ComponentForm({
       ? calculateDepartmentEndTimeInput(startsAt, Number(creditedHours))
       : "";
   return (
-    <form action={formAction} className="stack-form component-form">
+    <form
+      action={formAction}
+      className="stack-form component-form"
+      id={formId}
+      onChange={() => setDirty(true)}
+    >
       <input type="hidden" name="classId" value={classId} />
       {component ? (
         <input type="hidden" name="id" value={component.id} />
@@ -107,19 +131,13 @@ export function ComponentForm({
             defaultValue={component?.title ?? ""}
           />
         </div>
-        <div className="field">
-          <Label htmlFor={`creditedHours-${suffix}`}>Credited hours</Label>
-          <Input
-            id={`creditedHours-${suffix}`}
-            name="creditedHours"
-            type="number"
-            step="0.25"
-            min="0.25"
-            value={creditedHours}
-            onChange={(event) => setCreditedHours(event.target.value)}
-            required
-          />
-        </div>
+        <DurationFields
+          fieldLabel="Credited hours"
+          ariaPrefix="Credited"
+          value={creditedHours}
+          onChange={setCreditedHours}
+          name="creditedHours"
+        />
         <div className="field">
           <Label htmlFor={`startsAt-${suffix}`}>Starts</Label>
           <Input
@@ -207,19 +225,29 @@ export function ComponentForm({
           ) : null}
         </div>
         <div className="field">
-          <Label htmlFor={`method-${suffix}`}>Method</Label>
-          <select
-            id={`method-${suffix}`}
-            name="method"
-            className="select-input"
-            defaultValue={component?.method ?? ""}
-          >
-            <option value="">No method</option>
-            <option value="cr">Classroom (CR)</option>
-            <option value="ho">Hands-on (HO)</option>
-            <option value="ol">Online (OL)</option>
-            <option value="cr,ol">Hybrid (CR + OL)</option>
-          </select>
+          <span className="field-label">Method</span>
+          <div className="checkbox-list">
+            {KFS_METHOD_CODES.map((code) => (
+              <Label key={code} className="checkbox-field">
+                <Input
+                  type="checkbox"
+                  checked={methods.includes(code)}
+                  onChange={(event) =>
+                    setMethods((current) =>
+                      event.target.checked
+                        ? [...new Set([...current, code])]
+                        : current.filter((value) => value !== code),
+                    )
+                  }
+                />
+                {kfsMethodLabel(code)}
+              </Label>
+            ))}
+          </div>
+          <input type="hidden" name="method" value={methods.join(",")} />
+          {methods.length === 0 ? (
+            <p className="form-error">Select at least one method.</p>
+          ) : null}
         </div>
         <div className="field field-wide">
           <Label htmlFor={`lessonPlan-${suffix}`}>Lesson plan</Label>
@@ -233,9 +261,17 @@ export function ComponentForm({
         </div>
       </div>
       {state?.error ? <p className="form-error">{state.error}</p> : null}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving..." : component ? "Update session" : "Add session"}
-      </Button>
+      {hideSubmit ? (
+        pending ? (
+          <p className="roster-note" aria-live="polite">
+            Saving...
+          </p>
+        ) : null
+      ) : (
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving..." : component ? "Update session" : "Add session"}
+        </Button>
+      )}
     </form>
   );
 }

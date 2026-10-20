@@ -1,5 +1,9 @@
+import {
+  deliveryMethodLabels,
+  deliveryMethodsFromComponentMethods,
+} from "@/modules/classes/delivery-methods";
 import type { getClassDetail } from "@/modules/classes/services";
-import { formatDepartmentDateTime } from "@/modules/classes/time";
+import { formatDepartmentDateTime, formatHours } from "@/modules/classes/time";
 
 export function ClassSummary({
   classRecord,
@@ -11,9 +15,15 @@ export function ClassSummary({
       <dt>Class name</dt>
       <dd>{classRecord.name ?? "Not set"}</dd>
       <dt>Training site</dt>
-      <dd>{classRecord.site?.name ?? "Online"}</dd>
+      <dd>{classRecord.site?.name ?? "No site"}</dd>
       <dt>Delivery</dt>
-      <dd>{classRecord.deliveryMethod.replace("_", " ")}</dd>
+      <dd>
+        {deliveryMethodLabels(
+          deliveryMethodsFromComponentMethods(
+            classRecord.components.map((component) => component.method),
+          ) || classRecord.deliveryMethod,
+        )}
+      </dd>
       <dt>Host agency</dt>
       <dd>{classRecord.hostAgency?.name ?? "Not set"}</dd>
       <dt>Reporting systems</dt>
@@ -43,7 +53,7 @@ export function ClassSummary({
           : classRecord.components
               .map(
                 (component) =>
-                  `${formatDepartmentDateTime(component.startsAt)} (${component.creditedHours}h)`,
+                  `${formatDepartmentDateTime(component.startsAt)} (${formatHours(component.creditedHours)})`,
               )
               .join(", ")}
       </dd>

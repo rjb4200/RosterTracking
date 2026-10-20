@@ -5,12 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import {
+  componentMethodLabels,
+  defaultComponentMethod,
+} from "@/modules/classes/delivery-methods";
+import {
   getClassDetail,
   listClassFormOptions,
 } from "@/modules/classes/services";
 import {
   formatDepartmentDateTime,
   formatDepartmentDateTimeInput,
+  formatHours,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
@@ -105,10 +110,18 @@ export default async function EditClassPage({
                 {formatDepartmentDateTime(component.startsAt)} to{" "}
                 {formatDepartmentDateTime(component.endsAt)}
               </span>
-              <Badge variant="outline">{component.creditedHours} hours</Badge>
+              <span>
+                {componentMethodLabels(component.method) || "No method"}
+              </span>
+              <Badge variant="outline">
+                {formatHours(component.creditedHours)}
+              </Badge>
               <ComponentForm
                 classId={classRecord.id}
                 action={saveComponentAction}
+                defaultMethod={defaultComponentMethod(
+                  classRecord.deliveryMethod,
+                )}
                 trainingCodes={options.trainingCodes}
                 trainingCodeKind={componentKind}
                 curricula={options.curricula}
@@ -135,6 +148,7 @@ export default async function EditClassPage({
           classId={classRecord.id}
           action={saveComponentAction}
           defaultStartsAt={newSessionStartsAt}
+          defaultMethod={defaultComponentMethod(classRecord.deliveryMethod)}
           trainingCodes={options.trainingCodes}
           trainingCodeKind={componentKind}
           curricula={options.curricula}

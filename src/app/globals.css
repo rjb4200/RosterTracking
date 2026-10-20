@@ -1122,6 +1122,14 @@ h1 {
   font-size: 0.9rem;
 }
 
+.workspace-area-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .workspace-area-toggle {
   flex: none;
   border: 1px solid var(--line);
@@ -1143,6 +1151,61 @@ h1 {
   text-decoration: underline;
   cursor: pointer;
   font: inherit;
+}
+
+.workspace-area-review {
+  margin-top: 0.75rem;
+}
+
+.mtu-review {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+
+.mtu-review dt {
+  font-weight: 600;
+}
+
+.mtu-review dd {
+  margin: 0;
+}
+
+.mtu-review-list {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mtu-review-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.mtu-review-marker {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.workspace-advisory {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--signal-dark);
+  background: #fffbeb;
+}
+
+.roster-attention-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: var(--signal-dark);
 }
 
 .operational-class-heading,
@@ -1394,12 +1457,25 @@ h1 {
   gap: 0.45rem;
 }
 
-.field label {
+.field label,
+.field-label {
   color: var(--steel);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.duration-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.duration-fields label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .required-mark {
@@ -1513,6 +1589,11 @@ h1 {
 
 .member-row:last-child {
   border-bottom: 1px solid var(--line);
+}
+
+.member-row.is-editing {
+  border-left: 3px solid var(--signal-dark);
+  padding-left: 0.65rem;
 }
 
 .checkbox-list {

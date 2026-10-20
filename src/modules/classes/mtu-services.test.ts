@@ -29,6 +29,7 @@ const actor = {
   username: "instructor",
 };
 const agency = "00000000-0000-4000-8000-000000000006";
+const site = "00000000-0000-4000-8000-000000000008";
 const system = "00000000-0000-4000-8000-000000000007";
 const catalog = [
   {
@@ -55,6 +56,7 @@ const catalog = [
 ];
 const draft = {
   name: "MTU",
+  trainingSiteId: site,
   deliveryMethod: "online" as const,
   hostAgencyId: agency,
   reportingSystemIds: [system],
@@ -118,6 +120,7 @@ function fixture(reads: unknown[][]) {
 function creationReads() {
   return [
     [{ id: agency }],
+    [{ id: site }],
     [{ id: system }],
     [{ code: "fire" }],
     [],
@@ -166,6 +169,7 @@ describe("per-transport mileage services", () => {
       [{ id: classId, status: "open", createdByUserId: actor.id }],
       [],
       [{ id: agency }],
+      [{ id: site }],
       [{ id: system }],
       [{ code: "fire" }],
       [],

@@ -40,10 +40,9 @@ export const trainingClasses = pgTable(
     // The class's name: the EMS course name, the first Fire subject's class
     // name, or a name entered when neither Fire nor KBEMS is selected.
     name: text("name"),
-    trainingSiteId: uuid("training_site_id").references(
-      () => trainingSites.id,
-      { onDelete: "restrict" },
-    ),
+    trainingSiteId: uuid("training_site_id")
+      .notNull()
+      .references(() => trainingSites.id, { onDelete: "restrict" }),
     hostAgencyId: uuid("host_agency_id")
       .notNull()
       .references(() => agencies.id, {
@@ -96,7 +95,8 @@ export const trainingClasses = pgTable(
     ),
     check(
       "classes_delivery_method",
-      sql`${table.deliveryMethod} in ('classroom', 'hands_on', 'online', 'hybrid')`,
+      // A canonical, non-empty set in the order classroom,hands_on,online.
+      sql`${table.deliveryMethod} ~ '^(classroom(,hands_on)?(,online)?|hands_on(,online)?|online)$'`,
     ),
     check(
       "classes_course_type",
@@ -105,10 +105,6 @@ export const trainingClasses = pgTable(
     check(
       "classes_status",
       sql`${table.status} in ('open', 'finalized', 'cancelled')`,
-    ),
-    check(
-      "classes_site_required",
-      sql`${table.deliveryMethod} = 'online' or ${table.trainingSiteId} is not null`,
     ),
     check(
       "classes_cancellation_reason",
@@ -163,8 +159,8 @@ export const classComponents = pgTable(
     check("class_components_hours_positive", sql`${table.creditedHours} > 0`),
     check(
       "class_components_method",
-      // Hybrid delivery marks both CR and OL, stored as "cr,ol".
-      sql`${table.method} is null or ${table.method} in ('cr', 'ho', 'ol', 'cr,ol')`,
+      // Any non-empty canonical subset of cr,ho,ol; null for no method.
+      sql`${table.method} is null or ${table.method} ~ '^(cr(,ho)?(,ol)?|ho(,ol)?|ol)$'`,
     ),
   ],
 );

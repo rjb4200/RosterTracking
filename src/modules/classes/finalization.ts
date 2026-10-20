@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { buildClassSignInRecord } from "@/modules/class-sign-in-record/service";
+import { deliveryMethodsFromComponentMethods } from "@/modules/classes/delivery-methods";
 import {
   queueCertificateDeliveries,
   revisionReportsToKbems,
@@ -470,7 +471,10 @@ export async function finalizeClass(
       courseName: snapshot.class.courseName,
       siteName: snapshot.class.siteName,
       hostAgencyName: snapshot.attendance[0]?.agencyName ?? "",
-      deliveryMethod: snapshot.class.deliveryMethod,
+      deliveryMethod:
+        deliveryMethodsFromComponentMethods(
+          snapshot.components.map((component) => component.method),
+        ) || snapshot.class.deliveryMethod,
       generatedAt: new Date(),
     });
     const [revision] = await transaction

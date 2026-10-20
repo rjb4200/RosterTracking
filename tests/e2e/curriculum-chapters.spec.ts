@@ -74,5 +74,5 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
     .getByLabel("Chapter")
     .fill("Firefighter I: Chapter 3. Communications");
   await next.click();
-  await expect(page.getByLabel("Delivery method")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
 });

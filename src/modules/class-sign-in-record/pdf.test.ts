@@ -43,7 +43,7 @@ function record(count: number, withAttestation: boolean): ClassSignInRecord {
     courseName: "Hazardous Materials Operations",
     siteName: "Station 1",
     hostAgencyName: "Winchester Fire",
-    deliveryMethod: "in_person",
+    deliveryMethod: "classroom",
     generatedAt: new Date("2026-09-05T14:00:00.000Z"),
     active: Array.from({ length: count }, (_, index) =>
       entry(index, withAttestation),
