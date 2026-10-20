@@ -91,6 +91,8 @@ export function ClassCreationWizard({
   defaultTeiNumber,
   recentInitialCertNumbers,
   defaultLeadInstructorId,
+  defaultTrainingSiteId,
+  defaultHostAgencyId,
   canCreateSite,
   canCreateAgency,
 }: {
@@ -138,6 +140,8 @@ export function ClassCreationWizard({
   defaultTeiNumber: string;
   recentInitialCertNumbers: string[];
   defaultLeadInstructorId: string;
+  defaultTrainingSiteId: string | null;
+  defaultHostAgencyId: string | null;
   canCreateSite: boolean;
   canCreateAgency: boolean;
 }) {
@@ -151,8 +155,8 @@ export function ClassCreationWizard({
     className: "",
     kbemsCourseName: "",
     emsCategoryId: "",
-    trainingSiteId: "",
-    hostAgencyId: "",
+    trainingSiteId: defaultTrainingSiteId ?? "",
+    hostAgencyId: defaultHostAgencyId ?? "",
     deliveryMethods: ["classroom"],
     startsAt: roundDepartmentDateTimeToQuarterHour(new Date()),
     creditedHours: "2",

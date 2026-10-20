@@ -21,6 +21,9 @@ export function AgencyForm({
   tags,
   values,
   onCreated,
+  canSetDefault = false,
+  currentDefaultName = null,
+  isCurrentDefault = false,
 }: {
   action: (
     prev: { error?: string } | undefined,
@@ -43,10 +46,17 @@ export function AgencyForm({
     trainingCoordinatorEmail?: string | null;
     tagIds: string[];
     otherSubtype: string | null;
+    isActive: boolean;
+    isDefault: boolean;
   };
   onCreated?: (agency: { id: string; name: string }) => void;
+  canSetDefault?: boolean;
+  currentDefaultName?: string | null;
+  isCurrentDefault?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const [isDefault, setIsDefault] = useState(values?.isDefault ?? false);
+  const defaultDisabled = Boolean(values && !values.isActive);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     () => values?.tagIds ?? [],
   );
@@ -191,6 +201,37 @@ export function AgencyForm({
           </div>
         ) : null}
       </div>
+      {canSetDefault ? (
+        <fieldset className="field field-wide">
+          <legend>Class default</legend>
+          <Label className="checkbox-field">
+            <Input
+              type="checkbox"
+              name="isDefault"
+              checked={isDefault}
+              disabled={defaultDisabled}
+              onChange={(event) => setIsDefault(event.target.checked)}
+            />
+            Default host agency for new classes
+          </Label>
+          {defaultDisabled ? (
+            <p className="text-muted-foreground">
+              Reactivate this agency before making it the default.
+            </p>
+          ) : null}
+          {isDefault && currentDefaultName && !isCurrentDefault ? (
+            <p className="text-muted-foreground" role="status">
+              Saving will replace {currentDefaultName} as the default host
+              agency.
+            </p>
+          ) : null}
+          {!isDefault && isCurrentDefault ? (
+            <p className="text-muted-foreground" role="status">
+              Saving will leave new classes without a default host agency.
+            </p>
+          ) : null}
+        </fieldset>
+      ) : null}
       {state?.error ? (
         <p className="form-error" role="alert">
           {state.error}

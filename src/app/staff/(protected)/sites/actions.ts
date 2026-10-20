@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import * as reference from "@/modules/reference/services";
+import { requirePermission } from "@/modules/staff-auth/authorization";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
 export interface ActionState {
@@ -20,10 +22,14 @@ export async function createSiteAction(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.SITES_MANAGE);
+  const staff = await requirePermission(PERMISSIONS.SITES_MANAGE);
+  const actor = { id: staff.id, username: staff.username };
   try {
     await reference.createSite(getDatabase(), actor, {
       name: read(formData, "name"),
+      isDefault: isAdministrator(staff.roleCodes)
+        ? read(formData, "isDefault") === "on"
+        : undefined,
       address: read(formData, "address"),
       city: read(formData, "city"),
       state: read(formData, "state"),
@@ -42,11 +48,15 @@ export async function updateSiteAction(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.SITES_MANAGE);
+  const staff = await requirePermission(PERMISSIONS.SITES_MANAGE);
+  const actor = { id: staff.id, username: staff.username };
   const id = read(formData, "id");
   try {
     await reference.updateSite(getDatabase(), actor, id, {
       name: read(formData, "name"),
+      isDefault: isAdministrator(staff.roleCodes)
+        ? read(formData, "isDefault") === "on"
+        : undefined,
       address: read(formData, "address"),
       city: read(formData, "city"),
       state: read(formData, "state"),

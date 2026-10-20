@@ -50,6 +50,11 @@ test("adds a site and an agency with details from the wizard popups", async ({
   await expect(
     siteDialog.getByRole("heading", { name: "Add a training site" }),
   ).toBeVisible();
+  await expect(
+    siteDialog.getByRole("checkbox", {
+      name: "Default training site for new classes",
+    }),
+  ).toHaveCount(0);
   await siteDialog.getByLabel("Site name").fill(siteName);
   await siteDialog.getByLabel("Address").fill("1 Main St");
   await siteDialog.getByRole("button", { name: "Add site" }).click();
@@ -66,6 +71,11 @@ test("adds a site and an agency with details from the wizard popups", async ({
   await expect(
     agencyDialog.getByRole("heading", { name: "Add a host agency" }),
   ).toBeVisible();
+  await expect(
+    agencyDialog.getByRole("checkbox", {
+      name: "Default host agency for new classes",
+    }),
+  ).toHaveCount(0);
   await agencyDialog.getByLabel("Name", { exact: true }).fill(agencyName);
   await agencyDialog.getByLabel("Contact name").fill("Jane Doe");
   await agencyDialog.getByRole("button", { name: "Add agency" }).click();

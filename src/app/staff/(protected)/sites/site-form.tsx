@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,9 @@ export function SiteForm({
   submitLabel = "Create site",
   values,
   onCreated,
+  canSetDefault = false,
+  currentDefaultName = null,
+  isCurrentDefault = false,
 }: {
   action: (
     prev: { error?: string } | undefined,
@@ -24,10 +27,17 @@ export function SiteForm({
     city: string | null;
     state: string | null;
     zip: string | null;
+    isActive: boolean;
+    isDefault: boolean;
   };
   onCreated?: (site: { id: string; name: string }) => void;
+  canSetDefault?: boolean;
+  currentDefaultName?: string | null;
+  isCurrentDefault?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const [isDefault, setIsDefault] = useState(values?.isDefault ?? false);
+  const defaultDisabled = Boolean(values && !values.isActive);
   const handled = useRef<unknown>(null);
 
   useEffect(() => {
@@ -66,6 +76,37 @@ export function SiteForm({
           <Input id="zip" name="zip" defaultValue={values?.zip ?? ""} />
         </div>
       </div>
+      {canSetDefault ? (
+        <fieldset className="field field-wide">
+          <legend>Class default</legend>
+          <Label className="checkbox-field">
+            <Input
+              type="checkbox"
+              name="isDefault"
+              checked={isDefault}
+              disabled={defaultDisabled}
+              onChange={(event) => setIsDefault(event.target.checked)}
+            />
+            Default training site for new classes
+          </Label>
+          {defaultDisabled ? (
+            <p className="text-muted-foreground">
+              Reactivate this site before making it the default.
+            </p>
+          ) : null}
+          {isDefault && currentDefaultName && !isCurrentDefault ? (
+            <p className="text-muted-foreground" role="status">
+              Saving will replace {currentDefaultName} as the default training
+              site.
+            </p>
+          ) : null}
+          {!isDefault && isCurrentDefault ? (
+            <p className="text-muted-foreground" role="status">
+              Saving will leave new classes without a default training site.
+            </p>
+          ) : null}
+        </fieldset>
+      ) : null}
       {state?.error ? (
         <p className="form-error" role="alert">
           {state.error}

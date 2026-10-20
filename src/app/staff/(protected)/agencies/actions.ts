@@ -8,6 +8,7 @@ import { setInitialCertTei } from "@/modules/settings/services";
 import { requirePermission } from "@/modules/staff-auth/authorization";
 import { requireActor } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
 export interface ActionState {
@@ -50,10 +51,14 @@ export async function createAgencyAction(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.AGENCIES_MANAGE);
+  const staff = await requirePermission(PERMISSIONS.AGENCIES_MANAGE);
+  const actor = { id: staff.id, username: staff.username };
   try {
     await reference.createAgency(getDatabase(), actor, {
       name: read(formData, "name"),
+      isDefault: isAdministrator(staff.roleCodes)
+        ? read(formData, "isDefault") === "on"
+        : undefined,
       tagIds: formData.getAll("tagIds").map((value) => value.toString()),
       otherSubtype: read(formData, "otherSubtype"),
       address: read(formData, "address"),
@@ -81,11 +86,15 @@ export async function updateAgencyAction(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.AGENCIES_MANAGE);
+  const staff = await requirePermission(PERMISSIONS.AGENCIES_MANAGE);
+  const actor = { id: staff.id, username: staff.username };
   const id = read(formData, "id");
   try {
     await reference.updateAgency(getDatabase(), actor, id, {
       name: read(formData, "name"),
+      isDefault: isAdministrator(staff.roleCodes)
+        ? read(formData, "isDefault") === "on"
+        : undefined,
       tagIds: formData.getAll("tagIds").map((value) => value.toString()),
       otherSubtype: read(formData, "otherSubtype"),
       address: read(formData, "address"),

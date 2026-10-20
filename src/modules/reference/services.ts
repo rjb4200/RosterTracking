@@ -78,6 +78,7 @@ const studentInput = z.object({
 
 const agencyInput = z.object({
   name: z.string().trim().min(1).max(200),
+  isDefault: z.boolean().optional(),
   tagIds: z.array(z.string().uuid()).optional(),
   otherSubtype: z.string().trim().max(50).optional().or(z.literal("")),
   address: z.string().trim().max(200).optional().or(z.literal("")),
@@ -215,6 +216,7 @@ const credentialInput = z.object({
 
 const siteInput = z.object({
   name: z.string().trim().min(1).max(300),
+  isDefault: z.boolean().optional(),
   address: z.string().trim().max(200).optional().or(z.literal("")),
   city: z.string().trim().max(100).optional().or(z.literal("")),
   state: z.string().trim().max(50).optional().or(z.literal("")),
@@ -531,6 +533,78 @@ export async function getAgency(db: Database, id: string) {
   return { ...agency, tags };
 }
 
+/** The department-wide default host agency, or null when none is set. */
+export async function getDefaultAgency(db: Database) {
+  const [agency] = await db
+    .select({ id: agencies.id, name: agencies.name })
+    .from(agencies)
+    .where(eq(agencies.isDefault, true))
+    .limit(1);
+  return agency ?? null;
+}
+
+async function applyAgencyDefault(
+  transaction: DatabaseTransaction,
+  agency: typeof agencies.$inferSelect,
+  requested: boolean | undefined,
+  actor: Actor,
+) {
+  if (requested === undefined) return agency;
+  const [previous] = await transaction
+    .select({ id: agencies.id, name: agencies.name })
+    .from(agencies)
+    .where(eq(agencies.isDefault, true))
+    .limit(1);
+  if (requested) {
+    if (previous?.id === agency.id) return agency;
+    await transaction
+      .update(agencies)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(eq(agencies.isDefault, true));
+    const [updated] = await transaction
+      .update(agencies)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(agencies.id, agency.id))
+      .returning();
+    if (!updated) throw new Error("Agency not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "agency.default.changed",
+      entityType: "agency",
+      entityId: agency.id,
+      details: {
+        previousDefaultId: previous?.id ?? null,
+        previousDefaultName: previous?.name ?? null,
+        defaultAgencyId: agency.id,
+        defaultAgencyName: agency.name,
+      },
+    });
+    return updated;
+  }
+  if (!agency.isDefault) return agency;
+  const [updated] = await transaction
+    .update(agencies)
+    .set({ isDefault: false, updatedAt: new Date() })
+    .where(eq(agencies.id, agency.id))
+    .returning();
+  if (!updated) throw new Error("Agency not found.");
+  await writeAuditLog(transaction, {
+    actorUserId: actor.id,
+    actorType: "user",
+    action: "agency.default.changed",
+    entityType: "agency",
+    entityId: agency.id,
+    details: {
+      previousDefaultId: agency.id,
+      previousDefaultName: agency.name,
+      defaultAgencyId: null,
+      defaultAgencyName: null,
+    },
+  });
+  return updated;
+}
+
 export async function createAgency(
   db: Database,
   actor: Actor,
@@ -575,6 +649,12 @@ export async function createAgency(
         .returning();
       if (!agency) throw new Error("Agency was not created.");
       await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
+      const finalAgency = await applyAgencyDefault(
+        transaction,
+        agency,
+        parsed.isDefault === true ? true : undefined,
+        actor,
+      );
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -583,11 +663,17 @@ export async function createAgency(
         entityId: agency.id,
         details: { name: agency.name },
       });
-      return agency;
+      return finalAgency;
     }
     if (existing) {
-      // An active agency with this name already exists: reuse it unchanged.
-      return existing;
+      // An active agency with this name already exists: reuse it, applying only
+      // a requested default change.
+      return applyAgencyDefault(
+        transaction,
+        existing,
+        parsed.isDefault === true ? true : undefined,
+        actor,
+      );
     }
     try {
       const [agency] = await transaction
@@ -596,6 +682,12 @@ export async function createAgency(
         .returning();
       if (!agency) throw new Error("Agency was not created.");
       await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
+      const finalAgency = await applyAgencyDefault(
+        transaction,
+        agency,
+        parsed.isDefault === true ? true : undefined,
+        actor,
+      );
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -604,7 +696,7 @@ export async function createAgency(
         entityId: agency.id,
         details: { name: agency.name },
       });
-      return agency;
+      return finalAgency;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new Error("An agency with that name already exists.");
@@ -624,6 +716,16 @@ export async function updateAgency(
   const tagIds = parsed.tagIds ?? [];
   const otherSubtype = parsed.otherSubtype ?? "";
   return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(agencies)
+      .where(eq(agencies.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Agency not found.");
+    if (parsed.isDefault === true && !current.isActive) {
+      throw new Error("An inactive agency cannot be the default host agency.");
+    }
     const updatedRows = await transaction
       .update(agencies)
       .set({
@@ -655,6 +757,12 @@ export async function updateAgency(
     const agency = updatedRows[0];
     if (!agency) throw new Error("Agency not found.");
     await replaceAgencyTagLinks(transaction, agency.id, tagIds, otherSubtype);
+    const finalAgency = await applyAgencyDefault(
+      transaction,
+      agency,
+      parsed.isDefault,
+      actor,
+    );
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -663,7 +771,7 @@ export async function updateAgency(
       entityId: agency.id,
       details: { name: agency.name },
     });
-    return agency;
+    return finalAgency;
   });
 }
 
@@ -674,6 +782,18 @@ export async function setAgencyActive(
   isActive: boolean,
 ) {
   return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(agencies)
+      .where(eq(agencies.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Agency not found.");
+    if (!isActive && current.isDefault) {
+      throw new Error(
+        "Clear the default host agency setting before deactivating this agency.",
+      );
+    }
     const [agency] = await transaction
       .update(agencies)
       .set({ isActive, updatedAt: new Date() })
@@ -693,6 +813,18 @@ export async function setAgencyActive(
 
 export async function archiveAgency(db: Database, actor: Actor, id: string) {
   return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(agencies)
+      .where(eq(agencies.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Agency not found.");
+    if (current.isDefault) {
+      throw new Error(
+        "Clear the default host agency setting before archiving this agency.",
+      );
+    }
     const [agency] = await transaction
       .update(agencies)
       .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
@@ -884,6 +1016,78 @@ export async function getSite(db: Database, id: string) {
   return site ?? null;
 }
 
+/** The department-wide default training site, or null when none is set. */
+export async function getDefaultSite(db: Database) {
+  const [site] = await db
+    .select({ id: trainingSites.id, name: trainingSites.name })
+    .from(trainingSites)
+    .where(eq(trainingSites.isDefault, true))
+    .limit(1);
+  return site ?? null;
+}
+
+async function applySiteDefault(
+  transaction: DatabaseTransaction,
+  site: typeof trainingSites.$inferSelect,
+  requested: boolean | undefined,
+  actor: Actor,
+) {
+  if (requested === undefined) return site;
+  const [previous] = await transaction
+    .select({ id: trainingSites.id, name: trainingSites.name })
+    .from(trainingSites)
+    .where(eq(trainingSites.isDefault, true))
+    .limit(1);
+  if (requested) {
+    if (previous?.id === site.id) return site;
+    await transaction
+      .update(trainingSites)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(eq(trainingSites.isDefault, true));
+    const [updated] = await transaction
+      .update(trainingSites)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(trainingSites.id, site.id))
+      .returning();
+    if (!updated) throw new Error("Site not found.");
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "site.default.changed",
+      entityType: "site",
+      entityId: site.id,
+      details: {
+        previousDefaultId: previous?.id ?? null,
+        previousDefaultName: previous?.name ?? null,
+        defaultSiteId: site.id,
+        defaultSiteName: site.name,
+      },
+    });
+    return updated;
+  }
+  if (!site.isDefault) return site;
+  const [updated] = await transaction
+    .update(trainingSites)
+    .set({ isDefault: false, updatedAt: new Date() })
+    .where(eq(trainingSites.id, site.id))
+    .returning();
+  if (!updated) throw new Error("Site not found.");
+  await writeAuditLog(transaction, {
+    actorUserId: actor.id,
+    actorType: "user",
+    action: "site.default.changed",
+    entityType: "site",
+    entityId: site.id,
+    details: {
+      previousDefaultId: site.id,
+      previousDefaultName: site.name,
+      defaultSiteId: null,
+      defaultSiteName: null,
+    },
+  });
+  return updated;
+}
+
 export async function createSite(
   db: Database,
   actor: Actor,
@@ -921,6 +1125,12 @@ export async function createSite(
         .where(eq(trainingSites.id, existing.id))
         .returning();
       if (!site) throw new Error("Site was not created.");
+      const finalSite = await applySiteDefault(
+        transaction,
+        site,
+        parsed.isDefault === true ? true : undefined,
+        actor,
+      );
       await writeAuditLog(transaction, {
         actorUserId: actor.id,
         actorType: "user",
@@ -929,17 +1139,29 @@ export async function createSite(
         entityId: site.id,
         details: { name: site.name },
       });
-      return site;
+      return finalSite;
     }
     if (existing) {
-      // An active site with this name already exists: reuse it unchanged.
-      return existing;
+      // An active site with this name already exists: reuse it, applying only
+      // a requested default change.
+      return applySiteDefault(
+        transaction,
+        existing,
+        parsed.isDefault === true ? true : undefined,
+        actor,
+      );
     }
     const [site] = await transaction
       .insert(trainingSites)
       .values(details)
       .returning();
     if (!site) throw new Error("Site was not created.");
+    const finalSite = await applySiteDefault(
+      transaction,
+      site,
+      parsed.isDefault === true ? true : undefined,
+      actor,
+    );
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -948,7 +1170,7 @@ export async function createSite(
       entityId: site.id,
       details: { name: site.name },
     });
-    return site;
+    return finalSite;
   });
 }
 
@@ -960,6 +1182,16 @@ export async function updateSite(
 ) {
   const parsed = siteInput.parse(input);
   return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(trainingSites)
+      .where(eq(trainingSites.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Site not found.");
+    if (parsed.isDefault === true && !current.isActive) {
+      throw new Error("An inactive site cannot be the default training site.");
+    }
     const [site] = await transaction
       .update(trainingSites)
       .set({
@@ -973,6 +1205,12 @@ export async function updateSite(
       .where(eq(trainingSites.id, id))
       .returning();
     if (!site) throw new Error("Site not found.");
+    const finalSite = await applySiteDefault(
+      transaction,
+      site,
+      parsed.isDefault,
+      actor,
+    );
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
@@ -981,7 +1219,7 @@ export async function updateSite(
       entityId: site.id,
       details: { name: site.name },
     });
-    return site;
+    return finalSite;
   });
 }
 
@@ -992,6 +1230,18 @@ export async function setSiteActive(
   isActive: boolean,
 ) {
   return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(trainingSites)
+      .where(eq(trainingSites.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Site not found.");
+    if (!isActive && current.isDefault) {
+      throw new Error(
+        "Clear the default training site setting before deactivating this site.",
+      );
+    }
     const [site] = await transaction
       .update(trainingSites)
       .set({ isActive, updatedAt: new Date() })
@@ -1011,6 +1261,18 @@ export async function setSiteActive(
 
 export async function archiveSite(db: Database, actor: Actor, id: string) {
   return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(trainingSites)
+      .where(eq(trainingSites.id, id))
+      .limit(1)
+      .for("update");
+    if (!current) throw new Error("Site not found.");
+    if (current.isDefault) {
+      throw new Error(
+        "Clear the default training site setting before archiving this site.",
+      );
+    }
     const [site] = await transaction
       .update(trainingSites)
       .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
