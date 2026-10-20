@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
+import type { MtuUsage } from "@/modules/classes/mtu";
 import {
   getClassDetail,
   listClassFormOptions,
@@ -12,6 +13,7 @@ import {
 import {
   formatDepartmentDateTime,
   formatDepartmentDateTimeInput,
+  formatHours,
   roundDepartmentDateTimeToQuarterHour,
 } from "@/modules/classes/time";
 import { getCertificateDeliveryOverview } from "@/modules/completion-certificates/service";
@@ -161,7 +163,6 @@ function RosterTable({
       <thead>
         <tr>
           <th>Participant</th>
-          <th>Status</th>
           <th>Credited hours</th>
           <th>Adjustment</th>
           <th>Actions</th>
@@ -178,11 +179,20 @@ function RosterTable({
             >
               <td>
                 <strong>{entry.name}</strong>
+                {needsAttention ? (
+                  <span
+                    className="roster-attention-dot"
+                    role="img"
+                    aria-label="Needs attention"
+                  />
+                ) : null}
               </td>
-              <td>{needsAttention ? "Needs attention" : "Present"}</td>
               <td>
                 <Badge variant="outline">
-                  {entry.creditedHours ?? "Unset"} / {scheduledHours}
+                  {entry.creditedHours == null
+                    ? "Unset"
+                    : formatHours(entry.creditedHours)}{" "}
+                  / {formatHours(scheduledHours)}
                 </Badge>
               </td>
               <td>{entry.creditAdjustmentReason ?? "—"}</td>
@@ -215,6 +225,91 @@ function RosterTable({
         })}
       </tbody>
     </table>
+  );
+}
+
+/** The MTU review list: the full recorded usage, grouped, with provenance. */
+function MtuReviewList({ usage }: { usage: MtuUsage | null }) {
+  const equipment = (usage?.items ?? []).filter(
+    (item) => item.kind === "equipment",
+  );
+  const supplies = (usage?.items ?? []).filter(
+    (item) => item.kind === "supplies",
+  );
+  const transport = (usage?.items ?? []).filter(
+    (item) => item.kind === "transport",
+  );
+  const hasOther = Boolean(
+    usage?.equipmentUsed || usage?.usedSupplies || usage?.mileage,
+  );
+  if (!equipment.length && !supplies.length && !transport.length && !hasOther) {
+    return <p className="roster-note">Nothing recorded.</p>;
+  }
+  return (
+    <dl className="mtu-review">
+      {equipment.length ? (
+        <>
+          <dt>Equipment</dt>
+          <dd>{equipment.map((item) => item.name).join(" · ")}</dd>
+        </>
+      ) : null}
+      {supplies.length ? (
+        <>
+          <dt>Supplies</dt>
+          <dd>
+            <ul className="mtu-review-list">
+              {supplies.map((item) => (
+                <li key={item.itemId}>
+                  <span>
+                    {item.quantity ?? "?"} × {item.name}
+                    {item.unitLabel ? ` (${item.unitLabel})` : ""}
+                  </span>
+                  {item.source === "suggested" ? (
+                    <span className="mtu-review-marker">estimated</span>
+                  ) : (
+                    <span className="mtu-review-marker">
+                      set
+                      {item.suggestion !== null &&
+                      item.suggestion !== item.quantity
+                        ? ` · estimate ${item.suggestion}`
+                        : ""}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </dd>
+        </>
+      ) : null}
+      {transport.length ? (
+        <>
+          <dt>Transport</dt>
+          <dd>
+            {transport
+              .map((item) =>
+                item.mileage == null
+                  ? item.name
+                  : `${item.name} · ${item.mileage} mi`,
+              )
+              .join(" · ")}
+          </dd>
+        </>
+      ) : null}
+      {hasOther ? (
+        <>
+          <dt>Other</dt>
+          <dd>
+            {[
+              usage?.equipmentUsed,
+              usage?.usedSupplies,
+              usage?.mileage ? `${usage.mileage} mi` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </dd>
+        </>
+      ) : null}
+    </dl>
   );
 }
 
@@ -334,27 +429,9 @@ export default async function ClassReviewPage({
         usage.mileage ||
         usage.usedSupplies),
   );
-  const mtuNames = new Map(
-    mtuCatalog.map((option) => [option.id, option.name]),
-  );
-  const mtuSummary = (() => {
-    if (!usage) return "Not recorded";
-    const parts: string[] = [];
-    for (const item of usage.items ?? []) {
-      const name = mtuNames.get(item.itemId) ?? "Item";
-      if (item.kind === "equipment") parts.push(name);
-      else if (item.kind === "supplies")
-        parts.push(item.quantity == null ? name : `${item.quantity} × ${name}`);
-      else if (item.kind === "transport")
-        parts.push(item.mileage == null ? name : `${name} ${item.mileage} mi`);
-    }
-    if (usage.equipmentUsed) parts.push(usage.equipmentUsed);
-    if (usage.usedSupplies) parts.push(usage.usedSupplies);
-    if (usage.mileage) parts.push(`${usage.mileage} mi`);
-    if (!parts.length) return "Not recorded";
-    const shown = parts.slice(0, 3).join(" · ");
-    return parts.length > 3 ? `${shown} +${parts.length - 3}` : shown;
-  })();
+  const estimatedSupplyCount = (usage?.items ?? []).filter(
+    (item) => item.kind === "supplies" && item.source === "suggested",
+  ).length;
   // Readiness the workspace acts on: each blocker opens the area that fixes it.
   const blockers: { message: string; area: string; label: string }[] = [
     ...(reviewData?.readiness.issues ?? []).map((message) => ({
@@ -389,7 +466,7 @@ export default async function ClassReviewPage({
         meta={
           <p>
             {classRecord.site?.name ?? "Online"} | Scheduled total:{" "}
-            {roster.scheduledHours} hours
+            {formatHours(roster.scheduledHours)}
           </p>
         }
         actions={
@@ -464,7 +541,7 @@ export default async function ClassReviewPage({
                 <>
                   {classRecord.components.length} session
                   {classRecord.components.length === 1 ? "" : "s"} ·{" "}
-                  {roster.scheduledHours} hours
+                  {formatHours(roster.scheduledHours)}
                 </>
               }
             >
@@ -483,7 +560,7 @@ export default async function ClassReviewPage({
                       {formatDepartmentDateTime(component.endsAt)}
                     </span>
                     <Badge variant="outline">
-                      {component.creditedHours} hours
+                      {formatHours(component.creditedHours)}
                     </Badge>
                     {classOptions ? (
                       <ComponentForm
@@ -577,7 +654,11 @@ export default async function ClassReviewPage({
             </WorkspaceArea>
 
             {isMtuClass ? (
-              <WorkspaceArea id="mtu" label="MTU usage" summary={mtuSummary}>
+              <WorkspaceArea
+                id="mtu"
+                label="MTU usage"
+                review={<MtuReviewList usage={usage} />}
+              >
                 <MtuUsageForm
                   classId={id}
                   usage={classRecord.mtuUsage}
@@ -631,6 +712,16 @@ export default async function ClassReviewPage({
                 All active attendance has valid credit and reporting context.
               </p>
             )}
+            {isMtuClass && estimatedSupplyCount > 0 ? (
+              <p className="workspace-advisory">
+                {estimatedSupplyCount}{" "}
+                {estimatedSupplyCount === 1
+                  ? "supply still uses"
+                  : "supplies still use"}{" "}
+                the roster estimate.{" "}
+                <AreaOpener area="mtu">Review MTU usage</AreaOpener>
+              </p>
+            ) : null}
             <FinalizationControls
               classId={id}
               status={classRecord.status}

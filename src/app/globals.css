@@ -1145,6 +1145,61 @@ h1 {
   font: inherit;
 }
 
+.workspace-area-review {
+  margin-top: 0.75rem;
+}
+
+.mtu-review {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+
+.mtu-review dt {
+  font-weight: 600;
+}
+
+.mtu-review dd {
+  margin: 0;
+}
+
+.mtu-review-list {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mtu-review-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.mtu-review-marker {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.workspace-advisory {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--signal-dark);
+  background: #fffbeb;
+}
+
+.roster-attention-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: var(--signal-dark);
+}
+
 .operational-class-heading,
 .operational-class-actions {
   display: flex;

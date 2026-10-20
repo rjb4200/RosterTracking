@@ -26,11 +26,13 @@ export function WorkspaceArea({
   id,
   label,
   summary,
+  review,
   children,
 }: {
   id: string;
   label: string;
-  summary: ReactNode;
+  summary?: ReactNode;
+  review?: ReactNode;
   children: ReactNode;
 }) {
   const { openId, open } = useContext(WorkspaceContext);
@@ -40,7 +42,7 @@ export function WorkspaceArea({
       <header className="workspace-area-head">
         <div>
           <h3>{label}</h3>
-          <p className="workspace-area-summary">{summary}</p>
+          {summary ? <p className="workspace-area-summary">{summary}</p> : null}
         </div>
         <button
           type="button"
@@ -52,6 +54,7 @@ export function WorkspaceArea({
           {isOpen ? "Close" : "Edit"}
         </button>
       </header>
+      {review ? <div className="workspace-area-review">{review}</div> : null}
       {isOpen ? (
         <div className="workspace-area-body" id={`area-body-${id}`}>
           {children}

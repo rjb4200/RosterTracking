@@ -191,7 +191,8 @@ test("correct the roster on the review screen and finalize from it", async ({
   await expect(page.getByRole("heading", { name: "Roster" })).toBeVisible();
 
   await page.locator(".roster-row-actions summary").first().click();
-  await page.getByLabel("Credit", { exact: true }).fill("3.5");
+  await page.getByLabel("Hours").selectOption("3");
+  await page.getByLabel("Minutes").selectOption("30");
   await page.getByLabel("Adjustment reason").selectOption("Left Early");
   await page.getByRole("button", { name: "Update credit" }).click();
   // The saved value is the source of truth; the row's own refresh is not asserted.
@@ -209,7 +210,7 @@ test("correct the roster on the review screen and finalize from it", async ({
       { timeout: 20_000 },
     )
     .toBe("3.50");
-  await expect(page.getByText("3.50 / 4")).toBeVisible();
+  await expect(page.getByText("3h 30m / 4h")).toBeVisible();
 
   await page.getByRole("checkbox", { name: /I certify/i }).check();
   await page.getByLabel("Signature").fill("E2E Lead");
@@ -254,25 +255,22 @@ test("an MTU class presents one MTU editor and withholds finalization without us
     mtuArea.getByRole("button", { name: "Save supplies and equipment" }),
   ).toHaveCount(1);
 
-  // The area states nothing is recorded, and missing usage withholds finalization.
-  await expect(mtuArea.locator(".workspace-area-summary")).toContainText(
-    "Not recorded",
-  );
+  // The review list states nothing is recorded, and missing usage withholds finalization.
+  await expect(mtuArea.getByText("Nothing recorded.")).toBeVisible();
   await expect(page.getByText("No MTU usage recorded.")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Finalize roster" }),
   ).toBeDisabled();
 
-  // Recording free-text usage summarises it and clears the blocker.
+  // Recording free-text usage lists it and clears the blocker.
   await mtuArea.getByText("Additional details").click();
   await mtuArea.getByLabel("Other equipment (not listed)").fill("Test kit");
   await mtuArea
     .getByRole("button", { name: "Save supplies and equipment" })
     .click();
-  await expect(mtuArea.locator(".workspace-area-summary")).toContainText(
-    "Test kit",
-    { timeout: 15_000 },
-  );
+  await expect(mtuArea.locator(".mtu-review")).toContainText("Test kit", {
+    timeout: 15_000,
+  });
   await expect(page.getByText("No MTU usage recorded.")).toHaveCount(0);
 });
 
@@ -295,9 +293,9 @@ test("the roster flags a row that needs attention without expanding it", async (
 
   // The flagged row stays compact until the operator opens it.
   await expect(page.locator(".roster-row-attention")).toHaveCount(1);
-  await expect(page.getByLabel("Credit", { exact: true })).toBeHidden();
+  await expect(page.getByLabel("Hours")).toBeHidden();
   await page.locator(".roster-row-actions summary").first().click();
-  await expect(page.getByLabel("Credit", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Hours")).toBeVisible();
   // The blocker names the participant and links to the area that resolves it.
   await expect(
     page.getByText("Confirmed Guest has invalid credited hours."),
@@ -400,4 +398,75 @@ test("instructors can be added, the lead changed, and the only lead kept", async
   await expect(
     area.getByText(/Assign another lead instructor before removing the lead/i),
   ).toBeVisible({ timeout: 15_000 });
+});
+
+test("the MTU review lists estimated and set supplies and advises without blocking", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+  await addReportingSystem(classId, "mtu");
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const mtuArea = page.locator("#area-mtu");
+  await mtuArea.getByRole("button", { name: "Edit" }).click();
+
+  // Two supplies whose quantities come from the roster estimate.
+  await mtuArea.getByLabel("Tourniquet (each)", { exact: true }).check();
+  await mtuArea.getByLabel("Trauma Moulage Kit (each)", { exact: true }).check();
+  await mtuArea
+    .getByRole("button", { name: "Save supplies and equipment" })
+    .click();
+
+  await expect(mtuArea.locator(".mtu-review")).toContainText("estimated", {
+    timeout: 15_000,
+  });
+  await expect(
+    page.getByText("2 supplies still use the roster estimate."),
+  ).toBeVisible();
+
+  // Overriding one quantity marks it as set and shows the estimate.
+  await mtuArea.getByLabel("Tourniquet quantity").fill("3");
+  await mtuArea
+    .getByRole("button", { name: "Save supplies and equipment" })
+    .click();
+  await expect(mtuArea.locator(".mtu-review")).toContainText(
+    "set · estimate 1",
+    { timeout: 15_000 },
+  );
+  await expect(
+    page.getByText("1 supply still uses the roster estimate."),
+  ).toBeVisible();
+
+  // The advisory opens the MTU area and does not withhold finalization.
+  await page.getByRole("button", { name: "Review MTU usage" }).click();
+  await expect(mtuArea.locator(".mtu-review")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Finalize roster" }),
+  ).toBeEnabled();
+});
+
+test("credit is entered in 15-minute increments bounded by the total", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+  await page.locator(".roster-row-actions summary").first().click();
+
+  const hours = page.getByLabel("Hours");
+  const minutes = page.getByLabel("Minutes");
+
+  await hours.selectOption("3");
+  await expect(minutes.locator("option")).toHaveText(["00", "15", "30", "45"]);
+
+  // The top hour of a four-hour class only offers the zero minute.
+  await hours.selectOption("4");
+  await expect(minutes.locator("option")).toHaveText(["00"]);
 });

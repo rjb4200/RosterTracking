@@ -99,11 +99,14 @@ for (const viewport of [
     );
     await expect(page.getByText("Post-class review")).toBeVisible();
     await page.locator(".roster-row-actions summary").first().click();
-    await page.getByLabel("Credit", { exact: true }).fill("3.5");
+    await page.getByLabel("Hours").selectOption("3");
+    await page.getByLabel("Minutes").selectOption("30");
     await page.getByLabel("Adjustment reason").selectOption("Left Early");
     await page.getByRole("button", { name: "Update credit" }).click();
     // The row reflects the adjustment (the transient toast is not asserted).
-    await expect(page.getByText("3.50 / 4")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("3h 30m / 4h")).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByRole("cell", { name: "Left Early" })).toBeVisible({
       timeout: 15_000,
     });
