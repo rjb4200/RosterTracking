@@ -15,12 +15,15 @@ import {
 import type { ActionState } from "./actions";
 import { CurriculumSelect } from "./curriculum-select";
 import type { CurriculumChapterOption } from "./fire-subject-fields";
+import { useAreaForm, useCloseOnSaved, useWorkspace } from "./workspace-areas";
 
 export function ComponentForm({
   classId,
   action,
   component,
   defaultStartsAt,
+  formId,
+  hideSubmit = false,
   trainingCodes = [],
   trainingCodeKind,
   curricula = [],
@@ -42,6 +45,8 @@ export function ComponentForm({
     method?: string | null;
   };
   defaultStartsAt?: string;
+  formId?: string;
+  hideSubmit?: boolean;
   trainingCodes?: Array<{
     id: string;
     code: string;
@@ -63,6 +68,9 @@ export function ComponentForm({
   ) => Promise<ActionState>;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const { setDirty } = useWorkspace();
+  useAreaForm(formId);
+  useCloseOnSaved(state?.classId);
   const suffix = component?.id ?? "new";
   const categoryOptions = trainingCodeKind
     ? trainingCodes.filter((code) => code.kind === trainingCodeKind)
@@ -93,7 +101,12 @@ export function ComponentForm({
       ? calculateDepartmentEndTimeInput(startsAt, Number(creditedHours))
       : "";
   return (
-    <form action={formAction} className="stack-form component-form">
+    <form
+      action={formAction}
+      className="stack-form component-form"
+      id={formId}
+      onChange={() => setDirty(true)}
+    >
       <input type="hidden" name="classId" value={classId} />
       {component ? (
         <input type="hidden" name="id" value={component.id} />
@@ -233,9 +246,17 @@ export function ComponentForm({
         </div>
       </div>
       {state?.error ? <p className="form-error">{state.error}</p> : null}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving..." : component ? "Update session" : "Add session"}
-      </Button>
+      {hideSubmit ? (
+        pending ? (
+          <p className="roster-note" aria-live="polite">
+            Saving...
+          </p>
+        ) : null
+      ) : (
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving..." : component ? "Update session" : "Add session"}
+        </Button>
+      )}
     </form>
   );
 }

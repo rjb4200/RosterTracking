@@ -44,7 +44,6 @@ import {
 } from "../../actions";
 import { CertificateDeliveryControls } from "../../certificate-delivery-controls";
 import { ClassForm } from "../../class-form";
-import { ComponentForm } from "../../component-form";
 import { CredentialCorrectionControl } from "../../credential-correction-control";
 import {
   FinalizationControls,
@@ -59,6 +58,7 @@ import {
   RosterDocumentActions,
 } from "../../official-roster-controls";
 import { AttendanceControls } from "../../roster-controls";
+import { ScheduleSessions } from "../../schedule-sessions";
 import { TrainingNoticeControls } from "../../training-notice-controls";
 import {
   AreaOpener,
@@ -512,6 +512,7 @@ export default async function ClassReviewPage({
                   action={updateClassAction}
                   {...classOptions}
                   hideMtuUsage
+                  hideSubmit
                   values={{
                     id: classRecord.id,
                     name: classRecord.name,
@@ -551,60 +552,41 @@ export default async function ClassReviewPage({
                 follows the new total; a participant already adjusted down keeps
                 their value.
               </p>
-              <ul className="member-list">
-                {classRecord.components.map((component) => (
-                  <li key={component.id} className="member-row">
-                    <span>{component.title ?? "Training session"}</span>
-                    <span>
-                      {formatDepartmentDateTime(component.startsAt)} to{" "}
-                      {formatDepartmentDateTime(component.endsAt)}
-                    </span>
-                    <Badge variant="outline">
-                      {formatHours(component.creditedHours)}
-                    </Badge>
-                    {classOptions ? (
-                      <ComponentForm
-                        classId={classRecord.id}
-                        action={saveComponentAction}
-                        trainingCodes={classOptions.trainingCodes}
-                        trainingCodeKind={componentKind}
-                        curricula={classOptions.curricula}
-                        curriculumChapters={classOptions.curriculumChapters}
-                        recentCurriculumIds={classOptions.recentCurriculumIds}
-                        component={{
-                          id: component.id,
-                          title: component.title,
-                          creditedHours: component.creditedHours,
-                          startsAt: formatDepartmentDateTimeInput(
-                            component.startsAt,
-                          ),
-                          trainingCodeId: component.trainingCodeId,
-                          className: component.className,
-                          curriculumId: component.curriculumId,
-                          curriculumName: component.curriculumName,
-                          curriculumChapter: component.curriculumChapter,
-                          lessonPlan: component.lessonPlan,
-                          method: component.method,
-                        }}
-                      />
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              {classOptions ? (
-                <ComponentForm
-                  classId={classRecord.id}
-                  action={saveComponentAction}
-                  defaultStartsAt={roundDepartmentDateTimeToQuarterHour(
-                    new Date(),
-                  )}
-                  trainingCodes={classOptions.trainingCodes}
-                  trainingCodeKind={componentKind}
-                  curricula={classOptions.curricula}
-                  curriculumChapters={classOptions.curriculumChapters}
-                  recentCurriculumIds={classOptions.recentCurriculumIds}
-                />
-              ) : null}
+              <ScheduleSessions
+                classId={classRecord.id}
+                sessions={classRecord.components.map((component) => ({
+                  id: component.id,
+                  title: component.title,
+                  creditedHours: component.creditedHours,
+                  startsAtInput: formatDepartmentDateTimeInput(
+                    component.startsAt,
+                  ),
+                  startsAtLabel: formatDepartmentDateTime(component.startsAt),
+                  endsAtLabel: formatDepartmentDateTime(component.endsAt),
+                  trainingCodeId: component.trainingCodeId ?? null,
+                  className: component.className ?? null,
+                  curriculumId: component.curriculumId ?? null,
+                  curriculumName: component.curriculumName ?? null,
+                  curriculumChapter: component.curriculumChapter ?? null,
+                  lessonPlan: component.lessonPlan ?? null,
+                  method: component.method ?? null,
+                }))}
+                editor={
+                  classOptions
+                    ? {
+                        action: saveComponentAction,
+                        trainingCodes: classOptions.trainingCodes,
+                        trainingCodeKind: componentKind,
+                        curricula: classOptions.curricula,
+                        curriculumChapters: classOptions.curriculumChapters,
+                        recentCurriculumIds: classOptions.recentCurriculumIds,
+                        defaultStartsAt: roundDepartmentDateTimeToQuarterHour(
+                          new Date(),
+                        ),
+                      }
+                    : undefined
+                }
+              />
             </WorkspaceArea>
 
             <WorkspaceArea

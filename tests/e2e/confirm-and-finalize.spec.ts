@@ -317,10 +317,8 @@ test("raising a session's hours carries the full credit to the participant", asy
   const schedule = page.locator("#area-schedule");
   await schedule.getByRole("button", { name: "Edit" }).click();
   await schedule.getByLabel("Credited hours").first().fill("5");
-  await schedule
-    .getByRole("button", { name: "Update session" })
-    .first()
-    .click();
+  await schedule.getByRole("button", { name: "Save and close" }).click();
+  await expect(schedule.getByLabel("Credited hours")).toHaveCount(0);
 
   // The participant at the previous total follows the new total.
   await expect
@@ -356,6 +354,86 @@ test("the workspace opens one correction area at a time", async ({ page }) => {
   await scheduleArea.getByRole("button", { name: "Edit" }).click();
   await expect(scheduleArea.getByText("Training session")).toBeVisible();
   await expect(classArea.getByLabel("Class name")).toHaveCount(0);
+  await expect(scheduleArea.locator("form")).toHaveCount(1);
+  await scheduleArea.getByRole("button", { name: "Add session" }).click();
+  await expect(scheduleArea.locator("form")).toHaveCount(1);
+});
+
+test("discard confirmation preserves or abandons workspace edits", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const classArea = page.locator("#area-class");
+  const scheduleArea = page.locator("#area-schedule");
+  await classArea.getByRole("button", { name: "Edit" }).click();
+  await classArea.getByLabel("Class name").fill("Unsaved class name");
+
+  await scheduleArea.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByText("Discard unsaved changes?")).toBeVisible();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  await expect(classArea.getByLabel("Class name")).toHaveValue(
+    "Unsaved class name",
+  );
+
+  await classArea.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByText("Discard unsaved changes?")).toBeVisible();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  await expect(classArea.getByLabel("Class name")).toHaveValue(
+    "Unsaved class name",
+  );
+
+  await scheduleArea.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Discard changes" }).click();
+  await expect(classArea.getByLabel("Class name")).toHaveCount(0);
+  await expect(scheduleArea.getByLabel("Credited hours")).toBeVisible();
+});
+
+test("a rejected workspace save leaves the editor open", async ({ page }) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const classArea = page.locator("#area-class");
+  await classArea.getByRole("button", { name: "Edit" }).click();
+  await classArea.getByLabel("Host agency").evaluate((element) => {
+    const select = element as HTMLSelectElement;
+    select.required = false;
+    select.value = "";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await classArea.getByRole("button", { name: "Save and close" }).click();
+
+  await expect(classArea.getByLabel("Host agency")).toBeVisible();
+  await expect(classArea.locator(".form-error")).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test("instructor controls do not show a workspace save action", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const area = page.locator("#area-instructors");
+  await area.getByRole("button", { name: "Edit" }).click();
+  await expect(area.getByRole("button", { name: "Close" })).toBeVisible();
+  await expect(
+    area.getByRole("button", { name: "Save and close" }),
+  ).toHaveCount(0);
 });
 
 test("instructors can be added, the lead changed, and the only lead kept", async ({
@@ -416,10 +494,10 @@ test("the MTU review lists estimated and set supplies and advises without blocki
 
   // Two supplies whose quantities come from the roster estimate.
   await mtuArea.getByLabel("Tourniquet (each)", { exact: true }).check();
-  await mtuArea.getByLabel("Trauma Moulage Kit (each)", { exact: true }).check();
   await mtuArea
-    .getByRole("button", { name: "Save supplies and equipment" })
-    .click();
+    .getByLabel("Trauma Moulage Kit (each)", { exact: true })
+    .check();
+  await mtuArea.getByRole("button", { name: "Save and close" }).click();
 
   await expect(mtuArea.locator(".mtu-review")).toContainText("estimated", {
     timeout: 15_000,
@@ -427,12 +505,12 @@ test("the MTU review lists estimated and set supplies and advises without blocki
   await expect(
     page.getByText("2 supplies still use the roster estimate."),
   ).toBeVisible();
+  await expect(mtuArea.getByLabel("Tourniquet quantity")).toHaveCount(0);
 
   // Overriding one quantity marks it as set and shows the estimate.
+  await mtuArea.getByRole("button", { name: "Edit" }).click();
   await mtuArea.getByLabel("Tourniquet quantity").fill("3");
-  await mtuArea
-    .getByRole("button", { name: "Save supplies and equipment" })
-    .click();
+  await mtuArea.getByRole("button", { name: "Save and close" }).click();
   await expect(mtuArea.locator(".mtu-review")).toContainText(
     "set · estimate 1",
     { timeout: 15_000 },

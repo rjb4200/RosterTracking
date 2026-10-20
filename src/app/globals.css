@@ -1122,6 +1122,14 @@ h1 {
   font-size: 0.9rem;
 }
 
+.workspace-area-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .workspace-area-toggle {
   flex: none;
   border: 1px solid var(--line);
@@ -1568,6 +1576,11 @@ h1 {
 
 .member-row:last-child {
   border-bottom: 1px solid var(--line);
+}
+
+.member-row.is-editing {
+  border-left: 3px solid var(--signal-dark);
+  padding-left: 0.65rem;
 }
 
 .checkbox-list {

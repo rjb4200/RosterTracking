@@ -13,6 +13,9 @@ import {
   MtuUsageFields,
   mtuUsageValueFromDetail,
 } from "./mtu-usage-fields";
+import { useAreaForm, useCloseOnSaved, useWorkspace } from "./workspace-areas";
+
+const FORM_ID = "class-details-form";
 
 interface Option {
   id: string;
@@ -28,6 +31,7 @@ export function ClassForm({
   mtuCatalog = [],
   mtuActiveParticipantCount = 0,
   hideMtuUsage = false,
+  hideSubmit = false,
   values,
 }: {
   action: (
@@ -41,6 +45,7 @@ export function ClassForm({
   mtuCatalog?: MtuCatalogOption[];
   mtuActiveParticipantCount?: number;
   hideMtuUsage?: boolean;
+  hideSubmit?: boolean;
   values?: {
     id: string;
     name: string | null;
@@ -62,6 +67,9 @@ export function ClassForm({
   };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const { setDirty } = useWorkspace();
+  useAreaForm(hideSubmit ? FORM_ID : undefined);
+  useCloseOnSaved(state?.classId);
   const [reportingSystemIds, setReportingSystemIds] = useState(
     values?.reportingSystemIds ?? [],
   );
@@ -73,7 +81,12 @@ export function ClassForm({
   );
 
   return (
-    <form action={formAction} className="stack-form">
+    <form
+      action={formAction}
+      className="stack-form"
+      id={hideSubmit ? FORM_ID : undefined}
+      onChange={() => setDirty(true)}
+    >
       {values ? <input type="hidden" name="classId" value={values.id} /> : null}
       <div className="form-grid">
         <div className="field">
@@ -231,9 +244,17 @@ export function ClassForm({
         </Label>
       </div>
       {state?.error ? <p className="form-error">{state.error}</p> : null}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving..." : "Save class details"}
-      </Button>
+      {hideSubmit ? (
+        pending ? (
+          <p className="roster-note" aria-live="polite">
+            Saving...
+          </p>
+        ) : null
+      ) : (
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving..." : "Save class details"}
+        </Button>
+      )}
     </form>
   );
 }
