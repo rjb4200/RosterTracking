@@ -8,8 +8,8 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     destinationCodes: [] as string[],
     needsClassName: false,
     className: "",
-    needsSite: false,
-    trainingSiteId: "",
+    deliveryMethod: "classroom",
+    trainingSiteId: "site-1",
     startsAt: "2026-09-10T09:00",
     creditedHours: "4",
     leadInstructorId: "user-1",
@@ -214,23 +214,25 @@ describe("wizard step validation", () => {
 
   it("identifies missing class-and-schedule inputs", () => {
     expect(wizardStepErrors("class", base())).toEqual([]);
-    expect(
-      wizardStepErrors(
-        "class",
-        base({ needsClassName: true, needsSite: true }),
-      ),
-    ).toEqual(["className", "trainingSiteId"]);
+    expect(wizardStepErrors("class", base({ needsClassName: true }))).toEqual([
+      "className",
+    ]);
     expect(
       wizardStepErrors(
         "class",
         base({
           needsClassName: true,
           className: "Course",
-          needsSite: true,
-          trainingSiteId: "site-1",
+          trainingSiteId: "",
         }),
       ),
-    ).toEqual([]);
+    ).toEqual(["trainingSiteId"]);
+    expect(wizardStepErrors("class", base({ deliveryMethod: "" }))).toEqual([
+      "deliveryMethod",
+    ]);
+    expect(wizardStepErrors("class", base({ creditedHours: "0" }))).toEqual([
+      "creditedHours",
+    ]);
   });
 
   it("requires mileage for a driving transport until it is provided", () => {

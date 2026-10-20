@@ -1457,12 +1457,25 @@ h1 {
   gap: 0.45rem;
 }
 
-.field label {
+.field label,
+.field-label {
   color: var(--steel);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.duration-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.duration-fields label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .required-mark {

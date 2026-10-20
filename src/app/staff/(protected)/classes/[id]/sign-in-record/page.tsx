@@ -6,7 +6,7 @@ import type {
   ClassSignInRecordRemovedEntry,
 } from "@/modules/class-sign-in-record/pdf";
 import { getClassSignInRecord } from "@/modules/class-sign-in-record/service";
-import { formatDepartmentDateTime } from "@/modules/classes/time";
+import { formatDepartmentDateTime, formatHours } from "@/modules/classes/time";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
@@ -32,7 +32,7 @@ export default async function ClassSignInRecordPage({
         <strong>{entry.participantName}</strong>
         <span>
           {entry.participantType} | {entry.agencyName} | {entry.signInMethod} |{" "}
-          {entry.creditedHours} hours
+          {formatHours(entry.creditedHours)}
         </span>
         {entry.attestation ? (
           <span>
@@ -84,7 +84,7 @@ export default async function ClassSignInRecordPage({
       />
       <section className="admin-section">
         <p className="roster-note">
-          {record.siteName ?? "Online"} |{" "}
+          {record.siteName ?? "No site"} |{" "}
           {record.deliveryMethod.replace("_", " ")} | Host agency:{" "}
           {record.hostAgencyName}
         </p>

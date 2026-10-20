@@ -3,6 +3,10 @@ import "server-only";
 import { asc, eq, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
+import {
+  deliveryMethodsFromComponentMethods,
+  formatDeliveryMethods,
+} from "@/modules/classes/delivery-methods";
 import { assertClassRosterAccess } from "@/modules/instructor-roster/services";
 import { decryptCredential } from "@/modules/reference/crypto";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
@@ -10,6 +14,7 @@ import {
   agencies,
   attendance,
   attendanceAttestations,
+  classComponents,
   classGuests,
   finalizationRevisions,
   students,
@@ -166,9 +171,19 @@ export async function getClassSignInRecord(
       .where(eq(trainingClasses.id, classId))
       .limit(1);
     if (!classRow) throw new Error("Sign-in record unavailable.");
-    const rows = await readRows(transaction, classId);
+    const [rows, components] = await Promise.all([
+      readRows(transaction, classId),
+      transaction
+        .select({ method: classComponents.method })
+        .from(classComponents)
+        .where(eq(classComponents.classId, classId)),
+    ]);
     return buildClassSignInRecord(rows, {
       ...classRow,
+      deliveryMethod:
+        deliveryMethodsFromComponentMethods(
+          components.map((component) => component.method),
+        ) || classRow.deliveryMethod,
       generatedAt: new Date(),
     });
   });
@@ -186,7 +201,25 @@ export function buildClassSignInRecordFromSnapshot(
   }
   const record = (snapshot as { signInRecord?: unknown }).signInRecord;
   if (typeof record !== "object" || record === null) return null;
-  return record as ClassSignInRecord;
+  const typedRecord = record as ClassSignInRecord;
+  const snapshotWithComponents = snapshot as { components?: unknown };
+  const components = Array.isArray(snapshotWithComponents.components)
+    ? snapshotWithComponents.components
+    : [];
+  const deliveryFromSessions = deliveryMethodsFromComponentMethods(
+    components.map((component) => {
+      if (typeof component !== "object" || component === null) return null;
+      const method = (component as { method?: unknown }).method;
+      return typeof method === "string" ? method : null;
+    }),
+  );
+  return {
+    ...typedRecord,
+    deliveryMethod:
+      deliveryFromSessions ||
+      formatDeliveryMethods(typedRecord.deliveryMethod) ||
+      typedRecord.deliveryMethod,
+  };
 }
 
 export async function getFinalizedSignInRecord(

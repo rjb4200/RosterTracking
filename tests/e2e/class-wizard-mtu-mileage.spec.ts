@@ -61,7 +61,7 @@ test("the wizard blocks the MTU step until a driving transport has mileage", asy
     .getByLabel("POV mileage estimate (optional)", { exact: true })
     .fill("25.5");
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(page.getByLabel("Delivery method")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
 });
 
 test("deselecting a driving transport drops its mileage requirement", async ({
@@ -99,5 +99,5 @@ test("deselecting a driving transport drops its mileage requirement", async ({
     .uncheck();
   await page.getByLabel("POV", { exact: true }).check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(page.getByLabel("Delivery method")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
 });

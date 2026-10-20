@@ -58,10 +58,16 @@ describeDatabase("retained finalization destination statuses", () => {
       .values({ name: `Retained status agency ${suffix}` })
       .returning();
     if (!agency) throw new Error("Destination fixture agency failed.");
+    const [site] = await db
+      .insert(schema.trainingSites)
+      .values({ name: `Retained status site ${suffix}` })
+      .returning();
+    if (!site) throw new Error("Destination fixture site failed.");
     const [classRecord] = await db
       .insert(schema.trainingClasses)
       .values({
         name: `Retained status ${suffix}`,
+        trainingSiteId: site.id,
         hostAgencyId: agency.id,
         createdByUserId: instructor.id,
         deliveryMethod: "online",

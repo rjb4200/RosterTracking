@@ -68,5 +68,6 @@ test("wizard highlights missing required fields and groups search with the selec
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // The class-and-schedule step is reached once the subject is complete.
-  await expect(page.getByLabel("Delivery method")).toBeVisible();
+  await expect(page.getByText("Delivery method")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
 });

@@ -3,13 +3,16 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-
+import { getClassSignInRecord } from "../../src/modules/class-sign-in-record/service";
 import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   createOpenClass,
   getClassDetail,
+  listClasses,
+  saveClassComponent,
   updateClass,
 } from "../../src/modules/classes/services";
+import { formatDepartmentDateTimeInput } from "../../src/modules/classes/time";
 import { decryptCredential } from "../../src/modules/reference/crypto";
 import { importCurricula } from "../../src/modules/reference/services";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
@@ -19,6 +22,7 @@ import {
   agencies,
   attendance,
   attendanceReportingContexts,
+  classComponents,
   curricula,
   finalizationReportingStatuses,
   finalizationRevisions,
@@ -89,7 +93,11 @@ async function retireRevision(db: Db, revisionId: string) {
     .where(eq(finalizationReportingStatuses.revisionId, revisionId));
 }
 
-async function createFireClassFixture(db: Db, suffix: string) {
+async function createFireClassFixture(
+  db: Db,
+  suffix: string,
+  deliveryMethod = "classroom",
+) {
   const instructor = await createInstructor(db, suffix);
   const [site] = await db
     .insert(trainingSites)
@@ -125,7 +133,7 @@ async function createFireClassFixture(db: Db, suffix: string) {
     name: `Fire Course ${suffix}`,
     trainingSiteId: site.id,
     hostAgencyId: agency.id,
-    deliveryMethod: "classroom",
+    deliveryMethod,
     startsAt: "2026-09-10T09:00",
     creditedHours: 4,
     leadInstructorId: instructor.id,
@@ -280,17 +288,109 @@ describeDatabase("fire roster fields", () => {
       name: before.name ?? "",
       trainingSiteId: before.trainingSiteId,
       hostAgencyId: before.hostAgencyId,
-      deliveryMethod: "hybrid",
+      deliveryMethod: "classroom,online",
       reportingSystemIds: [systemId],
       accessPinEnabled: false,
     });
 
     const after = await getClassDetail(db, instructor, classId);
-    // Hybrid delivery marks both CR and OL.
+    // Classroom + online marks both CR and OL.
     expect(after.components.map((component) => component.method)).toEqual([
       "cr,ol",
       "cr,ol",
     ]);
+  });
+
+  it("creates a class with multiple delivery methods and seeds the method union", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId } = await createFireClassFixture(
+      db,
+      crypto.randomUUID(),
+      "classroom,hands_on",
+    );
+
+    const detail = await getClassDetail(db, instructor, classId);
+    expect(detail.deliveryMethod).toBe("classroom,hands_on");
+    expect(detail.components.map((component) => component.method)).toEqual([
+      "cr,ho",
+      "cr,ho",
+    ]);
+  });
+
+  it("preserves a session method that differs from the delivery default", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId } = await createFireClassFixture(
+      db,
+      crypto.randomUUID(),
+    );
+    const before = await getClassDetail(db, instructor, classId);
+    const [first, second] = before.components;
+    if (!first || !second) throw new Error("Sessions were not created.");
+    await db
+      .update(classComponents)
+      .set({ method: "ho" })
+      .where(eq(classComponents.id, first.id));
+    const { systemId } = await activeSetId(db, "fire");
+
+    await updateClass(db, instructor, classId, {
+      name: before.name ?? "",
+      trainingSiteId: before.trainingSiteId,
+      hostAgencyId: before.hostAgencyId,
+      deliveryMethod: "classroom,online",
+      reportingSystemIds: [systemId],
+      accessPinEnabled: false,
+    });
+
+    const after = await getClassDetail(db, instructor, classId);
+    expect(after.components.find((c) => c.id === first.id)?.method).toBe("ho");
+    expect(after.components.find((c) => c.id === second.id)?.method).toBe(
+      "cr,ol",
+    );
+
+    const listed = await listClasses(db, instructor, {
+      status: "open",
+      from: new Date("2026-01-01"),
+    });
+    expect(
+      listed.find((classRecord) => classRecord.id === classId)?.deliveryMethod,
+    ).toBe("classroom,hands_on,online");
+    const signInRecord = await getClassSignInRecord(db, instructor, classId);
+    expect(signInRecord.deliveryMethod).toBe("classroom,hands_on,online");
+  });
+
+  it("stores quarter-hour session durations and rejects other increments", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId } = await createFireClassFixture(
+      db,
+      crypto.randomUUID(),
+    );
+    const before = await getClassDetail(db, instructor, classId);
+    const first = before.components[0];
+    if (!first) throw new Error("Session was not created.");
+
+    await saveClassComponent(db, instructor, classId, {
+      id: first.id,
+      startsAt: formatDepartmentDateTimeInput(first.startsAt),
+      creditedHours: 2.25,
+      method: first.method ?? "cr",
+    });
+    const after = await getClassDetail(db, instructor, classId);
+    expect(
+      after.components.find((component) => component.id === first.id)
+        ?.creditedHours,
+    ).toBe("2.25");
+
+    await expect(
+      saveClassComponent(db, instructor, classId, {
+        id: first.id,
+        startsAt: formatDepartmentDateTimeInput(first.startsAt),
+        creditedHours: 2.1,
+        method: first.method ?? "cr",
+      }),
+    ).rejects.toThrow(/15-minute increment/);
   });
 
   it("preserves Fire subjects and instructor certification in the snapshot", async () => {

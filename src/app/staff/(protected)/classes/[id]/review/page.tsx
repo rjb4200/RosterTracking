@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
+import { defaultComponentMethod } from "@/modules/classes/delivery-methods";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
 import type { MtuUsage } from "@/modules/classes/mtu";
 import {
@@ -465,7 +466,7 @@ export default async function ClassReviewPage({
         title={classRecord.name ?? "Class roster"}
         meta={
           <p>
-            {classRecord.site?.name ?? "Online"} | Scheduled total:{" "}
+            {classRecord.site?.name ?? "No site"} | Scheduled total:{" "}
             {formatHours(roster.scheduledHours)}
           </p>
         }
@@ -503,7 +504,7 @@ export default async function ClassReviewPage({
               summary={
                 <>
                   {classRecord.name ?? "Untitled"} ·{" "}
-                  {classRecord.site?.name ?? "Online"} · {reportingLabel}
+                  {classRecord.site?.name ?? "No site"} · {reportingLabel}
                 </>
               }
             >
@@ -582,6 +583,9 @@ export default async function ClassReviewPage({
                         recentCurriculumIds: classOptions.recentCurriculumIds,
                         defaultStartsAt: roundDepartmentDateTimeToQuarterHour(
                           new Date(),
+                        ),
+                        defaultMethod: defaultComponentMethod(
+                          classRecord.deliveryMethod,
                         ),
                       }
                     : undefined
@@ -729,7 +733,7 @@ export default async function ClassReviewPage({
             <h2>Class details</h2>
             <p className="roster-note">
               {classRecord.name ?? "Untitled"} ·{" "}
-              {classRecord.site?.name ?? "Online"} · {reportingLabel} ·{" "}
+              {classRecord.site?.name ?? "No site"} · {reportingLabel} ·{" "}
               {instructorNames}
             </p>
           </section>

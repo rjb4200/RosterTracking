@@ -15,10 +15,12 @@ const leadId = "00000000-0000-4000-8000-000000000001";
 const assistantId = "00000000-0000-4000-8000-000000000002";
 const fireId = "00000000-0000-4000-8000-000000000003";
 const agencyId = "00000000-0000-4000-8000-000000000004";
+const siteId = "00000000-0000-4000-8000-000000000006";
 const classId = "00000000-0000-4000-8000-000000000005";
 const actor = { id: leadId, username: "instructor" };
 const details = {
   name: "Fire training",
+  trainingSiteId: siteId,
   hostAgencyId: agencyId,
   deliveryMethod: "online" as const,
   reportingSystemIds: [fireId],
@@ -61,6 +63,7 @@ describe("Fire class instructor mutation guards", () => {
   it("rejects creating a Fire class before any rows are inserted", async () => {
     const { db, transaction } = databaseWithSelections([
       [{ id: agencyId }],
+      [{ id: siteId }],
       [{ id: fireId }],
       [{ code: "fire" }],
       [],
@@ -84,6 +87,7 @@ describe("Fire class instructor mutation guards", () => {
       [{ id: classId, status: "open" }],
       [{ id: "elevated-role" }],
       [{ id: agencyId }],
+      [{ id: siteId }],
       [{ id: fireId }],
       [{ code: "fire" }],
       [{ id: fireId }],

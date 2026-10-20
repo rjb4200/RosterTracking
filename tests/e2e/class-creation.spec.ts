@@ -90,13 +90,20 @@ test("authorized staff can create and open a class in one pass", async ({
   await expect(page.getByRole("dialog")).toBeHidden();
 
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
-  await page.getByLabel("Scheduled duration (hours)").fill("4");
+  await page.getByRole("checkbox", { name: "Hands-On" }).check();
+  await page.getByRole("checkbox", { name: "Online" }).check();
+  await page.getByLabel("Scheduled duration hours").selectOption("4");
+  await page.getByLabel("Scheduled duration minutes").selectOption("15");
   await page.getByLabel("Require a four-digit student access PIN").check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Back navigation retains values.
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByLabel("Scheduled duration (hours)")).toHaveValue("4");
+  await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Hands-On" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Online" })).toBeChecked();
+  await expect(page.getByLabel("Scheduled duration hours")).toHaveValue("4");
+  await expect(page.getByLabel("Scheduled duration minutes")).toHaveValue("15");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Review and create.
@@ -109,6 +116,9 @@ test("authorized staff can create and open a class in one pass", async ({
   await page.getByRole("link", { name: "Go to class" }).click();
 
   await expect(page.getByText("open", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Classroom + Hands-On + Online", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Live class")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Review and finalize" }),

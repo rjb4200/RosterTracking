@@ -114,6 +114,7 @@ describeDatabase("public class directory", () => {
       .insert(trainingClasses)
       .values({
         name: `Directory Course B ${suffix}`,
+        trainingSiteId: siteId,
         hostAgencyId: agencyId,
         createdByUserId: managerId,
         deliveryMethod: "online",
@@ -214,7 +215,7 @@ describeDatabase("public class directory", () => {
 
     expect(entryB).toMatchObject({
       courseName: `Directory Course B ${suffix}`,
-      location: "Virtual",
+      location: `Directory Site ${suffix}`,
     });
     expect(entryB?.nextSession?.getTime()).toBe(earlier.getTime());
     expect(entryB?.instructors).toEqual(["Z. Adams"]);

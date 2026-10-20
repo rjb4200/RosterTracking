@@ -2,9 +2,9 @@ export const CLASS_DELIVERY_METHODS = {
   CLASSROOM: "classroom",
   HANDS_ON: "hands_on",
   ONLINE: "online",
-  HYBRID: "hybrid",
 } as const;
 
+/** A class delivery value is a comma-separated set of these modalities. */
 export type ClassDeliveryMethod =
   (typeof CLASS_DELIVERY_METHODS)[keyof typeof CLASS_DELIVERY_METHODS];
 

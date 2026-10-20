@@ -6,22 +6,12 @@ import {
   validateClassReadiness,
   validateClassTransition,
   validateComponentRange,
-  validateDeliverySite,
   validateFinalizationTransition,
   validateReopenReason,
   validateReportingStatusTransition,
 } from "./policy";
 
 describe("class policy", () => {
-  it("requires a site for every site-based delivery method", () => {
-    for (const deliveryMethod of ["classroom", "hands_on", "hybrid"]) {
-      expect(() => validateDeliverySite(deliveryMethod, null)).toThrow(
-        /site is required/i,
-      );
-    }
-    expect(() => validateDeliverySite("online", null)).not.toThrow();
-  });
-
   it("requires a valid component time range and positive hours", () => {
     const startsAt = new Date("2026-09-10T13:00:00Z");
     expect(() =>

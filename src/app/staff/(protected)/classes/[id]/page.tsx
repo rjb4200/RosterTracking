@@ -5,6 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import {
+  deliveryMethodLabels,
+  deliveryMethodsFromComponentMethods,
+} from "@/modules/classes/delivery-methods";
+import {
   buildClassSignInUrl,
   createClassQrDataUrl,
 } from "@/modules/classes/qr";
@@ -59,8 +63,13 @@ export default async function ClassDetailPage({
         title={classRecord.name ?? "Class"}
         meta={
           <p>
-            {classRecord.site?.name ?? "Online"} |{" "}
-            {classRecord.deliveryMethod.replace("_", " ")} |{" "}
+            {classRecord.site?.name ?? "No site"} |{" "}
+            {deliveryMethodLabels(
+              deliveryMethodsFromComponentMethods(
+                classRecord.components.map((component) => component.method),
+              ) || classRecord.deliveryMethod,
+            )}{" "}
+            |{" "}
             {classRecord.components[0]
               ? formatDepartmentDateTime(classRecord.components[0].startsAt)
               : "No session scheduled"}

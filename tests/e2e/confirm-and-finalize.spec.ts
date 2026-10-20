@@ -252,7 +252,7 @@ test("an MTU class presents one MTU editor and withholds finalization without us
   await expect(mtuArea).toHaveCount(1);
   await mtuArea.getByRole("button", { name: "Edit" }).click();
   await expect(
-    mtuArea.getByRole("button", { name: "Save supplies and equipment" }),
+    mtuArea.getByRole("button", { name: "Save and close" }),
   ).toHaveCount(1);
 
   // The review list states nothing is recorded, and missing usage withholds finalization.
@@ -265,9 +265,7 @@ test("an MTU class presents one MTU editor and withholds finalization without us
   // Recording free-text usage lists it and clears the blocker.
   await mtuArea.getByText("Additional details").click();
   await mtuArea.getByLabel("Other equipment (not listed)").fill("Test kit");
-  await mtuArea
-    .getByRole("button", { name: "Save supplies and equipment" })
-    .click();
+  await mtuArea.getByRole("button", { name: "Save and close" }).click();
   await expect(mtuArea.locator(".mtu-review")).toContainText("Test kit", {
     timeout: 15_000,
   });
@@ -316,7 +314,7 @@ test("raising a session's hours carries the full credit to the participant", asy
   // Raise the session's credited hours from the schedule area.
   const schedule = page.locator("#area-schedule");
   await schedule.getByRole("button", { name: "Edit" }).click();
-  await schedule.getByLabel("Credited hours").first().fill("5");
+  await schedule.getByLabel("Credited hours").first().selectOption("5");
   await schedule.getByRole("button", { name: "Save and close" }).click();
   await expect(schedule.getByLabel("Credited hours")).toHaveCount(0);
 

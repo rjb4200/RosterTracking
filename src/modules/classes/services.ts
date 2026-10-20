@@ -47,12 +47,13 @@ import {
   users,
 } from "@/server/db/schema";
 
+import { CLASS_STATUSES, type ClassStatus } from "./constants";
 import {
-  CLASS_DELIVERY_METHODS,
-  CLASS_STATUSES,
-  type ClassStatus,
-} from "./constants";
-import { defaultComponentMethod } from "./fire-subjects";
+  defaultComponentMethod,
+  deliveryMethodsFromComponentMethods,
+  formatComponentMethod,
+  formatDeliveryMethods,
+} from "./delivery-methods";
 import { deriveRecentInitialCertNumbers } from "./initial-cert-code";
 import { requireFireInstructorFfns } from "./instructor-ffn";
 import {
@@ -74,7 +75,6 @@ import {
   validateClassReadiness,
   validateClassTransition,
   validateComponentRange,
-  validateDeliverySite,
 } from "./policy";
 import {
   getDepartmentCalendarDate,
@@ -131,9 +131,15 @@ const mtuSupplySelectionInput = z.object({
 
 const draftInput = z.object({
   name: z.string().trim().max(200).default(""),
-  trainingSiteId: z.string().uuid().nullable().optional(),
+  trainingSiteId: z.string().uuid(),
   hostAgencyId: z.string().uuid(),
-  deliveryMethod: z.enum(CLASS_DELIVERY_METHODS),
+  deliveryMethod: z
+    .string()
+    .transform((value) => formatDeliveryMethods(value))
+    .refine(
+      (value) => value.length > 0,
+      "Select at least one delivery method.",
+    ),
   reportingSystemIds: z.array(z.string().uuid()).optional(),
   accessPinEnabled: z.boolean().default(false),
   objectives: z.string().trim().max(2000).default(""),
@@ -158,16 +164,19 @@ const draftInput = z.object({
 });
 
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).optional();
-// Stored KFS-1A Method values: one code, or "cr,ol" for hybrid delivery.
+// Stored KFS-1A Method values: any non-empty canonical subset of cr,ho,ol.
+// Omitted means "leave an existing session unchanged" or "use the class
+// default" for a new session.
 const optionalMethod = z
-  .union([
-    z.literal("cr"),
-    z.literal("ho"),
-    z.literal("ol"),
-    z.literal("cr,ol"),
-    z.literal(""),
-  ])
-  .optional();
+  .string()
+  .optional()
+  .transform((value) =>
+    value === undefined ? undefined : formatComponentMethod(value),
+  )
+  .refine(
+    (value) => value === undefined || value !== null,
+    "Select at least one method.",
+  );
 
 const componentInput = z.object({
   id: z.string().uuid().optional(),
@@ -257,8 +266,6 @@ async function validateReferences(
   transaction: DatabaseTransaction,
   input: z.infer<typeof draftInput>,
 ): Promise<void> {
-  validateDeliverySite(input.deliveryMethod, input.trainingSiteId ?? null);
-
   const [hostAgency] = await transaction
     .select({ id: agencies.id })
     .from(agencies)
@@ -268,19 +275,17 @@ async function validateReferences(
     .limit(1);
   if (!hostAgency) throw new Error("Select an active host agency.");
 
-  if (input.trainingSiteId) {
-    const [site] = await transaction
-      .select({ id: trainingSites.id })
-      .from(trainingSites)
-      .where(
-        and(
-          eq(trainingSites.id, input.trainingSiteId),
-          eq(trainingSites.isActive, true),
-        ),
-      )
-      .limit(1);
-    if (!site) throw new Error("Select an active training site.");
-  }
+  const [site] = await transaction
+    .select({ id: trainingSites.id })
+    .from(trainingSites)
+    .where(
+      and(
+        eq(trainingSites.id, input.trainingSiteId),
+        eq(trainingSites.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (!site) throw new Error("Select an active training site.");
 
   if (input.reportingSystemIds?.length) {
     const selected = await transaction
@@ -839,7 +844,7 @@ export async function createOpenClass(
       .insert(trainingClasses)
       .values({
         name: className,
-        trainingSiteId: parsed.trainingSiteId ?? null,
+        trainingSiteId: parsed.trainingSiteId,
         hostAgencyId: parsed.hostAgencyId,
         createdByUserId: actor.id,
         deliveryMethod: parsed.deliveryMethod,
@@ -1024,7 +1029,7 @@ export async function updateClass(
       .update(trainingClasses)
       .set({
         name: parsed.name || null,
-        trainingSiteId: parsed.trainingSiteId ?? null,
+        trainingSiteId: parsed.trainingSiteId,
         hostAgencyId: parsed.hostAgencyId,
         deliveryMethod: parsed.deliveryMethod,
         objectives: parsed.objectives || null,
@@ -1038,16 +1043,23 @@ export async function updateClass(
       .where(eq(trainingClasses.id, classId))
       .returning();
     if (!updated) throw new Error("Class was not updated.");
-    // The KFS-1A Method follows the class delivery method, so re-derive it on
-    // every session when the delivery method changes.
+    // A delivery change updates only sessions that still use the previous
+    // default. Sessions an operator already changed (for example to hands-on)
+    // keep their method.
     if (existing.deliveryMethod !== parsed.deliveryMethod) {
+      const previousDefault = defaultComponentMethod(existing.deliveryMethod);
+      const nextDefault = defaultComponentMethod(parsed.deliveryMethod);
       await transaction
         .update(classComponents)
-        .set({
-          method: defaultComponentMethod(parsed.deliveryMethod),
-          updatedAt: new Date(),
-        })
-        .where(eq(classComponents.classId, classId));
+        .set({ method: nextDefault, updatedAt: new Date() })
+        .where(
+          and(
+            eq(classComponents.classId, classId),
+            previousDefault
+              ? eq(classComponents.method, previousDefault)
+              : isNull(classComponents.method),
+          ),
+        );
     }
     await replaceReportingSystems(
       transaction,
@@ -1177,6 +1189,16 @@ export async function saveClassComponent(
       throw new Error("All class sessions must occur on one roster day.");
     }
     const previousTotal = await scheduledHoursTotal(transaction, classId);
+    // A new session starts from the class delivery default. An omitted method
+    // on an update leaves the existing method untouched.
+    const method =
+      parsed.method ??
+      (parsed.id
+        ? undefined
+        : defaultComponentMethod(classRecord.deliveryMethod));
+    if (!parsed.id && !method) {
+      throw new Error("Select at least one method.");
+    }
     const values = {
       classId,
       title: parsed.title || null,
@@ -1190,7 +1212,7 @@ export async function saveClassComponent(
       curriculumName: parsed.curriculumName || null,
       curriculumChapter: parsed.curriculumChapter || null,
       lessonPlan: parsed.lessonPlan || null,
-      method: parsed.method || null,
+      method,
       updatedAt: new Date(),
     };
     await assertCurriculumChapter(transaction, parsed);
@@ -1616,10 +1638,7 @@ export async function listPublicOpenClasses(db: Database) {
       {
         publicCode,
         courseName: record.courseName,
-        location:
-          record.deliveryMethod === "online"
-            ? "Virtual"
-            : (record.siteName ?? ""),
+        location: record.siteName ?? "",
         nextSession,
         instructors: instructorsByClass.get(record.id) ?? [],
       },
@@ -1776,12 +1795,38 @@ export async function listClasses(
     )
     .limit(CLASS_LIST_LIMIT);
 
+  const componentRows =
+    rows.length === 0
+      ? []
+      : await db
+          .select({
+            classId: classComponents.classId,
+            method: classComponents.method,
+          })
+          .from(classComponents)
+          .where(
+            inArray(
+              classComponents.classId,
+              rows.map((row) => row.id),
+            ),
+          );
+  const componentMethodsByClass = new Map<string, Array<string | null>>();
+  for (const component of componentRows) {
+    const methods = componentMethodsByClass.get(component.classId) ?? [];
+    methods.push(component.method);
+    componentMethodsByClass.set(component.classId, methods);
+  }
+
   return rows.map((row) => {
     const normalizedFinalSessionEndsAt = asDate(
       row.finalSessionEndsAt as Date | string | null,
     );
     return {
       ...row,
+      deliveryMethod:
+        deliveryMethodsFromComponentMethods(
+          componentMethodsByClass.get(row.id) ?? [],
+        ) || row.deliveryMethod,
       createdAt: asDate(row.createdAt as Date | string | null),
       firstSessionStartsAt: asDate(
         row.firstSessionStartsAt as Date | string | null,

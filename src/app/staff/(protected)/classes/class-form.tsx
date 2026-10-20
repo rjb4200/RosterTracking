@@ -5,6 +5,12 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  DELIVERY_METHOD_ORDER,
+  deliveryMethodLabel,
+  formatDeliveryMethods,
+  parseDeliveryMethods,
+} from "@/modules/classes/delivery-methods";
 import type { MtuUsageItem } from "@/modules/classes/mtu";
 
 import type { ActionState } from "./actions";
@@ -73,6 +79,9 @@ export function ClassForm({
   const [reportingSystemIds, setReportingSystemIds] = useState(
     values?.reportingSystemIds ?? [],
   );
+  const [deliveryMethods, setDeliveryMethods] = useState(() =>
+    parseDeliveryMethods(values?.deliveryMethod ?? "classroom"),
+  );
   const emsCategories = trainingCodes.filter(
     (category) => category.kind === "ems",
   );
@@ -98,19 +107,37 @@ export function ClassForm({
             placeholder="e.g. EMS Continuing Education"
           />
         </div>
-        <div className="field">
-          <Label htmlFor="deliveryMethod">Delivery</Label>
-          <select
-            id="deliveryMethod"
+        <div className="field field-wide">
+          <span className="field-label">Default delivery</span>
+          <p className="text-muted-foreground">
+            Seeds new sessions. Each session can use a different method.
+          </p>
+          <div className="checkbox-list">
+            {DELIVERY_METHOD_ORDER.map((method) => (
+              <Label key={method} className="checkbox-field">
+                <Input
+                  type="checkbox"
+                  checked={deliveryMethods.includes(method)}
+                  onChange={(event) =>
+                    setDeliveryMethods((current) =>
+                      event.target.checked
+                        ? [...new Set([...current, method])]
+                        : current.filter((value) => value !== method),
+                    )
+                  }
+                />
+                {deliveryMethodLabel(method)}
+              </Label>
+            ))}
+          </div>
+          <input
+            type="hidden"
             name="deliveryMethod"
-            className="select-input"
-            defaultValue={values?.deliveryMethod ?? "classroom"}
-          >
-            <option value="classroom">Classroom</option>
-            <option value="hands_on">Hands-On</option>
-            <option value="online">Online</option>
-            <option value="hybrid">Hybrid</option>
-          </select>
+            value={formatDeliveryMethods(deliveryMethods.join(","))}
+          />
+          {deliveryMethods.length === 0 ? (
+            <p className="form-error">Select at least one delivery method.</p>
+          ) : null}
         </div>
         <div className="field">
           <Label htmlFor="trainingSiteId">Training site</Label>
@@ -119,8 +146,11 @@ export function ClassForm({
             name="trainingSiteId"
             className="select-input"
             defaultValue={values?.trainingSiteId ?? ""}
+            required
           >
-            <option value="">No site (online only)</option>
+            <option value="" disabled>
+              Select a training site
+            </option>
             {sites.map((site) => (
               <option key={site.id} value={site.id}>
                 {site.name}

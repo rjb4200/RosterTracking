@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { componentMethodLabels } from "@/modules/classes/delivery-methods";
 import { formatHours } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
@@ -50,6 +51,7 @@ export type ScheduleEditor = {
   curriculumChapters: CurriculumChapterOption[];
   recentCurriculumIds: string[];
   defaultStartsAt: string;
+  defaultMethod?: string | null;
 };
 
 /** Shows one editable session while keeping the remaining schedule compact. */
@@ -88,6 +90,9 @@ export function ScheduleSessions({
               <span>
                 {session.startsAtLabel} to {session.endsAtLabel}
               </span>
+              <span>
+                {componentMethodLabels(session.method) || "No method"}
+              </span>
               <Badge variant="outline">
                 {formatHours(session.creditedHours)}
               </Badge>
@@ -123,6 +128,7 @@ export function ScheduleSessions({
               formId={FORM_ID}
               hideSubmit
               defaultStartsAt={editor.defaultStartsAt}
+              defaultMethod={editor.defaultMethod}
               trainingCodes={editor.trainingCodes}
               trainingCodeKind={editor.trainingCodeKind}
               curricula={editor.curricula}
@@ -149,6 +155,7 @@ export function ScheduleSessions({
                 lessonPlan: selectedSession.lessonPlan,
                 method: selectedSession.method,
               }}
+              defaultMethod={editor.defaultMethod}
               trainingCodes={editor.trainingCodes}
               trainingCodeKind={editor.trainingCodeKind}
               curricula={editor.curricula}
