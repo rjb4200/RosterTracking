@@ -35,15 +35,15 @@ async function seedFireFixtures(pool: Pool, suffix: string) {
   return { siteId, agencyId, trainingCodeId, curriculumId };
 }
 
-// A Fire class requires every assigned instructor to hold a valid FFN, and the
-// class creator becomes the lead instructor, so the operator must have one.
+// A Fire class requires at least one fire instructor, and the class creator
+// becomes the lead instructor, so the operator must hold an FFN and a level.
 async function setLeadInstructorFfn(pool: Pool, seed: string) {
   if (!username) return;
   const digits = seed.replace(/\D/g, "").padEnd(8, "0").slice(0, 8);
-  await pool.query("update users set ffn = $1 where username = $2", [
-    `${digits.slice(0, 4)}-${digits.slice(4)}`,
-    username,
-  ]);
+  await pool.query(
+    "update users set ffn = $1, instructor_level = 2 where username = $2",
+    [`${digits.slice(0, 4)}-${digits.slice(4)}`, username],
+  );
 }
 
 async function completeClassStep(
@@ -54,7 +54,7 @@ async function completeClassStep(
     .getByLabel("Training site", { exact: true })
     .selectOption(fixture.siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
-  await page.getByLabel("Scheduled duration hours").selectOption("4");
+  await page.getByLabel("Scheduled duration").selectOption("4");
   await page.getByLabel("Host agency").selectOption(fixture.agencyId);
 }
 

@@ -1,30 +1,65 @@
 import { describe, expect, it } from "vitest";
 
-import { validateFireInstructorFfns } from "./instructor-ffn";
+import { validateFireInstructors } from "./instructor-ffn";
 
-describe("Fire instructor FFN policy", () => {
-  it("permits lead and assisting profiles with correctly formatted FFNs", () => {
+describe("Fire instructor policy", () => {
+  it("permits a Fire class with one fire instructor among the assignments", () => {
     expect(() =>
-      validateFireInstructorFfns([
-        { displayName: "Lead", ffn: "1234-5678" },
-        { displayName: "Assistant", ffn: "8765-4321" },
+      validateFireInstructors([
+        {
+          displayName: "Lead",
+          ffn: "1234-5678",
+          instructorLevel: 2,
+        },
+        {
+          displayName: "Assistant",
+          ffn: null,
+          instructorLevel: null,
+        },
       ]),
     ).not.toThrow();
   });
 
-  it("identifies every missing or malformed profile without disclosing FFNs", () => {
+  it("requires both a valid FFN and a Fire Instructor level", () => {
     expect(() =>
-      validateFireInstructorFfns([
-        { displayName: "Lead", ffn: null },
-        { displayName: "Assistant", ffn: "12345678" },
+      validateFireInstructors([
+        {
+          displayName: "FFN only",
+          ffn: "1234-5678",
+          instructorLevel: null,
+        },
+        {
+          displayName: "Level only",
+          ffn: null,
+          instructorLevel: 2,
+        },
       ]),
-    ).toThrow(/Update the staff profile for: Lead, Assistant/);
+    ).toThrow(/valid FFN.*Fire Instructor level/);
+  });
+
+  it("identifies the assigned instructors without disclosing FFNs", () => {
     try {
-      validateFireInstructorFfns([
-        { displayName: "Assistant", ffn: "12345678" },
+      validateFireInstructors([
+        {
+          displayName: "Lead",
+          ffn: "12345678",
+          instructorLevel: 2,
+        },
+        {
+          displayName: "Assistant",
+          ffn: null,
+          instructorLevel: null,
+        },
       ]);
     } catch (error) {
+      expect((error as Error).message).toContain("Lead, Assistant");
       expect((error as Error).message).not.toContain("12345678");
     }
+  });
+
+  it("requires a lead instructor", () => {
+    expect(() => validateFireInstructors([])).toThrow(
+      /Assign a lead instructor/,
+    );
   });
 });

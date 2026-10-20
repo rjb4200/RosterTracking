@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
+import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
 import { listClassCredentialCorrections } from "@/modules/credential-correction/service";
 import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
@@ -16,6 +17,8 @@ import {
   classComponents,
   classGuests,
   classInstructors,
+  classReportingSystems,
+  reportingSystems,
   roles,
   students,
   trainingClasses,
@@ -366,6 +369,35 @@ export async function getRosterReadiness(
     const attentionIds = new Set<string>();
     if (!active.length)
       issues.push("At least one participant must sign in before finalizing.");
+    const [fireDestination] = await transaction
+      .select({ id: reportingSystems.id })
+      .from(classReportingSystems)
+      .innerJoin(
+        reportingSystems,
+        eq(reportingSystems.id, classReportingSystems.reportingSystemId),
+      )
+      .where(
+        and(
+          eq(classReportingSystems.classId, classId),
+          eq(reportingSystems.code, "fire"),
+        ),
+      )
+      .limit(1);
+    if (fireDestination) {
+      const instructors = await transaction
+        .select({
+          userId: users.id,
+          isLead: classInstructors.isLead,
+          ffn: users.ffn,
+          instructorLevel: users.instructorLevel,
+        })
+        .from(classInstructors)
+        .innerJoin(users, eq(users.id, classInstructors.userId))
+        .where(eq(classInstructors.classId, classId));
+      if (!resolveFireSigner(instructors)) {
+        issues.push("A Fire class requires an assigned fire instructor.");
+      }
+    }
     for (const entry of active) {
       const name = participantLabel(entry);
       const credit =

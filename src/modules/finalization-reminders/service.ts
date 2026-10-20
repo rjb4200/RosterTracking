@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import {
   formatDepartmentDateTime,
@@ -24,6 +24,7 @@ import {
   classComponents,
   classInstructors,
   EMAIL_DELIVERY_STATUSES,
+  finalizationRevisions,
   trainingClasses,
   users,
 } from "@/server/db/schema";
@@ -65,21 +66,22 @@ export async function collectReminderDigests(db: Database, now = new Date()) {
     })
     .from(trainingClasses)
     .where(eq(trainingClasses.status, "open"));
-  if (!openRows.length) return [];
 
-  const endRows = await db
-    .select({
-      classId: classComponents.classId,
-      endsAt: sql<Date | string | null>`max(${classComponents.endsAt})`,
-    })
-    .from(classComponents)
-    .where(
-      inArray(
-        classComponents.classId,
-        openRows.map((row) => row.classId),
-      ),
-    )
-    .groupBy(classComponents.classId);
+  const endRows = openRows.length
+    ? await db
+        .select({
+          classId: classComponents.classId,
+          endsAt: sql<Date | string | null>`max(${classComponents.endsAt})`,
+        })
+        .from(classComponents)
+        .where(
+          inArray(
+            classComponents.classId,
+            openRows.map((row) => row.classId),
+          ),
+        )
+        .groupBy(classComponents.classId)
+    : [];
   const endsByClass = new Map(
     endRows.map((row) => [row.classId, asDate(row.endsAt)]),
   );
@@ -99,25 +101,26 @@ export async function collectReminderDigests(db: Database, now = new Date()) {
         finalSessionEndsAt: Date;
       } => isReminderDue(row.finalSessionEndsAt, now),
     );
-  if (!classes.length) return [];
 
-  const instructorRows = await db
-    .select({
-      classId: classInstructors.classId,
-      userId: classInstructors.userId,
-      isLead: classInstructors.isLead,
-      email: users.email,
-      isActive: users.isActive,
-      displayName: users.displayName,
-    })
-    .from(classInstructors)
-    .innerJoin(users, eq(users.id, classInstructors.userId))
-    .where(
-      inArray(
-        classInstructors.classId,
-        classes.map((row) => row.classId),
-      ),
-    );
+  const instructorRows = classes.length
+    ? await db
+        .select({
+          classId: classInstructors.classId,
+          userId: classInstructors.userId,
+          isLead: classInstructors.isLead,
+          email: users.email,
+          isActive: users.isActive,
+          displayName: users.displayName,
+        })
+        .from(classInstructors)
+        .innerJoin(users, eq(users.id, classInstructors.userId))
+        .where(
+          inArray(
+            classInstructors.classId,
+            classes.map((row) => row.classId),
+          ),
+        )
+    : [];
 
   const accounts = new Map<string, ReminderAccount>();
   const instructorsByClass = new Map<string, ReminderInstructor[]>();
@@ -133,10 +136,92 @@ export async function collectReminderDigests(db: Database, now = new Date()) {
     instructorsByClass.set(row.classId, list);
   }
 
-  const reminderClasses: ReminderClass[] = classes.map((row) => ({
-    ...row,
-    instructors: instructorsByClass.get(row.classId) ?? [],
-  }));
+  const pendingFireRows = await db
+    .select({
+      classId: trainingClasses.id,
+      className: sql<
+        string | null
+      >`coalesce(${trainingClasses.name}, 'Training class')`,
+      fireSignerUserId: finalizationRevisions.fireSignerUserId,
+      finalizedAt: finalizationRevisions.finalizedAt,
+    })
+    .from(finalizationRevisions)
+    .innerJoin(
+      trainingClasses,
+      eq(trainingClasses.id, finalizationRevisions.classId),
+    )
+    .where(
+      and(
+        eq(trainingClasses.status, "finalized"),
+        isNotNull(finalizationRevisions.fireSignerUserId),
+        sql`${finalizationRevisions.revisionNumber} = (
+          select max(fr2.revision_number)
+          from finalization_revisions fr2
+          where fr2.class_id = ${finalizationRevisions.classId}
+        )`,
+        sql`not exists (
+          select 1 from revision_attestations ra
+          where ra.revision_id = ${finalizationRevisions.id} and ra.scope = 'fire'
+        )`,
+        sql`not exists (
+          select 1 from finalization_fire_attestations fa
+          where fa.revision_id = ${finalizationRevisions.id}
+        )`,
+      ),
+    );
+
+  const signerIds = [
+    ...new Set(
+      pendingFireRows.flatMap((row) =>
+        row.fireSignerUserId ? [row.fireSignerUserId] : [],
+      ),
+    ),
+  ];
+  if (signerIds.length) {
+    const signerRows = await db
+      .select({
+        userId: users.id,
+        email: users.email,
+        isActive: users.isActive,
+        displayName: users.displayName,
+      })
+      .from(users)
+      .where(inArray(users.id, signerIds));
+    for (const row of signerRows) {
+      accounts.set(row.userId, {
+        userId: row.userId,
+        email: row.email,
+        isActive: row.isActive,
+        displayName: row.displayName,
+      });
+    }
+  }
+
+  const pendingFireClasses: ReminderClass[] = pendingFireRows.flatMap((row) =>
+    row.fireSignerUserId
+      ? [
+          {
+            classId: row.classId,
+            className: row.className ?? "Training class",
+            finalSessionEndsAt: asDate(row.finalizedAt) ?? new Date(),
+            instructors: [],
+            recipientUserId: row.fireSignerUserId,
+            action: "sign_fire" as const,
+          },
+        ]
+      : [],
+  );
+
+  if (!classes.length && !pendingFireClasses.length) return [];
+
+  const reminderClasses: ReminderClass[] = [
+    ...classes.map((row) => ({
+      ...row,
+      instructors: instructorsByClass.get(row.classId) ?? [],
+      action: "finalize" as const,
+    })),
+    ...pendingFireClasses,
+  ];
 
   return groupReminders(reminderClasses, accounts);
 }
@@ -162,8 +247,11 @@ export async function runFinalizationReminders(
 
   for (const digest of digests) {
     const classIds = digest.classes.map((item) => item.classId).sort();
+    const actions = digest.classes
+      .map((item) => `${item.classId}:${item.action}`)
+      .sort();
     const fingerprint = createHash("sha256")
-      .update(JSON.stringify({ period, classIds }))
+      .update(JSON.stringify({ period, classIds, actions }))
       .digest("hex");
     const delivery = await db.transaction((transaction) =>
       enqueueEmail(transaction, {
@@ -193,6 +281,7 @@ export async function runFinalizationReminders(
           name: item.className,
           date: formatDepartmentDateTime(item.finalSessionEndsAt),
           url: `${origin}/staff/classes/${item.classId}/review`,
+          action: item.action,
         })),
     });
 

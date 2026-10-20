@@ -25,6 +25,10 @@ import {
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
 import {
+  isFireInstructor,
+  resolveFireSigner,
+} from "@/modules/classes/fire-signer";
+import {
   isInitialCertNumberValid,
   normalizeInitialCertNumber,
 } from "@/modules/classes/initial-cert-code";
@@ -62,6 +66,10 @@ import {
 import { SearchSelect, type SearchSelectOption } from "./search-select";
 
 type Option = { id: string; name: string };
+type StaffOption = Option & {
+  ffn: string | null;
+  instructorLevel: number | null;
+};
 type ReportingSystemOption = Option & { code: string };
 
 export function ClassCreationWizard({
@@ -100,7 +108,7 @@ export function ClassCreationWizard({
   ) => Promise<CreateAgencyActionState>;
   sites: Option[];
   agencies: Option[];
-  staff: Option[];
+  staff: StaffOption[];
   reportingSystems: ReportingSystemOption[];
   inclusionRules: Array<{
     reportingSystemId: string;
@@ -149,6 +157,7 @@ export function ClassCreationWizard({
     startsAt: roundDepartmentDateTimeToQuarterHour(new Date()),
     creditedHours: "2",
     leadInstructorId: defaultLeadInstructorId,
+    assistantInstructorId: "",
     reportingSystemIds: [] as string[],
     accessPinEnabled: false,
     objectives: "",
@@ -188,6 +197,35 @@ export function ClassCreationWizard({
   const selectedInstructor = staff.find(
     (instructor) => instructor.id === values.leadInstructorId,
   );
+  const selectedAssistant = staff.find(
+    (instructor) => instructor.id === values.assistantInstructorId,
+  );
+  const fireSigner = resolveFireSigner([
+    ...(selectedInstructor
+      ? [
+          {
+            userId: selectedInstructor.id,
+            isLead: true,
+            ffn: selectedInstructor.ffn,
+            instructorLevel: selectedInstructor.instructorLevel,
+          },
+        ]
+      : []),
+    ...(selectedAssistant
+      ? [
+          {
+            userId: selectedAssistant.id,
+            isLead: false,
+            ffn: selectedAssistant.ffn,
+            instructorLevel: selectedAssistant.instructorLevel,
+          },
+        ]
+      : []),
+  ]);
+  const fireSignerName = fireSigner
+    ? (staff.find((instructor) => instructor.id === fireSigner.userId)?.name ??
+      null)
+    : null;
   const selectedSystems = reportingSystems.filter((system) =>
     values.reportingSystemIds.includes(system.id),
   );
@@ -518,9 +556,9 @@ export function ClassCreationWizard({
       {currentKey === "fire" ? (
         <section className="stack-form">
           <p className="text-muted-foreground">
-            Lead and assisting instructors need an FFN in the format 0000-0000
-            on their staff profile before they can be assigned to this Fire
-            class.
+            A Fire class needs at least one assigned instructor with a valid FFN
+            (0000-0000) and a Fire Instructor level (1, 2, or 3) on their staff
+            profile. That instructor signs the Fire roster and training notice.
           </p>
           {subjects.map((subject, index) => (
             <FireSubjectRow
@@ -872,9 +910,13 @@ export function ClassCreationWizard({
                 id="leadInstructorId"
                 className="select-input"
                 value={values.leadInstructorId}
-                onChange={(event) =>
-                  update("leadInstructorId", event.target.value)
-                }
+                onChange={(event) => {
+                  const nextLead = event.target.value;
+                  update("leadInstructorId", nextLead);
+                  if (values.assistantInstructorId === nextLead) {
+                    update("assistantInstructorId", "");
+                  }
+                }}
                 aria-invalid={errors.includes("leadInstructorId") || undefined}
               >
                 {staff.map((instructor) => (
@@ -882,6 +924,31 @@ export function ClassCreationWizard({
                     {instructor.name}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="field">
+              <Label htmlFor="assistantInstructorId">
+                Assistant instructor
+              </Label>
+              <select
+                id="assistantInstructorId"
+                className="select-input"
+                value={values.assistantInstructorId}
+                onChange={(event) =>
+                  update("assistantInstructorId", event.target.value)
+                }
+              >
+                <option value="">No assistant</option>
+                {staff
+                  .filter(
+                    (instructor) => instructor.id !== values.leadInstructorId,
+                  )
+                  .map((instructor) => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.name}
+                      {isFireInstructor(instructor) ? " (fire instructor)" : ""}
+                    </option>
+                  ))}
               </select>
             </div>
             <Label className="checkbox-field field-wide">
@@ -934,6 +1001,29 @@ export function ClassCreationWizard({
             <dd>{selectedAgency?.name ?? "Not selected"}</dd>
             <dt>Lead instructor</dt>
             <dd>{selectedInstructor?.name}</dd>
+            {selectedAssistant ? (
+              <>
+                <dt>Assistant instructor</dt>
+                <dd>{selectedAssistant.name}</dd>
+              </>
+            ) : null}
+            {selectedCodes.includes("fire") ? (
+              <>
+                <dt>Fire signer</dt>
+                <dd>
+                  {fireSignerName ?? "A fire instructor is required"}
+                  {fireSigner && fireSigner.userId !== values.leadInstructorId
+                    ? " (signs after finalization)"
+                    : ""}
+                </dd>
+              </>
+            ) : null}
+            {selectedCodes.includes("kbems") ? (
+              <>
+                <dt>Certificate signer</dt>
+                <dd>{selectedInstructor?.name ?? "Not selected"}</dd>
+              </>
+            ) : null}
             {selectedCodes.includes("fire") ? (
               <>
                 <dt>Fire subjects</dt>
@@ -999,6 +1089,11 @@ export function ClassCreationWizard({
         type="hidden"
         name="leadInstructorId"
         value={values.leadInstructorId}
+      />
+      <input
+        type="hidden"
+        name="assistantInstructorId"
+        value={values.assistantInstructorId}
       />
       {values.accessPinEnabled ? (
         <input type="hidden" name="accessPinEnabled" value="on" />

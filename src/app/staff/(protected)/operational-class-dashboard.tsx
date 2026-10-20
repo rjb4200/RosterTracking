@@ -16,12 +16,14 @@ function ClassCard({ classRecord }: { classRecord: OperationalClass }) {
   const detailHref = `/staff/classes/${classRecord.id}`;
   const reviewHref = `${detailHref}/review`;
   const action =
-    classRecord.action === "roster"
-      ? {
-          href: classRecord.isOverdue ? reviewHref : detailHref,
-          label: classRecord.isOverdue ? "Review and finalize" : "Open class",
-        }
-      : { href: reviewHref, label: "View class" };
+    classRecord.action === "sign_fire"
+      ? { href: reviewHref, label: "Sign Fire roster" }
+      : classRecord.action === "roster"
+        ? {
+            href: classRecord.isOverdue ? reviewHref : detailHref,
+            label: classRecord.isOverdue ? "Review and finalize" : "Open class",
+          }
+        : { href: reviewHref, label: "View class" };
 
   return (
     <article className="operational-class-card">
@@ -31,7 +33,11 @@ function ClassCard({ classRecord }: { classRecord: OperationalClass }) {
           <p>{classRecord.siteName ?? "No site"}</p>
         </div>
         <Badge variant={classRecord.isOverdue ? "destructive" : "secondary"}>
-          {classRecord.isOverdue ? "Overdue" : classRecord.status}
+          {classRecord.isOverdue
+            ? "Overdue"
+            : classRecord.fireSignaturePending
+              ? "Fire signature pending"
+              : classRecord.status}
         </Badge>
       </div>
       <p className="operational-class-schedule">

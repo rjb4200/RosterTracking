@@ -196,6 +196,7 @@ export interface ClassReminderItem {
   name: string;
   date: string;
   url: string;
+  action?: "finalize" | "sign_fire";
 }
 
 export interface ClassReminderEmailInput {
@@ -209,11 +210,19 @@ export function renderClassReminderEmail(
 ): RenderedEmail {
   const instructor = escapeHtml(input.instructorName);
   const count = input.classes.length;
+  const allFire = input.classes.every((item) => item.action === "sign_fire");
+  const allFinalize = input.classes.every(
+    (item) => item.action !== "sign_fire",
+  );
   const rows = input.classes
     .map((item) => {
       const name = escapeHtml(item.name);
       const date = escapeHtml(item.date);
-      return `<tr><td style="padding:10px 16px 10px 0;color:${BRAND.ink};font-size:14px;font-weight:600;">${name}</td><td style="padding:10px 16px 10px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;">${date}</td><td style="padding:10px 0;"><a href="${item.url}" style="color:${BRAND.red};font-size:13px;font-weight:700;text-decoration:none;">Review and finalize</a></td></tr>`;
+      const label =
+        item.action === "sign_fire"
+          ? "Sign Fire roster"
+          : "Review and finalize";
+      return `<tr><td style="padding:10px 16px 10px 0;color:${BRAND.ink};font-size:14px;font-weight:600;">${name}</td><td style="padding:10px 16px 10px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;">${date}</td><td style="padding:10px 0;"><a href="${item.url}" style="color:${BRAND.red};font-size:13px;font-weight:700;text-decoration:none;">${label}</a></td></tr>`;
     })
     .join("");
 
@@ -221,13 +230,21 @@ export function renderClassReminderEmail(
     <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Roster reminder</p>
     <h1 style="margin:0 0 16px;font-family:${FONT_STACK};color:#111827;font-size:24px;font-weight:700;">${instructor}</h1>
     <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
-      ${count === 1 ? "One class has" : `${count} classes have`} ended and still need to be finalized and locked. Open each one to review attendance and sign the roster.
+      ${
+        allFinalize
+          ? `${count === 1 ? "One class has" : `${count} classes have`} ended and still need to be finalized and locked. Open each one to review attendance and sign the roster.`
+          : `${count === 1 ? "One class needs" : `${count} classes need`} your attention. Finalize open rosters and sign pending Fire rosters.`
+      }
     </p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ${BRAND.border};border-bottom:1px solid ${BRAND.border};margin:0 0 20px;">
       ${rows}
     </table>
     <p style="margin:0;font-family:${FONT_STACK};color:${BRAND.muted};font-size:13px;line-height:1.6;">
-      Once a class is finalized it drops off this reminder.
+      ${
+        allFinalize
+          ? "Once a class is finalized it drops off this reminder."
+          : "A class drops off this reminder once its signature is recorded."
+      }
     </p>`;
 
   const text = [
@@ -235,19 +252,33 @@ export function renderClassReminderEmail(
     "ROSTER REMINDER",
     "",
     input.instructorName,
-    `${count === 1 ? "One class has" : `${count} classes have`} ended and still need to be finalized and locked.`,
+    allFinalize
+      ? `${count === 1 ? "One class has" : `${count} classes have`} ended and still need to be finalized and locked.`
+      : `${count === 1 ? "One class needs" : `${count} classes need`} your attention. Finalize open rosters and sign pending Fire rosters.`,
     "",
-    ...input.classes.map((item) => `${item.name} (${item.date}): ${item.url}`),
+    ...input.classes.map(
+      (item) =>
+        `${item.name} (${item.date})${item.action === "sign_fire" ? " [Fire signature]" : ""}: ${item.url}`,
+    ),
     "",
-    "Once a class is finalized it drops off this reminder.",
+    allFinalize
+      ? "Once a class is finalized it drops off this reminder."
+      : "A class drops off this reminder once its signature is recorded.",
     "Training Division",
   ].join("\n");
 
   return {
-    subject:
-      count === 1
-        ? "1 roster awaits finalization"
-        : `${count} rosters await finalization`,
+    subject: allFire
+      ? count === 1
+        ? "1 Fire roster awaits your signature"
+        : `${count} Fire rosters await your signature`
+      : allFinalize
+        ? count === 1
+          ? "1 roster awaits finalization"
+          : `${count} rosters await finalization`
+        : count === 1
+          ? "1 roster action awaits you"
+          : `${count} roster actions await you`,
     html: emailShell(body),
     text,
   };

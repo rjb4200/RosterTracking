@@ -262,6 +262,11 @@ export const finalizationRevisions = pgTable(
     signedByName: text("signed_by_name"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
     attestationVersion: text("attestation_version"),
+    // The fire instructor resolved at finalization. The Fire attestation is
+    // recorded separately because a revision is immutable.
+    fireSignerUserId: uuid("fire_signer_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
     // The encrypted payload keeps historical roster facts out of normal reads.
     encryptedSnapshot: text("encrypted_snapshot").notNull(),
     summary: jsonb("summary").notNull(),
@@ -282,6 +287,76 @@ export const finalizationRevisions = pgTable(
     check(
       "finalization_revisions_snapshot_not_blank",
       sql`length(btrim(${table.encryptedSnapshot})) > 0`,
+    ),
+  ],
+);
+
+/**
+ * Scope-keyed attestations. The lead's finalization writes the `roster` row;
+ * the Fire signer appends the `fire` row after the revision is locked. Rows are
+ * immutable once written.
+ */
+export const revisionAttestations = pgTable(
+  "revision_attestations",
+  {
+    revisionId: uuid("revision_id")
+      .notNull()
+      .references(() => finalizationRevisions.id, { onDelete: "restrict" }),
+    scope: text("scope").notNull(),
+    signedByUserId: uuid("signed_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    signedByName: text("signed_by_name").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    attestationVersion: text("attestation_version").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.revisionId, table.scope] }),
+    check(
+      "revision_attestations_scope",
+      sql`${table.scope} in ('roster', 'fire')`,
+    ),
+    check(
+      "revision_attestations_name_not_blank",
+      sql`length(btrim(${table.signedByName})) > 0`,
+    ),
+    check(
+      "revision_attestations_version_not_blank",
+      sql`length(btrim(${table.attestationVersion})) > 0`,
+    ),
+  ],
+);
+
+/**
+ * The fire instructor's separate attestation on a finalized revision. Retained
+ * for revisions created before scope-keyed attestations; new writes use
+ * `revision_attestations`.
+ */
+export const finalizationFireAttestations = pgTable(
+  "finalization_fire_attestations",
+  {
+    revisionId: uuid("revision_id")
+      .primaryKey()
+      .references(() => finalizationRevisions.id, { onDelete: "restrict" }),
+    signedByUserId: uuid("signed_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    signedByName: text("signed_by_name").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    attestationVersion: text("attestation_version").notNull(),
+  },
+  (table) => [
+    check(
+      "finalization_fire_attestations_name_not_blank",
+      sql`length(btrim(${table.signedByName})) > 0`,
+    ),
+    check(
+      "finalization_fire_attestations_version_not_blank",
+      sql`length(btrim(${table.attestationVersion})) > 0`,
     ),
   ],
 );

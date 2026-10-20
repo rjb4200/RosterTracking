@@ -13,6 +13,7 @@ import {
 } from "pdf-lib";
 import { z } from "zod";
 
+import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import {
   composeCurriculumLabel,
   parseComponentMethod,
@@ -27,7 +28,9 @@ import { writeAuditLog } from "@/server/db/audit";
 import type { Database } from "@/server/db/client";
 import {
   classInstructors,
+  finalizationFireAttestations,
   finalizationRevisions,
+  revisionAttestations,
   roles,
   userRoles,
 } from "@/server/db/schema";
@@ -86,6 +89,25 @@ export interface FinalizationSnapshot {
     signedAt: string | null;
     attestationVersion: string | null;
   };
+  // The fire instructor's attestation on the Fire roster and training notice.
+  // Present at finalization when the lead is the Fire signer, otherwise after
+  // the Fire signer signs the locked revision.
+  fireSignature?: {
+    name: string;
+    signedAt: string | null;
+    attestationVersion: string | null;
+    signedByUserId?: string | null;
+  };
+  // Set on revisions created after the Fire signer model. A legacy revision
+  // leaves this null and keeps the single-signature fallback.
+  fireSignerUserId?: string | null;
+  // Whether the revision has a stored scope-keyed attestation. A legacy
+  // revision has neither and keeps the single-signature fallback.
+  rosterAttested?: boolean;
+  fireAttested?: boolean;
+  // True when the revision predates scope-keyed attestations. A legacy
+  // revision keeps the blank-signature fallback.
+  legacy?: boolean;
   // Legacy field. MTU usage is operational and is no longer written into the
   // signed snapshot; it is kept optional so revisions that predate this still
   // decode.
@@ -95,6 +117,7 @@ export interface FinalizationSnapshot {
     usedSupplies: string | null;
   } | null;
   instructors: Array<{
+    userId: string;
     name: string;
     isLead: boolean;
     ffn?: string | null;
@@ -260,11 +283,23 @@ export async function readSnapshot(
     .select({
       classId: finalizationRevisions.classId,
       encryptedSnapshot: finalizationRevisions.encryptedSnapshot,
+      signedByUserId: finalizationRevisions.signedByUserId,
       signedByName: finalizationRevisions.signedByName,
       signedAt: finalizationRevisions.signedAt,
       attestationVersion: finalizationRevisions.attestationVersion,
+      fireSignerUserId: finalizationRevisions.fireSignerUserId,
+      fireSignature: {
+        name: finalizationFireAttestations.signedByName,
+        signedAt: finalizationFireAttestations.signedAt,
+        attestationVersion: finalizationFireAttestations.attestationVersion,
+        signedByUserId: finalizationFireAttestations.signedByUserId,
+      },
     })
     .from(finalizationRevisions)
+    .leftJoin(
+      finalizationFireAttestations,
+      eq(finalizationFireAttestations.revisionId, finalizationRevisions.id),
+    )
     .where(eq(finalizationRevisions.id, revisionId))
     .limit(1);
   if (!revision) throw new Error("Finalization revision not found.");
@@ -277,17 +312,75 @@ export async function readSnapshot(
   } catch {
     throw new UnreadableRevisionSnapshotError();
   }
+  const attestations = await db
+    .select({
+      scope: revisionAttestations.scope,
+      signedByUserId: revisionAttestations.signedByUserId,
+      signedByName: revisionAttestations.signedByName,
+      signedAt: revisionAttestations.signedAt,
+      attestationVersion: revisionAttestations.attestationVersion,
+    })
+    .from(revisionAttestations)
+    .where(eq(revisionAttestations.revisionId, revisionId));
+  const rosterAttestation = attestations.find(
+    (attestation) => attestation.scope === "roster",
+  );
+  const fireAttestation = attestations.find(
+    (attestation) => attestation.scope === "fire",
+  );
   // Prefer the signing facts stored on the revision row so the printed
   // signature reflects the signer at finalization, not a later profile edit.
+  const legacyRosterSignature = revision.signedByName
+    ? {
+        name: revision.signedByName,
+        signedAt: revision.signedAt ? revision.signedAt.toISOString() : null,
+        attestationVersion: revision.attestationVersion,
+      }
+    : parsed.signature;
+  const legacyFireSignature = revision.fireSignature?.name
+    ? {
+        name: revision.fireSignature.name,
+        signedAt: revision.fireSignature.signedAt
+          ? revision.fireSignature.signedAt.toISOString()
+          : null,
+        attestationVersion: revision.fireSignature.attestationVersion,
+        signedByUserId: revision.fireSignature.signedByUserId,
+      }
+    : parsed.fireSignature;
+  const requiresFire = (parsed.destinations ?? []).some(
+    (destination) => destination.code === "fire",
+  );
+  // Before the Fire signature existed, one signer covered every document on a
+  // Fire revision. A Change 1 revision with a pending assistant leaves
+  // `fireSignerUserId` set, so it never falls back to the lead's signature.
+  const fireSignature = fireAttestation
+    ? {
+        name: fireAttestation.signedByName,
+        signedAt: fireAttestation.signedAt.toISOString(),
+        attestationVersion: fireAttestation.attestationVersion,
+        signedByUserId: fireAttestation.signedByUserId,
+      }
+    : (legacyFireSignature ??
+      (requiresFire &&
+      revision.fireSignerUserId === null &&
+      legacyRosterSignature
+        ? legacyRosterSignature
+        : undefined));
   return {
     ...parsed,
-    signature: revision.signedByName
+    rosterAttested: Boolean(rosterAttestation),
+    fireAttested: Boolean(fireAttestation),
+    legacy: attestations.length === 0,
+    fireSignerUserId:
+      revision.fireSignerUserId ?? parsed.fireSignerUserId ?? null,
+    signature: rosterAttestation
       ? {
-          name: revision.signedByName,
-          signedAt: revision.signedAt ? revision.signedAt.toISOString() : null,
-          attestationVersion: revision.attestationVersion,
+          name: rosterAttestation.signedByName,
+          signedAt: rosterAttestation.signedAt.toISOString(),
+          attestationVersion: rosterAttestation.attestationVersion,
         }
-      : parsed.signature,
+      : legacyRosterSignature,
+    fireSignature,
   };
 }
 
@@ -328,28 +421,33 @@ function fillKfsPage(
   attendees: SnapshotAttendance[],
 ) {
   const mapping = getTemplateMapping("kfs-1a");
-  const lead = snapshot.instructors.find((instructor) => instructor.isLead);
-  const assisting = snapshot.instructors.filter(
-    (instructor) => !instructor.isLead,
+  if (snapshot.fireSignerUserId && !snapshot.fireSignature?.name) {
+    throw new Error(
+      "The Fire roster cannot be generated until the fire instructor signs.",
+    );
+  }
+  const fireSigner =
+    resolveFireSigner(snapshot.instructors) ??
+    snapshot.instructors.find((instructor) => instructor.isLead);
+  const otherInstructor = snapshot.instructors.find(
+    (instructor) => instructor !== fireSigner,
   );
+  const fireSignatureName =
+    snapshot.fireSignature?.name ?? snapshot.signature?.name ?? "";
   const subjects = snapshot.components ?? [];
 
   setText(pdf, mapping.fields.date, formatDate(snapshot.class.completedAt));
   setText(pdf, mapping.fields.hostAgency, attendees[0]?.agencyName ?? "");
   setText(pdf, mapping.fields.location, snapshot.class.siteName ?? "");
-  setText(pdf, mapping.fields.leadInstructor, lead?.name ?? "");
-  setText(
-    pdf,
-    mapping.fields.assistingInstructor,
-    assisting.map((instructor) => instructor.name).join(", "),
-  );
-  setText(pdf, mapping.fields.leadFfn, lead?.ffn ?? "");
-  setText(pdf, mapping.fields.assistingFfn, assisting[0]?.ffn ?? "");
-  if (lead?.level) {
-    setCheck(pdf, KFS_LEAD_LEVEL_FIELDS[lead.level] ?? "", true);
+  setText(pdf, mapping.fields.leadInstructor, fireSigner?.name ?? "");
+  setText(pdf, mapping.fields.assistingInstructor, otherInstructor?.name ?? "");
+  setText(pdf, mapping.fields.leadFfn, fireSigner?.ffn ?? "");
+  setText(pdf, mapping.fields.assistingFfn, otherInstructor?.ffn ?? "");
+  if (fireSigner?.level) {
+    setCheck(pdf, KFS_LEAD_LEVEL_FIELDS[fireSigner.level] ?? "", true);
   }
-  if (assisting[0]?.level) {
-    setCheck(pdf, KFS_ASSIST_LEVEL_FIELDS[assisting[0].level] ?? "", true);
+  if (otherInstructor?.level) {
+    setCheck(pdf, KFS_ASSIST_LEVEL_FIELDS[otherInstructor.level] ?? "", true);
   }
 
   const subjectRows = [
@@ -417,11 +515,11 @@ function fillKfsPage(
     }
   });
 
-  setText(pdf, mapping.fields.leadSignature, snapshot.signature?.name ?? "");
+  setText(pdf, mapping.fields.leadSignature, fireSignatureName);
   setText(
     pdf,
     mapping.fields.instructorInitials,
-    snapshot.signature?.name ? attendeeInitials(snapshot.signature.name) : "",
+    fireSignatureName ? attendeeInitials(fireSignatureName) : "",
   );
 }
 

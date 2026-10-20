@@ -5,23 +5,39 @@
 Allow authorized staff to create, schedule, open, finalize, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
 ## Requirements
 ### Requirement: Class records use reference data
-The system SHALL let authorized staff create an open class with a class name, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, or the EMS course name when KBEMS is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
+The system SHALL let authorized staff create an open class with a class name, a non-empty set of delivery methods drawn from Classroom, Hands-On, and Online, a required training site, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, or the EMS course name when KBEMS is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Every class SHALL reference one active training site regardless of its delivery methods, and the delivery methods SHALL NOT affect whether a training site is required.
 
 #### Scenario: Create a classroom class
 - **WHEN** authorized staff enter a class name, select Classroom delivery, a training site, a scheduled session, a lead instructor, and reporting systems
 - **THEN** the system creates an open class with those selections
 
+#### Scenario: Create a class with multiple delivery methods
+- **WHEN** authorized staff enter a class name, select Classroom and Hands-On delivery, a training site, a scheduled session, a lead instructor, and reporting systems
+- **THEN** the system creates an open class carrying both delivery methods
+
 #### Scenario: Require a site for site-based delivery
-- **WHEN** staff attempt to create or save a Classroom, Hands-On, or Hybrid class without a training site
+- **WHEN** staff attempt to create or save a Classroom, Hands-On, or Online class without a training site
 - **THEN** the system rejects the change with a site-required validation error
 
 #### Scenario: Create an online class without a site
-- **WHEN** authorized staff select Online delivery without a training site
-- **THEN** the system permits the class to be created
+- **WHEN** authorized staff attempt to create an Online class without a training site
+- **THEN** the system rejects the change with a site-required validation error
+
+#### Scenario: Require a site for every class
+- **WHEN** staff attempt to create or save a class without a training site
+- **THEN** the system rejects the change with a site-required validation error
+
+#### Scenario: Use a site for an online class
+- **WHEN** authorized staff select Online delivery and choose a site named Online
+- **THEN** the system creates the class with that site
+
+#### Scenario: Reject an empty delivery set
+- **WHEN** staff attempt to create or save a class with no delivery method selected
+- **THEN** the system rejects the change and asks for at least one delivery method
 
 #### Scenario: Migrate historical delivery values
 - **WHEN** the delivery-method migration runs against existing classes
-- **THEN** it converts `in_person` to `classroom`, `virtual` to `online`, and retains `hybrid` as `hybrid`
+- **THEN** it converts `in_person` to `classroom`, `virtual` to `online`, and `hybrid` to `classroom,online`
 
 ### Requirement: Reporting-system changes reconcile attendance context
 When authorized staff change the reporting systems of an open class, the system SHALL reconcile every active attendance's reporting context so that it matches the class's selected reporting systems, and SHALL keep the roster ready to finalize. Adding a reporting system SHALL NOT leave an active attendance without that system's reporting context, and removing one SHALL leave no active attendance holding a context for it. Reconciliation SHALL derive inclusion only from facts the attendance already captured and SHALL NOT store any credential or student-field value the attendee did not supply. This SHALL apply whether the change is made on an open class directly or after a finalized class is reopened and edited.
@@ -73,7 +89,7 @@ The system SHALL require every class to reference one active host agency from th
 - **THEN** the system still requires a host agency
 
 ### Requirement: Class components retain scheduled sessions
-The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
+The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. Session credited hours SHALL be entered as hours and minutes in 15-minute increments. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
 
 #### Scenario: Add multiple sessions
 - **WHEN** staff add separate morning and afternoon components to a draft class
@@ -86,6 +102,14 @@ The system SHALL let authorized staff add one or more components to a draft clas
 #### Scenario: Calculate the end time from credited hours
 - **WHEN** staff select a component start time and change its credited hours
 - **THEN** the system recalculates and stores the end time as the start time plus the credited-hour duration
+
+#### Scenario: Enter credited hours in quarter-hour steps
+- **WHEN** staff set a component's credited hours to two hours and fifteen minutes
+- **THEN** the system stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+
+#### Scenario: Reject a duration outside the quarter-hour cadence
+- **WHEN** a component is submitted with a credited duration that is not a whole 15-minute increment
+- **THEN** the system rejects the component
 
 #### Scenario: Restrict session start times
 - **WHEN** staff select a component start time
@@ -112,7 +136,8 @@ The system SHALL let authorized staff add one or more components to a draft clas
 - **THEN** the system rejects the component
 
 ### Requirement: Classes have assigned instructors
-The system SHALL let authorized staff assign active staff users as instructors and identify at most one lead instructor for each class.
+
+The system SHALL let authorized staff assign active staff users as instructors and identify exactly one lead instructor and at most one assistant instructor for each class. Assigning a lead SHALL replace the previous lead. Assigning an assistant SHALL replace any previous assistant. The system SHALL refuse to leave the class without a lead.
 
 #### Scenario: Assign a lead instructor
 - **WHEN** staff assign an active instructor as the lead instructor for a class
@@ -120,7 +145,15 @@ The system SHALL let authorized staff assign active staff users as instructors a
 
 #### Scenario: Replace the lead instructor
 - **WHEN** staff select a different instructor as the lead for the same class
-- **THEN** the newly selected instructor becomes the only lead assignment
+- **THEN** the newly selected instructor becomes the only lead assignment and the previous lead is no longer assigned
+
+#### Scenario: Assign an assistant instructor
+- **WHEN** staff assign an active instructor other than the lead as the assistant instructor for a class
+- **THEN** the instructor assignment is stored as the class assistant instructor
+
+#### Scenario: Refuse to leave the class without a lead
+- **WHEN** staff attempt to clear the lead without selecting a replacement
+- **THEN** the system refuses and keeps the lead assignment
 
 ### Requirement: Class lifecycle is controlled
 The system SHALL represent open, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, finalize an open class only once its roster is ready and only by its lead instructor, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable while it is open, except where a lifecycle restriction expressly applies.
@@ -240,7 +273,8 @@ The system SHALL present the staff class list scoped by default to current opera
 - **THEN** the system limits results to classes matching the search within the active filters
 
 ### Requirement: Class list status is scannable
-The system SHALL distinguish every lifecycle state on the class list with a colored indicator and the written state name, SHALL keep each state understandable without relying on color alone, and SHALL show an overdue roster as a separate indicator beside the class status rather than replacing it.
+
+The system SHALL distinguish every lifecycle state on the class list with a colored indicator and the written state name, SHALL keep each state understandable without relying on color alone, and SHALL show an overdue roster as a separate indicator beside the class status rather than replacing it. It SHALL also show a pending required attestation as a separate indicator beside the class status, naming the pending document scope without replacing the lifecycle state.
 
 #### Scenario: Distinguish lifecycle states
 - **WHEN** the class list shows open, finalized, and cancelled classes
@@ -253,6 +287,10 @@ The system SHALL distinguish every lifecycle state on the class list with a colo
 #### Scenario: Flag an overdue roster beside the status
 - **WHEN** a class has an overdue roster
 - **THEN** the system shows an overdue indicator alongside, not instead of, the lifecycle status
+
+#### Scenario: Flag a pending signature beside the status
+- **WHEN** a finalized class has a pending required attestation
+- **THEN** the system shows a pending-signature indicator naming the document scope alongside, not instead of, the lifecycle status
 
 ### Requirement: Class sessions retain Fire subject fields
 The system SHALL let a class session store a Fire subject: a training-code reference (category), a class name, a curriculum reference, and a free-text lesson plan. A class SHALL support up to two Fire subjects for official Fire output. These fields SHALL be editable while the class is open and SHALL be preserved at finalization.
@@ -268,21 +306,6 @@ The system SHALL let a class session store a Fire subject: a training-code refer
 #### Scenario: Preserve Fire subjects at finalization
 - **WHEN** a class with Fire subjects is finalized
 - **THEN** the revision retains each subject's category, class name, curriculum, and lesson plan
-
-### Requirement: A session's KFS-1A method follows the class delivery method
-The system SHALL derive every session's KFS-1A Method from the class delivery method: Classroom marks CR, Hands-On marks HO, Online marks OL, and Hybrid marks both CR and OL. When staff change the delivery method of an open class, the system SHALL update every session's Method to match the new delivery method.
-
-#### Scenario: Derive the method at class creation
-- **WHEN** staff create a class with a delivery method and one or more Fire subjects
-- **THEN** each created session stores the delivery method's KFS-1A method
-
-#### Scenario: Hybrid marks both boxes
-- **WHEN** a session's class uses Hybrid delivery
-- **THEN** the session's KFS-1A method marks both CR and OL
-
-#### Scenario: Re-derive the method when the delivery method changes
-- **WHEN** staff change the delivery method of an open class
-- **THEN** every session's KFS-1A method is updated to match the new delivery method
 
 ### Requirement: Instructor certification details accompany the roster
 The system SHALL retain each assigned instructor's Fire Commission FFN and certification level as finalization facts so official Fire output can print them, without altering the instructor's current profile.
@@ -326,21 +349,6 @@ The system SHALL let a class session store a Fire subject chapter and, when the 
 - **WHEN** a class with a subject chapter or a typed book is finalized
 - **THEN** the revision retains the chapter and the typed book name
 
-### Requirement: Fire reporting and instructor changes require valid FFNs
-When authorized staff add the Fire reporting system to a class, or change its assigned lead or assisting instructors while Fire is selected, the system SHALL require every assigned instructor to have a valid FFN (`0000-0000`) and SHALL reject the change otherwise. This SHALL prevent bypassing the Fire class guard through an edit.
-
-#### Scenario: Reject adding Fire with an instructor lacking a valid FFN
-- **WHEN** staff add the Fire reporting system to a class whose lead or assisting instructor has no valid FFN
-- **THEN** the system rejects the change and identifies the instructor
-
-#### Scenario: Reject assigning an instructor without a valid FFN to a Fire class
-- **WHEN** staff assign an instructor without a valid FFN to a class that has Fire selected
-- **THEN** the system rejects the change and identifies the instructor
-
-#### Scenario: Allow the change when every instructor has a valid FFN
-- **WHEN** every assigned instructor has a valid FFN
-- **THEN** the system saves the Fire reporting or instructor change
-
 ### Requirement: Class list empty states guide the operator
 
 The system SHALL explain an empty class list and offer the create-class action when no class exists at all, offer to clear the filters or search when those exclude every class, and confirm that no finalized classes are available without offering an action when the finalized section is empty.
@@ -356,4 +364,83 @@ The system SHALL explain an empty class list and offer the create-class action w
 #### Scenario: No finalized classes
 - **WHEN** the finalized classes section is empty
 - **THEN** the section confirms that no finalized classes are available and offers no action
+
+### Requirement: A class has exactly one lead and at most one assistant
+
+The system SHALL keep exactly one lead instructor and zero or one assistant instructor for each class while it is open. Authorized staff SHALL be able to replace the lead and to set, change, or clear the assistant. Replacing the lead SHALL remove the previous lead assignment rather than demoting it into the assistant slot. Setting or changing the assistant SHALL NOT change the lead. An instructor SHALL NOT hold both roles.
+
+#### Scenario: Replace the lead instructor
+- **WHEN** authorized staff choose a different instructor as the lead for an open class
+- **THEN** the newly chosen instructor is the only lead and the previous lead is no longer assigned
+
+#### Scenario: Add an assistant instructor
+- **WHEN** authorized staff choose an active staff member who is not the lead as the assistant for an open class
+- **THEN** the class records that instructor as its assistant and keeps the lead unchanged
+
+#### Scenario: Change the assistant instructor
+- **WHEN** authorized staff choose a different instructor as the assistant
+- **THEN** the class records the newly chosen instructor as its only assistant
+
+#### Scenario: Clear the assistant instructor
+- **WHEN** authorized staff clear the assistant for an open class
+- **THEN** the class is left with its lead and no assistant
+
+#### Scenario: Replace the assistant with the lead
+- **WHEN** authorized staff choose the current assistant as the new lead
+- **THEN** the assistant becomes the only lead and the class has no assistant, because the previous lead is removed
+
+#### Scenario: Reject the lead as the assistant
+- **WHEN** authorized staff choose the current lead as the assistant
+- **THEN** the system rejects the change and keeps the roles distinct
+
+### Requirement: Fire reporting and instructor changes require a fire instructor
+
+When authorized staff add the Fire reporting system to a class, or change its assigned lead or assistant while Fire is selected, the system SHALL ensure the resulting assignment set contains at least one fire instructor — a staff member with both a valid FFN (`0000-0000`) and a Fire Instructor certification level (1, 2, or 3) — and SHALL reject the change otherwise. Validation SHALL apply to the assignment set that will exist after the write, not the current set plus the newly selected instructor. This SHALL prevent bypassing the Fire guard through an edit and SHALL prevent a temporary invalid state during a combined change.
+
+#### Scenario: Reject adding Fire with no fire instructor
+- **WHEN** staff add the Fire reporting system to a class whose assigned instructors include no fire instructor
+- **THEN** the system rejects the change and identifies that a fire instructor is required
+
+#### Scenario: Reject removing the only fire instructor
+- **WHEN** staff change or clear the assigned instructor who is the class's only fire instructor while Fire is selected
+- **THEN** the system rejects the change and identifies that a fire instructor is required
+
+#### Scenario: Allow a change that keeps a fire instructor
+- **WHEN** staff change the lead or assistant such that at least one assigned instructor remains a fire instructor
+- **THEN** the system saves the change
+
+#### Scenario: Validate the resulting set
+- **WHEN** staff replace a fire-eligible lead with a non-fire lead while the assistant is not fire-eligible
+- **THEN** the system rejects the change even though the outgoing lead is still assigned at validation time
+
+### Requirement: A session's KFS-1A method defaults from the class delivery method
+The system SHALL default every session's KFS-1A Method to the union of the method codes represented by the class delivery methods: Classroom marks CR, Hands-On marks HO, and Online marks OL. The class delivery methods SHALL form a non-empty set. Staff SHALL be able to change a session's Method to any non-empty combination of CR, HO, and OL independently of the class delivery methods. When staff change the delivery methods of an open class, the system SHALL update only those sessions whose Method still equals the previous default; sessions whose Method already differs SHALL retain their Method.
+
+#### Scenario: Derive the method at class creation
+- **WHEN** staff create a class with Classroom and Hands-On delivery and one or more Fire subjects
+- **THEN** each created session stores CR and HO as its KFS-1A method
+
+#### Scenario: Mark any method combination
+- **WHEN** staff set a session's method to CR and HO
+- **THEN** the session stores both CR and HO
+
+#### Scenario: Override one session independently
+- **WHEN** staff change one session's method to HO while its class uses Classroom delivery
+- **THEN** that session's method is HO and every other session keeps its method
+
+#### Scenario: Preserve an overridden session when delivery changes
+- **WHEN** staff change the class delivery methods and a session's method already differs from the previous default
+- **THEN** that session keeps its method while sessions still on the previous default are updated
+
+#### Scenario: Follow the new default for inherited sessions
+- **WHEN** staff change the class delivery methods and a session's method still equals the previous default
+- **THEN** the session's method is updated to the new default
+
+#### Scenario: Require at least one method
+- **WHEN** staff attempt to save a session with no method selected
+- **THEN** the system rejects the change and asks for at least one method
+
+#### Scenario: Read a legacy hybrid method
+- **WHEN** a session recorded the legacy `hybrid` method
+- **THEN** the system presents it as CR and OL
 

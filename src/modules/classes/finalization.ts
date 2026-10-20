@@ -12,7 +12,11 @@ import {
   queueTrainingNoticeDeliveries,
 } from "@/modules/individual-training-notices/service";
 import { validateRosterCompletion } from "@/modules/instructor-roster/services";
-import { encryptCredential } from "@/modules/reference/crypto";
+import type { FinalizationSnapshot } from "@/modules/official-roster-pdfs/service";
+import {
+  decryptCredential,
+  encryptCredential,
+} from "@/modules/reference/crypto";
 import {
   countFireEligible,
   isFireEligibleFromSnapshots,
@@ -35,11 +39,13 @@ import {
   classReportingSystems,
   credentialTypes,
   curricula,
+  finalizationFireAttestations,
   finalizationReopens,
   finalizationReportingStatuses,
   finalizationRevisions,
   mtuUsage,
   reportingSystems,
+  revisionAttestations,
   roles,
   students,
   trainingClasses,
@@ -48,6 +54,12 @@ import {
   userRoles,
   users,
 } from "@/server/db/schema";
+import {
+  type AttestationRecord,
+  type AttestationScope,
+  reportingScope,
+} from "./attestations";
+import { resolveFireSigner } from "./fire-signer";
 import {
   validateFinalizationTransition,
   validateReopenReason,
@@ -65,6 +77,10 @@ export interface FinalizationActor {
 export const ROSTER_ATTESTATION_VERSION = "roster-attestation-001";
 export const ROSTER_ATTESTATION_TEXT =
   "I certify that this roster is complete and accurate to the best of my knowledge.";
+// The fire instructor's separate certification of the Fire roster and notice.
+export const FIRE_ATTESTATION_VERSION = "fire-attestation-001";
+export const FIRE_ATTESTATION_TEXT =
+  "I certify that this Fire roster and training notice are complete and accurate to the best of my knowledge.";
 
 async function hasRole(
   transaction: DatabaseTransaction,
@@ -212,6 +228,7 @@ async function buildSnapshot(
     .limit(1);
   const instructors = await transaction
     .select({
+      userId: users.id,
       name: users.displayName,
       isLead: classInstructors.isLead,
       ffn: users.ffn,
@@ -398,6 +415,26 @@ export async function finalizeClass(
     const next = nextRevision?.next ?? 1;
     const finalizedAt = new Date();
     const snapshot = await buildSnapshot(transaction, classId, finalizedAt);
+    const fireDestination = snapshot.destinations.some(
+      (destination) => destination.code === "fire",
+    );
+    const fireSigner = fireDestination
+      ? resolveFireSigner(snapshot.instructors)
+      : null;
+    if (fireDestination && !fireSigner) {
+      throw new Error("A Fire class requires an assigned fire instructor.");
+    }
+    const fireSignedByLead = Boolean(
+      fireSigner && fireSigner.userId === actor.id,
+    );
+    const fireSignature = fireSignedByLead
+      ? {
+          name: typedName,
+          signedAt: finalizedAt.toISOString(),
+          attestationVersion: FIRE_ATTESTATION_VERSION,
+          signedByUserId: actor.id,
+        }
+      : undefined;
     // An MTU class must have its usage recorded before signing. New flow: the
     // operator records usage on the Confirm class step, so only its presence is
     // required here. Legacy callers may still confirm usage in the finalize
@@ -488,9 +525,12 @@ export async function finalizeClass(
         signedByName: typedName,
         signedAt: finalizedAt,
         attestationVersion: ROSTER_ATTESTATION_VERSION,
+        fireSignerUserId: fireSigner?.userId ?? null,
         encryptedSnapshot: encryptCredential(
           JSON.stringify({
             ...snapshot,
+            fireSignerUserId: fireSigner?.userId ?? null,
+            ...(fireSignature ? { fireSignature } : {}),
             signInRecord,
             signature: {
               name: typedName,
@@ -511,6 +551,59 @@ export async function finalizeClass(
       })
       .returning();
     if (!revision) throw new Error("Finalization revision was not created.");
+    const scopeAttestations = [
+      {
+        revisionId: revision.id,
+        scope: "roster" as const,
+        signedByUserId: actor.id,
+        signedByName: typedName,
+        signedAt: finalizedAt,
+        attestationVersion: ROSTER_ATTESTATION_VERSION,
+      },
+      ...(fireSignedByLead && fireSigner
+        ? [
+            {
+              revisionId: revision.id,
+              scope: "fire" as const,
+              signedByUserId: actor.id,
+              signedByName: typedName,
+              signedAt: finalizedAt,
+              attestationVersion: FIRE_ATTESTATION_VERSION,
+            },
+          ]
+        : []),
+    ];
+    await transaction.insert(revisionAttestations).values(scopeAttestations);
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.attestation.signed",
+      entityType: "finalization_revision",
+      entityId: revision.id,
+      details: {
+        classId,
+        revisionNumber: next,
+        scope: "roster",
+        signer: typedName,
+        signedAt: finalizedAt.toISOString(),
+      },
+    });
+    if (fireSignedByLead) {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "class.attestation.signed",
+        entityType: "finalization_revision",
+        entityId: revision.id,
+        details: {
+          classId,
+          revisionNumber: next,
+          scope: "fire",
+          signer: typedName,
+          signedAt: finalizedAt.toISOString(),
+        },
+      });
+    }
     if (snapshot.destinations.length)
       await transaction.insert(finalizationReportingStatuses).values(
         snapshot.destinations.map((destination) => ({
@@ -532,10 +625,13 @@ export async function finalizeClass(
       });
     }
     // Fire classes deliver an individual training notice to each participant
-    // whose agency differs from the host agency.
-    if (isFireClass(snapshot)) {
+    // whose agency differs from the host agency. The notice waits for the Fire
+    // attestation when the lead is not the Fire signer.
+    if (isFireClass(snapshot) && fireSignature) {
       await queueTrainingNoticeDeliveries(transaction, revision.id, {
         ...snapshot,
+        fireSignerUserId: fireSigner?.userId ?? null,
+        fireSignature,
         signature: {
           name: typedName,
           signedAt: finalizedAt.toISOString(),
@@ -564,6 +660,114 @@ export async function finalizeClass(
   });
 }
 
+export async function signFireRoster(
+  db: Database,
+  actor: FinalizationActor,
+  revisionId: string,
+  attestation: { certified: boolean; typedName: string },
+) {
+  if (!attestation.certified) {
+    throw new Error("Certify the Fire roster before signing.");
+  }
+  const typedName = attestation.typedName.trim();
+  if (!typedName) throw new Error("Type your name to sign the Fire roster.");
+  return db.transaction(async (transaction) => {
+    const [revision] = await transaction
+      .select()
+      .from(finalizationRevisions)
+      .where(eq(finalizationRevisions.id, revisionId))
+      .limit(1)
+      .for("update");
+    if (!revision) throw new Error("Finalization revision not found.");
+    const [classRecord] = await transaction
+      .select()
+      .from(trainingClasses)
+      .where(eq(trainingClasses.id, revision.classId))
+      .limit(1)
+      .for("update");
+    if (!classRecord) throw new Error("Class not found.");
+    if (classRecord.status !== "finalized") {
+      throw new Error(
+        "The Fire roster can only be signed on a finalized class.",
+      );
+    }
+    const [latest] = await transaction
+      .select({
+        revisionNumber: sql<number>`max(${finalizationRevisions.revisionNumber})`,
+      })
+      .from(finalizationRevisions)
+      .where(eq(finalizationRevisions.classId, revision.classId));
+    if (latest?.revisionNumber !== revision.revisionNumber) {
+      throw new Error("This revision has been superseded.");
+    }
+    if (!revision.fireSignerUserId) {
+      throw new Error("This revision does not require a Fire signature.");
+    }
+    if (revision.fireSignerUserId !== actor.id) {
+      throw new Error("Only the class's Fire signer can sign the Fire roster.");
+    }
+    const [existingAttestation] = await transaction
+      .select({ revisionId: revisionAttestations.revisionId })
+      .from(revisionAttestations)
+      .where(
+        and(
+          eq(revisionAttestations.revisionId, revisionId),
+          eq(revisionAttestations.scope, "fire"),
+        ),
+      )
+      .limit(1);
+    if (existingAttestation) {
+      throw new Error("The Fire roster is already signed.");
+    }
+    let snapshot: FinalizationSnapshot;
+    try {
+      snapshot = JSON.parse(
+        decryptCredential(revision.encryptedSnapshot),
+      ) as FinalizationSnapshot;
+    } catch {
+      throw new Error(
+        "This revision's snapshot cannot be read, so the Fire roster cannot be signed.",
+      );
+    }
+    const signedAt = new Date();
+    await transaction.insert(revisionAttestations).values({
+      revisionId,
+      scope: "fire",
+      signedByUserId: actor.id,
+      signedByName: typedName,
+      signedAt,
+      attestationVersion: FIRE_ATTESTATION_VERSION,
+    });
+    if (isFireClass(snapshot)) {
+      await queueTrainingNoticeDeliveries(transaction, revision.id, {
+        ...snapshot,
+        fireSignerUserId: revision.fireSignerUserId,
+        fireSignature: {
+          name: typedName,
+          signedAt: signedAt.toISOString(),
+          attestationVersion: FIRE_ATTESTATION_VERSION,
+          signedByUserId: actor.id,
+        },
+      });
+    }
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.attestation.signed",
+      entityType: "finalization_revision",
+      entityId: revision.id,
+      details: {
+        classId: revision.classId,
+        revisionNumber: revision.revisionNumber,
+        scope: "fire",
+        signer: typedName,
+        signedAt: signedAt.toISOString(),
+      },
+    });
+    return { revisionId: revision.id, classId: revision.classId };
+  });
+}
+
 export async function reopenFinalizedClass(
   db: Database,
   actor: FinalizationActor,
@@ -583,6 +787,24 @@ export async function reopenFinalizedClass(
       .limit(1)
       .for("update");
     if (!revision) throw new Error("Finalization history is unavailable.");
+    const [fireAttestation] = await transaction
+      .select({ revisionId: revisionAttestations.revisionId })
+      .from(revisionAttestations)
+      .where(
+        and(
+          eq(revisionAttestations.revisionId, revision.id),
+          eq(revisionAttestations.scope, "fire"),
+        ),
+      )
+      .limit(1);
+    const [legacyFire] = await transaction
+      .select({ revisionId: finalizationFireAttestations.revisionId })
+      .from(finalizationFireAttestations)
+      .where(eq(finalizationFireAttestations.revisionId, revision.id))
+      .limit(1);
+    const firePending = Boolean(
+      revision.fireSignerUserId && !fireAttestation && !legacyFire,
+    );
     await transaction.insert(finalizationReopens).values({
       revisionId: revision.id,
       reopenedByUserId: actor.id,
@@ -600,8 +822,27 @@ export async function reopenFinalizedClass(
       action: "class.reopened",
       entityType: "class",
       entityId: classId,
-      details: { revisionId: revision.id, reason: reason.trim() },
+      details: {
+        revisionId: revision.id,
+        reason: reason.trim(),
+        voidedScopes: firePending ? ["fire"] : [],
+      },
     });
+    if (firePending) {
+      await writeAuditLog(transaction, {
+        actorUserId: actor.id,
+        actorType: "user",
+        action: "class.attestation.voided",
+        entityType: "finalization_revision",
+        entityId: revision.id,
+        details: {
+          classId,
+          revisionNumber: revision.revisionNumber,
+          scope: "fire",
+          reason: reason.trim(),
+        },
+      });
+    }
   });
 }
 
@@ -619,7 +860,11 @@ export async function updateReportingDestination(
   return db.transaction(async (transaction) => {
     await requireReportingAccess(transaction, actor);
     const [revision] = await transaction
-      .select({ classId: finalizationRevisions.classId })
+      .select({
+        classId: finalizationRevisions.classId,
+        signedByUserId: finalizationRevisions.signedByUserId,
+        fireSignerUserId: finalizationRevisions.fireSignerUserId,
+      })
       .from(finalizationRevisions)
       .where(eq(finalizationRevisions.id, input.revisionId))
       .limit(1)
@@ -646,6 +891,49 @@ export async function updateReportingDestination(
       .limit(1)
       .for("update");
     if (!current) throw new Error("Reporting destination not found.");
+    const [system] = await transaction
+      .select({ code: reportingSystems.code })
+      .from(reportingSystems)
+      .where(eq(reportingSystems.id, current.reportingSystemId))
+      .limit(1);
+    const scope = reportingScope(system?.code ?? "");
+    if (scope && input.status === "entered") {
+      const [attestation] = await transaction
+        .select({ scope: revisionAttestations.scope })
+        .from(revisionAttestations)
+        .where(
+          and(
+            eq(revisionAttestations.revisionId, input.revisionId),
+            eq(revisionAttestations.scope, scope),
+          ),
+        )
+        .limit(1);
+      let legacySigned = false;
+      if (!attestation) {
+        if (scope === "roster") {
+          legacySigned = revision.signedByUserId !== null;
+        } else {
+          const [legacyFire] = await transaction
+            .select({ revisionId: finalizationFireAttestations.revisionId })
+            .from(finalizationFireAttestations)
+            .where(
+              eq(finalizationFireAttestations.revisionId, input.revisionId),
+            )
+            .limit(1);
+          legacySigned = Boolean(
+            revision.fireSignerUserId === null &&
+              (legacyFire || revision.signedByUserId !== null),
+          );
+        }
+      }
+      if (!attestation && !legacySigned) {
+        throw new Error(
+          scope === "fire"
+            ? "The Fire roster must be signed by the fire instructor before Fire can be marked entered."
+            : "The roster must be signed by the lead instructor before KBEMS can be marked entered.",
+        );
+      }
+    }
     validateReportingStatusTransition(
       current.status,
       input.status,
@@ -693,8 +981,16 @@ export async function getFinalizationHistory(
         revisionNumber: finalizationRevisions.revisionNumber,
         finalizedAt: finalizationRevisions.finalizedAt,
         finalizedBy: users.displayName,
+        signedByUserId: finalizationRevisions.signedByUserId,
         signedByName: finalizationRevisions.signedByName,
         signedAt: finalizationRevisions.signedAt,
+        attestationVersion: finalizationRevisions.attestationVersion,
+        fireSignerUserId: finalizationRevisions.fireSignerUserId,
+        legacyFireSignedByUserId: finalizationFireAttestations.signedByUserId,
+        legacyFireSignedByName: finalizationFireAttestations.signedByName,
+        legacyFireSignedAt: finalizationFireAttestations.signedAt,
+        legacyFireAttestationVersion:
+          finalizationFireAttestations.attestationVersion,
         summary: finalizationRevisions.summary,
         reopenReason: finalizationReopens.reason,
         reopenedAt: finalizationReopens.reopenedAt,
@@ -705,8 +1001,30 @@ export async function getFinalizationHistory(
         finalizationReopens,
         eq(finalizationReopens.revisionId, finalizationRevisions.id),
       )
+      .leftJoin(
+        finalizationFireAttestations,
+        eq(finalizationFireAttestations.revisionId, finalizationRevisions.id),
+      )
       .where(eq(finalizationRevisions.classId, classId))
       .orderBy(desc(finalizationRevisions.revisionNumber));
+    const attestationRows = revisions.length
+      ? await transaction
+          .select({
+            revisionId: revisionAttestations.revisionId,
+            scope: revisionAttestations.scope,
+            signedByUserId: revisionAttestations.signedByUserId,
+            signedByName: revisionAttestations.signedByName,
+            signedAt: revisionAttestations.signedAt,
+            attestationVersion: revisionAttestations.attestationVersion,
+          })
+          .from(revisionAttestations)
+          .where(
+            inArray(
+              revisionAttestations.revisionId,
+              revisions.map((revision) => revision.id),
+            ),
+          )
+      : [];
     const statuses = await transaction
       .select({
         revisionId: finalizationReportingStatuses.revisionId,
@@ -732,11 +1050,73 @@ export async function getFinalizationHistory(
           revisions.map((revision) => revision.id),
         ),
       );
-    return revisions.map((revision) => ({
-      ...revision,
-      destinations: statuses.filter(
+    return revisions.map((revision) => {
+      const destinations = statuses.filter(
         (status) => status.revisionId === revision.id,
-      ),
-    }));
+      );
+      const materializedAttestations = attestationRows.filter(
+        (row) => row.revisionId === revision.id,
+      );
+      const attestations: AttestationRecord[] =
+        materializedAttestations.flatMap((row) => {
+          if (row.scope !== "roster" && row.scope !== "fire") return [];
+          return [
+            {
+              scope: row.scope as AttestationScope,
+              signedByUserId: row.signedByUserId,
+              signedByName: row.signedByName,
+              signedAt: row.signedAt,
+              attestationVersion: row.attestationVersion,
+            },
+          ];
+        });
+      const hasScope = (scope: AttestationScope) =>
+        attestations.some((attestation) => attestation.scope === scope);
+      if (!hasScope("roster") && revision.signedByUserId && revision.signedAt) {
+        attestations.push({
+          scope: "roster",
+          signedByUserId: revision.signedByUserId,
+          signedByName: revision.signedByName ?? "",
+          signedAt: revision.signedAt,
+          attestationVersion: revision.attestationVersion ?? "",
+        });
+      }
+      if (!hasScope("fire")) {
+        if (revision.legacyFireSignedByUserId && revision.legacyFireSignedAt) {
+          attestations.push({
+            scope: "fire",
+            signedByUserId: revision.legacyFireSignedByUserId,
+            signedByName: revision.legacyFireSignedByName ?? "",
+            signedAt: revision.legacyFireSignedAt,
+            attestationVersion: revision.legacyFireAttestationVersion ?? "",
+          });
+        } else if (
+          revision.fireSignerUserId === null &&
+          revision.signedByUserId &&
+          revision.signedAt &&
+          destinations.some((destination) => destination.systemCode === "fire")
+        ) {
+          // Before the Fire signature existed, one signer covered every
+          // document on a Fire revision.
+          attestations.push({
+            scope: "fire",
+            signedByUserId: revision.signedByUserId,
+            signedByName: revision.signedByName ?? "",
+            signedAt: revision.signedAt,
+            attestationVersion: revision.attestationVersion ?? "",
+          });
+        }
+      }
+      return {
+        ...revision,
+        attestations,
+        hasMaterializedAttestations: materializedAttestations.length > 0,
+        fireSignedByUserId: revision.legacyFireSignedByUserId,
+        fireSignedByName: revision.legacyFireSignedByName,
+        fireSignedAt: revision.legacyFireSignedAt,
+        fireAttestationVersion: revision.legacyFireAttestationVersion,
+        destinations,
+      };
+    });
   });
 }

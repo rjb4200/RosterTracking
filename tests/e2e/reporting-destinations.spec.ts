@@ -84,7 +84,7 @@ test("destinations drive the wizard steps and capture MTU usage", async ({
   // Class and schedule step. KBEMS sets the class name, so no name field here.
   await page.getByLabel("Training site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
-  await page.getByLabel("Scheduled duration hours").selectOption("4");
+  await page.getByLabel("Scheduled duration").selectOption("4");
   await page.getByLabel("Host agency").selectOption(agencyId);
   await page.getByRole("button", { name: "Next", exact: true }).click();
 

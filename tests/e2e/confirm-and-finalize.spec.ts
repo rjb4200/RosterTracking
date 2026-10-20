@@ -26,10 +26,17 @@ function skipUnlessEnabled() {
   );
 }
 
-async function createOpenClass(options: { attendance?: boolean } = {}) {
+async function createOpenClass(
+  options: { attendance?: boolean; sessionHours?: number } = {},
+) {
   if (!connectionString) throw new Error("E2E_DATABASE_URL is required.");
   const pool = new Pool({ connectionString, max: 1 });
   const suffix = randomUUID();
+  const sessionHours = options.sessionHours ?? 4;
+  const startsAt = "2026-09-10T13:00:00Z";
+  const endsAt = new Date(
+    new Date(startsAt).getTime() + sessionHours * 60 * 60 * 1000,
+  ).toISOString();
   const actor = await pool.query<{ id: string }>(
     "select id from users where username = $1",
     [username],
@@ -61,8 +68,8 @@ async function createOpenClass(options: { attendance?: boolean } = {}) {
     [classId, actor.rows[0].id],
   );
   await pool.query(
-    "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, 4)",
-    [classId, "2026-09-10T13:00:00Z", "2026-09-10T17:00:00Z"],
+    "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, $4)",
+    [classId, startsAt, endsAt, sessionHours],
   );
   if (options.attendance) {
     // Attendance now comes from a valid sign-in; fixture it directly because
@@ -72,8 +79,14 @@ async function createOpenClass(options: { attendance?: boolean } = {}) {
       [classId],
     );
     await pool.query(
-      "insert into attendance (class_id, guest_id, agency_id, idempotency_key, payload_fingerprint, credited_hours) values ($1, $2, $3, $4, 'fixture', 4)",
-      [classId, guest.rows[0]?.id, agency.rows[0].id, randomUUID()],
+      "insert into attendance (class_id, guest_id, agency_id, idempotency_key, payload_fingerprint, credited_hours) values ($1, $2, $3, $4, 'fixture', $5)",
+      [
+        classId,
+        guest.rows[0]?.id,
+        agency.rows[0].id,
+        randomUUID(),
+        sessionHours,
+      ],
     );
   }
   await pool.end();
@@ -335,6 +348,32 @@ test("raising a session's hours carries the full credit to the participant", asy
     .toBe("5.00");
 });
 
+test("preserves an out-of-range session duration when editing", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ sessionHours: 0.25 });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const schedule = page.locator("#area-schedule");
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  const duration = schedule.getByLabel("Credited hours").first();
+  await expect(duration).toHaveValue("0.25");
+  await expect(duration.locator('option[value="0.25"]')).toHaveText(
+    "15m (current)",
+  );
+  await schedule.getByRole("button", { name: "Save and close" }).click();
+  await expect(schedule.getByLabel("Credited hours")).toHaveCount(0);
+
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  await expect(schedule.getByLabel("Credited hours").first()).toHaveValue(
+    "0.25",
+  );
+});
+
 test("the workspace opens one correction area at a time", async ({ page }) => {
   skipUnlessEnabled();
   if (!username || !password || !connectionString) return;
@@ -434,9 +473,7 @@ test("instructor controls do not show a workspace save action", async ({
   ).toHaveCount(0);
 });
 
-test("instructors can be added, the lead changed, and the only lead kept", async ({
-  page,
-}) => {
+test("instructors can be set and the lead replaced", async ({ page }) => {
   skipUnlessEnabled();
   if (!username || !password || !connectionString || !instructorUsername)
     return;
@@ -444,13 +481,16 @@ test("instructors can be added, the lead changed, and the only lead kept", async
 
   // The assisting instructor's display name, for the picker and the row.
   const pool = new Pool({ connectionString, max: 1 });
-  const instructor = await pool.query<{ display_name: string }>(
-    "select display_name from users where username = $1",
+  const instructor = await pool.query<{ id: string; display_name: string }>(
+    "select id, display_name from users where username = $1",
     [instructorUsername],
   );
   await pool.end();
+  const instructorId = instructor.rows[0]?.id;
   const instructorName = instructor.rows[0]?.display_name;
-  if (!instructorName) throw new Error("E2E instructor was not found.");
+  if (!instructorId || !instructorName) {
+    throw new Error("E2E instructor was not found.");
+  }
 
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}/review`);
@@ -458,22 +498,23 @@ test("instructors can be added, the lead changed, and the only lead kept", async
   const area = page.locator("#area-instructors");
   await area.getByRole("button", { name: "Edit" }).click();
 
-  // Add the instructor as an assisting instructor.
-  await area.getByLabel("Instructor").selectOption({ label: instructorName });
-  await area.getByRole("button", { name: "Add instructor" }).click();
-
+  // Set the instructor as the assistant.
+  await area.getByLabel("Assistant instructor").selectOption(instructorId);
+  await area.getByRole("button", { name: "Save instructors" }).click();
   const row = area.locator(".member-row", { hasText: instructorName });
   await expect(row.getByText("Assisting")).toBeVisible({ timeout: 15_000 });
 
-  // Make them the lead; the previous lead becomes assisting.
-  await row.getByRole("button", { name: "Make lead" }).click();
+  // Replace the lead; the previous lead is removed rather than demoted, so the
+  // class keeps exactly one instructor.
+  await area.getByLabel("Lead instructor").selectOption(instructorId);
+  await area.getByRole("button", { name: "Save instructors" }).click();
   await expect(row.getByText("Lead")).toBeVisible({ timeout: 15_000 });
-
-  // Removing the only lead is refused.
-  await row.getByRole("button", { name: "Remove" }).click();
   await expect(
-    area.getByText(/Assign another lead instructor before removing the lead/i),
-  ).toBeVisible({ timeout: 15_000 });
+    area.getByText(
+      /Saving a different lead removes the current lead assignment/i,
+    ),
+  ).toBeVisible();
+  await expect(area.locator(".member-row")).toHaveCount(1);
 });
 
 test("the MTU review lists estimated and set supplies and advises without blocking", async ({

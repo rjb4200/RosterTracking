@@ -2,7 +2,6 @@
 
 ## Purpose
 Remind the signing instructor, by a daily digest email, about open classes whose final scheduled session has ended and that remain unfinalized, until each class is finalized or cancelled.
-
 ## Requirements
 ### Requirement: Overdue open classes are reminded to the signing instructor
 
@@ -46,19 +45,23 @@ The system SHALL include a reopened past class in the daily digest again after i
 
 ### Requirement: The reminder audience is the signing instructor
 
-The system SHALL address reminders to the class's signing instructor, and SHALL NOT send them to assigned instructors who are not the signing instructor. When no signing instructor resolves, the system SHALL fall back to the class's lead instructor.
+The system SHALL address an overdue-finalization reminder to the class's lead instructor and a pending-signature reminder to the signer required for that document scope, and SHALL NOT send either reminder to an assigned instructor who is not the responsible signer. When no scope signer resolves for a Fire class, the system SHALL fall back to the class's lead instructor for the finalization reminder.
 
 #### Scenario: Signing instructor is reminded
-- **WHEN** a class has a resolved signing instructor
-- **THEN** that instructor receives the reminder
+- **WHEN** an open class is overdue and has no pending attestation
+- **THEN** the class's lead instructor receives the finalization reminder
+
+#### Scenario: Fire signer is reminded to sign
+- **WHEN** a finalized class has a pending `fire` attestation
+- **THEN** the class's Fire signer receives the signature reminder
 
 #### Scenario: Non-signing instructor is not reminded
-- **WHEN** a class has an assigned instructor who is not the signing instructor
+- **WHEN** a class has an assigned instructor who is not the responsible signer for a reminder
 - **THEN** that instructor does not receive the reminder
 
 #### Scenario: Fall back to the lead
-- **WHEN** no signing instructor resolves for an overdue class
-- **THEN** the class's lead instructor receives the reminder
+- **WHEN** no scope signer resolves for an overdue Fire class
+- **THEN** the class's lead instructor receives the finalization reminder
 
 ### Requirement: Reminder delivery is idempotent per day
 
@@ -95,3 +98,24 @@ The system SHALL expose the reminder run at a dedicated scheduled endpoint that 
 #### Scenario: Non-production environment
 - **WHEN** the scheduled endpoint runs outside the live production environment
 - **THEN** the system sends no email
+
+### Requirement: Pending attestations are reminded until signed or reopened
+
+The system SHALL include a finalized class whose `fire` attestation is pending in the Fire signer's daily digest until the attestation is recorded or the class is reopened. The digest SHALL name the class and identify the Fire signature as the action. A class with no pending required attestation SHALL drop out of later digests. A reopened class SHALL resume reminding only if a scope becomes pending again after a new finalization.
+
+#### Scenario: Remind the Fire signer daily
+- **WHEN** a finalized class has a pending `fire` attestation
+- **THEN** the next daily run includes it in the Fire signer's digest
+
+#### Scenario: Drop out after signing
+- **WHEN** the Fire signer records the `fire` attestation
+- **THEN** the class is not included in later signature digests
+
+#### Scenario: Drop out after reopening
+- **WHEN** an Administrator reopens the class
+- **THEN** the pending signature reminder stops until the class is finalized again
+
+#### Scenario: Do not remind a non-signer
+- **WHEN** an assigned instructor is not the Fire signer
+- **THEN** the pending Fire signature is not included in that instructor's digest
+

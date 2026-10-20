@@ -22,9 +22,10 @@ export function uniqueFfn(): string {
 }
 
 /**
- * Creates a staff user with a valid, run-unique FFN and exactly one role. Fire
- * classes require an FFN-format number for every lead and assisting instructor,
- * so fixtures that build a Fire class create instructors through here.
+ * Creates a staff user with a valid, run-unique FFN, a Fire Instructor level,
+ * and exactly one role. A Fire class needs at least one assigned instructor
+ * with both, so fixtures that build a Fire class create instructors through
+ * here. Pass `instructorLevel: null` for a non-fire instructor.
  */
 export async function createStaffUser(
   db: Db,
@@ -43,7 +44,8 @@ export async function createStaffUser(
       displayName: input.displayName,
       passwordHash: "fixture-password-hash",
       ffn: input.ffn === undefined ? uniqueFfn() : input.ffn,
-      instructorLevel: input.instructorLevel ?? null,
+      instructorLevel:
+        input.instructorLevel === undefined ? 1 : input.instructorLevel,
     })
     .returning({ id: users.id, username: users.username });
   if (!user) throw new Error("Staff fixture user was not created.");

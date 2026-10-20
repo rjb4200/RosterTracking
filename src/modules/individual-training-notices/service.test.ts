@@ -26,7 +26,13 @@ const snapshot: FinalizationSnapshot = {
     attestationVersion: "roster-attestation-001",
   },
   instructors: [
-    { name: "Lead Instructor", isLead: true, ffn: "111", level: null },
+    {
+      userId: "instructor-1",
+      name: "Lead Instructor",
+      isLead: true,
+      ffn: "111",
+      level: null,
+    },
   ],
   components: [
     {

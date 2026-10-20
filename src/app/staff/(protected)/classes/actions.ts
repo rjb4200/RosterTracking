@@ -8,6 +8,7 @@ import { CLASS_STATUSES, type ClassStatus } from "@/modules/classes/constants";
 import {
   finalizeClass,
   reopenFinalizedClass,
+  signFireRoster,
 } from "@/modules/classes/finalization";
 import {
   buildClassSignInUrl,
@@ -15,12 +16,11 @@ import {
   getClassSignInBaseUrl,
 } from "@/modules/classes/qr";
 import {
-  assignClassInstructor,
   createOpenClass,
   getClassPublicAccess,
-  removeClassInstructor,
   rotateClassSignInToken,
   saveClassComponent,
+  setClassInstructors,
   transitionClass,
   updateClass,
   updateClassMtuUsage,
@@ -171,6 +171,8 @@ export async function createClassAction(
         startsAt: read(formData, "startsAt"),
         creditedHours: read(formData, "creditedHours"),
         leadInstructorId: read(formData, "leadInstructorId"),
+        assistantInstructorId:
+          read(formData, "assistantInstructorId") || undefined,
         subjects: readSubjects(formData),
       },
     );
@@ -287,26 +289,27 @@ export async function saveComponentAction(
   }
 }
 
-export async function assignInstructorAction(
+export async function saveInstructorsAction(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
   const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
   const classId = read(formData, "classId");
   try {
-    await assignClassInstructor(
-      getDatabase(),
-      actor,
-      classId,
-      read(formData, "userId"),
-      read(formData, "isLead") === "true",
-    );
+    await setClassInstructors(getDatabase(), actor, classId, {
+      leadInstructorId: read(formData, "leadInstructorId"),
+      assistantInstructorId: read(formData, "assistantInstructorId") || null,
+    });
     revalidatePath(`/staff/classes/${classId}`);
-    return { classId, success: "Instructor assigned." };
+    revalidatePath(`/staff/classes/${classId}/review`);
+    revalidatePath(`/staff/classes/${classId}/edit`);
+    return { classId, success: "Instructors saved." };
   } catch (error) {
     return {
       error:
-        error instanceof Error ? error.message : "Could not assign instructor.",
+        error instanceof Error
+          ? error.message
+          : "Could not save the instructors.",
     };
   }
 }
@@ -340,33 +343,6 @@ export async function transitionClassAction(
   revalidatePath(`/staff/classes/${classId}`);
   revalidatePath("/staff/classes");
   return { classId };
-}
-
-export async function removeInstructorAction(
-  _prev: ActionState | undefined,
-  formData: FormData,
-): Promise<ActionState> {
-  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
-  const classId = read(formData, "classId");
-  try {
-    await removeClassInstructor(
-      getDatabase(),
-      actor,
-      classId,
-      read(formData, "userId"),
-    );
-    revalidatePath(`/staff/classes/${classId}`);
-    revalidatePath(`/staff/classes/${classId}/review`);
-    revalidatePath(`/staff/classes/${classId}/edit`);
-    return { success: "Instructor removed." };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not remove the instructor.",
-    };
-  }
 }
 
 export async function updateMtuUsageAction(
@@ -466,6 +442,37 @@ export async function finalizeClassAction(
     return {
       error:
         error instanceof Error ? error.message : "Could not finalize class.",
+    };
+  }
+}
+
+export async function signFireRosterAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  const revisionId = read(formData, "revisionId");
+  try {
+    await signFireRoster(getDatabase(), actor, revisionId, {
+      certified: read(formData, "certified") === "true",
+      typedName: read(formData, "typedName"),
+    });
+    after(async () => {
+      await dispatchTrainingNoticeDeliveries(getDatabase(), actor, revisionId);
+    });
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    revalidatePath("/staff/reporting");
+    revalidatePath("/staff/instructor");
+    revalidatePath("/staff/admin");
+    return { classId, success: "Fire roster signed." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not sign the Fire roster.",
     };
   }
 }

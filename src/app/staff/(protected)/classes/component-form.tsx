@@ -133,7 +133,6 @@ export function ComponentForm({
         </div>
         <DurationFields
           fieldLabel="Credited hours"
-          ariaPrefix="Credited"
           value={creditedHours}
           onChange={setCreditedHours}
           name="creditedHours"

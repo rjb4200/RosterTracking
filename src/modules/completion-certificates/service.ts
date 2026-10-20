@@ -439,6 +439,11 @@ export async function generateCompletionCertificates(
   revisionId: string,
 ): Promise<GeneratedCertificates> {
   const snapshot = await readSnapshot(db, actor, revisionId);
+  if (!snapshot.rosterAttested && !snapshot.legacy) {
+    throw new Error(
+      "The roster must be signed by the lead instructor before completion certificates can be generated.",
+    );
+  }
   const bytes = await renderCompletionCertificateBatch(snapshot);
   const participantCount = snapshot.attendance.length;
   const signed = Boolean(snapshot.signature?.name);

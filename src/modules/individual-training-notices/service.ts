@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { PDFDocument } from "pdf-lib";
+import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import { loadLogoAttachment } from "@/modules/notifications/assets";
 import {
   EMAIL_SENDER,
@@ -101,9 +102,17 @@ export async function renderTrainingNoticePage(
   options: { flatten?: boolean } = {},
 ): Promise<PDFDocument> {
   const mapping = KFS_1B_TEMPLATES[variant];
-  const lead =
+  if (snapshot.fireSignerUserId && !snapshot.fireSignature?.name) {
+    throw new Error(
+      "The Fire roster cannot be generated until the fire instructor signs.",
+    );
+  }
+  const fireSigner =
+    resolveFireSigner(snapshot.instructors) ??
     snapshot.instructors.find((instructor) => instructor.isLead) ??
     snapshot.instructors[0];
+  const fireSignatureName =
+    snapshot.fireSignature?.name ?? snapshot.signature?.name ?? "";
   const subjects = (snapshot.components ?? []).slice(0, ROW_LIMIT);
   return renderPage(
     mapping,
@@ -127,13 +136,13 @@ export async function renderTrainingNoticePage(
         mapping.fields.studentFfn,
         snapshotIdentifier(snapshot, participant.attendanceId),
       );
-      set(mapping.fields.instructorName, lead?.name ?? "");
-      set(mapping.fields.instructorFfn, lead?.ffn ?? "");
+      set(mapping.fields.instructorName, fireSigner?.name ?? "");
+      set(mapping.fields.instructorFfn, fireSigner?.ffn ?? "");
       set(mapping.fields.date, formatDate(snapshot.class.completedAt));
       set(mapping.fields.startTime, formatTime(subjects[0]?.startsAt));
       set(mapping.fields.location, snapshot.class.siteName ?? "");
       set(mapping.fields.totalHours, noticeTotalHours(snapshot));
-      set(mapping.fields.instructorSignature, snapshot.signature?.name ?? "");
+      set(mapping.fields.instructorSignature, fireSignatureName);
       subjects.forEach((subject, index) => {
         set(`Row_${index + 1}_Category_Code`, subject.category ?? "");
         set(`Row_${index + 1}_Hours`, subject.creditedHours);
@@ -175,6 +184,11 @@ export async function generateFireRosterWithNotices(
   revisionId: string,
 ): Promise<FireRosterDocument> {
   const snapshot = await readSnapshot(db, actor, revisionId);
+  if (snapshot.fireSignerUserId && !snapshot.fireSignature?.name) {
+    throw new Error(
+      "The Fire roster cannot be generated until the fire instructor signs.",
+    );
+  }
   const mapping = getTemplateMapping("kfs-1a");
   const filename = `kfs-1a-${mapping.templateVersion}.pdf`;
   const rosterBytes = await renderOfficialRoster("kfs-1a", snapshot);
@@ -213,7 +227,8 @@ export function trainingNoticeContentFingerprint(
   snapshot: FinalizationSnapshot,
   participant: NoticeParticipant,
 ): string {
-  const lead =
+  const fireSigner =
+    resolveFireSigner(snapshot.instructors) ??
     snapshot.instructors.find((instructor) => instructor.isLead) ??
     snapshot.instructors[0];
   const values = {
@@ -221,7 +236,7 @@ export function trainingNoticeContentFingerprint(
     courseName: snapshot.class.courseName,
     completedAt: snapshot.class.completedAt ?? "",
     totalHours: noticeTotalHours(snapshot),
-    instructor: lead?.name ?? "",
+    instructor: fireSigner?.name ?? "",
     agency: participant.agencyName ?? "",
     subjects: (snapshot.components ?? [])
       .map((subject) => `${subject.category ?? ""}:${subject.creditedHours}`)

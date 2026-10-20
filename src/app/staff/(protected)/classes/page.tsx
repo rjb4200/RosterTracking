@@ -127,6 +127,13 @@ function ClassTable({
                 {classRecord.isOverdue ? (
                   <Badge variant="destructive">Overdue</Badge>
                 ) : null}
+                {classRecord.pendingAttestationScope ? (
+                  <Badge variant="secondary">
+                    {classRecord.pendingAttestationScope === "fire"
+                      ? "Fire signature pending"
+                      : "Roster signature pending"}
+                  </Badge>
+                ) : null}
                 {classRecord.status === CLASS_STATUSES.FINALIZED &&
                 classRecord.finalizedAt ? (
                   <span className="text-muted-foreground">

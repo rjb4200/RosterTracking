@@ -33,7 +33,15 @@ const snapshot: FinalizationSnapshot = {
     completedAt: "2026-09-05T14:00:00.000Z",
   },
   destinations: [{ code: "kbems", name: "KBEMS / KEMSIS" }],
-  instructors: [{ name: "Lead Medic", isLead: true, ffn: null, level: null }],
+  instructors: [
+    {
+      userId: "instructor-1",
+      name: "Lead Medic",
+      isLead: true,
+      ffn: null,
+      level: null,
+    },
+  ],
   components: [
     {
       title: null,
