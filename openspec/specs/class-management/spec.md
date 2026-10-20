@@ -5,23 +5,39 @@
 Allow authorized staff to create, schedule, open, finalize, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
 ## Requirements
 ### Requirement: Class records use reference data
-The system SHALL let authorized staff create an open class with a class name, one of the Classroom, Hands-On, Online, or Hybrid delivery methods, a training site when applicable, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, or the EMS course name when KBEMS is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Classroom, Hands-On, and Hybrid classes SHALL require a training site; Online classes SHALL permit no training site.
+The system SHALL let authorized staff create an open class with a class name, a non-empty set of delivery methods drawn from Classroom, Hands-On, and Online, a required training site, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, or the EMS course name when KBEMS is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Every class SHALL reference one active training site regardless of its delivery methods, and the delivery methods SHALL NOT affect whether a training site is required.
 
 #### Scenario: Create a classroom class
 - **WHEN** authorized staff enter a class name, select Classroom delivery, a training site, a scheduled session, a lead instructor, and reporting systems
 - **THEN** the system creates an open class with those selections
 
+#### Scenario: Create a class with multiple delivery methods
+- **WHEN** authorized staff enter a class name, select Classroom and Hands-On delivery, a training site, a scheduled session, a lead instructor, and reporting systems
+- **THEN** the system creates an open class carrying both delivery methods
+
 #### Scenario: Require a site for site-based delivery
-- **WHEN** staff attempt to create or save a Classroom, Hands-On, or Hybrid class without a training site
+- **WHEN** staff attempt to create or save a Classroom, Hands-On, or Online class without a training site
 - **THEN** the system rejects the change with a site-required validation error
 
 #### Scenario: Create an online class without a site
-- **WHEN** authorized staff select Online delivery without a training site
-- **THEN** the system permits the class to be created
+- **WHEN** authorized staff attempt to create an Online class without a training site
+- **THEN** the system rejects the change with a site-required validation error
+
+#### Scenario: Require a site for every class
+- **WHEN** staff attempt to create or save a class without a training site
+- **THEN** the system rejects the change with a site-required validation error
+
+#### Scenario: Use a site for an online class
+- **WHEN** authorized staff select Online delivery and choose a site named Online
+- **THEN** the system creates the class with that site
+
+#### Scenario: Reject an empty delivery set
+- **WHEN** staff attempt to create or save a class with no delivery method selected
+- **THEN** the system rejects the change and asks for at least one delivery method
 
 #### Scenario: Migrate historical delivery values
 - **WHEN** the delivery-method migration runs against existing classes
-- **THEN** it converts `in_person` to `classroom`, `virtual` to `online`, and retains `hybrid` as `hybrid`
+- **THEN** it converts `in_person` to `classroom`, `virtual` to `online`, and `hybrid` to `classroom,online`
 
 ### Requirement: Reporting-system changes reconcile attendance context
 When authorized staff change the reporting systems of an open class, the system SHALL reconcile every active attendance's reporting context so that it matches the class's selected reporting systems, and SHALL keep the roster ready to finalize. Adding a reporting system SHALL NOT leave an active attendance without that system's reporting context, and removing one SHALL leave no active attendance holding a context for it. Reconciliation SHALL derive inclusion only from facts the attendance already captured and SHALL NOT store any credential or student-field value the attendee did not supply. This SHALL apply whether the change is made on an open class directly or after a finalized class is reopened and edited.
@@ -73,7 +89,7 @@ The system SHALL require every class to reference one active host agency from th
 - **THEN** the system still requires a host agency
 
 ### Requirement: Class components retain scheduled sessions
-The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
+The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. Session credited hours SHALL be entered as hours and minutes in 15-minute increments. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
 
 #### Scenario: Add multiple sessions
 - **WHEN** staff add separate morning and afternoon components to a draft class
@@ -86,6 +102,14 @@ The system SHALL let authorized staff add one or more components to a draft clas
 #### Scenario: Calculate the end time from credited hours
 - **WHEN** staff select a component start time and change its credited hours
 - **THEN** the system recalculates and stores the end time as the start time plus the credited-hour duration
+
+#### Scenario: Enter credited hours in quarter-hour steps
+- **WHEN** staff set a component's credited hours to two hours and fifteen minutes
+- **THEN** the system stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+
+#### Scenario: Reject a duration outside the quarter-hour cadence
+- **WHEN** a component is submitted with a credited duration that is not a whole 15-minute increment
+- **THEN** the system rejects the component
 
 #### Scenario: Restrict session start times
 - **WHEN** staff select a component start time
@@ -283,21 +307,6 @@ The system SHALL let a class session store a Fire subject: a training-code refer
 - **WHEN** a class with Fire subjects is finalized
 - **THEN** the revision retains each subject's category, class name, curriculum, and lesson plan
 
-### Requirement: A session's KFS-1A method follows the class delivery method
-The system SHALL derive every session's KFS-1A Method from the class delivery method: Classroom marks CR, Hands-On marks HO, Online marks OL, and Hybrid marks both CR and OL. When staff change the delivery method of an open class, the system SHALL update every session's Method to match the new delivery method.
-
-#### Scenario: Derive the method at class creation
-- **WHEN** staff create a class with a delivery method and one or more Fire subjects
-- **THEN** each created session stores the delivery method's KFS-1A method
-
-#### Scenario: Hybrid marks both boxes
-- **WHEN** a session's class uses Hybrid delivery
-- **THEN** the session's KFS-1A method marks both CR and OL
-
-#### Scenario: Re-derive the method when the delivery method changes
-- **WHEN** staff change the delivery method of an open class
-- **THEN** every session's KFS-1A method is updated to match the new delivery method
-
 ### Requirement: Instructor certification details accompany the roster
 The system SHALL retain each assigned instructor's Fire Commission FFN and certification level as finalization facts so official Fire output can print them, without altering the instructor's current profile.
 
@@ -403,4 +412,35 @@ When authorized staff add the Fire reporting system to a class, or change its as
 #### Scenario: Validate the resulting set
 - **WHEN** staff replace a fire-eligible lead with a non-fire lead while the assistant is not fire-eligible
 - **THEN** the system rejects the change even though the outgoing lead is still assigned at validation time
+
+### Requirement: A session's KFS-1A method defaults from the class delivery method
+The system SHALL default every session's KFS-1A Method to the union of the method codes represented by the class delivery methods: Classroom marks CR, Hands-On marks HO, and Online marks OL. The class delivery methods SHALL form a non-empty set. Staff SHALL be able to change a session's Method to any non-empty combination of CR, HO, and OL independently of the class delivery methods. When staff change the delivery methods of an open class, the system SHALL update only those sessions whose Method still equals the previous default; sessions whose Method already differs SHALL retain their Method.
+
+#### Scenario: Derive the method at class creation
+- **WHEN** staff create a class with Classroom and Hands-On delivery and one or more Fire subjects
+- **THEN** each created session stores CR and HO as its KFS-1A method
+
+#### Scenario: Mark any method combination
+- **WHEN** staff set a session's method to CR and HO
+- **THEN** the session stores both CR and HO
+
+#### Scenario: Override one session independently
+- **WHEN** staff change one session's method to HO while its class uses Classroom delivery
+- **THEN** that session's method is HO and every other session keeps its method
+
+#### Scenario: Preserve an overridden session when delivery changes
+- **WHEN** staff change the class delivery methods and a session's method already differs from the previous default
+- **THEN** that session keeps its method while sessions still on the previous default are updated
+
+#### Scenario: Follow the new default for inherited sessions
+- **WHEN** staff change the class delivery methods and a session's method still equals the previous default
+- **THEN** the session's method is updated to the new default
+
+#### Scenario: Require at least one method
+- **WHEN** staff attempt to save a session with no method selected
+- **THEN** the system rejects the change and asks for at least one method
+
+#### Scenario: Read a legacy hybrid method
+- **WHEN** a session recorded the legacy `hybrid` method
+- **THEN** the system presents it as CR and OL
 

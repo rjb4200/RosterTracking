@@ -5,8 +5,7 @@
 Give authorized instructors a fast, reviewable guided path to create a scheduled class that is open for sign-in as soon as it is created, without exposing all setup choices at once.
 ## Requirements
 ### Requirement: Guided class creation
-
-The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect the delivery method, training site when required, scheduled start and duration, lead instructor, optional assistant instructor, host agency, and optional student access PIN. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
+The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect a non-empty set of delivery methods, a required training site, a scheduled start and a duration entered in 15-minute increments, lead instructor, optional assistant instructor, host agency, and optional student access PIN. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -36,9 +35,16 @@ The system SHALL present class creation as a Destinations step first, then one s
 - **WHEN** staff reach the class-and-schedule step
 - **THEN** they can select an active agency or add a new one inline before continuing
 
-### Requirement: Final review creates an open class
+#### Scenario: Select multiple delivery methods
+- **WHEN** staff select Classroom and Hands-On on the class-and-schedule step
+- **THEN** both delivery methods are retained and submitted as the class delivery set
 
-The system SHALL show a concise summary of the class name, site, scheduled details, delivery method, host agency, lead instructor, assistant instructor when present, the resolved Fire signer when Fire is selected, the certificate signer when KBEMS is selected, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, assigned lead instructor, and assigned assistant instructor when one was chosen, ready to accept student sign-in.
+#### Scenario: Require a training site
+- **WHEN** staff leave the training site unset and choose Next
+- **THEN** the system stays on the class-and-schedule step and identifies the missing training site
+
+### Requirement: Final review creates an open class
+The system SHALL show a concise summary of the class name, site, scheduled details, delivery methods, host agency, lead instructor, assistant instructor when present, the resolved Fire signer when Fire is selected, the certificate signer when KBEMS is selected, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, assigned lead instructor, and assigned assistant instructor when one was chosen, ready to accept student sign-in.
 
 #### Scenario: Create and open from the review step
 - **WHEN** authorized staff submit a valid reviewed wizard
@@ -51,6 +57,10 @@ The system SHALL show a concise summary of the class name, site, scheduled detai
 #### Scenario: Reject incomplete review submission
 - **WHEN** staff submit the review step with invalid or missing required information
 - **THEN** the system creates no class and identifies the information that requires correction
+
+#### Scenario: Review multiple delivery methods
+- **WHEN** the class uses more than one delivery method
+- **THEN** the review summary lists every selected delivery method
 
 ### Requirement: Wizard layout stays within the viewport on narrow screens
 The system SHALL keep the class creation wizard within the width of its container at narrow mobile viewports and SHALL NOT allow control content, including long course, site, or instructor option labels, to widen the page beyond the viewport. The wizard's step-advance and final-submit controls SHALL remain pointer-reachable while the wizard is displayed on a narrow mobile viewport.
@@ -304,11 +314,15 @@ The system SHALL set the class name from the first Fire subject's class name whe
 - **THEN** the class name is the EMS course name
 
 ### Requirement: Class duration defaults to two hours
-The class-and-schedule step SHALL default the scheduled duration to two hours and SHALL let staff change it.
+The class-and-schedule step SHALL default the scheduled duration to two hours, SHALL let staff change it in 15-minute increments, and SHALL present the duration as hours and minutes.
 
 #### Scenario: Default the scheduled duration
 - **WHEN** staff reach the class-and-schedule step
 - **THEN** the scheduled duration is two hours unless staff change it
+
+#### Scenario: Enter a quarter-hour duration
+- **WHEN** staff set the scheduled duration to two hours and fifteen minutes
+- **THEN** the duration is retained as 2.25 hours and submitted with the class
 
 ### Requirement: Inline site and agency creation captures details
 

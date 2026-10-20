@@ -11,6 +11,14 @@ The system SHALL let authorized staff create an open class with a class name, a 
 - **WHEN** authorized staff enter a class name, select Classroom and Hands-On delivery, a training site, a scheduled session, a lead instructor, and reporting systems
 - **THEN** the system creates an open class carrying both delivery methods
 
+#### Scenario: Require a site for site-based delivery
+- **WHEN** staff attempt to create or save a Classroom, Hands-On, or Online class without a training site
+- **THEN** the system rejects the change with a site-required validation error
+
+#### Scenario: Create an online class without a site
+- **WHEN** authorized staff attempt to create an Online class without a training site
+- **THEN** the system rejects the change with a site-required validation error
+
 #### Scenario: Require a site for every class
 - **WHEN** staff attempt to create or save a class without a training site
 - **THEN** the system rejects the change with a site-required validation error

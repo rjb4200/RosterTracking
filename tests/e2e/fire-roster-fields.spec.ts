@@ -54,7 +54,7 @@ async function completeClassStep(
     .getByLabel("Training site", { exact: true })
     .selectOption(fixture.siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
-  await page.getByLabel("Scheduled duration hours").selectOption("4");
+  await page.getByLabel("Scheduled duration").selectOption("4");
   await page.getByLabel("Host agency").selectOption(fixture.agencyId);
 }
 

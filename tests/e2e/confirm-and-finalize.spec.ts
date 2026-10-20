@@ -26,10 +26,17 @@ function skipUnlessEnabled() {
   );
 }
 
-async function createOpenClass(options: { attendance?: boolean } = {}) {
+async function createOpenClass(
+  options: { attendance?: boolean; sessionHours?: number } = {},
+) {
   if (!connectionString) throw new Error("E2E_DATABASE_URL is required.");
   const pool = new Pool({ connectionString, max: 1 });
   const suffix = randomUUID();
+  const sessionHours = options.sessionHours ?? 4;
+  const startsAt = "2026-09-10T13:00:00Z";
+  const endsAt = new Date(
+    new Date(startsAt).getTime() + sessionHours * 60 * 60 * 1000,
+  ).toISOString();
   const actor = await pool.query<{ id: string }>(
     "select id from users where username = $1",
     [username],
@@ -61,8 +68,8 @@ async function createOpenClass(options: { attendance?: boolean } = {}) {
     [classId, actor.rows[0].id],
   );
   await pool.query(
-    "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, 4)",
-    [classId, "2026-09-10T13:00:00Z", "2026-09-10T17:00:00Z"],
+    "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, $4)",
+    [classId, startsAt, endsAt, sessionHours],
   );
   if (options.attendance) {
     // Attendance now comes from a valid sign-in; fixture it directly because
@@ -72,8 +79,14 @@ async function createOpenClass(options: { attendance?: boolean } = {}) {
       [classId],
     );
     await pool.query(
-      "insert into attendance (class_id, guest_id, agency_id, idempotency_key, payload_fingerprint, credited_hours) values ($1, $2, $3, $4, 'fixture', 4)",
-      [classId, guest.rows[0]?.id, agency.rows[0].id, randomUUID()],
+      "insert into attendance (class_id, guest_id, agency_id, idempotency_key, payload_fingerprint, credited_hours) values ($1, $2, $3, $4, 'fixture', $5)",
+      [
+        classId,
+        guest.rows[0]?.id,
+        agency.rows[0].id,
+        randomUUID(),
+        sessionHours,
+      ],
     );
   }
   await pool.end();
@@ -333,6 +346,32 @@ test("raising a session's hours carries the full credit to the participant", asy
       { timeout: 20_000 },
     )
     .toBe("5.00");
+});
+
+test("preserves an out-of-range session duration when editing", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ sessionHours: 0.25 });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const schedule = page.locator("#area-schedule");
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  const duration = schedule.getByLabel("Credited hours").first();
+  await expect(duration).toHaveValue("0.25");
+  await expect(duration.locator('option[value="0.25"]')).toHaveText(
+    "15m (current)",
+  );
+  await schedule.getByRole("button", { name: "Save and close" }).click();
+  await expect(schedule.getByLabel("Credited hours")).toHaveCount(0);
+
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  await expect(schedule.getByLabel("Credited hours").first()).toHaveValue(
+    "0.25",
+  );
 });
 
 test("the workspace opens one correction area at a time", async ({ page }) => {

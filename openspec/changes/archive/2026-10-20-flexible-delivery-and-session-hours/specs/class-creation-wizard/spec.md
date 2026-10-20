@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Guided class creation
-The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect a non-empty set of delivery methods, a required training site, a scheduled start and a duration entered in 15-minute increments, lead instructor, host agency, and optional student access PIN. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
+The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect a non-empty set of delivery methods, a required training site, a scheduled start and a duration entered in 15-minute increments, lead instructor, optional assistant instructor, host agency, and optional student access PIN. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -40,11 +40,15 @@ The system SHALL present class creation as a Destinations step first, then one s
 - **THEN** the system stays on the class-and-schedule step and identifies the missing training site
 
 ### Requirement: Final review creates an open class
-The system SHALL show a concise summary of the class name, site, scheduled details, delivery methods, host agency, instructor, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, and assigned lead instructor, ready to accept student sign-in.
+The system SHALL show a concise summary of the class name, site, scheduled details, delivery methods, host agency, lead instructor, assistant instructor when present, the resolved Fire signer when Fire is selected, the certificate signer when KBEMS is selected, and reporting destinations before submission. A successful Create action SHALL create one open class with its initial scheduled session, host agency, reporting selections, assigned lead instructor, and assigned assistant instructor when one was chosen, ready to accept student sign-in.
 
 #### Scenario: Create and open from the review step
 - **WHEN** authorized staff submit a valid reviewed wizard
-- **THEN** the system creates the class already open, with its session, host agency, reporting selections, and lead instructor
+- **THEN** the system creates the class already open, with its session, host agency, reporting selections, lead instructor, and any chosen assistant instructor
+
+#### Scenario: Show the assistant instructor in the review summary
+- **WHEN** an assistant instructor was chosen during class creation
+- **THEN** the review summary presents the assistant instructor alongside the lead instructor
 
 #### Scenario: Reject incomplete review submission
 - **WHEN** staff submit the review step with invalid or missing required information
