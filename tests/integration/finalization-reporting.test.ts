@@ -95,6 +95,13 @@ describeDatabase("retained finalization destination statuses", () => {
       { revisionId: revision.id, reportingSystemId: fire.id },
       { revisionId: revision.id, reportingSystemId: kbems.id },
     ]);
+    await db.insert(schema.revisionAttestations).values({
+      revisionId: revision.id,
+      scope: "fire",
+      signedByUserId: instructor.id,
+      signedByName: "Fixture Fire Signer",
+      attestationVersion: "fire-attestation-001",
+    });
     const input = {
       revisionId: revision.id,
       reportingSystemId: fire.id,

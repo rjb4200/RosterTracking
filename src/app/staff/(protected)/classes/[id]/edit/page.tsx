@@ -23,8 +23,8 @@ import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
 
 import {
-  assignInstructorAction,
   saveComponentAction,
+  saveInstructorsAction,
   updateClassAction,
 } from "../../actions";
 import { ClassForm } from "../../class-form";
@@ -51,6 +51,12 @@ export default async function EditClassPage({
     redirect(`/staff/classes/${id}`);
   }
   const options = await listClassFormOptions(db, actor);
+  const currentLeadId =
+    classRecord.instructors.find((instructor) => instructor.isLead)?.userId ??
+    "";
+  const currentAssistantId =
+    classRecord.instructors.find((instructor) => !instructor.isLead)?.userId ??
+    null;
   const newSessionStartsAt = roundDepartmentDateTimeToQuarterHour(new Date());
   const componentKind = classRecord.reportingSystems.some(
     (system) => system.code === "fire",
@@ -168,9 +174,11 @@ export default async function EditClassPage({
           ))}
         </ul>
         <InstructorAssignmentForm
-          action={assignInstructorAction}
+          action={saveInstructorsAction}
           classId={classRecord.id}
           staff={options.staff}
+          currentLeadId={currentLeadId}
+          currentAssistantId={currentAssistantId}
         />
       </section>
     </main>

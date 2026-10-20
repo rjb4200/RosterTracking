@@ -1,0 +1,8 @@
+ALTER TABLE "finalization_revisions" ADD COLUMN "fire_signer_user_id" uuid;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD COLUMN "fire_signed_by_user_id" uuid;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD COLUMN "fire_signed_by_name" text;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD COLUMN "fire_signed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD COLUMN "fire_attestation_version" text;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD CONSTRAINT "finalization_revisions_fire_signer_user_id_users_id_fk" FOREIGN KEY ("fire_signer_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD CONSTRAINT "finalization_revisions_fire_signed_by_user_id_users_id_fk" FOREIGN KEY ("fire_signed_by_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "finalization_revisions" ADD CONSTRAINT "finalization_revisions_fire_attestation_complete" CHECK (("finalization_revisions"."fire_signed_by_user_id" is null and "finalization_revisions"."fire_signed_by_name" is null and "finalization_revisions"."fire_signed_at" is null and "finalization_revisions"."fire_attestation_version" is null) or ("finalization_revisions"."fire_signed_by_user_id" is not null and "finalization_revisions"."fire_signed_by_name" is not null and "finalization_revisions"."fire_signed_at" is not null and "finalization_revisions"."fire_attestation_version" is not null));

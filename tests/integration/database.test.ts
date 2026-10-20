@@ -191,6 +191,7 @@ describeDatabase("database foundation", () => {
         displayName: "Class Test",
         passwordHash: "not-a-real-hash",
         ffn: uniqueFfn(),
+        instructorLevel: 2,
       })
       .returning({ id: users.id, username: users.username });
     const [site] = await database
@@ -234,6 +235,7 @@ describeDatabase("database foundation", () => {
         displayName: "Replacement Lead",
         passwordHash: "not-a-real-hash",
         ffn: uniqueFfn(),
+        instructorLevel: 2,
       })
       .returning({ id: users.id, username: users.username });
     if (!replacementLead) throw new Error("Replacement lead was not created.");
@@ -344,7 +346,7 @@ describeDatabase("database foundation", () => {
           .from(classInstructors)
           .where(eq(classInstructors.classId, created.classRecord.id))
       ).length,
-    ).toBe(2);
+    ).toBe(1);
     expect(
       (
         await database
@@ -452,6 +454,7 @@ describeDatabase("database foundation", () => {
         displayName: "Scheduled Class Instructor",
         passwordHash: "not-a-real-hash",
         ffn: uniqueFfn(),
+        instructorLevel: 2,
       })
       .returning({ id: users.id, username: users.username });
     const [site] = await database
@@ -533,18 +536,21 @@ describeDatabase("database foundation", () => {
           displayName: "Dashboard Instructor",
           passwordHash: "not-a-real-hash",
           ffn: uniqueFfn(),
+          instructorLevel: 2,
         },
         {
           username: `dashboard-colleague-${suffix}`,
           displayName: "Dashboard Colleague",
           passwordHash: "not-a-real-hash",
           ffn: uniqueFfn(),
+          instructorLevel: 2,
         },
         {
           username: `dashboard-major-${suffix}`,
           displayName: "Dashboard Major",
           passwordHash: "not-a-real-hash",
           ffn: uniqueFfn(),
+          instructorLevel: 2,
         },
       ])
       .returning({ id: users.id, username: users.username });

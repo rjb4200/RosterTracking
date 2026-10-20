@@ -139,6 +139,7 @@ async function createFireClassFixture(db: Db) {
       displayName: "Correction Instructor",
       passwordHash: "fixture-password-hash",
       ffn: uniqueFfn(),
+      instructorLevel: 2,
     })
     .returning({ id: users.id, username: users.username });
   const [site] = await db

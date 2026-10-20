@@ -26,11 +26,12 @@ The system SHALL produce a separate certificate for each active participant of t
 - **THEN** no certificate is produced for that participant
 
 ### Requirement: Certificate content
-Each certificate SHALL show the participant name, the class hours, the course type, the course number, the course-completion date, and the instructor name, and SHALL render the course type and the class name on the signature line, dropping the course type when a long class name does not fit. The certificate SHALL render the lead instructor's typed-name electronic signature derived from the finalization revision's attestation, and SHALL leave the signature blank only when the revision has no recorded attestation. The certificate SHALL leave the instructor signature blank for physical signing only in that no-attestation case.
+
+Each certificate SHALL show the participant name, the class hours, the course type, the course number, the course-completion date, and the instructor name, and SHALL render the course type and the class name on the signature line, dropping the course type when a long class name does not fit. The certificate SHALL render the class lead's typed-name electronic signature derived from the revision's `roster` attestation. The certificate SHALL be generated only when the revision has a `roster` attestation, except for a legacy revision that predates attestations, where the documented blank-signature fallback applies.
 
 #### Scenario: Populate certificate fields
 - **WHEN** a certificate is generated
-- **THEN** the participant name, class hours, course type, course number, completion date, and instructor name are populated
+- **THEN** the participant name, class hours, course type, course number, completion date, and signing instructor name are populated
 
 #### Scenario: Omit a missing optional value
 - **WHEN** the class has no course number
@@ -45,12 +46,16 @@ Each certificate SHALL show the participant name, the class hours, the course ty
 - **THEN** the signature line shows only the class name
 
 #### Scenario: Render the electronic signature
-- **WHEN** a certificate is generated from a revision with a recorded attestation
-- **THEN** the instructor signature area shows the attested signer's typed name
+- **WHEN** a certificate is generated from a revision with a `roster` attestation
+- **THEN** the instructor signature area shows the attesting lead's typed name
+
+#### Scenario: Refuse to generate without a roster attestation
+- **WHEN** a new revision has no `roster` attestation
+- **THEN** the system does not generate the certificate
 
 #### Scenario: Leave the signature blank without an attestation
-- **WHEN** a certificate is generated from a revision with no recorded attestation
-- **THEN** the instructor signature area is left blank
+- **WHEN** a legacy revision predates attestations and has no recorded signature
+- **THEN** the certificate keeps the documented blank-signature fallback
 
 ### Requirement: Certificate generation is controlled and audited
 The system SHALL allow an assigned instructor to generate certificates only for a finalized class to which they are assigned, and Training Majors and Administrators to generate them for any finalized class. The system SHALL record the actor, the revision, the participant, and whether the certificate was electronically signed, and SHALL not retain generated certificate bytes.

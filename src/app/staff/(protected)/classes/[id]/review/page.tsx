@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import { defaultComponentMethod } from "@/modules/classes/delivery-methods";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
+import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import type { MtuUsage } from "@/modules/classes/mtu";
 import {
   getClassDetail,
@@ -32,15 +33,15 @@ import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
 import {
-  assignInstructorAction,
   correctCredentialAction,
   emailTrainingNoticeAction,
   finalizeClassAction,
-  removeInstructorAction,
   reopenClassAction,
   resendParticipantCertificateAction,
   saveComponentAction,
+  saveInstructorsAction,
   sendOfficialRosterEmailAction,
+  signFireRosterAction,
   updateClassAction,
 } from "../../actions";
 import { CertificateDeliveryControls } from "../../certificate-delivery-controls";
@@ -48,10 +49,10 @@ import { ClassForm } from "../../class-form";
 import { CredentialCorrectionControl } from "../../credential-correction-control";
 import {
   FinalizationControls,
+  FireSignControls,
   ReopenControl,
 } from "../../finalization-controls";
 import { InstructorAssignmentForm } from "../../instructor-assignment-form";
-import { InstructorRowActions } from "../../instructor-controls";
 import { MtuUsageForm } from "../../mtu-usage-form";
 import {
   CompletionCertificateControls,
@@ -91,11 +92,15 @@ function DocumentsList({
   isFinalized,
   latestRevision,
   canManageOfficialRosters,
+  showRosterDocuments,
+  showFireDocuments,
 }: {
   classId: string;
   isFinalized: boolean;
   latestRevision: LatestRevision;
   canManageOfficialRosters: boolean;
+  showRosterDocuments: boolean;
+  showFireDocuments: boolean;
 }) {
   return (
     <ul className="member-list">
@@ -113,9 +118,11 @@ function DocumentsList({
           label="audit log"
         />
       </li>
-      {isFinalized && latestRevision && canManageOfficialRosters ? (
-        <>
-          {Object.values(TEMPLATE_MAPPINGS).map((mapping) => (
+      {isFinalized &&
+      latestRevision &&
+      canManageOfficialRosters &&
+      showFireDocuments
+        ? Object.values(TEMPLATE_MAPPINGS).map((mapping) => (
             <li key={mapping.formType} className="member-row">
               <span>{mapping.formType.toUpperCase()} roster</span>
               <RosterDocumentActions
@@ -124,19 +131,22 @@ function DocumentsList({
                 emailAction={sendOfficialRosterEmailAction}
               />
             </li>
-          ))}
-          {latestRevision.destinations.some(
-            (destination) => destination.systemCode === "kbems",
-          ) ? (
-            <li className="member-row">
-              <span>Completion certificates</span>
-              <DocumentLink
-                href={`/api/staff/completion-certificates/${latestRevision.id}?disposition=inline`}
-                label="certificates"
-              />
-            </li>
-          ) : null}
-        </>
+          ))
+        : null}
+      {isFinalized &&
+      latestRevision &&
+      canManageOfficialRosters &&
+      showRosterDocuments &&
+      latestRevision.destinations.some(
+        (destination) => destination.systemCode === "kbems",
+      ) ? (
+        <li className="member-row">
+          <span>Completion certificates</span>
+          <DocumentLink
+            href={`/api/staff/completion-certificates/${latestRevision.id}?disposition=inline`}
+            label="certificates"
+          />
+        </li>
       ) : null}
     </ul>
   );
@@ -373,6 +383,47 @@ export default async function ClassReviewPage({
     );
   const canReopen = staff ? isAdministrator(staff.roleCodes) : false;
   const latestRevision = revisionHistory[0] ?? null;
+  const currentLeadId =
+    classRecord.instructors.find((instructor) => instructor.isLead)?.userId ??
+    "";
+  const currentAssistantId =
+    classRecord.instructors.find((instructor) => !instructor.isLead)?.userId ??
+    null;
+  const isFireClass = classRecord.reportingSystems.some(
+    (system) => system.code === "fire",
+  );
+  const fireSigner = isFireClass
+    ? resolveFireSigner(classRecord.instructors)
+    : null;
+  const hasRosterAttestation = Boolean(
+    latestRevision?.attestations.some(
+      (attestation) => attestation.scope === "roster",
+    ),
+  );
+  const hasFireAttestation = Boolean(
+    latestRevision?.attestations.some(
+      (attestation) => attestation.scope === "fire",
+    ),
+  );
+  const fireSignaturePending = Boolean(
+    latestRevision?.fireSignerUserId && !hasFireAttestation,
+  );
+  const canShowRosterDocuments =
+    !latestRevision ||
+    hasRosterAttestation ||
+    !latestRevision.hasMaterializedAttestations;
+  const canShowFireDocuments =
+    !latestRevision?.fireSignerUserId || hasFireAttestation;
+  const canSignFire =
+    isFinalized &&
+    Boolean(staff) &&
+    fireSignaturePending &&
+    latestRevision?.fireSignerUserId === staff?.id;
+  const fireSignerName = latestRevision?.fireSignerUserId
+    ? (classRecord.instructors.find(
+        (instructor) => instructor.userId === latestRevision.fireSignerUserId,
+      )?.displayName ?? "the fire instructor")
+    : (fireSigner?.displayName ?? "the fire instructor");
   const latestReportsToKbems = Boolean(
     latestRevision?.destinations.some(
       (destination) => destination.systemCode === "kbems",
@@ -607,20 +658,16 @@ export default async function ClassReviewPage({
                     ) : (
                       <Badge variant="secondary">Assisting</Badge>
                     )}
-                    {classOptions ? (
-                      <InstructorRowActions
-                        classId={classRecord.id}
-                        userId={instructor.userId}
-                        isLead={instructor.isLead}
-                        assignAction={assignInstructorAction}
-                        removeAction={removeInstructorAction}
-                      />
+                    {fireSigner?.userId === instructor.userId ? (
+                      <Badge variant="secondary">Fire signer</Badge>
                     ) : null}
                   </li>
                 ))}
               </ul>
               <p className="roster-note">
-                The lead instructor signs the roster.
+                The lead instructor finalizes the roster and signs the
+                certificate. The Fire signer signs the Fire roster and
+                individual training notice.
               </p>
               {classRecord.reportingSystems.some(
                 (system) => system.code === "fire",
@@ -632,9 +679,11 @@ export default async function ClassReviewPage({
               ) : null}
               {classOptions ? (
                 <InstructorAssignmentForm
-                  action={assignInstructorAction}
+                  action={saveInstructorsAction}
                   classId={classRecord.id}
                   staff={classOptions.staff}
+                  currentLeadId={currentLeadId}
+                  currentAssistantId={currentAssistantId}
                 />
               ) : null}
             </WorkspaceArea>
@@ -708,6 +757,15 @@ export default async function ClassReviewPage({
                 <AreaOpener area="mtu">Review MTU usage</AreaOpener>
               </p>
             ) : null}
+            {isOpen &&
+            isFireClass &&
+            fireSigner &&
+            fireSigner.userId !== currentLeadId ? (
+              <p className="roster-note">
+                After finalization, {fireSigner.displayName} will sign the Fire
+                roster and individual training notice.
+              </p>
+            ) : null}
             <FinalizationControls
               classId={id}
               status={classRecord.status}
@@ -728,6 +786,46 @@ export default async function ClassReviewPage({
                 : ""}
             </p>
           </section>
+
+          {latestRevision ? (
+            <section className="admin-section">
+              <h2>Signatures</h2>
+              <ul className="member-list">
+                {latestRevision.attestations.map((attestation) => (
+                  <li key={attestation.scope} className="member-row">
+                    <span>
+                      {attestation.scope === "fire" ? "Fire roster" : "Roster"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      Signed by {attestation.signedByName} on{" "}
+                      {formatDepartmentDateTime(attestation.signedAt)}
+                    </span>
+                  </li>
+                ))}
+                {fireSignaturePending ? (
+                  <li className="member-row">
+                    <span>Fire roster</span>
+                    <span className="text-muted-foreground">
+                      Awaiting {fireSignerName}
+                    </span>
+                  </li>
+                ) : null}
+              </ul>
+              {fireSignaturePending && canSignFire ? (
+                <FireSignControls
+                  classId={id}
+                  revisionId={latestRevision.id}
+                  signAction={signFireRosterAction}
+                />
+              ) : null}
+              {fireSignaturePending && !canSignFire ? (
+                <p className="roster-note">
+                  The Fire roster and individual training notice are awaiting
+                  the signature of {fireSignerName}.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="admin-section">
             <h2>Class details</h2>
@@ -768,6 +866,8 @@ export default async function ClassReviewPage({
               isFinalized={isFinalized}
               latestRevision={latestRevision}
               canManageOfficialRosters={canManageOfficialRosters}
+              showRosterDocuments={canShowRosterDocuments}
+              showFireDocuments={canShowFireDocuments}
             />
           </section>
 
@@ -790,7 +890,10 @@ export default async function ClassReviewPage({
             </section>
           ) : null}
 
-          {latestRevision && canManageOfficialRosters && latestReportsToFire ? (
+          {latestRevision &&
+          canManageOfficialRosters &&
+          latestReportsToFire &&
+          canShowFireDocuments ? (
             <details className="admin-section">
               <summary>Training notices</summary>
               <p className="roster-note">
@@ -823,14 +926,18 @@ export default async function ClassReviewPage({
                           Finalized by {revision.finalizedBy} on{" "}
                           {formatDepartmentDateTime(revision.finalizedAt)}
                         </span>
-                        {revision.signedByName ? (
-                          <span className="text-muted-foreground">
-                            Signed by {revision.signedByName} on{" "}
-                            {revision.signedAt
-                              ? formatDepartmentDateTime(revision.signedAt)
-                              : "—"}
+                        {revision.attestations.map((attestation) => (
+                          <span
+                            key={attestation.scope}
+                            className="text-muted-foreground"
+                          >
+                            {attestation.scope === "fire"
+                              ? "Fire roster"
+                              : "Roster"}{" "}
+                            signed by {attestation.signedByName} on{" "}
+                            {formatDepartmentDateTime(attestation.signedAt)}
                           </span>
-                        ) : null}
+                        ))}
                         <span className="text-muted-foreground">
                           {revision.reopenReason
                             ? `Reopened: ${revision.reopenReason}`

@@ -6,6 +6,8 @@
 
 export const REMINDER_DELAY_MS = 24 * 60 * 60 * 1000;
 
+export type ReminderAction = "finalize" | "sign_fire";
+
 export interface ReminderInstructor {
   userId: string;
   isLead: boolean;
@@ -16,6 +18,10 @@ export interface ReminderClass {
   className: string;
   finalSessionEndsAt: Date;
   instructors: readonly ReminderInstructor[];
+  // A pending Fire signature is attributed directly to its signer; an open
+  // class is attributed to its lead.
+  recipientUserId?: string;
+  action?: ReminderAction;
 }
 
 export interface ReminderAccount {
@@ -29,6 +35,7 @@ export interface ReminderDigestClass {
   classId: string;
   className: string;
   finalSessionEndsAt: Date;
+  action: ReminderAction;
 }
 
 export interface ReminderDigest {
@@ -75,10 +82,12 @@ export function groupReminders(
 ): ReminderDigest[] {
   const byRecipient = new Map<string, ReminderDigest>();
   for (const classRecord of classes) {
-    const signer = resolveSigningInstructor(classRecord.instructors);
-    if (!signer) continue;
-    const account = accounts.get(signer.userId);
-    if (!account || !account.isActive || !account.email) continue;
+    const recipientUserId =
+      classRecord.recipientUserId ??
+      resolveSigningInstructor(classRecord.instructors)?.userId;
+    if (!recipientUserId) continue;
+    const account = accounts.get(recipientUserId);
+    if (!account?.isActive || !account.email) continue;
     let digest = byRecipient.get(account.userId);
     if (!digest) {
       digest = {
@@ -93,6 +102,7 @@ export function groupReminders(
       classId: classRecord.classId,
       className: classRecord.className,
       finalSessionEndsAt: classRecord.finalSessionEndsAt,
+      action: classRecord.action ?? "finalize",
     });
   }
   return [...byRecipient.values()];

@@ -28,8 +28,8 @@ const snapshot: FinalizationSnapshot = {
     completedAt: "2026-09-05T14:00:00.000Z",
   },
   instructors: [
-    { name: "Lead Instructor", isLead: true },
-    { name: "Assistant Instructor", isLead: false },
+    { userId: "instructor-1", name: "Lead Instructor", isLead: true },
+    { userId: "instructor-2", name: "Assistant Instructor", isLead: false },
   ],
   components: [
     {
@@ -52,6 +52,17 @@ const snapshot: FinalizationSnapshot = {
   fieldSnapshots: [],
   credentialSnapshots: [],
 };
+
+/** A revision read with an optional Fire-attestation left join. */
+function revisionQueryFor(rows: unknown[]) {
+  const result = { where: () => ({ limit: async () => rows }) };
+  return { from: () => ({ ...result, leftJoin: () => result }) };
+}
+
+/** A scope-attestation read for the revision. */
+function attestationQueryFor(rows: unknown[]) {
+  return { from: () => ({ where: async () => rows }) };
+}
 
 /**
  * Reads a field's rendered appearance before flattening and reports the
@@ -391,19 +402,14 @@ describe("official roster PDF templates", () => {
         }),
       }),
     };
-    const revisionQuery = {
-      from: () => ({
-        where: () => ({
-          limit: async () => [
-            { encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)) },
-          ],
-        }),
-      }),
-    };
+    const revisionQuery = revisionQueryFor([
+      { encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)) },
+    ]);
     const select = vi
       .fn()
       .mockReturnValueOnce(revisionQuery)
-      .mockReturnValueOnce(authorityQuery);
+      .mockReturnValueOnce(authorityQuery)
+      .mockReturnValueOnce(attestationQueryFor([]));
     const db = { select } as unknown as Database;
 
     const roster = await generateOfficialRoster(
@@ -413,7 +419,7 @@ describe("official roster PDF templates", () => {
       "kfs-1a",
     );
 
-    expect(select).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledTimes(3);
     expect(roster.bytes).toBeInstanceOf(Uint8Array);
     expect(roster.filename).toBe("kfs-1a-kfs-1a-october-2023.pdf");
   });
@@ -423,18 +429,12 @@ describe("official roster PDF templates", () => {
       "CREDENTIAL_ENCRYPTION_KEY",
       "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     );
-    const revisionQuery = {
-      from: () => ({
-        where: () => ({
-          limit: async () => [
-            {
-              classId: "class-id",
-              encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
-            },
-          ],
-        }),
-      }),
-    };
+    const revisionQuery = revisionQueryFor([
+      {
+        classId: "class-id",
+        encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+      },
+    ]);
     const authorityQuery = {
       from: () => ({
         innerJoin: () => ({ where: () => ({ limit: async () => [] }) }),
@@ -450,7 +450,8 @@ describe("official roster PDF templates", () => {
         .fn()
         .mockReturnValueOnce(revisionQuery)
         .mockReturnValueOnce(authorityQuery)
-        .mockReturnValueOnce(assignedQuery),
+        .mockReturnValueOnce(assignedQuery)
+        .mockReturnValueOnce(attestationQueryFor([])),
     } as unknown as Database;
 
     await expect(
@@ -468,16 +469,10 @@ describe("official roster PDF templates", () => {
       "CREDENTIAL_ENCRYPTION_KEY",
       "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     );
-    const revisionQuery = {
-      from: () => ({
-        where: () => ({
-          // A fixture revision stores a payload that is not valid AES-GCM.
-          limit: async () => [
-            { classId: "class-id", encryptedSnapshot: "fixture" },
-          ],
-        }),
-      }),
-    };
+    const revisionQuery = revisionQueryFor([
+      // A fixture revision stores a payload that is not valid AES-GCM.
+      { classId: "class-id", encryptedSnapshot: "fixture" },
+    ]);
     const authorityQuery = {
       from: () => ({
         innerJoin: () => ({
@@ -489,7 +484,8 @@ describe("official roster PDF templates", () => {
       select: vi
         .fn()
         .mockReturnValueOnce(revisionQuery)
-        .mockReturnValueOnce(authorityQuery),
+        .mockReturnValueOnce(authorityQuery)
+        .mockReturnValueOnce(attestationQueryFor([])),
     } as unknown as Database;
 
     await expect(
@@ -513,18 +509,12 @@ describe("official roster PDF templates", () => {
     const transaction = vi.fn(async (callback) =>
       callback({ insert: () => ({ values: auditValues }) }),
     );
-    const revisionQuery = {
-      from: () => ({
-        where: () => ({
-          limit: async () => [
-            {
-              classId: "class-id",
-              encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
-            },
-          ],
-        }),
-      }),
-    };
+    const revisionQuery = revisionQueryFor([
+      {
+        classId: "class-id",
+        encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+      },
+    ]);
     const authorityQuery = {
       from: () => ({
         innerJoin: () => ({
@@ -536,7 +526,8 @@ describe("official roster PDF templates", () => {
       select: vi
         .fn()
         .mockReturnValueOnce(revisionQuery)
-        .mockReturnValueOnce(authorityQuery),
+        .mockReturnValueOnce(authorityQuery)
+        .mockReturnValueOnce(attestationQueryFor([])),
       transaction,
     } as unknown as Database;
 
@@ -569,18 +560,12 @@ describe("official roster PDF templates", () => {
     vi.stubEnv("RESEND_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
     const transaction = vi.fn();
-    const revisionQuery = {
-      from: () => ({
-        where: () => ({
-          limit: async () => [
-            {
-              classId: "class-id",
-              encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
-            },
-          ],
-        }),
-      }),
-    };
+    const revisionQuery = revisionQueryFor([
+      {
+        classId: "class-id",
+        encryptedSnapshot: encryptCredential(JSON.stringify(snapshot)),
+      },
+    ]);
     const authorityQuery = {
       from: () => ({
         innerJoin: () => ({
@@ -592,7 +577,8 @@ describe("official roster PDF templates", () => {
       select: vi
         .fn()
         .mockReturnValueOnce(revisionQuery)
-        .mockReturnValueOnce(authorityQuery),
+        .mockReturnValueOnce(authorityQuery)
+        .mockReturnValueOnce(attestationQueryFor([])),
       transaction,
     } as unknown as Database;
 

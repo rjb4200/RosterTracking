@@ -27,13 +27,19 @@ export default async function InstructorWorkspacePage() {
     now,
   );
   const today = getDepartmentCalendarDate(now);
-  const overdue = classes.filter((classRecord) => classRecord.isOverdue);
-  const todayClasses = classes.filter(
+  const fireSignatures = classes.filter(
+    (classRecord) => classRecord.canSignFire,
+  );
+  const openClasses = classes.filter(
+    (classRecord) => !classRecord.fireSignaturePending,
+  );
+  const overdue = openClasses.filter((classRecord) => classRecord.isOverdue);
+  const todayClasses = openClasses.filter(
     (classRecord) =>
       classRecord.firstSessionStartsAt &&
       getDepartmentCalendarDate(classRecord.firstSessionStartsAt) === today,
   );
-  const upcoming = classes.filter(
+  const upcoming = openClasses.filter(
     (classRecord) =>
       classRecord.firstSessionStartsAt &&
       classRecord.firstSessionStartsAt > now &&
@@ -53,6 +59,12 @@ export default async function InstructorWorkspacePage() {
           label: "Create class",
           size: "lg",
         }}
+      />
+      <OperationalClassSection
+        title="Fire signatures"
+        classes={fireSignatures}
+        emptyTitle="No Fire rosters awaiting your signature"
+        emptyDescription="Finalized Fire rosters that need your signature appear here."
       />
       <OperationalClassSection
         title="Overdue rosters"

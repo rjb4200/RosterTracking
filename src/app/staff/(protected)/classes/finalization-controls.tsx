@@ -67,6 +67,58 @@ export function FinalizationControls({
   );
 }
 
+/**
+ * The Fire signer's separate action on a finalized, locked revision. It does
+ * not reopen the class or offer roster edits; it only records the Fire
+ * attestation and refreshes the Fire documents.
+ */
+export function FireSignControls({
+  classId,
+  revisionId,
+  signAction,
+}: {
+  classId: string;
+  revisionId: string;
+  signAction: (
+    prev: ActionState | undefined,
+    formData: FormData,
+  ) => Promise<ActionState>;
+}) {
+  const [state, formAction, pending] = useActionState(signAction, undefined);
+  return (
+    <div className="stack-form">
+      <p className="roster-note">
+        The roster is locked. Certify and sign the Fire roster and individual
+        training notice; the certificate is not affected.
+      </p>
+      {state?.error ? <p className="form-error">{state.error}</p> : null}
+      <form action={formAction} className="stack-form finalize-form">
+        <input type="hidden" name="classId" value={classId} />
+        <input type="hidden" name="revisionId" value={revisionId} />
+        <label className="checkbox-row">
+          <input type="checkbox" name="certified" value="true" required />
+          <span>
+            I certify that this Fire roster and training notice are complete and
+            accurate.
+          </span>
+        </label>
+        <label htmlFor="fire-sign-typed-name">Signature</label>
+        <input
+          id="fire-sign-typed-name"
+          name="typedName"
+          className="search-input"
+          placeholder="Type your full name to sign"
+          required
+        />
+        <Button type="submit" disabled={pending}>
+          {pending ? "Signing..." : "Sign Fire roster"}
+        </Button>
+      </form>
+      {state?.success ? <p role="status">{state.success}</p> : null}
+    </div>
+  );
+}
+
 export function ReopenControl({
   classId,
   reopenAction,

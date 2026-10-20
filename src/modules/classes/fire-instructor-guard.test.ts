@@ -3,13 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database, DatabaseTransaction } from "@/server/db/client";
 
 const guard = vi.hoisted(() => vi.fn());
-vi.mock("./instructor-ffn", () => ({ requireFireInstructorFfns: guard }));
+vi.mock("./instructor-ffn", () => ({ requireFireInstructor: guard }));
 
-import {
-  assignClassInstructor,
-  createOpenClass,
-  updateClass,
-} from "./services";
+import { createOpenClass, updateClass } from "./services";
 
 const leadId = "00000000-0000-4000-8000-000000000001";
 const assistantId = "00000000-0000-4000-8000-000000000002";
@@ -82,7 +78,7 @@ describe("Fire class instructor mutation guards", () => {
     expect(transaction.insert).not.toHaveBeenCalled();
   });
 
-  it("checks every assigned instructor before adding Fire reporting", async () => {
+  it("checks the resulting assignment set before adding Fire reporting", async () => {
     const { db, transaction } = databaseWithSelections([
       [{ id: classId, status: "open" }],
       [{ id: "elevated-role" }],
@@ -100,41 +96,5 @@ describe("Fire class instructor mutation guards", () => {
     expect(guard).toHaveBeenCalledWith(transaction, [leadId, assistantId]);
     expect(transaction.update).not.toHaveBeenCalled();
     expect(transaction.delete).not.toHaveBeenCalled();
-  });
-
-  it("rejects an assisting assignment without changing existing assignments", async () => {
-    const { db, transaction } = databaseWithSelections([
-      [{ id: classId, status: "open" }],
-      [{ id: "elevated-role" }],
-      [{ id: assistantId }],
-      [],
-      [{ id: fireId }],
-      [{ id: leadId }],
-    ]);
-    await expect(
-      assignClassInstructor(db, actor, classId, assistantId, false),
-    ).rejects.toThrow(/staff profile FFN/);
-    expect(guard).toHaveBeenCalledWith(transaction, [leadId, assistantId]);
-    expect(transaction.update).not.toHaveBeenCalled();
-    expect(transaction.insert).not.toHaveBeenCalled();
-  });
-
-  it("does not impose an FFN requirement on non-Fire instructor assignments", async () => {
-    const { db, transaction } = databaseWithSelections([
-      [{ id: classId, status: "open" }],
-      [{ id: "elevated-role" }],
-      [{ id: assistantId }],
-      [],
-      [],
-    ]);
-    const write = Object.assign(Promise.resolve([]), {
-      values: () => write,
-      onConflictDoUpdate: () => write,
-    });
-    transaction.insert.mockReturnValue(write);
-    await expect(
-      assignClassInstructor(db, actor, classId, assistantId, false),
-    ).resolves.toBeUndefined();
-    expect(guard).not.toHaveBeenCalled();
   });
 });

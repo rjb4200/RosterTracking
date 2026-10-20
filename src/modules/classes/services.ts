@@ -34,11 +34,13 @@ import {
   credentialTypes,
   curricula,
   curriculumChapters,
+  finalizationFireAttestations,
   finalizationRevisions,
   mtuCatalogItems,
   mtuUsage,
   reportingRequirementSets,
   reportingSystems,
+  revisionAttestations,
   roles,
   trainingClasses,
   trainingCodes,
@@ -55,7 +57,7 @@ import {
   formatDeliveryMethods,
 } from "./delivery-methods";
 import { deriveRecentInitialCertNumbers } from "./initial-cert-code";
-import { requireFireInstructorFfns } from "./instructor-ffn";
+import { requireFireInstructor } from "./instructor-ffn";
 import {
   estimateSupplyQuantity,
   hasMtuUsage,
@@ -95,12 +97,18 @@ export interface ClassActor {
   username: string;
 }
 
-export type OperationalClassAction = "roster" | "finalize" | "view";
+export type OperationalClassAction =
+  | "roster"
+  | "finalize"
+  | "sign_fire"
+  | "view";
 
 export function getOperationalClassAction(
   status: string,
+  fireSignaturePending = false,
 ): OperationalClassAction {
   if (status === CLASS_STATUSES.OPEN) return "roster";
+  if (status === "finalized" && fireSignaturePending) return "sign_fire";
   return "view";
 }
 
@@ -206,6 +214,7 @@ const scheduledDraftInput = draftInput.extend({
   startsAt: z.string().transform(normalizeDepartmentStartTime),
   creditedHours: z.coerce.number().positive().max(999),
   leadInstructorId: z.string().uuid(),
+  assistantInstructorId: optionalUuid,
   subjects: z.array(fireSubjectInput).max(2).optional(),
 });
 
@@ -831,8 +840,29 @@ export async function createOpenClass(
       )
       .limit(1);
     if (!leadInstructor) throw new Error("Select an active lead instructor.");
+    const assistantInstructorId = parsed.assistantInstructorId ?? null;
+    if (assistantInstructorId === parsed.leadInstructorId) {
+      throw new Error(
+        "The assistant instructor must be different from the lead instructor.",
+      );
+    }
+    if (assistantInstructorId) {
+      const [assistantInstructor] = await transaction
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(eq(users.id, assistantInstructorId), eq(users.isActive, true)),
+        )
+        .limit(1);
+      if (!assistantInstructor) {
+        throw new Error("Select an active assistant instructor.");
+      }
+    }
+    const instructorIds = assistantInstructorId
+      ? [parsed.leadInstructorId, assistantInstructorId]
+      : [parsed.leadInstructorId];
     if (await selectsFireDestination(transaction, reportingSystemIds)) {
-      await requireFireInstructorFfns(transaction, [parsed.leadInstructorId]);
+      await requireFireInstructor(transaction, instructorIds);
     }
     // The class name: the entered/EMS course name, else the first Fire subject.
     const className = parsed.name || parsed.subjects?.[0]?.className || null;
@@ -874,18 +904,32 @@ export async function createOpenClass(
         details: { reportingSystemIds },
       });
     }
-    await transaction.insert(classInstructors).values({
-      classId: created.id,
-      userId: parsed.leadInstructorId,
-      isLead: true,
-    });
+    await transaction.insert(classInstructors).values([
+      {
+        classId: created.id,
+        userId: parsed.leadInstructorId,
+        isLead: true,
+      },
+      ...(assistantInstructorId
+        ? [
+            {
+              classId: created.id,
+              userId: assistantInstructorId,
+              isLead: false,
+            },
+          ]
+        : []),
+    ]);
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
       action: "class.instructor.assigned",
       entityType: "class",
       entityId: created.id,
-      details: { userId: parsed.leadInstructorId, isLead: true },
+      details: {
+        leadInstructorId: parsed.leadInstructorId,
+        assistantInstructorId,
+      },
     });
     // Each Fire subject becomes its own session. The first uses the class
     // schedule; a second subject is auto-placed immediately after it.
@@ -1015,7 +1059,7 @@ export async function updateClass(
       )) &&
       !(await classSelectsFire(transaction, classId))
     ) {
-      await requireFireInstructorFfns(
+      await requireFireInstructor(
         transaction,
         await assignedInstructorIds(transaction, classId),
       );
@@ -1242,6 +1286,85 @@ export async function saveClassComponent(
   });
 }
 
+interface InstructorAssignmentInput {
+  leadInstructorId: string;
+  assistantInstructorId: string | null;
+}
+
+async function setClassInstructorsInTransaction(
+  transaction: DatabaseTransaction,
+  actor: ClassActor,
+  classId: string,
+  input: InstructorAssignmentInput,
+) {
+  const classRecord = await requireClassAccess(transaction, actor, classId);
+  assertClassEditable(classRecord.status);
+  const leadInstructorId = input.leadInstructorId;
+  const assistantInstructorId = input.assistantInstructorId ?? null;
+  if (!leadInstructorId) throw new Error("Select a lead instructor.");
+  if (assistantInstructorId === leadInstructorId) {
+    throw new Error(
+      "The assistant instructor must be different from the lead instructor.",
+    );
+  }
+  const instructorIds = assistantInstructorId
+    ? [leadInstructorId, assistantInstructorId]
+    : [leadInstructorId];
+  const activeUsers = await transaction
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, instructorIds), eq(users.isActive, true)));
+  if (activeUsers.length !== instructorIds.length) {
+    throw new Error("Select active staff instructors.");
+  }
+  if (await classSelectsFire(transaction, classId)) {
+    await requireFireInstructor(transaction, instructorIds);
+  }
+  await transaction
+    .delete(classInstructors)
+    .where(eq(classInstructors.classId, classId));
+  await transaction.insert(classInstructors).values([
+    {
+      classId,
+      userId: leadInstructorId,
+      isLead: true,
+    },
+    ...(assistantInstructorId
+      ? [
+          {
+            classId,
+            userId: assistantInstructorId,
+            isLead: false,
+          },
+        ]
+      : []),
+  ]);
+  await writeAuditLog(transaction, {
+    actorUserId: actor.id,
+    actorType: "user",
+    action: "class.instructors.changed",
+    entityType: "class",
+    entityId: classId,
+    details: { leadInstructorId, assistantInstructorId },
+  });
+  return { leadInstructorId, assistantInstructorId };
+}
+
+/**
+ * The only instructor write path. It replaces the 1+1 assignment atomically so
+ * the Fire guard validates the set that will exist after the write.
+ */
+export async function setClassInstructors(
+  db: Database,
+  actor: ClassActor,
+  classId: string,
+  input: InstructorAssignmentInput,
+) {
+  return db.transaction((transaction) =>
+    setClassInstructorsInTransaction(transaction, actor, classId, input),
+  );
+}
+
 export async function assignClassInstructor(
   db: Database,
   actor: ClassActor,
@@ -1250,71 +1373,32 @@ export async function assignClassInstructor(
   isLead: boolean,
 ): Promise<void> {
   await db.transaction(async (transaction) => {
-    const classRecord = await requireClassAccess(transaction, actor, classId);
-    assertClassEditable(classRecord.status);
-    const [activeUser] = await transaction
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.id, userId), eq(users.isActive, true)))
-      .limit(1);
-    if (!activeUser) throw new Error("Select an active staff user.");
-    // Assigning the current lead as an assisting instructor must not leave the
-    // class without a lead.
+    await requireClassAccess(transaction, actor, classId);
+    const assignments = await transaction
+      .select({
+        userId: classInstructors.userId,
+        isLead: classInstructors.isLead,
+      })
+      .from(classInstructors)
+      .where(eq(classInstructors.classId, classId));
+    const currentLead = assignments.find(
+      (assignment) => assignment.isLead,
+    )?.userId;
+    const currentAssistant = assignments.find(
+      (assignment) => !assignment.isLead,
+    )?.userId;
     if (!isLead) {
-      const [isCurrentLead] = await transaction
-        .select({ userId: classInstructors.userId })
-        .from(classInstructors)
-        .where(
-          and(
-            eq(classInstructors.classId, classId),
-            eq(classInstructors.userId, userId),
-            eq(classInstructors.isLead, true),
-          ),
-        )
-        .limit(1);
-      if (isCurrentLead) {
-        const leads = await transaction
-          .select({ userId: classInstructors.userId })
-          .from(classInstructors)
-          .where(
-            and(
-              eq(classInstructors.classId, classId),
-              eq(classInstructors.isLead, true),
-            ),
-          );
-        if (leads.length <= 1) {
-          throw new Error(
-            "That instructor is the class's lead. Assign another lead first.",
-          );
-        }
-      }
-    }
-    if (await classSelectsFire(transaction, classId)) {
-      await requireFireInstructorFfns(transaction, [
-        ...(await assignedInstructorIds(transaction, classId)),
-        userId,
-      ]);
-    }
-    if (isLead) {
-      await transaction
-        .update(classInstructors)
-        .set({ isLead: false })
-        .where(eq(classInstructors.classId, classId));
-    }
-    await transaction
-      .insert(classInstructors)
-      .values({ classId, userId, isLead })
-      .onConflictDoUpdate({
-        target: [classInstructors.classId, classInstructors.userId],
-        set: { isLead },
+      if (!currentLead) throw new Error("Assign a lead instructor first.");
+      await setClassInstructorsInTransaction(transaction, actor, classId, {
+        leadInstructorId: currentLead,
+        assistantInstructorId: userId,
       });
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "class.instructor.assigned",
-      entityType: "class",
-      entityId: classId,
-      details: { userId, isLead },
+      return;
+    }
+    await setClassInstructorsInTransaction(transaction, actor, classId, {
+      leadInstructorId: userId,
+      assistantInstructorId:
+        currentAssistant === userId ? null : (currentAssistant ?? null),
     });
   });
 }
@@ -1326,8 +1410,7 @@ export async function removeClassInstructor(
   userId: string,
 ): Promise<void> {
   await db.transaction(async (transaction) => {
-    const classRecord = await requireClassAccess(transaction, actor, classId);
-    assertClassEditable(classRecord.status);
+    await requireClassAccess(transaction, actor, classId);
     const [assignment] = await transaction
       .select({ isLead: classInstructors.isLead })
       .from(classInstructors)
@@ -1342,44 +1425,25 @@ export async function removeClassInstructor(
     if (!assignment) {
       throw new Error("That instructor is not assigned to this class.");
     }
-    // A class must keep a lead instructor; a Fire class must keep a fire one.
     if (assignment.isLead) {
-      const leads = await transaction
-        .select({ userId: classInstructors.userId })
-        .from(classInstructors)
-        .where(
-          and(
-            eq(classInstructors.classId, classId),
-            eq(classInstructors.isLead, true),
-          ),
-        );
-      if (leads.length <= 1) {
-        throw new Error(
-          "Assign another lead instructor before removing the lead.",
-        );
-      }
+      throw new Error(
+        "Replace the lead instructor instead of removing the lead.",
+      );
     }
-    await transaction
-      .delete(classInstructors)
+    const [lead] = await transaction
+      .select({ userId: classInstructors.userId })
+      .from(classInstructors)
       .where(
         and(
           eq(classInstructors.classId, classId),
-          eq(classInstructors.userId, userId),
+          eq(classInstructors.isLead, true),
         ),
-      );
-    if (await classSelectsFire(transaction, classId)) {
-      await requireFireInstructorFfns(
-        transaction,
-        await assignedInstructorIds(transaction, classId),
-      );
-    }
-    await writeAuditLog(transaction, {
-      actorUserId: actor.id,
-      actorType: "user",
-      action: "class.instructor.removed",
-      entityType: "class",
-      entityId: classId,
-      details: { userId },
+      )
+      .limit(1);
+    if (!lead) throw new Error("The class has no lead instructor.");
+    await setClassInstructorsInTransaction(transaction, actor, classId, {
+      leadInstructorId: lead.userId,
+      assistantInstructorId: null,
     });
   });
 }
@@ -1752,6 +1816,32 @@ export async function listClasses(
     gt(attendanceCount, 0),
   );
 
+  const pendingAttestationScope = sql<string | null>`(
+    select case
+      when revision.fire_signer_user_id is not null
+        and not exists (
+          select 1 from revision_attestations attestation
+          where attestation.revision_id = revision.id and attestation.scope = 'fire'
+        )
+        and not exists (
+          select 1 from finalization_fire_attestations legacy_fire
+          where legacy_fire.revision_id = revision.id
+        )
+      then 'fire'
+      when revision.signed_by_user_id is null
+        and not exists (
+          select 1 from revision_attestations roster_attestation
+          where roster_attestation.revision_id = revision.id and roster_attestation.scope = 'roster'
+        )
+      then 'roster'
+      else null
+    end
+    from finalization_revisions revision
+    where revision.class_id = ${trainingClasses.id}
+    order by revision.revision_number desc
+    limit 1
+  )`;
+
   const rows = await db
     .select({
       id: trainingClasses.id,
@@ -1765,6 +1855,7 @@ export async function listClasses(
       finalSessionEndsAt,
       finalizedAt,
       attendanceCount,
+      pendingAttestationScope,
     })
     .from(trainingClasses)
     .leftJoin(
@@ -1833,6 +1924,10 @@ export async function listClasses(
       ),
       finalSessionEndsAt: normalizedFinalSessionEndsAt,
       finalizedAt: asDate(row.finalizedAt as Date | string | null),
+      pendingAttestationScope: row.pendingAttestationScope as
+        | "roster"
+        | "fire"
+        | null,
       isOverdue: isOverdueRoster(row.status, normalizedFinalSessionEndsAt, now),
     };
   });
@@ -1853,6 +1948,25 @@ export async function listOperationalClasses(
     select 1 from ${classInstructors}
     where ${classInstructors.classId} = ${trainingClasses.id}
       and ${classInstructors.userId} = ${actor.id}
+  )`;
+  const fireSignaturePendingSql = sql<boolean>`exists (
+    select 1 from ${finalizationRevisions}
+    where ${finalizationRevisions.classId} = ${trainingClasses.id}
+      and ${finalizationRevisions.fireSignerUserId} is not null
+      and ${finalizationRevisions.revisionNumber} = (
+        select max(fr2.revision_number)
+        from finalization_revisions fr2
+        where fr2.class_id = ${trainingClasses.id}
+      )
+      and not exists (
+        select 1 from ${revisionAttestations}
+        where ${revisionAttestations.revisionId} = ${finalizationRevisions.id}
+          and ${revisionAttestations.scope} = 'fire'
+      )
+      and not exists (
+        select 1 from ${finalizationFireAttestations}
+        where ${finalizationFireAttestations.revisionId} = ${finalizationRevisions.id}
+      )
   )`;
   const records = await db
     .select({
@@ -1878,6 +1992,17 @@ export async function listOperationalClasses(
         select max(${finalizationRevisions.finalizedAt}) from ${finalizationRevisions}
         where ${finalizationRevisions.classId} = ${trainingClasses.id}
       )`,
+      fireSignerUserId: sql<string | null>`(
+        select ${finalizationRevisions.fireSignerUserId}
+        from ${finalizationRevisions}
+        where ${finalizationRevisions.classId} = ${trainingClasses.id}
+          and ${finalizationRevisions.revisionNumber} = (
+            select max(fr2.revision_number)
+            from finalization_revisions fr2
+            where fr2.class_id = ${trainingClasses.id}
+          )
+      )`,
+      fireSignaturePending: fireSignaturePendingSql,
     })
     .from(trainingClasses)
     .leftJoin(
@@ -1886,8 +2011,11 @@ export async function listOperationalClasses(
     )
     .where(
       and(
-        eq(trainingClasses.status, CLASS_STATUSES.OPEN),
         scope === "assigned" ? assigned : undefined,
+        or(
+          eq(trainingClasses.status, CLASS_STATUSES.OPEN),
+          and(eq(trainingClasses.status, "finalized"), fireSignaturePendingSql),
+        ),
       ),
     )
     .orderBy(sql`(
@@ -1928,7 +2056,16 @@ export async function listOperationalClasses(
       reportingDestinations: destinations
         .filter((destination) => destination.classId === record.id)
         .map((destination) => destination.name),
-      action: getOperationalClassAction(record.status),
+      action: getOperationalClassAction(
+        record.status,
+        Boolean(
+          record.fireSignaturePending && record.fireSignerUserId === actor.id,
+        ),
+      ),
+      canSignFire: Boolean(
+        record.fireSignaturePending && record.fireSignerUserId === actor.id,
+      ),
+      fireSignaturePending: Boolean(record.fireSignaturePending),
       isOverdue: isOverdueRoster(record.status, finalSessionEndsAt, now),
     };
   });
@@ -1968,6 +2105,8 @@ export async function getClassDetail(
         userId: users.id,
         displayName: users.displayName,
         isLead: classInstructors.isLead,
+        ffn: users.ffn,
+        instructorLevel: users.instructorLevel,
       })
       .from(classInstructors)
       .innerJoin(users, eq(users.id, classInstructors.userId))
@@ -2123,7 +2262,12 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
       .where(eq(reportingSystems.isActive, true))
       .orderBy(reportingSystems.name),
     db
-      .select({ id: users.id, name: users.displayName })
+      .select({
+        id: users.id,
+        name: users.displayName,
+        ffn: users.ffn,
+        instructorLevel: users.instructorLevel,
+      })
       .from(users)
       .where(eq(users.isActive, true))
       .orderBy(users.displayName),

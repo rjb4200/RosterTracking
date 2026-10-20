@@ -3,9 +3,7 @@
 ## Purpose
 
 Produce the per-firefighter KFS-1B individual training notice for a participant who trains at an agency other than the class host agency, from the same immutable revision facts used for the Fire roster, sign it with the instructor's attestation, and deliver it.
-
 ## Requirements
-
 ### Requirement: A training notice is produced for participants outside the host agency
 
 For a finalized class that reports to the Fire Commission, the system SHALL produce one KFS-1B individual training notice for each active participant whose represented agency differs from the class host agency, and SHALL NOT produce one for a participant who represents the host agency.
@@ -24,19 +22,27 @@ For a finalized class that reports to the Fire Commission, the system SHALL prod
 
 ### Requirement: Training notice content and signature
 
-Each individual training notice SHALL show the participant name and FFN, the lead instructor's name and FFN, each Fire subject's category code and credited hours, the class session date, start time, and location, and the class total hours. The system SHALL render the lead instructor's typed-name electronic signature derived from the finalization revision's attestation, and SHALL leave the agency-selection field blank.
+Each individual training notice SHALL show the participant name and FFN, the Fire signer's name and FFN, each Fire subject's category code and credited hours, the class session date, start time, and location, and the class total hours. The system SHALL render the Fire signer's typed-name electronic signature derived from the revision's Fire attestation, and SHALL leave the agency-selection field blank. The notice SHALL be generated only when the Fire attestation exists; a new revision SHALL NOT render a blank instructor signature. A legacy revision that predates the Fire attestation SHALL keep the documented blank-signature fallback.
 
 #### Scenario: Populate the notice fields
-- **WHEN** an individual training notice is generated from a revision
-- **THEN** it shows the participant name and FFN, the lead instructor name and FFN, the subject category codes and hours, the session date, start time, and location, and the total hours
+- **WHEN** an individual training notice is generated from a revision with a Fire attestation
+- **THEN** it shows the participant name and FFN, the Fire signer's name and FFN, the subject category codes and hours, the session date, start time, and location, and the total hours
 
 #### Scenario: Sign from the attestation
-- **WHEN** an individual training notice is generated from a revision with a recorded attestation
-- **THEN** the instructor signature area shows the attested signer's typed name
+- **WHEN** an individual training notice is generated from a revision with a Fire attestation
+- **THEN** the instructor signature area shows the Fire signer's typed name
+
+#### Scenario: Do not generate before the Fire signature
+- **WHEN** a Fire class is finalized but its Fire attestation is pending
+- **THEN** the system does not generate the individual training notice
 
 #### Scenario: Leave the agency selection blank
 - **WHEN** an individual training notice is generated
 - **THEN** the agency-selection field is left blank
+
+#### Scenario: Keep the legacy blank signature
+- **WHEN** a revision predates the Fire attestation and has no recorded signature
+- **THEN** the notice keeps the documented blank-signature fallback
 
 ### Requirement: The white notice is emailed at finalization
 
@@ -105,3 +111,4 @@ For a finalized Fire class, the system SHALL let authorized staff view a partici
 #### Scenario: Record the delivery and audit
 - **WHEN** an on-demand notice is emailed
 - **THEN** the participant's delivery record reflects the send and an audit event records the actor, participant, variant, and plaintext recipient
+

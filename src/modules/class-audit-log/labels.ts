@@ -41,6 +41,8 @@ const ACTION_CATEGORIES: Record<string, AuditCategory> = {
   "student.membership.added_from_sign_in": "attendance",
   "class.finalized": "finalization",
   "class.reopened": "finalization",
+  "class.attestation.signed": "finalization",
+  "class.attestation.voided": "finalization",
   "reporting.destination.updated": "reporting",
   "official_roster.generated": "reporting",
   "official_roster.email.sent": "reporting",
@@ -126,6 +128,25 @@ const DESCRIBERS: Record<string, (entry: ClassAuditLogEntry) => string> = {
   "class.reopened": (e) => {
     const reason = text(e.details.reason);
     return reason ? `Class reopened: ${reason}` : "Class reopened";
+  },
+  "class.attestation.signed": (e) => {
+    const scope = text(e.details.scope);
+    const label =
+      scope === "fire"
+        ? "Fire roster signed"
+        : scope === "roster"
+          ? "Roster signed"
+          : "Document signed";
+    const revision = e.revisionNumber ?? text(e.details.revisionNumber);
+    return revision ? `${label} (revision ${revision})` : label;
+  },
+  "class.attestation.voided": (e) => {
+    const scope = text(e.details.scope);
+    const label =
+      scope === "fire"
+        ? "Fire roster signature voided"
+        : "Document signature voided";
+    return `${label} by reopening`;
   },
   "reporting.destination.updated": (e) => {
     const from = status(e.details.from);

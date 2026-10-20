@@ -434,9 +434,7 @@ test("instructor controls do not show a workspace save action", async ({
   ).toHaveCount(0);
 });
 
-test("instructors can be added, the lead changed, and the only lead kept", async ({
-  page,
-}) => {
+test("instructors can be set and the lead replaced", async ({ page }) => {
   skipUnlessEnabled();
   if (!username || !password || !connectionString || !instructorUsername)
     return;
@@ -444,13 +442,16 @@ test("instructors can be added, the lead changed, and the only lead kept", async
 
   // The assisting instructor's display name, for the picker and the row.
   const pool = new Pool({ connectionString, max: 1 });
-  const instructor = await pool.query<{ display_name: string }>(
-    "select display_name from users where username = $1",
+  const instructor = await pool.query<{ id: string; display_name: string }>(
+    "select id, display_name from users where username = $1",
     [instructorUsername],
   );
   await pool.end();
+  const instructorId = instructor.rows[0]?.id;
   const instructorName = instructor.rows[0]?.display_name;
-  if (!instructorName) throw new Error("E2E instructor was not found.");
+  if (!instructorId || !instructorName) {
+    throw new Error("E2E instructor was not found.");
+  }
 
   await signIn(page, username, password);
   await page.goto(`/staff/classes/${classId}/review`);
@@ -458,22 +459,23 @@ test("instructors can be added, the lead changed, and the only lead kept", async
   const area = page.locator("#area-instructors");
   await area.getByRole("button", { name: "Edit" }).click();
 
-  // Add the instructor as an assisting instructor.
-  await area.getByLabel("Instructor").selectOption({ label: instructorName });
-  await area.getByRole("button", { name: "Add instructor" }).click();
-
+  // Set the instructor as the assistant.
+  await area.getByLabel("Assistant instructor").selectOption(instructorId);
+  await area.getByRole("button", { name: "Save instructors" }).click();
   const row = area.locator(".member-row", { hasText: instructorName });
   await expect(row.getByText("Assisting")).toBeVisible({ timeout: 15_000 });
 
-  // Make them the lead; the previous lead becomes assisting.
-  await row.getByRole("button", { name: "Make lead" }).click();
+  // Replace the lead; the previous lead is removed rather than demoted, so the
+  // class keeps exactly one instructor.
+  await area.getByLabel("Lead instructor").selectOption(instructorId);
+  await area.getByRole("button", { name: "Save instructors" }).click();
   await expect(row.getByText("Lead")).toBeVisible({ timeout: 15_000 });
-
-  // Removing the only lead is refused.
-  await row.getByRole("button", { name: "Remove" }).click();
   await expect(
-    area.getByText(/Assign another lead instructor before removing the lead/i),
-  ).toBeVisible({ timeout: 15_000 });
+    area.getByText(
+      /Saving a different lead removes the current lead assignment/i,
+    ),
+  ).toBeVisible();
+  await expect(area.locator(".member-row")).toHaveCount(1);
 });
 
 test("the MTU review lists estimated and set supplies and advises without blocking", async ({

@@ -61,6 +61,7 @@ async function createUser(db: Db, suffix: string, roleCode: string) {
       displayName: roleCode,
       passwordHash: "fixture-password-hash",
       ffn: uniqueFfn(),
+      instructorLevel: 2,
     })
     .returning({ id: users.id, username: users.username });
   const [role] = await db

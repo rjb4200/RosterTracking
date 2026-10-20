@@ -17,11 +17,19 @@ The review workflow SHALL offer Late Arrival, Left Early, Partial Attendance, In
 
 ### Requirement: The lead instructor finalizes and signs from the review screen
 
-The system SHALL present the finalize action on the review screen only to the class's lead instructor while the class is open, as a compact finalization panel containing the certification, the typed signature, and the finalize action. It SHALL require no additional data-entry unless a selected reporting destination requires information that is missing. It SHALL present the finalized revision's recorded signer and signed timestamp to authorized operators. A non-lead operator SHALL still see the workspace, its roster, and its readiness, but SHALL NOT be offered the finalize action.
+The system SHALL present the finalize action on the review screen only to the class's lead instructor while the class is open, as a compact finalization panel containing the certification, the typed signature, and the finalize action. When the lead is the Fire signer, the panel SHALL also capture the Fire attestation in the same action. When the lead is not the Fire signer, the panel SHALL identify the Fire signer who will sign after finalization. It SHALL require no additional data-entry unless a selected reporting destination requires information that is missing. It SHALL present the finalized revision's recorded roster signer and, when present, the Fire signer and signed timestamp to authorized operators. A non-lead operator SHALL still see the workspace, its roster, and its readiness, but SHALL NOT be offered the finalize action.
 
 #### Scenario: Lead instructor finalizes and signs
 - **WHEN** the class's lead instructor opens the review screen for a roster-ready open class
-- **THEN** the screen offers a single finalize action requiring the certification and the typed signature
+- **THEN** the screen offers the finalize action requiring the certification and typed name
+
+#### Scenario: Lead also signs Fire
+- **WHEN** the lead is also the Fire signer and finalizes the class
+- **THEN** the finalize action captures both the roster certification and the Fire attestation
+
+#### Scenario: Lead identifies the assisting Fire signer
+- **WHEN** the lead is not the Fire signer and finalizes the class
+- **THEN** the finalize panel identifies the Fire signer who will sign the Fire roster afterward
 
 #### Scenario: Withhold the action from non-lead operators
 - **WHEN** a Training Major, Administrator, or assisting instructor opens the review screen for an open class
@@ -29,7 +37,7 @@ The system SHALL present the finalize action on the review screen only to the cl
 
 #### Scenario: Show the recorded signature
 - **WHEN** an authorized operator opens the review screen for a finalized class
-- **THEN** the screen presents the recorded signer and signed timestamp for the latest revision
+- **THEN** the screen presents the recorded roster signer and, when present, the Fire signer and signed timestamp for the latest revision
 
 ### Requirement: Finalization reconciles reporting context before locking
 Before it reports readiness or validates the roster for an open class, the system SHALL reconcile every active attendance's reporting context with the class's currently resolved reporting requirement sets, so a destination changed after attendance was recorded neither withholds the finalize action nor blocks finalization. A class whose selected reporting systems changed after sign-in SHALL present as ready, finalize successfully, and — when a certificate-bearing reporting system is among its destinations — queue a completion certificate for every active participant with a deliverable email. A context that cannot be derived from the class's selected reporting systems SHALL still be reported as missing and SHALL withhold finalization.
@@ -217,4 +225,48 @@ After finalization the workspace SHALL present the finalized class and roster as
 #### Scenario: Retain history after reopening
 - **WHEN** a class has more than one finalization revision
 - **THEN** older revision outputs remain reachable from the revision history
+
+### Requirement: The Fire signer signs the locked Fire roster
+
+When the class lead is not the Fire signer, the system SHALL present the "Sign Fire roster" action to the class's Fire signer after finalization, SHALL keep the roster and class facts read-only while the signer attests, and SHALL make the KFS-1A and individual training notice available only after the Fire attestation exists. The action SHALL require the Fire certification and the signer's typed name. A non-signing operator SHALL see the pending Fire signature status but SHALL NOT be offered the action.
+
+#### Scenario: Assisting Fire signer signs after finalization
+- **WHEN** the class lead is not a fire instructor, the assistant is the Fire signer, and the assistant opens the review screen for the finalized class
+- **THEN** the screen offers the Sign Fire roster action requiring the Fire certification and typed name
+
+#### Scenario: Keep the roster locked while signing
+- **WHEN** the Fire signer signs the locked revision
+- **THEN** the system does not offer attendance or class editing
+
+#### Scenario: Withhold the action from non-signers
+- **WHEN** the class lead, a Training Major, an Administrator, or another non-signing instructor opens the review screen
+- **THEN** the screen shows the pending Fire signature status but does not offer the sign action
+
+#### Scenario: Reveal the Fire documents after signing
+- **WHEN** the Fire signer completes the attestation
+- **THEN** the KFS-1A and individual training notice become available without reopening the class
+
+### Requirement: Per-scope attestation status on the review screen
+
+The review screen SHALL present each required attestation scope separately, naming the signed scope, the signer, and the signed timestamp when it is complete, or naming the responsible signer when it is pending. When the operator is a pending scope's signer, the screen SHALL offer the sign action for that scope. The sign action SHALL NOT reopen the class, SHALL NOT offer attendance or class editing, and SHALL refresh the scope's status and document availability after it completes. The screen SHALL present a document family's view, print, download, and email actions only when that family's scope is attested, except for the legacy blank-signature fallback. The revision history SHALL show each revision's scopes and their signers.
+
+#### Scenario: Show a signed scope
+- **WHEN** an authorized operator opens the review screen for a finalized class
+- **THEN** the screen names each completed scope, its signer, and its signed timestamp
+
+#### Scenario: Show a pending scope to its signer
+- **WHEN** the Fire signer opens the review screen for a finalized class whose `fire` scope is pending
+- **THEN** the screen names the Fire signer as the pending signer and offers the Fire sign action
+
+#### Scenario: Hide the sign action from other operators
+- **WHEN** an operator who is not the pending scope's signer opens the review screen
+- **THEN** the screen shows the pending status but does not offer that scope's sign action
+
+#### Scenario: Reveal documents after attestation
+- **WHEN** a scope becomes attested
+- **THEN** its document view, print, download, and email actions become available without a page reload losing the operator's place
+
+#### Scenario: Show per-scope history
+- **WHEN** a class has more than one finalization revision
+- **THEN** the revision history shows each revision's scopes, signers, and signed timestamps
 

@@ -112,7 +112,8 @@ The system SHALL let authorized staff add one or more components to a draft clas
 - **THEN** the system rejects the component
 
 ### Requirement: Classes have assigned instructors
-The system SHALL let authorized staff assign active staff users as instructors and identify at most one lead instructor for each class.
+
+The system SHALL let authorized staff assign active staff users as instructors and identify exactly one lead instructor and at most one assistant instructor for each class. Assigning a lead SHALL replace the previous lead. Assigning an assistant SHALL replace any previous assistant. The system SHALL refuse to leave the class without a lead.
 
 #### Scenario: Assign a lead instructor
 - **WHEN** staff assign an active instructor as the lead instructor for a class
@@ -120,7 +121,15 @@ The system SHALL let authorized staff assign active staff users as instructors a
 
 #### Scenario: Replace the lead instructor
 - **WHEN** staff select a different instructor as the lead for the same class
-- **THEN** the newly selected instructor becomes the only lead assignment
+- **THEN** the newly selected instructor becomes the only lead assignment and the previous lead is no longer assigned
+
+#### Scenario: Assign an assistant instructor
+- **WHEN** staff assign an active instructor other than the lead as the assistant instructor for a class
+- **THEN** the instructor assignment is stored as the class assistant instructor
+
+#### Scenario: Refuse to leave the class without a lead
+- **WHEN** staff attempt to clear the lead without selecting a replacement
+- **THEN** the system refuses and keeps the lead assignment
 
 ### Requirement: Class lifecycle is controlled
 The system SHALL represent open, finalized, and cancelled class states. It SHALL present authorized operators lifecycle actions in plain operational language, finalize an open class only once its roster is ready and only by its lead instructor, reopen a finalized class only with an authorized reason, and cancel a non-finalized class. A class SHALL be created in the open state and SHALL remain editable while it is open, except where a lifecycle restriction expressly applies.
@@ -240,7 +249,8 @@ The system SHALL present the staff class list scoped by default to current opera
 - **THEN** the system limits results to classes matching the search within the active filters
 
 ### Requirement: Class list status is scannable
-The system SHALL distinguish every lifecycle state on the class list with a colored indicator and the written state name, SHALL keep each state understandable without relying on color alone, and SHALL show an overdue roster as a separate indicator beside the class status rather than replacing it.
+
+The system SHALL distinguish every lifecycle state on the class list with a colored indicator and the written state name, SHALL keep each state understandable without relying on color alone, and SHALL show an overdue roster as a separate indicator beside the class status rather than replacing it. It SHALL also show a pending required attestation as a separate indicator beside the class status, naming the pending document scope without replacing the lifecycle state.
 
 #### Scenario: Distinguish lifecycle states
 - **WHEN** the class list shows open, finalized, and cancelled classes
@@ -253,6 +263,10 @@ The system SHALL distinguish every lifecycle state on the class list with a colo
 #### Scenario: Flag an overdue roster beside the status
 - **WHEN** a class has an overdue roster
 - **THEN** the system shows an overdue indicator alongside, not instead of, the lifecycle status
+
+#### Scenario: Flag a pending signature beside the status
+- **WHEN** a finalized class has a pending required attestation
+- **THEN** the system shows a pending-signature indicator naming the document scope alongside, not instead of, the lifecycle status
 
 ### Requirement: Class sessions retain Fire subject fields
 The system SHALL let a class session store a Fire subject: a training-code reference (category), a class name, a curriculum reference, and a free-text lesson plan. A class SHALL support up to two Fire subjects for official Fire output. These fields SHALL be editable while the class is open and SHALL be preserved at finalization.
@@ -326,21 +340,6 @@ The system SHALL let a class session store a Fire subject chapter and, when the 
 - **WHEN** a class with a subject chapter or a typed book is finalized
 - **THEN** the revision retains the chapter and the typed book name
 
-### Requirement: Fire reporting and instructor changes require valid FFNs
-When authorized staff add the Fire reporting system to a class, or change its assigned lead or assisting instructors while Fire is selected, the system SHALL require every assigned instructor to have a valid FFN (`0000-0000`) and SHALL reject the change otherwise. This SHALL prevent bypassing the Fire class guard through an edit.
-
-#### Scenario: Reject adding Fire with an instructor lacking a valid FFN
-- **WHEN** staff add the Fire reporting system to a class whose lead or assisting instructor has no valid FFN
-- **THEN** the system rejects the change and identifies the instructor
-
-#### Scenario: Reject assigning an instructor without a valid FFN to a Fire class
-- **WHEN** staff assign an instructor without a valid FFN to a class that has Fire selected
-- **THEN** the system rejects the change and identifies the instructor
-
-#### Scenario: Allow the change when every instructor has a valid FFN
-- **WHEN** every assigned instructor has a valid FFN
-- **THEN** the system saves the Fire reporting or instructor change
-
 ### Requirement: Class list empty states guide the operator
 
 The system SHALL explain an empty class list and offer the create-class action when no class exists at all, offer to clear the filters or search when those exclude every class, and confirm that no finalized classes are available without offering an action when the finalized section is empty.
@@ -356,4 +355,52 @@ The system SHALL explain an empty class list and offer the create-class action w
 #### Scenario: No finalized classes
 - **WHEN** the finalized classes section is empty
 - **THEN** the section confirms that no finalized classes are available and offers no action
+
+### Requirement: A class has exactly one lead and at most one assistant
+
+The system SHALL keep exactly one lead instructor and zero or one assistant instructor for each class while it is open. Authorized staff SHALL be able to replace the lead and to set, change, or clear the assistant. Replacing the lead SHALL remove the previous lead assignment rather than demoting it into the assistant slot. Setting or changing the assistant SHALL NOT change the lead. An instructor SHALL NOT hold both roles.
+
+#### Scenario: Replace the lead instructor
+- **WHEN** authorized staff choose a different instructor as the lead for an open class
+- **THEN** the newly chosen instructor is the only lead and the previous lead is no longer assigned
+
+#### Scenario: Add an assistant instructor
+- **WHEN** authorized staff choose an active staff member who is not the lead as the assistant for an open class
+- **THEN** the class records that instructor as its assistant and keeps the lead unchanged
+
+#### Scenario: Change the assistant instructor
+- **WHEN** authorized staff choose a different instructor as the assistant
+- **THEN** the class records the newly chosen instructor as its only assistant
+
+#### Scenario: Clear the assistant instructor
+- **WHEN** authorized staff clear the assistant for an open class
+- **THEN** the class is left with its lead and no assistant
+
+#### Scenario: Replace the assistant with the lead
+- **WHEN** authorized staff choose the current assistant as the new lead
+- **THEN** the assistant becomes the only lead and the class has no assistant, because the previous lead is removed
+
+#### Scenario: Reject the lead as the assistant
+- **WHEN** authorized staff choose the current lead as the assistant
+- **THEN** the system rejects the change and keeps the roles distinct
+
+### Requirement: Fire reporting and instructor changes require a fire instructor
+
+When authorized staff add the Fire reporting system to a class, or change its assigned lead or assistant while Fire is selected, the system SHALL ensure the resulting assignment set contains at least one fire instructor — a staff member with both a valid FFN (`0000-0000`) and a Fire Instructor certification level (1, 2, or 3) — and SHALL reject the change otherwise. Validation SHALL apply to the assignment set that will exist after the write, not the current set plus the newly selected instructor. This SHALL prevent bypassing the Fire guard through an edit and SHALL prevent a temporary invalid state during a combined change.
+
+#### Scenario: Reject adding Fire with no fire instructor
+- **WHEN** staff add the Fire reporting system to a class whose assigned instructors include no fire instructor
+- **THEN** the system rejects the change and identifies that a fire instructor is required
+
+#### Scenario: Reject removing the only fire instructor
+- **WHEN** staff change or clear the assigned instructor who is the class's only fire instructor while Fire is selected
+- **THEN** the system rejects the change and identifies that a fire instructor is required
+
+#### Scenario: Allow a change that keeps a fire instructor
+- **WHEN** staff change the lead or assistant such that at least one assigned instructor remains a fire instructor
+- **THEN** the system saves the change
+
+#### Scenario: Validate the resulting set
+- **WHEN** staff replace a fire-eligible lead with a non-fire lead while the assistant is not fire-eligible
+- **THEN** the system rejects the change even though the outgoing lead is still assigned at validation time
 
