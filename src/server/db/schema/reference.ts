@@ -61,15 +61,25 @@ export const agencies = pgTable(
     trainingCoordinatorPhone: text("training_coordinator_phone"),
     trainingCoordinatorEmail: text("training_coordinator_email"),
     isActive: boolean("is_active").default(true).notNull(),
+    // At most one agency is the department-wide default host agency. The
+    // partial unique index enforces that invariant in the database.
+    isDefault: boolean("is_default").default(false).notNull(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
     index("agencies_name_idx").on(table.name),
     uniqueIndex("agencies_name_unique").on(sql`lower(btrim(${table.name}))`),
+    uniqueIndex("agencies_default_unique")
+      .on(table.isDefault)
+      .where(sql`${table.isDefault}`),
     check(
       "agencies_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
+    check(
+      "agencies_default_active",
+      sql`not ${table.isDefault} or ${table.isActive}`,
     ),
   ],
 );
@@ -363,6 +373,9 @@ export const trainingSites = pgTable(
     state: text("state"),
     zip: text("zip"),
     isActive: boolean("is_active").default(true).notNull(),
+    // At most one training site is the department-wide default. The partial
+    // unique index enforces that invariant in the database.
+    isDefault: boolean("is_default").default(false).notNull(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -371,9 +384,16 @@ export const trainingSites = pgTable(
     uniqueIndex("training_sites_name_unique").on(
       sql`lower(btrim(${table.name}))`,
     ),
+    uniqueIndex("training_sites_default_unique")
+      .on(table.isDefault)
+      .where(sql`${table.isDefault}`),
     check(
       "training_sites_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,
+    ),
+    check(
+      "training_sites_default_active",
+      sql`not ${table.isDefault} or ${table.isActive}`,
     ),
   ],
 );

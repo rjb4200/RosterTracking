@@ -99,11 +99,14 @@ export default async function SitesPage({
                 </TableCell>
                 <TableCell>{site.city ?? "—"}</TableCell>
                 <TableCell>
-                  {site.isActive ? (
-                    <Badge variant="secondary">Active</Badge>
-                  ) : (
-                    <Badge variant="outline">Inactive</Badge>
-                  )}
+                  <span className="class-status-cell">
+                    {site.isDefault ? <Badge>Default</Badge> : null}
+                    {site.isActive ? (
+                      <Badge variant="secondary">Active</Badge>
+                    ) : (
+                      <Badge variant="outline">Inactive</Badge>
+                    )}
+                  </span>
                 </TableCell>
               </TableRow>
             ))

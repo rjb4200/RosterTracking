@@ -2243,12 +2243,20 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     defaultTeiNumber,
   ] = await Promise.all([
     db
-      .select({ id: trainingSites.id, name: trainingSites.name })
+      .select({
+        id: trainingSites.id,
+        name: trainingSites.name,
+        isDefault: trainingSites.isDefault,
+      })
       .from(trainingSites)
       .where(eq(trainingSites.isActive, true))
       .orderBy(trainingSites.name),
     db
-      .select({ id: agencies.id, name: agencies.name })
+      .select({
+        id: agencies.id,
+        name: agencies.name,
+        isDefault: agencies.isDefault,
+      })
       .from(agencies)
       .where(eq(agencies.isActive, true))
       .orderBy(agencies.name),
@@ -2397,6 +2405,9 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
   return {
     sites: siteRows,
     agencies: agencyRows,
+    defaultTrainingSiteId: siteRows.find((site) => site.isDefault)?.id ?? null,
+    defaultHostAgencyId:
+      agencyRows.find((agency) => agency.isDefault)?.id ?? null,
     reportingSystems: systemRows,
     staff: staffRows,
     inclusionRules: inclusionRuleRows,

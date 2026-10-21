@@ -4,9 +4,15 @@ import { notFound } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import { AGENCY_TAG_CODES } from "@/modules/reference/constants";
-import { getAgency, listAgencyTags } from "@/modules/reference/services";
+import {
+  getAgency,
+  getDefaultAgency,
+  listAgencyTags,
+} from "@/modules/reference/services";
+import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
 import {
@@ -27,9 +33,12 @@ export default async function AgencyDetailPage({
   await requirePagePermission(PERMISSIONS.AGENCIES_MANAGE);
   const { id } = await params;
   const database = getDatabase();
-  const [agency, tags] = await Promise.all([
+  const staff = await getCurrentStaff();
+  const canSetDefault = Boolean(staff && isAdministrator(staff.roleCodes));
+  const [agency, tags, defaultAgency] = await Promise.all([
     getAgency(database, id),
     listAgencyTags(database),
+    canSetDefault ? getDefaultAgency(database) : Promise.resolve(null),
   ]);
   if (!agency) notFound();
 
@@ -50,6 +59,8 @@ export default async function AgencyDetailPage({
     otherSubtype:
       agency.tags.find((tag) => tag.code === AGENCY_TAG_CODES.OTHER)?.subtype ??
       null,
+    isActive: agency.isActive,
+    isDefault: agency.isDefault,
   };
 
   return (
@@ -66,28 +77,37 @@ export default async function AgencyDetailPage({
             >
               Back
             </Link>
-            <form action={setAgencyActiveAction}>
-              <input type="hidden" name="id" value={agency.id} />
-              <input
-                type="hidden"
-                name="isActive"
-                value={agency.isActive ? "false" : "true"}
-              />
-              <Button
-                type="submit"
-                variant={agency.isActive ? "destructive" : "secondary"}
-              >
-                {agency.isActive ? "Deactivate" : "Reactivate"}
-              </Button>
-            </form>
-            {!agency.archivedAt ? (
-              <form action={archiveAgencyAction}>
-                <input type="hidden" name="id" value={agency.id} />
-                <Button type="submit" variant="destructive">
-                  Archive
-                </Button>
-              </form>
-            ) : null}
+            {agency.isDefault ? (
+              <p className="text-muted-foreground">
+                Clear the default setting before deactivating or archiving this
+                agency.
+              </p>
+            ) : (
+              <>
+                <form action={setAgencyActiveAction}>
+                  <input type="hidden" name="id" value={agency.id} />
+                  <input
+                    type="hidden"
+                    name="isActive"
+                    value={agency.isActive ? "false" : "true"}
+                  />
+                  <Button
+                    type="submit"
+                    variant={agency.isActive ? "destructive" : "secondary"}
+                  >
+                    {agency.isActive ? "Deactivate" : "Reactivate"}
+                  </Button>
+                </form>
+                {!agency.archivedAt ? (
+                  <form action={archiveAgencyAction}>
+                    <input type="hidden" name="id" value={agency.id} />
+                    <Button type="submit" variant="destructive">
+                      Archive
+                    </Button>
+                  </form>
+                ) : null}
+              </>
+            )}
           </>
         }
       />
@@ -98,6 +118,9 @@ export default async function AgencyDetailPage({
           submitLabel="Save changes"
           tags={tags}
           values={values}
+          canSetDefault={canSetDefault}
+          currentDefaultName={defaultAgency?.name ?? null}
+          isCurrentDefault={agency.isDefault}
         />
       </section>
     </main>

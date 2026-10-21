@@ -121,11 +121,14 @@ export default async function AgenciesPage({
                 </TableCell>
                 <TableCell>{agency.city ?? "—"}</TableCell>
                 <TableCell>
-                  {agency.isActive ? (
-                    <Badge variant="secondary">Active</Badge>
-                  ) : (
-                    <Badge variant="outline">Inactive</Badge>
-                  )}
+                  <span className="class-status-cell">
+                    {agency.isDefault ? <Badge>Default</Badge> : null}
+                    {agency.isActive ? (
+                      <Badge variant="secondary">Active</Badge>
+                    ) : (
+                      <Badge variant="outline">Inactive</Badge>
+                    )}
+                  </span>
                 </TableCell>
               </TableRow>
             ))

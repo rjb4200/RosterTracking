@@ -1,8 +1,10 @@
 import Link from "next/link";
 
-import { listAgencyTags } from "@/modules/reference/services";
+import { getDefaultAgency, listAgencyTags } from "@/modules/reference/services";
+import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
+import { isAdministrator } from "@/modules/staff-auth/workspaces";
 import { getDatabase } from "@/server/db/client";
 
 import { createAgencyAction } from "../actions";
@@ -12,7 +14,13 @@ export const dynamic = "force-dynamic";
 
 export default async function NewAgencyPage() {
   await requirePagePermission(PERMISSIONS.AGENCIES_MANAGE);
-  const tags = await listAgencyTags(getDatabase());
+  const database = getDatabase();
+  const staff = await getCurrentStaff();
+  const canSetDefault = Boolean(staff && isAdministrator(staff.roleCodes));
+  const [tags, defaultAgency] = await Promise.all([
+    listAgencyTags(database),
+    canSetDefault ? getDefaultAgency(database) : Promise.resolve(null),
+  ]);
 
   return (
     <main className="admin-content">
@@ -24,7 +32,12 @@ export default async function NewAgencyPage() {
         <h1 className="staff-title">New agency</h1>
       </div>
       <section className="admin-section">
-        <AgencyForm action={createAgencyAction} tags={tags} />
+        <AgencyForm
+          action={createAgencyAction}
+          tags={tags}
+          canSetDefault={canSetDefault}
+          currentDefaultName={defaultAgency?.name ?? null}
+        />
       </section>
     </main>
   );
