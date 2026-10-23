@@ -314,15 +314,23 @@ The system SHALL set the class name from the first Fire subject's class name whe
 - **THEN** the class name is the EMS course name
 
 ### Requirement: Class duration defaults to two hours
-The class-and-schedule step SHALL default the scheduled duration to two hours, SHALL let staff change it in 15-minute increments, and SHALL present the duration as hours and minutes.
+The class-and-schedule step SHALL default the scheduled duration to two hours and SHALL let staff change it through a single duration selection that offers every 15-minute value from 30 minutes through 16 hours. The selection SHALL present each option as hours and minutes (for example, 2h 30m). The step SHALL submit the selected duration as decimal hours.
 
 #### Scenario: Default the scheduled duration
 - **WHEN** staff reach the class-and-schedule step
 - **THEN** the scheduled duration is two hours unless staff change it
 
+#### Scenario: Choose a combined duration
+- **WHEN** staff select 2h 30m from the duration selection
+- **THEN** the class retains 2.5 hours and submits that value
+
 #### Scenario: Enter a quarter-hour duration
 - **WHEN** staff set the scheduled duration to two hours and fifteen minutes
 - **THEN** the duration is retained as 2.25 hours and submitted with the class
+
+#### Scenario: Offer only the supported duration range
+- **WHEN** staff open the duration selection
+- **THEN** the shortest option is 30m and the longest is 16h, at 15-minute steps
 
 ### Requirement: Inline site and agency creation captures details
 

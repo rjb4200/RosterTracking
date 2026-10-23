@@ -11,6 +11,10 @@ The class-and-schedule step SHALL default the scheduled duration to two hours an
 - **WHEN** staff select 2h 30m from the duration selection
 - **THEN** the class retains 2.5 hours and submits that value
 
+#### Scenario: Enter a quarter-hour duration
+- **WHEN** staff set the scheduled duration to two hours and fifteen minutes
+- **THEN** the duration is retained as 2.25 hours and submitted with the class
+
 #### Scenario: Offer only the supported duration range
 - **WHEN** staff open the duration selection
 - **THEN** the shortest option is 30m and the longest is 16h, at 15-minute steps
