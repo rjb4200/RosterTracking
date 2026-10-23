@@ -146,6 +146,20 @@ function hasFieldBackground(page: PDFDocument, fieldName: string): boolean {
   );
 }
 
+/** Number of document catalogs in a loaded PDF. */
+function documentCatalogCount(pdf: PDFDocument): number {
+  let count = 0;
+  for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+    if (
+      object instanceof PDFDict &&
+      object.get(PDFName.of("Type"))?.toString() === "/Catalog"
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 const signedSnapshot: FinalizationSnapshot = {
   ...snapshot,
   signature: {
@@ -276,7 +290,11 @@ describe("completion certificates", () => {
   it("builds a batch with a cover page and one certificate per participant", async () => {
     const bytes = await renderCompletionCertificateBatch(snapshot);
     const pdf = await PDFDocument.load(bytes);
+    const text = Buffer.from(bytes).toString("latin1");
     expect(pdf.getPageCount()).toBe(snapshot.attendance.length + 1);
+    expect(documentCatalogCount(pdf)).toBe(1);
+    expect(text).not.toContain("/EmbeddedFiles");
+    expect(text).not.toContain("application#2Fc2pa");
   });
 
   it("excludes removed participants from the batch", async () => {
@@ -494,6 +512,65 @@ describe("completion certificates", () => {
     expect(text).toContain("Allura");
     expect(text).toContain("LibreBaskerville");
     expect(text).toContain("FontFile2");
+  });
+
+  it("emits an individual certificate as a clean standalone PDF", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const bytes = await renderCertificateForParticipant(
+      signedSnapshot,
+      participant,
+    );
+    const pdf = await PDFDocument.load(bytes);
+    const text = Buffer.from(bytes).toString("latin1");
+
+    expect(pdf.getPageCount()).toBe(1);
+    expect(pdf.getForm().getFields()).toHaveLength(0);
+    expect(documentCatalogCount(pdf)).toBe(1);
+    expect(text).not.toContain("/EmbeddedFiles");
+    expect(text).not.toContain("application#2Fc2pa");
+    expect(text).not.toContain("C2PA_Manifest");
+    expect(text).not.toContain("Content Credentials");
+
+    const root = pdf.context.lookup(pdf.context.trailerInfo.Root);
+    expect(root).toBeInstanceOf(PDFDict);
+    if (root instanceof PDFDict) {
+      expect(root.get(PDFName.of("Names"))).toBeUndefined();
+    }
+
+    const baseFonts = new Set<string>();
+    let imageCount = 0;
+    for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+      const dict =
+        object instanceof PDFRawStream
+          ? object.dict
+          : object instanceof PDFDict
+            ? object
+            : null;
+      if (!dict) continue;
+      const baseFont = dict.get(PDFName.of("BaseFont"));
+      if (baseFont instanceof PDFName) baseFonts.add(String(baseFont));
+      if (dict.get(PDFName.of("Subtype"))?.toString() === "/Image") {
+        imageCount += 1;
+      }
+    }
+    expect([...baseFonts].some((font) => font.includes("Allura"))).toBe(true);
+    expect(
+      [...baseFonts].some((font) => font.includes("LibreBaskerville")),
+    ).toBe(true);
+    expect(imageCount).toBeGreaterThan(0);
+
+    const source = await renderCertificatePage(signedSnapshot, participant, {
+      flatten: false,
+    });
+    const form = source.getForm();
+    expect(form.getTextField("Student_Name").getText()).toBe("Ada Lovelace");
+    expect(form.getTextField("Course_Type").getText()).toBe(
+      "Airway Management",
+    );
+    expect(form.getTextField("Instructor_Signature").getText()).toBe(
+      "Lead Medic",
+    );
   });
 
   it("covers the signature-line glyphs in the bundled fonts", async () => {
