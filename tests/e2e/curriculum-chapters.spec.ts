@@ -40,6 +40,10 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
     "insert into curriculum_chapters (curriculum_id, part, number, title, position, source_revision) values ($1, 'Firefighter I', '3', 'Communications', 0, 'e2e')",
     [curriculumId],
   );
+  await pool.query(
+    "insert into curriculum_chapters (curriculum_id, part, number, title, position, source_revision) values ($1, 'Firefighter II', '1', 'Incident Scene Operations', 1, 'e2e')",
+    [curriculumId],
+  );
   const fire = await pool.query<{ name: string }>(
     "select name from reporting_systems where code = 'fire' limit 1",
   );
@@ -63,16 +67,60 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
     .getByLabel("Curriculum", { exact: true })
     .selectOption(curriculumId);
 
+  // Every catalog chapter is offered, grouped by section.
+  const chapterSelect = page.getByLabel("Chapter", { exact: true });
+  await expect(chapterSelect.locator("optgroup")).toHaveCount(2);
+  await expect(
+    chapterSelect.locator("option", {
+      hasText: "Firefighter I: Chapter 3. Communications",
+    }),
+  ).toHaveCount(1);
+  await expect(
+    chapterSelect.locator("option", {
+      hasText: "Firefighter II: Chapter 1. Incident Scene Operations",
+    }),
+  ).toHaveCount(1);
+
   // A chapter is required once the chosen curriculum has catalog chapters.
   await next.click();
   await expect(
     page.getByText("Complete the highlighted fields."),
   ).toBeVisible();
-  await expect(page.getByText(/Lead and assisting instructors/)).toBeVisible();
+  await expect(chapterSelect).toHaveAttribute("aria-invalid", "true");
+
+  // The filter narrows the catalog to the matching chapters.
+  await page.getByLabel("Filter Chapter").fill("Communications");
+  await expect(
+    chapterSelect.locator("option", {
+      hasText: "Firefighter I: Chapter 3. Communications",
+    }),
+  ).toHaveCount(1);
+  await expect(
+    chapterSelect.locator("option", {
+      hasText: "Incident Scene Operations",
+    }),
+  ).toHaveCount(0);
+
+  // A typed chapter is available through the Not listed choice.
+  await chapterSelect.selectOption({ label: "Not listed (type one)" });
+  await page.getByLabel("Chapter name or number").fill("Custom Chapter 9");
+  await expect(
+    page.locator('input[name="fireCurriculumChapter"]').first(),
+  ).toHaveValue("Custom Chapter 9");
+
+  // Changing the curriculum clears the chapter.
+  await page
+    .getByLabel("Curriculum", { exact: true })
+    .selectOption({ label: "Not listed (type one)" });
+  await expect(page.getByLabel("Chapter", { exact: true })).toHaveValue("");
+  await page
+    .getByLabel("Curriculum", { exact: true })
+    .selectOption(curriculumId);
+  await expect(page.getByLabel("Chapter", { exact: true })).toHaveValue("");
 
   await page
-    .getByLabel("Chapter")
-    .fill("Firefighter I: Chapter 3. Communications");
+    .getByLabel("Chapter", { exact: true })
+    .selectOption({ label: "Firefighter I: Chapter 3. Communications" });
   await next.click();
   await expect(page.getByRole("checkbox", { name: "Classroom" })).toBeChecked();
 });

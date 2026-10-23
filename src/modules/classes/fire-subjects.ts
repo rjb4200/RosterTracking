@@ -20,6 +20,40 @@ export function chapterLabel(chapter: CurriculumChapter): string {
   return part ? `${part}: ${base}` : base;
 }
 
+/** A select sentinel for a typed chapter; never a real chapter label. */
+export const NOT_LISTED_CHAPTER = "__not_listed__";
+
+export interface ChapterSelectionState {
+  selectValue: string;
+  custom: boolean;
+}
+
+/** True when the value matches one of the curriculum's catalog chapter labels. */
+export function isCatalogChapter(
+  chapters: readonly CurriculumChapter[],
+  value: string | null | undefined,
+): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) return false;
+  return chapters.some((chapter) => chapterLabel(chapter) === trimmed);
+}
+
+/**
+ * The select value and whether the typed input is needed. A cleared chapter
+ * produces no custom state, so clearing a curriculum resets the control.
+ */
+export function chapterSelectionState(
+  chapters: readonly CurriculumChapter[],
+  value: string | null | undefined,
+): ChapterSelectionState {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return { selectValue: "", custom: false };
+  if (isCatalogChapter(chapters, trimmed)) {
+    return { selectValue: trimmed, custom: false };
+  }
+  return { selectValue: NOT_LISTED_CHAPTER, custom: true };
+}
+
 export interface CurriculumLabelParts {
   curriculumPublisher?: string | null;
   curriculumProgramTitle?: string | null;
@@ -73,6 +107,22 @@ export interface SearchOption {
   value: string;
   label: string;
   group?: string;
+}
+
+/**
+ * Chapter options for a search control: the chapter label is both the value
+ * and the label, and a section becomes the option group heading.
+ */
+export function chapterSearchOptions(
+  chapters: readonly CurriculumChapter[],
+): SearchOption[] {
+  return chapters.map((chapter) => {
+    const label = chapterLabel(chapter);
+    const part = chapter.part?.trim();
+    return part
+      ? { value: label, label, group: part }
+      : { value: label, label };
+  });
 }
 
 /**

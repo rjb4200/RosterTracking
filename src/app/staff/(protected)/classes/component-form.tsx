@@ -10,7 +10,6 @@ import {
   kfsMethodLabel,
   parseComponentMethod,
 } from "@/modules/classes/delivery-methods";
-import { chapterLabel } from "@/modules/classes/fire-subjects";
 import {
   calculateDepartmentEndTimeInput,
   parseDepartmentDateTime,
@@ -18,6 +17,7 @@ import {
 } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
+import { ChapterSelect } from "./chapter-select";
 import { CurriculumSelect } from "./curriculum-select";
 import { DurationFields } from "./duration-fields";
 import type { CurriculumChapterOption } from "./fire-subject-fields";
@@ -106,7 +106,6 @@ export function ComponentForm({
         (chapter) => chapter.curriculumId === curriculumId,
       )
     : [];
-  const chapterListId = `curriculumChapterOptions-${suffix}`;
   const endTime =
     startsAt && Number(creditedHours) > 0
       ? calculateDepartmentEndTimeInput(startsAt, Number(creditedHours))
@@ -201,28 +200,19 @@ export function ComponentForm({
           onChange={({ curriculumId: nextId, curriculumName: nextName }) => {
             setCurriculumId(nextId);
             setCurriculumName(nextName);
+            setCurriculumChapter("");
           }}
         />
         <input type="hidden" name="curriculumId" value={curriculumId} />
         <input type="hidden" name="curriculumName" value={curriculumName} />
-        <div className="field">
-          <Label htmlFor={`curriculumChapter-${suffix}`}>Chapter</Label>
-          <Input
-            id={`curriculumChapter-${suffix}`}
-            name="curriculumChapter"
-            list={chapterOptions.length ? chapterListId : undefined}
-            value={curriculumChapter}
-            onChange={(event) => setCurriculumChapter(event.target.value)}
-          />
-          {chapterOptions.length ? (
-            <datalist id={chapterListId}>
-              {chapterOptions.map((chapter) => {
-                const label = chapterLabel(chapter);
-                return <option key={label} value={label} />;
-              })}
-            </datalist>
-          ) : null}
-        </div>
+        <ChapterSelect
+          key={curriculumId}
+          id={`curriculumChapter-${suffix}`}
+          chapters={chapterOptions}
+          value={curriculumChapter}
+          name="curriculumChapter"
+          onChange={setCurriculumChapter}
+        />
         <div className="field">
           <span className="field-label">Method</span>
           <div className="checkbox-list">

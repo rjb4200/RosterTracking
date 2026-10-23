@@ -27,7 +27,11 @@ function skipUnlessEnabled() {
 }
 
 async function createOpenClass(
-  options: { attendance?: boolean; sessionHours?: number } = {},
+  options: {
+    attendance?: boolean;
+    sessionHours?: number;
+    curriculum?: { id: string; chapter: string };
+  } = {},
 ) {
   if (!connectionString) throw new Error("E2E_DATABASE_URL is required.");
   const pool = new Pool({ connectionString, max: 1 });
@@ -68,8 +72,15 @@ async function createOpenClass(
     [classId, actor.rows[0].id],
   );
   await pool.query(
-    "insert into class_components (class_id, starts_at, ends_at, credited_hours) values ($1, $2, $3, $4)",
-    [classId, startsAt, endsAt, sessionHours],
+    "insert into class_components (class_id, starts_at, ends_at, credited_hours, curriculum_id, curriculum_chapter) values ($1, $2, $3, $4, $5, $6)",
+    [
+      classId,
+      startsAt,
+      endsAt,
+      sessionHours,
+      options.curriculum?.id ?? null,
+      options.curriculum?.chapter ?? null,
+    ],
   );
   if (options.attendance) {
     // Attendance now comes from a valid sign-in; fixture it directly because
@@ -372,6 +383,46 @@ test("preserves an out-of-range session duration when editing", async ({
   await expect(schedule.getByLabel("Credited hours").first()).toHaveValue(
     "0.25",
   );
+});
+
+test("a session uses the shared chapter picker and clears it on curriculum change", async ({
+  page,
+}) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+
+  const pool = new Pool({ connectionString, max: 1 });
+  const suffix = randomUUID();
+  const curriculum = await pool.query<{ id: string }>(
+    "insert into curricula (publisher, program_title, version, source_revision) values ('IFSTA', $1, '8th Edition', 'e2e') returning id",
+    [`Session Chapter ${suffix}`],
+  );
+  const curriculumId = curriculum.rows[0]?.id;
+  if (!curriculumId) throw new Error("E2E curriculum was not created.");
+  const chapter = "Firefighter I: Chapter 3. Communications";
+  await pool.query(
+    "insert into curriculum_chapters (curriculum_id, part, number, title, position, source_revision) values ($1, 'Firefighter I', '3', 'Communications', 0, 'e2e')",
+    [curriculumId],
+  );
+  await pool.end();
+
+  const { classId } = await createOpenClass({
+    curriculum: { id: curriculumId, chapter },
+  });
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const schedule = page.locator("#area-schedule");
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  const chapterSelect = schedule.getByLabel("Chapter", { exact: true });
+  await expect(chapterSelect).toHaveValue(chapter);
+  await expect(chapterSelect).toHaveAttribute("required", "");
+
+  // Changing the curriculum clears the chapter and reveals the typed input.
+  await schedule
+    .getByLabel("Curriculum", { exact: true })
+    .selectOption({ label: "Not listed (type one)" });
+  await expect(schedule.getByLabel("Chapter", { exact: true })).toHaveValue("");
 });
 
 test("the workspace opens one correction area at a time", async ({ page }) => {

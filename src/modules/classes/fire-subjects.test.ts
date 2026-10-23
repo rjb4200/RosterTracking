@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   chapterLabel,
+  chapterSearchOptions,
+  chapterSelectionState,
   componentMethodsForDelivery,
   composeCurriculumLabel,
   curriculumLabel,
   curriculumSearchOptions,
   defaultComponentMethod,
+  isCatalogChapter,
   isFireSubjectComplete,
+  NOT_LISTED_CHAPTER,
   parseComponentMethod,
   validateFireSubjects,
 } from "./fire-subjects";
@@ -103,6 +107,64 @@ describe("curriculum chapters", () => {
     expect(chapterLabel({ part: null, number: "10", title: "Fire Hose" })).toBe(
       "Chapter 10. Fire Hose",
     );
+  });
+
+  it("builds chapter options grouped by section", () => {
+    const chapters = [
+      {
+        part: "Firefighter I",
+        number: "3",
+        title: "Communications",
+      },
+      {
+        part: "Firefighter II",
+        number: "1",
+        title: "Incident Scene Operations",
+      },
+      { part: null, number: "A", title: "Appendix" },
+    ];
+    expect(chapterSearchOptions(chapters)).toEqual([
+      {
+        value: "Firefighter I: Chapter 3. Communications",
+        label: "Firefighter I: Chapter 3. Communications",
+        group: "Firefighter I",
+      },
+      {
+        value: "Firefighter II: Chapter 1. Incident Scene Operations",
+        label: "Firefighter II: Chapter 1. Incident Scene Operations",
+        group: "Firefighter II",
+      },
+      { value: "Chapter A. Appendix", label: "Chapter A. Appendix" },
+    ]);
+  });
+
+  it("matches catalog chapters and identifies a typed chapter", () => {
+    const chapters = [
+      { part: "Firefighter I", number: "3", title: "Communications" },
+    ];
+    expect(
+      isCatalogChapter(chapters, "Firefighter I: Chapter 3. Communications"),
+    ).toBe(true);
+    expect(isCatalogChapter(chapters, "Chapter 99. Missing")).toBe(false);
+    expect(isCatalogChapter(chapters, "")).toBe(false);
+    expect(
+      chapterSelectionState(
+        chapters,
+        "Firefighter I: Chapter 3. Communications",
+      ),
+    ).toEqual({
+      selectValue: "Firefighter I: Chapter 3. Communications",
+      custom: false,
+    });
+    expect(chapterSelectionState(chapters, "Typed Chapter")).toEqual({
+      selectValue: NOT_LISTED_CHAPTER,
+      custom: true,
+    });
+    // Clearing the chapter resets both the select and the typed-input state.
+    expect(chapterSelectionState(chapters, "")).toEqual({
+      selectValue: "",
+      custom: false,
+    });
   });
 
   it("composes the Curriculum cell from the book and chapter", () => {
