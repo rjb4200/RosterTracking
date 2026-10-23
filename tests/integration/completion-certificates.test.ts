@@ -231,6 +231,35 @@ describeDatabase("completion certificates", () => {
     await retireRevision(db, revisionId);
   });
 
+  it("sends the certificate attachment as application/pdf", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+    );
+    vi.stubEnv("RESEND_API_KEY", "test-key");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ id: "cert-msg" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await dispatchCertificateDeliveries(db, instructor, revisionId);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error("Expected a fetch call.");
+    const body = JSON.parse((call[1] as RequestInit).body as string);
+    const pdf = body.attachments.find((attachment: { filename: string }) =>
+      attachment.filename.endsWith(".pdf"),
+    );
+    expect(pdf).toMatchObject({ content_type: "application/pdf" });
+    await retireRevision(db, revisionId);
+  });
+
   it("suppresses an unchanged certificate when the class is finalized again", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });

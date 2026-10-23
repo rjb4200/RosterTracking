@@ -326,7 +326,7 @@ async function trainingNoticeMessage(
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    attachments: [logo, { filename, bytes }],
+    attachments: [logo, { filename, bytes, contentType: "application/pdf" }],
   };
 }
 

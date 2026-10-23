@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { chapterLabel } from "@/modules/classes/fire-subjects";
 
+import { ChapterSelect } from "./chapter-select";
 import { CurriculumSelect } from "./curriculum-select";
 import { SearchSelect } from "./search-select";
 
@@ -75,7 +75,6 @@ export function FireSubjectRow({
         (chapter) => chapter.curriculumId === value.curriculumId,
       )
     : [];
-  const chapterListId = `fireChapterOptions-${index}`;
   const categoryError = errors.includes(`fire.${index}.trainingCodeId`);
   const classNameError = errors.includes(`fire.${index}.className`);
   const chapterError = errors.includes(`fire.${index}.curriculumChapter`);
@@ -130,37 +129,24 @@ export function FireSubjectRow({
         curriculumId={value.curriculumId}
         curriculumName={value.curriculumName}
         onChange={({ curriculumId, curriculumName }) =>
-          onChange({ ...value, curriculumId, curriculumName })
+          onChange({
+            ...value,
+            curriculumId,
+            curriculumName,
+            curriculumChapter: "",
+          })
         }
       />
-      <div className="field">
-        <Label htmlFor={`fireCurriculumChapter-${index}`}>
-          Chapter
-          {chapterOptions.length ? (
-            <span className="required-mark" aria-hidden="true">
-              {" "}
-              *
-            </span>
-          ) : null}
-        </Label>
-        <Input
-          id={`fireCurriculumChapter-${index}`}
-          list={chapterOptions.length ? chapterListId : undefined}
-          value={value.curriculumChapter}
-          aria-invalid={chapterError || undefined}
-          onChange={(event) =>
-            onChange({ ...value, curriculumChapter: event.target.value })
-          }
-        />
-        {chapterOptions.length ? (
-          <datalist id={chapterListId}>
-            {chapterOptions.map((chapter) => {
-              const label = chapterLabel(chapter);
-              return <option key={label} value={label} />;
-            })}
-          </datalist>
-        ) : null}
-      </div>
+      <ChapterSelect
+        key={value.curriculumId}
+        id={`fireCurriculumChapter-${index}`}
+        chapters={chapterOptions}
+        value={value.curriculumChapter}
+        invalid={chapterError}
+        onChange={(curriculumChapter) =>
+          onChange({ ...value, curriculumChapter })
+        }
+      />
       <div className="field">
         <Label htmlFor={`fireLessonPlan-${index}`}>Lesson plan</Label>
         <textarea

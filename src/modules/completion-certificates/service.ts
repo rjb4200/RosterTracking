@@ -309,8 +309,14 @@ export async function renderCertificateForParticipant(
 ): Promise<Uint8Array> {
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
   const page = await renderCertificatePage(snapshot, participant);
-  setCertificateMetadata(page, mapping.formType);
-  return page.save({ useObjectStreams: false });
+  // The approved template carries catalog-level provenance metadata. Copy the
+  // flattened page into a clean document so mobile PDF viewers receive a
+  // single-catalog PDF without the template's embedded C2PA file.
+  const output = await PDFDocument.create();
+  const [copied] = await output.copyPages(page, [0]);
+  output.addPage(copied);
+  setCertificateMetadata(output, mapping.formType);
+  return output.save({ useObjectStreams: false });
 }
 
 /** One certificate page per active participant of the revision. */
@@ -553,7 +559,14 @@ async function certificateMessage(
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    attachments: [logo, { filename: certificateFilename(), bytes }],
+    attachments: [
+      logo,
+      {
+        filename: certificateFilename(),
+        bytes,
+        contentType: "application/pdf",
+      },
+    ],
   };
 }
 

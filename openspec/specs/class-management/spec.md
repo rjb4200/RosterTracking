@@ -89,7 +89,7 @@ The system SHALL require every class to reference one active host agency from th
 - **THEN** the system still requires a host agency
 
 ### Requirement: Class components retain scheduled sessions
-The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. Session credited hours SHALL be entered as hours and minutes in 15-minute increments. A newly added component SHALL default to two credited hours. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
+The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. Session credited hours SHALL be entered through a single duration selection that offers every 15-minute value from 30 minutes through 16 hours, presented as hours and minutes. A newly added component SHALL default to two credited hours. When a component's stored credited hours fall outside the offered range, the selection SHALL also offer that current value so an edit does not change it unless staff choose another. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
 
 #### Scenario: Add multiple sessions
 - **WHEN** staff add separate morning and afternoon components to a draft class
@@ -103,9 +103,17 @@ The system SHALL let authorized staff add one or more components to a draft clas
 - **WHEN** staff select a component start time and change its credited hours
 - **THEN** the system recalculates and stores the end time as the start time plus the credited-hour duration
 
+#### Scenario: Choose credited hours from the combined selection
+- **WHEN** staff select 2h 15m from a component's duration selection
+- **THEN** the component stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+
 #### Scenario: Enter credited hours in quarter-hour steps
 - **WHEN** staff set a component's credited hours to two hours and fifteen minutes
 - **THEN** the system stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+
+#### Scenario: Keep an out-of-range current duration
+- **WHEN** staff edit a component whose stored credited hours are 15m
+- **THEN** the duration selection includes 15m as the current value and saving without changing it preserves those credited hours
 
 #### Scenario: Reject a duration outside the quarter-hour cadence
 - **WHEN** a component is submitted with a credited duration that is not a whole 15-minute increment

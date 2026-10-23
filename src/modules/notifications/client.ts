@@ -16,7 +16,7 @@ export interface EmailAttachment {
   // When set, the attachment is sent inline and referenced from the HTML body
   // as `cid:<contentId>` rather than appearing as a downloadable attachment.
   contentId?: string;
-  contentType?: string;
+  contentType: string;
 }
 
 export interface OutboundEmail {
@@ -58,9 +58,7 @@ export async function sendEmail(
             attachments: message.attachments.map((attachment) => ({
               filename: attachment.filename,
               content: Buffer.from(attachment.bytes).toString("base64"),
-              ...(attachment.contentType
-                ? { content_type: attachment.contentType }
-                : {}),
+              content_type: attachment.contentType,
               ...(attachment.contentId
                 ? { content_id: attachment.contentId }
                 : {}),

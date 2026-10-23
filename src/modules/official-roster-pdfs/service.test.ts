@@ -504,7 +504,8 @@ describe("official roster PDF templates", () => {
       "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     );
     vi.stubEnv("RESEND_API_KEY", "test-key");
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
     const auditValues = vi.fn().mockResolvedValue(undefined);
     const transaction = vi.fn(async (callback) =>
       callback({ insert: () => ({ values: auditValues }) }),
@@ -540,7 +541,14 @@ describe("official roster PDF templates", () => {
       "recipient@example.com",
     );
 
-    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error("Expected a fetch call.");
+    const body = JSON.parse((call[1] as RequestInit).body as string);
+    const pdf = body.attachments.find((attachment: { filename: string }) =>
+      attachment.filename.endsWith(".pdf"),
+    );
+    expect(pdf).toMatchObject({ content_type: "application/pdf" });
     expect(auditValues).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "official_roster.email.sent",

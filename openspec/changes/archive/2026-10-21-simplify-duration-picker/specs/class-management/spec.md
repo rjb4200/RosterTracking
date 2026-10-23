@@ -19,6 +19,10 @@ The system SHALL let authorized staff add one or more components to a draft clas
 - **WHEN** staff select 2h 15m from a component's duration selection
 - **THEN** the component stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
 
+#### Scenario: Enter credited hours in quarter-hour steps
+- **WHEN** staff set a component's credited hours to two hours and fifteen minutes
+- **THEN** the system stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+
 #### Scenario: Keep an out-of-range current duration
 - **WHEN** staff edit a component whose stored credited hours are 15m
 - **THEN** the duration selection includes 15m as the current value and saving without changing it preserves those credited hours
@@ -46,3 +50,7 @@ The system SHALL let authorized staff add one or more components to a draft clas
 #### Scenario: Fall back when a session title is omitted
 - **WHEN** staff leave a session title blank and finalize a class
 - **THEN** official roster output uses the class name for the session-specific field
+
+#### Scenario: Reject invalid component time range
+- **WHEN** staff enter a component whose end time is not after its start time
+- **THEN** the system rejects the component

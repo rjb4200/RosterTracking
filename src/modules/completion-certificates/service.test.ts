@@ -2,7 +2,16 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import fontkit from "@pdf-lib/fontkit";
-import { PDFContentStream, PDFDocument, PDFName, TextAlignment } from "pdf-lib";
+import {
+  decodePDFRawStream,
+  PDFArray,
+  PDFContentStream,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFRawStream,
+  TextAlignment,
+} from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { COMPLETION_CERTIFICATE_TEMPLATE } from "@/modules/official-roster-pdfs/mappings";
@@ -91,6 +100,40 @@ function appearanceFontName(
   );
 }
 
+/** The embedded font program for a base font name (e.g. "Allura"). */
+function embeddedFontBytes(
+  page: PDFDocument,
+  baseFontName: string,
+): Uint8Array {
+  for (const [, object] of page.context.enumerateIndirectObjects()) {
+    if (!(object instanceof PDFDict)) continue;
+    const baseFont = object.get(PDFName.of("BaseFont"));
+    if (
+      !(baseFont instanceof PDFName) ||
+      !String(baseFont).includes(baseFontName)
+    ) {
+      continue;
+    }
+    const descendants = object.get(PDFName.of("DescendantFonts"));
+    const font =
+      descendants instanceof PDFArray
+        ? page.context.lookup(descendants.get(0))
+        : object;
+    if (!(font instanceof PDFDict)) continue;
+    const descriptor = page.context.lookup(
+      font.get(PDFName.of("FontDescriptor")),
+    );
+    if (!(descriptor instanceof PDFDict)) continue;
+    const fontFile = page.context.lookup(
+      descriptor.get(PDFName.of("FontFile2")),
+    );
+    if (fontFile instanceof PDFRawStream) {
+      return decodePDFRawStream(fontFile).decode();
+    }
+  }
+  throw new Error(`No embedded ${baseFontName} font`);
+}
+
 /** True when a field still carries a template highlight background. */
 function hasFieldBackground(page: PDFDocument, fieldName: string): boolean {
   const widget = page
@@ -101,6 +144,20 @@ function hasFieldBackground(page: PDFDocument, fieldName: string): boolean {
     widget?.getAppearanceCharacteristics()?.dict.lookup(PDFName.of("BG")) !==
     undefined
   );
+}
+
+/** Number of document catalogs in a loaded PDF. */
+function documentCatalogCount(pdf: PDFDocument): number {
+  let count = 0;
+  for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+    if (
+      object instanceof PDFDict &&
+      object.get(PDFName.of("Type"))?.toString() === "/Catalog"
+    ) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 const signedSnapshot: FinalizationSnapshot = {
@@ -233,7 +290,11 @@ describe("completion certificates", () => {
   it("builds a batch with a cover page and one certificate per participant", async () => {
     const bytes = await renderCompletionCertificateBatch(snapshot);
     const pdf = await PDFDocument.load(bytes);
+    const text = Buffer.from(bytes).toString("latin1");
     expect(pdf.getPageCount()).toBe(snapshot.attendance.length + 1);
+    expect(documentCatalogCount(pdf)).toBe(1);
+    expect(text).not.toContain("/EmbeddedFiles");
+    expect(text).not.toContain("application#2Fc2pa");
   });
 
   it("excludes removed participants from the batch", async () => {
@@ -422,7 +483,28 @@ describe("completion certificates", () => {
     );
   });
 
-  it("embeds subset copies of both certificate fonts", async () => {
+  it("embeds a signature font that can render the attested name", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const bytes = await renderCertificateForParticipant(
+      signedSnapshot,
+      participant,
+    );
+    const pdf = await PDFDocument.load(bytes);
+    const font = fontkit.create(Buffer.from(embeddedFontBytes(pdf, "Allura")));
+    // Subsetting Allura drops glyph outlines, which makes the rendered
+    // signature blank or a tiny squiggle. The embedded face must still lay out
+    // the signer's name.
+    expect(() =>
+      font.layout(signedSnapshot.signature?.name ?? ""),
+    ).not.toThrow();
+    const run = font.layout(signedSnapshot.signature?.name ?? "");
+    for (const glyph of run.glyphs) {
+      expect(glyph.bbox.minX).not.toBeNull();
+    }
+  });
+
+  it("embeds both certificate fonts", async () => {
     const participant = snapshot.attendance[0];
     if (!participant) throw new Error("fixture participant is missing");
     const bytes = await renderCertificateForParticipant(snapshot, participant);
@@ -430,6 +512,65 @@ describe("completion certificates", () => {
     expect(text).toContain("Allura");
     expect(text).toContain("LibreBaskerville");
     expect(text).toContain("FontFile2");
+  });
+
+  it("emits an individual certificate as a clean standalone PDF", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const bytes = await renderCertificateForParticipant(
+      signedSnapshot,
+      participant,
+    );
+    const pdf = await PDFDocument.load(bytes);
+    const text = Buffer.from(bytes).toString("latin1");
+
+    expect(pdf.getPageCount()).toBe(1);
+    expect(pdf.getForm().getFields()).toHaveLength(0);
+    expect(documentCatalogCount(pdf)).toBe(1);
+    expect(text).not.toContain("/EmbeddedFiles");
+    expect(text).not.toContain("application#2Fc2pa");
+    expect(text).not.toContain("C2PA_Manifest");
+    expect(text).not.toContain("Content Credentials");
+
+    const root = pdf.context.lookup(pdf.context.trailerInfo.Root);
+    expect(root).toBeInstanceOf(PDFDict);
+    if (root instanceof PDFDict) {
+      expect(root.get(PDFName.of("Names"))).toBeUndefined();
+    }
+
+    const baseFonts = new Set<string>();
+    let imageCount = 0;
+    for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+      const dict =
+        object instanceof PDFRawStream
+          ? object.dict
+          : object instanceof PDFDict
+            ? object
+            : null;
+      if (!dict) continue;
+      const baseFont = dict.get(PDFName.of("BaseFont"));
+      if (baseFont instanceof PDFName) baseFonts.add(String(baseFont));
+      if (dict.get(PDFName.of("Subtype"))?.toString() === "/Image") {
+        imageCount += 1;
+      }
+    }
+    expect([...baseFonts].some((font) => font.includes("Allura"))).toBe(true);
+    expect(
+      [...baseFonts].some((font) => font.includes("LibreBaskerville")),
+    ).toBe(true);
+    expect(imageCount).toBeGreaterThan(0);
+
+    const source = await renderCertificatePage(signedSnapshot, participant, {
+      flatten: false,
+    });
+    const form = source.getForm();
+    expect(form.getTextField("Student_Name").getText()).toBe("Ada Lovelace");
+    expect(form.getTextField("Course_Type").getText()).toBe(
+      "Airway Management",
+    );
+    expect(form.getTextField("Instructor_Signature").getText()).toBe(
+      "Lead Medic",
+    );
   });
 
   it("covers the signature-line glyphs in the bundled fonts", async () => {

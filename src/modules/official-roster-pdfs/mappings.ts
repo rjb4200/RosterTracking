@@ -20,6 +20,10 @@ export interface TemplateFonts {
   // Form field name to font filename override (for example a script font for
   // the signature field).
   fields?: Readonly<Record<string, string>>;
+  // Override fields whose font must be embedded without subsetting. pdf-lib's
+  // subsetter corrupts some fonts (notably Allura) and the text then renders
+  // as missing or overlapping glyphs.
+  unsubsettedFields?: readonly string[];
 }
 
 export interface TemplateMapping {
@@ -159,6 +163,9 @@ export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {
   fonts: {
     body: "LibreBaskerville-Regular.ttf",
     fields: { Instructor_Signature: "Allura-Regular.ttf" },
+    // Allura's subset loses glyph outlines in pdf-lib; embed the whole face so
+    // the signature remains legible.
+    unsubsettedFields: ["Instructor_Signature"],
   },
 };
 
