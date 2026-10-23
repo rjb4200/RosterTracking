@@ -539,15 +539,20 @@ export interface TemplateRenderFonts {
   forField: (name: string) => PDFFont;
 }
 
-/** Embeds a bundled template font, subset to the glyphs the document uses. */
+/**
+ * Embeds a bundled template font. Most faces are subset to the glyphs the
+ * document uses; a mapping can opt a field out when subsetting would corrupt
+ * its glyph table.
+ */
 async function embedTemplateFont(
   pdf: PDFDocument,
   assetName: string,
+  options: { subset?: boolean } = {},
 ): Promise<PDFFont> {
   // Custom fonts require fontkit; standard fonts do not.
   pdf.registerFontkit(fontkit);
   const bytes = await readFile(join(TEMPLATE_FONT_DIR, assetName));
-  return pdf.embedFont(bytes, { subset: true });
+  return pdf.embedFont(bytes, { subset: options.subset ?? true });
 }
 
 export async function renderPage(
@@ -563,9 +568,15 @@ export async function renderPage(
   const bodyFont = mapping.fonts
     ? await embedTemplateFont(pdf, mapping.fonts.body)
     : await pdf.embedFont(StandardFonts.Helvetica);
+  const unsubsettedFields = new Set(mapping.fonts?.unsubsettedFields ?? []);
   const overrideFonts = new Map<string, PDFFont>();
   for (const [name, assetName] of Object.entries(mapping.fonts?.fields ?? {})) {
-    overrideFonts.set(name, await embedTemplateFont(pdf, assetName));
+    overrideFonts.set(
+      name,
+      await embedTemplateFont(pdf, assetName, {
+        subset: !unsubsettedFields.has(name),
+      }),
+    );
   }
   const fonts: TemplateRenderFonts = {
     body: bodyFont,
@@ -689,7 +700,14 @@ async function sendWithResend(input: {
       subject: "Official training roster",
       html: emailShell(body),
       text: "An official training roster PDF is attached.",
-      attachments: [logo, { filename: input.filename, bytes: input.bytes }],
+      attachments: [
+        logo,
+        {
+          filename: input.filename,
+          bytes: input.bytes,
+          contentType: "application/pdf",
+        },
+      ],
     });
   } catch {
     throw new Error("Official roster email could not be sent.");

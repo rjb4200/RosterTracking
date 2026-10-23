@@ -553,7 +553,14 @@ async function certificateMessage(
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    attachments: [logo, { filename: certificateFilename(), bytes }],
+    attachments: [
+      logo,
+      {
+        filename: certificateFilename(),
+        bytes,
+        contentType: "application/pdf",
+      },
+    ],
   };
 }
 

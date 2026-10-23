@@ -323,10 +323,10 @@ describeDatabase("individual training notices", () => {
     });
 
     vi.stubEnv("RESEND_API_KEY", "test-key");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: "m1" }) }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ id: "m1" }) });
+    vi.stubGlobal("fetch", fetchMock);
     try {
       const result = await sendParticipantNoticeOnDemand(
         db,
@@ -357,6 +357,14 @@ describeDatabase("individual training notices", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe("sent");
     expect(rows[0]?.recipient).toBe("custom@example.com");
+
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error("Expected a fetch call.");
+    const body = JSON.parse((call[1] as RequestInit).body as string);
+    const pdf = body.attachments.find((attachment: { filename: string }) =>
+      attachment.filename.endsWith(".pdf"),
+    );
+    expect(pdf).toMatchObject({ content_type: "application/pdf" });
 
     const events = await db
       .select()

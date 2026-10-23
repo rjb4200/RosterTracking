@@ -2,7 +2,16 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import fontkit from "@pdf-lib/fontkit";
-import { PDFContentStream, PDFDocument, PDFName, TextAlignment } from "pdf-lib";
+import {
+  decodePDFRawStream,
+  PDFArray,
+  PDFContentStream,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFRawStream,
+  TextAlignment,
+} from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { COMPLETION_CERTIFICATE_TEMPLATE } from "@/modules/official-roster-pdfs/mappings";
@@ -89,6 +98,40 @@ function appearanceFontName(
     /(\/[A-Za-z0-9+-]+)\s+[\d.]+\s+Tf/.exec(normal.getContentsString())?.[1] ??
     null
   );
+}
+
+/** The embedded font program for a base font name (e.g. "Allura"). */
+function embeddedFontBytes(
+  page: PDFDocument,
+  baseFontName: string,
+): Uint8Array {
+  for (const [, object] of page.context.enumerateIndirectObjects()) {
+    if (!(object instanceof PDFDict)) continue;
+    const baseFont = object.get(PDFName.of("BaseFont"));
+    if (
+      !(baseFont instanceof PDFName) ||
+      !String(baseFont).includes(baseFontName)
+    ) {
+      continue;
+    }
+    const descendants = object.get(PDFName.of("DescendantFonts"));
+    const font =
+      descendants instanceof PDFArray
+        ? page.context.lookup(descendants.get(0))
+        : object;
+    if (!(font instanceof PDFDict)) continue;
+    const descriptor = page.context.lookup(
+      font.get(PDFName.of("FontDescriptor")),
+    );
+    if (!(descriptor instanceof PDFDict)) continue;
+    const fontFile = page.context.lookup(
+      descriptor.get(PDFName.of("FontFile2")),
+    );
+    if (fontFile instanceof PDFRawStream) {
+      return decodePDFRawStream(fontFile).decode();
+    }
+  }
+  throw new Error(`No embedded ${baseFontName} font`);
 }
 
 /** True when a field still carries a template highlight background. */
@@ -422,7 +465,28 @@ describe("completion certificates", () => {
     );
   });
 
-  it("embeds subset copies of both certificate fonts", async () => {
+  it("embeds a signature font that can render the attested name", async () => {
+    const participant = snapshot.attendance[0];
+    if (!participant) throw new Error("fixture participant is missing");
+    const bytes = await renderCertificateForParticipant(
+      signedSnapshot,
+      participant,
+    );
+    const pdf = await PDFDocument.load(bytes);
+    const font = fontkit.create(Buffer.from(embeddedFontBytes(pdf, "Allura")));
+    // Subsetting Allura drops glyph outlines, which makes the rendered
+    // signature blank or a tiny squiggle. The embedded face must still lay out
+    // the signer's name.
+    expect(() =>
+      font.layout(signedSnapshot.signature?.name ?? ""),
+    ).not.toThrow();
+    const run = font.layout(signedSnapshot.signature?.name ?? "");
+    for (const glyph of run.glyphs) {
+      expect(glyph.bbox.minX).not.toBeNull();
+    }
+  });
+
+  it("embeds both certificate fonts", async () => {
     const participant = snapshot.attendance[0];
     if (!participant) throw new Error("fixture participant is missing");
     const bytes = await renderCertificateForParticipant(snapshot, participant);
