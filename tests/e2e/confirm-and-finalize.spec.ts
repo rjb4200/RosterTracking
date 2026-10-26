@@ -400,8 +400,9 @@ test("a session uses the shared chapter picker and clears it on curriculum chang
   const curriculumId = curriculum.rows[0]?.id;
   if (!curriculumId) throw new Error("E2E curriculum was not created.");
   const chapter = "Firefighter I: Chapter 3. Communications";
+  const nextChapter = "Firefighter I: Chapter 4. Fire Hose";
   await pool.query(
-    "insert into curriculum_chapters (curriculum_id, part, number, title, position, source_revision) values ($1, 'Firefighter I', '3', 'Communications', 0, 'e2e')",
+    "insert into curriculum_chapters (curriculum_id, part, number, title, position, source_revision) values ($1, 'Firefighter I', '3', 'Communications', 0, 'e2e'), ($1, 'Firefighter I', '4', 'Fire Hose', 1, 'e2e')",
     [curriculumId],
   );
   await pool.end();
@@ -415,14 +416,33 @@ test("a session uses the shared chapter picker and clears it on curriculum chang
   const schedule = page.locator("#area-schedule");
   await schedule.getByRole("button", { name: "Edit" }).click();
   const chapterSelect = schedule.getByLabel("Chapter", { exact: true });
+  const lessonPlan = schedule.getByLabel("Lesson plan");
   await expect(chapterSelect).toHaveValue(chapter);
   await expect(chapterSelect).toHaveAttribute("required", "");
+  await expect(lessonPlan).toHaveAttribute("rows", "1");
+  await expect(lessonPlan).toHaveValue("");
 
-  // Changing the curriculum clears the chapter and reveals the typed input.
+  // An empty lesson plan fills with the chapter title, then follows a
+  // different chapter when the value was not edited manually.
+  await chapterSelect.selectOption({ label: nextChapter });
+  await expect(lessonPlan).toHaveValue("Fire Hose");
+  await chapterSelect.selectOption({ label: chapter });
+  await expect(lessonPlan).toHaveValue("Communications");
+
+  // Manually entered text is preserved across chapter changes.
+  await lessonPlan.fill("Manual lesson plan");
+  await chapterSelect.selectOption({ label: nextChapter });
+  await expect(lessonPlan).toHaveValue("Manual lesson plan");
+
+  // Clearing the chapter clears only an auto-filled title.
+  await lessonPlan.fill("");
+  await chapterSelect.selectOption({ label: chapter });
+  await expect(lessonPlan).toHaveValue("Communications");
   await schedule
     .getByLabel("Curriculum", { exact: true })
     .selectOption({ label: "Not listed (type one)" });
   await expect(schedule.getByLabel("Chapter", { exact: true })).toHaveValue("");
+  await expect(lessonPlan).toHaveValue("");
 });
 
 test("the workspace opens one correction area at a time", async ({ page }) => {
@@ -438,6 +458,9 @@ test("the workspace opens one correction area at a time", async ({ page }) => {
 
   await classArea.getByRole("button", { name: "Edit" }).click();
   await expect(classArea.getByLabel("Class name")).toBeVisible();
+  await expect(
+    classArea.getByLabel("Course description or objectives"),
+  ).toHaveAttribute("rows", "2");
 
   await scheduleArea.getByRole("button", { name: "Edit" }).click();
   await expect(scheduleArea.getByText("Training session")).toBeVisible();

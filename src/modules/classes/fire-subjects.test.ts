@@ -4,6 +4,7 @@ import {
   chapterLabel,
   chapterSearchOptions,
   chapterSelectionState,
+  chapterTitleForLessonPlan,
   componentMethodsForDelivery,
   composeCurriculumLabel,
   curriculumLabel,
@@ -11,6 +12,7 @@ import {
   defaultComponentMethod,
   isCatalogChapter,
   isFireSubjectComplete,
+  lessonPlanForChapterChange,
   NOT_LISTED_CHAPTER,
   parseComponentMethod,
   validateFireSubjects,
@@ -165,6 +167,49 @@ describe("curriculum chapters", () => {
       selectValue: "",
       custom: false,
     });
+  });
+
+  it("seeds and preserves the lesson plan from the chapter title", () => {
+    const chapters = [
+      { part: "Firefighter I", number: "3", title: "Communications" },
+      { part: "Firefighter I", number: "4", title: "Fire Hose" },
+    ];
+    const communications = "Firefighter I: Chapter 3. Communications";
+
+    expect(chapterTitleForLessonPlan(chapters, communications)).toBe(
+      "Communications",
+    );
+    expect(chapterTitleForLessonPlan(chapters, "Typed Chapter")).toBeNull();
+    expect(chapterTitleForLessonPlan(chapters, "")).toBeNull();
+    expect(lessonPlanForChapterChange("", null, null)).toBe("");
+
+    // Empty plans fill; manual plans stay put.
+    expect(lessonPlanForChapterChange("", null, "Communications")).toBe(
+      "Communications",
+    );
+    expect(
+      lessonPlanForChapterChange("My lesson", null, "Communications"),
+    ).toBe("My lesson");
+
+    // An auto-filled title follows the chapter; manual text does not.
+    expect(
+      lessonPlanForChapterChange(
+        "Communications",
+        "Communications",
+        "Fire Hose",
+      ),
+    ).toBe("Fire Hose");
+    expect(
+      lessonPlanForChapterChange("My lesson", "Communications", "Fire Hose"),
+    ).toBe("My lesson");
+
+    // Clearing the chapter clears only the auto-filled title.
+    expect(
+      lessonPlanForChapterChange("Communications", "Communications", null),
+    ).toBe("");
+    expect(
+      lessonPlanForChapterChange("My lesson", "Communications", null),
+    ).toBe("My lesson");
   });
 
   it("composes the Curriculum cell from the book and chapter", () => {

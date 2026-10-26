@@ -695,7 +695,7 @@ export function ClassCreationWizard({
             <textarea
               id="objectives"
               className="search-input"
-              rows={4}
+              rows={2}
               value={values.objectives}
               onChange={(event) => update("objectives", event.target.value)}
               aria-invalid={errors.includes("objectives") || undefined}

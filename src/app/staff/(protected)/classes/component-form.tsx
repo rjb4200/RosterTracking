@@ -11,6 +11,10 @@ import {
   parseComponentMethod,
 } from "@/modules/classes/delivery-methods";
 import {
+  chapterTitleForLessonPlan,
+  lessonPlanForChapterChange,
+} from "@/modules/classes/fire-subjects";
+import {
   calculateDepartmentEndTimeInput,
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
@@ -101,6 +105,7 @@ export function ComponentForm({
   const [curriculumChapter, setCurriculumChapter] = useState(
     component?.curriculumChapter ?? "",
   );
+  const [lessonPlan, setLessonPlan] = useState(component?.lessonPlan ?? "");
   const chapterOptions = curriculumId
     ? curriculumChapters.filter(
         (chapter) => chapter.curriculumId === curriculumId,
@@ -198,9 +203,16 @@ export function ComponentForm({
           curriculumId={curriculumId}
           curriculumName={curriculumName}
           onChange={({ curriculumId: nextId, curriculumName: nextName }) => {
+            const previousTitle = chapterTitleForLessonPlan(
+              chapterOptions,
+              curriculumChapter,
+            );
             setCurriculumId(nextId);
             setCurriculumName(nextName);
             setCurriculumChapter("");
+            setLessonPlan((current) =>
+              lessonPlanForChapterChange(current, previousTitle, null),
+            );
           }}
         />
         <input type="hidden" name="curriculumId" value={curriculumId} />
@@ -211,7 +223,20 @@ export function ComponentForm({
           chapters={chapterOptions}
           value={curriculumChapter}
           name="curriculumChapter"
-          onChange={setCurriculumChapter}
+          onChange={(nextChapter) => {
+            const previousTitle = chapterTitleForLessonPlan(
+              chapterOptions,
+              curriculumChapter,
+            );
+            const nextTitle = chapterTitleForLessonPlan(
+              chapterOptions,
+              nextChapter,
+            );
+            setCurriculumChapter(nextChapter);
+            setLessonPlan((current) =>
+              lessonPlanForChapterChange(current, previousTitle, nextTitle),
+            );
+          }}
         />
         <div className="field">
           <span className="field-label">Method</span>
@@ -244,8 +269,9 @@ export function ComponentForm({
             id={`lessonPlan-${suffix}`}
             className="search-input"
             name="lessonPlan"
-            rows={2}
-            defaultValue={component?.lessonPlan ?? ""}
+            rows={1}
+            value={lessonPlan}
+            onChange={(event) => setLessonPlan(event.target.value)}
           />
         </div>
       </div>

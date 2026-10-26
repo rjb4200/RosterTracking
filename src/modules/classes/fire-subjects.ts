@@ -38,6 +38,36 @@ export function isCatalogChapter(
   return chapters.some((chapter) => chapterLabel(chapter) === trimmed);
 }
 
+/** The title used to seed a lesson plan, or null for a typed/missing chapter. */
+export function chapterTitleForLessonPlan(
+  chapters: readonly CurriculumChapter[],
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return (
+    chapters.find((chapter) => chapterLabel(chapter) === trimmed)?.title ?? null
+  );
+}
+
+/**
+ * The lesson plan after a chapter change: fill an empty plan, replace a plan
+ * that still equals the previous chapter title, and otherwise keep manual text.
+ */
+export function lessonPlanForChapterChange(
+  lessonPlan: string,
+  previousChapterTitle: string | null,
+  nextChapterTitle: string | null,
+): string {
+  if (
+    !lessonPlan.trim() ||
+    (previousChapterTitle && lessonPlan === previousChapterTitle)
+  ) {
+    return nextChapterTitle ?? "";
+  }
+  return lessonPlan;
+}
+
 /**
  * The select value and whether the typed input is needed. A cleared chapter
  * produces no custom state, so clearing a curriculum resets the control.

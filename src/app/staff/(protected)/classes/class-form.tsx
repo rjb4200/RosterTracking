@@ -249,7 +249,7 @@ export function ClassForm({
             id="objectives"
             className="search-input"
             name="objectives"
-            rows={3}
+            rows={2}
             defaultValue={values?.objectives ?? ""}
           />
         </div>
