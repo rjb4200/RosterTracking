@@ -118,6 +118,43 @@ test("Fire subject captures a catalog chapter and a book outside the catalog", a
     .selectOption(curriculumId);
   await expect(page.getByLabel("Chapter", { exact: true })).toHaveValue("");
 
+  const lessonPlan = page.getByLabel("Lesson plan");
+  await expect(lessonPlan).toHaveAttribute("rows", "1");
+  await expect(lessonPlan).toHaveValue("");
+
+  // Selecting a chapter seeds the empty lesson plan with its title.
+  await page.getByLabel("Chapter", { exact: true }).selectOption({
+    label: "Firefighter II: Chapter 1. Incident Scene Operations",
+  });
+  await expect(lessonPlan).toHaveValue("Incident Scene Operations");
+  await page
+    .getByLabel("Chapter", { exact: true })
+    .selectOption({ label: "Firefighter I: Chapter 3. Communications" });
+  await expect(lessonPlan).toHaveValue("Communications");
+
+  // Manual text is preserved across chapter changes.
+  await lessonPlan.fill("Manual lesson plan");
+  await page.getByLabel("Chapter", { exact: true }).selectOption({
+    label: "Firefighter II: Chapter 1. Incident Scene Operations",
+  });
+  await expect(lessonPlan).toHaveValue("Manual lesson plan");
+
+  // An auto-filled title follows the chapter and clears with the curriculum.
+  await lessonPlan.fill("");
+  await page
+    .getByLabel("Chapter", { exact: true })
+    .selectOption({ label: "Firefighter I: Chapter 3. Communications" });
+  await expect(lessonPlan).toHaveValue("Communications");
+  await page
+    .getByLabel("Curriculum", { exact: true })
+    .selectOption({ label: "Not listed (type one)" });
+  await expect(page.getByLabel("Chapter", { exact: true })).toHaveValue("");
+  await expect(lessonPlan).toHaveValue("");
+
+  // Restore the curriculum and chapter for the next step.
+  await page
+    .getByLabel("Curriculum", { exact: true })
+    .selectOption(curriculumId);
   await page
     .getByLabel("Chapter", { exact: true })
     .selectOption({ label: "Firefighter I: Chapter 3. Communications" });

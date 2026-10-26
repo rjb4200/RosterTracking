@@ -3,6 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  chapterTitleForLessonPlan,
+  lessonPlanForChapterChange,
+} from "@/modules/classes/fire-subjects";
 
 import { ChapterSelect } from "./chapter-select";
 import { CurriculumSelect } from "./curriculum-select";
@@ -128,14 +132,23 @@ export function FireSubjectRow({
         recentCurriculumIds={recentCurriculumIds}
         curriculumId={value.curriculumId}
         curriculumName={value.curriculumName}
-        onChange={({ curriculumId, curriculumName }) =>
+        onChange={({ curriculumId, curriculumName }) => {
+          const previousTitle = chapterTitleForLessonPlan(
+            chapterOptions,
+            value.curriculumChapter,
+          );
           onChange({
             ...value,
             curriculumId,
             curriculumName,
             curriculumChapter: "",
-          })
-        }
+            lessonPlan: lessonPlanForChapterChange(
+              value.lessonPlan,
+              previousTitle,
+              null,
+            ),
+          });
+        }}
       />
       <ChapterSelect
         key={value.curriculumId}
@@ -143,16 +156,32 @@ export function FireSubjectRow({
         chapters={chapterOptions}
         value={value.curriculumChapter}
         invalid={chapterError}
-        onChange={(curriculumChapter) =>
-          onChange({ ...value, curriculumChapter })
-        }
+        onChange={(curriculumChapter) => {
+          const previousTitle = chapterTitleForLessonPlan(
+            chapterOptions,
+            value.curriculumChapter,
+          );
+          const nextTitle = chapterTitleForLessonPlan(
+            chapterOptions,
+            curriculumChapter,
+          );
+          onChange({
+            ...value,
+            curriculumChapter,
+            lessonPlan: lessonPlanForChapterChange(
+              value.lessonPlan,
+              previousTitle,
+              nextTitle,
+            ),
+          });
+        }}
       />
       <div className="field">
         <Label htmlFor={`fireLessonPlan-${index}`}>Lesson plan</Label>
         <textarea
           id={`fireLessonPlan-${index}`}
           className="search-input"
-          rows={2}
+          rows={1}
           value={value.lessonPlan}
           onChange={(event) =>
             onChange({ ...value, lessonPlan: event.target.value })

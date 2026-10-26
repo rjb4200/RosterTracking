@@ -60,9 +60,9 @@ test("authorized staff can create and open a class in one pass", async ({
     .selectOption({ label: "Airway" });
   await page.getByLabel("EMS course name").fill(`E2E EMS ${suffix}`);
   await page.getByLabel("Course type").selectOption("continuing_education");
-  await page
-    .getByLabel("Course description or objectives")
-    .fill("Airway management");
+  const objectives = page.getByLabel("Course description or objectives");
+  await expect(objectives).toHaveAttribute("rows", "2");
+  await objectives.fill("Airway management");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // The MTU step needs no input.

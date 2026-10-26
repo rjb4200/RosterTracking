@@ -190,6 +190,30 @@ describe("official roster PDF templates", () => {
     expect(renderedTextRuns(page, "CurriculumRow1").lineCount).toBe(1);
   });
 
+  it("prints the chapter title in the KFS-1A lesson plan cell", async () => {
+    const component = snapshot.components?.[0];
+    if (!component) throw new Error("fixture component is missing");
+    const withChapter: FinalizationSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          ...component,
+          curriculumChapter: "Firefighter I: Chapter 3. Communications",
+          lessonPlan: "Communications",
+        },
+      ],
+    };
+    const page = await renderRosterPage(
+      "kfs-1a",
+      withChapter,
+      withChapter.attendance.slice(0, 1),
+      { flatten: false },
+    );
+    expect(page.getForm().getTextField("Lesson PlanRow1").getText()).toBe(
+      "Communications",
+    );
+  });
+
   it("paginates every attendee and flattens the form", async () => {
     const kfs = await renderOfficialRoster("kfs-1a", snapshot);
     expect((await PDFDocument.load(kfs)).getPageCount()).toBe(2);
