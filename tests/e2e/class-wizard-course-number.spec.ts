@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+﻿import { expect, test } from "@playwright/test";
 import { Pool } from "pg";
 
 import { signIn } from "./support/auth";
@@ -103,46 +103,31 @@ test("dual Fire and EMS class pre-fills the course number from the Fire training
   await expect(courseNumber).toHaveValue("OVERRIDE-1");
 });
 
-test("initial certification drops the Fire code and warns on a malformed number", async ({
-  page,
-}) => {
+test("initial certification warns on a malformed number", async ({ page }) => {
   test.skip(
     test.info().project.name !== "chromium",
     "Wizard course-number coverage runs once on chromium.",
   );
-  test.skip(
-    !username || !password || !connectionString,
-    "Set E2E staff credentials and E2E_DATABASE_URL.",
-  );
-  if (!username || !password || !connectionString) return;
-
-  const code = `B${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-  const trainingCodeId = await seedTrainingCode(code);
+  test.skip(!username || !password, "Set E2E staff credentials.");
+  if (!username || !password) return;
 
   await signIn(page, username, password);
   await page.goto("/staff/classes/new");
 
-  await page.getByLabel(FIRE_DESTINATION).check();
   await page.getByLabel(KBEMS_DESTINATION).check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "Category" })
-    .selectOption(trainingCodeId);
-  await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  await page.getByLabel("EMS course name").fill("EMT Initial");
   await page.getByLabel("Course type").selectOption("initial_certification");
   await page
-    .getByRole("combobox", { name: "Category" })
-    .selectOption({ label: "Airway" });
+    .getByLabel("Initial certification program")
+    .selectOption({ label: "EMR (40h)" });
+  await expect(page.getByLabel("EMS course name")).toHaveValue("EMR");
+  await expect(page.getByLabel("EMS course name")).not.toBeEditable();
 
-  // The Fire training code is not carried into an initial-certification number;
-  // the new-number input starts empty.
   const numberSelect = page.getByRole("combobox", { name: "Course number" });
-  await expect(page.getByLabel("New course number")).toHaveValue("");
 
-  // A malformed value warns and advances only after acknowledgement.
   await numberSelect.selectOption({ label: NEW_NUMBER_LABEL });
+  await expect(page.getByLabel("New course number")).toHaveValue("");
   await page.getByLabel("New course number").fill("126-26-02-X");
   await page
     .getByLabel("Course description or objectives")
@@ -172,15 +157,15 @@ test("initial certification accepts a correctly formatted number and normalizes 
   await page.getByLabel(KBEMS_DESTINATION).check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  await page.getByLabel("EMS course name").fill("EMT Initial");
+  const newNumber = `126-26-${Math.floor(Math.random() * 90 + 10)}-R`;
   await page.getByLabel("Course type").selectOption("initial_certification");
   await page
-    .getByRole("combobox", { name: "Category" })
-    .selectOption({ label: "Airway" });
+    .getByLabel("Initial certification program")
+    .selectOption({ label: "EMR (40h)" });
   await page
     .getByRole("combobox", { name: "Course number" })
     .selectOption({ label: NEW_NUMBER_LABEL });
-  await page.getByLabel("New course number").fill("126-26-77-r");
+  await page.getByLabel("New course number").fill(newNumber.toLowerCase());
   await page
     .getByLabel("Course description or objectives")
     .fill("Initial EMT certification");
@@ -191,7 +176,7 @@ test("initial certification accepts a correctly formatted number and normalizes 
 
   // Returning shows the stored value normalized to uppercase.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByLabel("New course number")).toHaveValue("126-26-77-R");
+  await expect(page.getByLabel("New course number")).toHaveValue(newNumber);
 });
 
 test("initial certification offers recently used numbers for selection", async ({
@@ -220,10 +205,20 @@ test("initial certification offers recently used numbers for selection", async (
     "insert into users (username, display_name, password_hash) values ($1, 'E2E Initial Cert', 'fixture') returning id",
     [userUsername],
   );
+  const site = await pool.query<{ id: string }>(
+    "insert into training_sites (name) values ($1) returning id",
+    [`E2E Initial Cert Site ${suffix}`],
+  );
   await pool.query(
-    `insert into classes (name, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, course_type, course_number)
-     values ('E2E Initial Cert Fixture', $1, 'online', 'open', $2, $3, 'initial_certification', $4)`,
-    [user.rows[0]?.id, userUsername, agency.rows[0]?.id, recentNumber],
+    `insert into classes (name, training_site_id, created_by_user_id, delivery_method, status, sign_in_token_hash, host_agency_id, course_type, course_number)
+     values ('E2E Initial Cert Fixture', $1, $2, 'online', 'open', $3, $4, 'initial_certification', $5)`,
+    [
+      site.rows[0]?.id,
+      user.rows[0]?.id,
+      userUsername,
+      agency.rows[0]?.id,
+      recentNumber,
+    ],
   );
   await pool.end();
 
@@ -231,8 +226,10 @@ test("initial certification offers recently used numbers for selection", async (
   await page.goto("/staff/classes/new");
   await page.getByLabel(KBEMS_DESTINATION).check();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByLabel("EMS course name").fill("EMT Initial");
   await page.getByLabel("Course type").selectOption("initial_certification");
+  await page
+    .getByLabel("Initial certification program")
+    .selectOption({ label: "EMR (40h)" });
 
   const numberSelect = page.getByRole("combobox", { name: "Course number" });
   await expect(

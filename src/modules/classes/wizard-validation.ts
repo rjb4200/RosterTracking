@@ -14,6 +14,7 @@ export interface WizardValidationInput {
   kbemsCourseName: string;
   emsCategoryId: string;
   courseType: string;
+  initialCertificationProgramId: string;
   objectives: string;
   courseNumber: string;
   transportIds: string[];
@@ -78,11 +79,16 @@ export function wizardStepErrors(
     if (!input.kbemsCourseName.trim()) missing.push("kbemsCourseName");
     if (!input.courseType) missing.push("courseType");
     if (!input.objectives.trim()) missing.push("objectives");
-    if (
-      input.courseType === "initial_certification" &&
-      !input.courseNumber.trim()
-    ) {
-      missing.push("courseNumber");
+    if (input.courseType === "initial_certification") {
+      if (!input.initialCertificationProgramId) {
+        missing.push("initialCertificationProgramId");
+      }
+      if (input.destinationCodes.includes("fire")) {
+        missing.push("initialCertificationFireConflict");
+      }
+      if (!input.courseNumber.trim()) {
+        missing.push("courseNumber");
+      }
     }
     return missing;
   }

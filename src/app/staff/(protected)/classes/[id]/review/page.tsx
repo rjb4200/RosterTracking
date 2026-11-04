@@ -591,56 +591,96 @@ export default async function ClassReviewPage({
               id="schedule"
               label="Schedule & hours"
               summary={
-                <>
-                  {classRecord.components.length} subject
-                  {classRecord.components.length === 1 ? "" : "s"} A�{" "}
-                  {formatHours(roster.scheduledHours)}
-                </>
+                classRecord.initialCertificationProgram ? (
+                  <>
+                    {classRecord.initialCertificationProgram.title} program ·{" "}
+                    {formatHours(classRecord.initialCertificationProgram.hours)}
+                  </>
+                ) : (
+                  <>
+                    {classRecord.components.length} subject
+                    {classRecord.components.length === 1 ? "" : "s"} ·{" "}
+                    {formatHours(roster.scheduledHours)}
+                  </>
+                )
               }
             >
-              <p className="roster-note">
-                A class that ran long is recorded by raising a subject&apos;s
-                duration. Everyone still credited at the full total follows the
-                new total; a participant already adjusted down keeps their
-                value.
-              </p>
-              <ScheduleSessions
-                classId={classRecord.id}
-                sessions={classRecord.components.map((component) => ({
-                  id: component.id,
-                  title: component.title,
-                  creditedHours: component.creditedHours,
-                  startsAtInput: formatDepartmentDateTimeInput(
-                    component.startsAt,
-                  ),
-                  startsAtLabel: formatDepartmentDateTime(component.startsAt),
-                  endsAtInput: formatDepartmentDateTimeInput(component.endsAt),
-                  endsAtLabel: formatDepartmentDateTime(component.endsAt),
-                  trainingCodeId: component.trainingCodeId ?? null,
-                  className: component.className ?? null,
-                  curriculumId: component.curriculumId ?? null,
-                  curriculumName: component.curriculumName ?? null,
-                  curriculumChapter: component.curriculumChapter ?? null,
-                  lessonPlan: component.lessonPlan ?? null,
-                }))}
-                editor={
-                  classOptions
-                    ? {
-                        action: saveComponentAction,
-                        methodAction: saveClassMethodAction,
-                        deliveryMethod: classRecord.deliveryMethod,
-                        trainingCodes: classOptions.trainingCodes,
-                        trainingCodeKind: componentKind,
-                        curricula: classOptions.curricula,
-                        curriculumChapters: classOptions.curriculumChapters,
-                        recentCurriculumIds: classOptions.recentCurriculumIds,
-                        defaultStartsAt: roundDepartmentDateTimeToQuarterHour(
-                          new Date(),
-                        ),
-                      }
-                    : undefined
-                }
-              />
+              {classRecord.initialCertificationProgram ? (
+                <dl>
+                  <dt>Program</dt>
+                  <dd>
+                    {classRecord.initialCertificationProgram.title} (
+                    {formatHours(classRecord.initialCertificationProgram.hours)}
+                    )
+                  </dd>
+                  {classRecord.components[0] ? (
+                    <>
+                      <dt>Starts</dt>
+                      <dd>
+                        {formatDepartmentDateTime(
+                          classRecord.components[0].startsAt,
+                        )}
+                      </dd>
+                      <dt>Program ends</dt>
+                      <dd>
+                        {formatDepartmentDateTime(
+                          classRecord.components[0].endsAt,
+                        )}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
+              ) : (
+                <>
+                  <p className="roster-note">
+                    A class that ran long is recorded by raising a
+                    subject&apos;s duration. Everyone still credited at the full
+                    total follows the new total; a participant already adjusted
+                    down keeps their value.
+                  </p>
+                  <ScheduleSessions
+                    classId={classRecord.id}
+                    sessions={classRecord.components.map((component) => ({
+                      id: component.id,
+                      title: component.title,
+                      creditedHours: component.creditedHours,
+                      startsAtInput: formatDepartmentDateTimeInput(
+                        component.startsAt,
+                      ),
+                      startsAtLabel: formatDepartmentDateTime(
+                        component.startsAt,
+                      ),
+                      endsAtInput: formatDepartmentDateTimeInput(
+                        component.endsAt,
+                      ),
+                      endsAtLabel: formatDepartmentDateTime(component.endsAt),
+                      trainingCodeId: component.trainingCodeId ?? null,
+                      className: component.className ?? null,
+                      curriculumId: component.curriculumId ?? null,
+                      curriculumName: component.curriculumName ?? null,
+                      curriculumChapter: component.curriculumChapter ?? null,
+                      lessonPlan: component.lessonPlan ?? null,
+                    }))}
+                    editor={
+                      classOptions
+                        ? {
+                            action: saveComponentAction,
+                            methodAction: saveClassMethodAction,
+                            deliveryMethod: classRecord.deliveryMethod,
+                            trainingCodes: classOptions.trainingCodes,
+                            trainingCodeKind: componentKind,
+                            curricula: classOptions.curricula,
+                            curriculumChapters: classOptions.curriculumChapters,
+                            recentCurriculumIds:
+                              classOptions.recentCurriculumIds,
+                            defaultStartsAt:
+                              roundDepartmentDateTimeToQuarterHour(new Date()),
+                          }
+                        : undefined
+                    }
+                  />
+                </>
+              )}
             </WorkspaceArea>
 
             <WorkspaceArea

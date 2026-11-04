@@ -1,7 +1,16 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import { PDFContentStream, PDFDocument, PDFName } from "pdf-lib";
+import {
+  decodePDFRawStream,
+  PDFArray,
+  PDFContentStream,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  type PDFPage,
+  PDFRawStream,
+} from "pdf-lib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encryptCredential } from "@/modules/reference/crypto";
@@ -17,6 +26,7 @@ import {
   type FinalizationSnapshot,
   generateOfficialRoster,
   hasOfficialRosterAuthority,
+  kbemsE16Signatures,
   renderKbemsE16Page,
   renderKbemsE16Roster,
   renderOfficialRoster,
@@ -93,6 +103,52 @@ function renderedTextRuns(
   );
   const lineCount = content.match(/\bTj\b/g)?.length ?? 0;
   return { fontSize, lineCount };
+}
+
+/** Decoded content streams for one page. */
+function pageContent(page: PDFPage): string {
+  const contents = page.node.Contents();
+  if (!contents) return "";
+  const context = page.doc.context;
+  const streams =
+    contents instanceof PDFArray
+      ? Array.from({ length: contents.size() }, (_, index) =>
+          context.lookup(contents.get(index)),
+        )
+      : [context.lookup(contents)];
+  return streams
+    .map((stream) => {
+      if (stream instanceof PDFRawStream) {
+        return Buffer.from(decodePDFRawStream(stream).decode()).toString(
+          "latin1",
+        );
+      }
+      return stream instanceof PDFContentStream
+        ? stream.getContentsString()
+        : "";
+    })
+    .join("\n");
+}
+
+/** How many text draws use the embedded Allura signature face. */
+function alluraTextRuns(page: PDFPage): number {
+  const fontResources = page.node
+    .Resources()
+    ?.lookup(PDFName.of("Font"), PDFDict);
+  if (!(fontResources instanceof PDFDict)) return 0;
+  const resourceNames = fontResources
+    .keys()
+    .map((key) => key.toString().replace(/^\//, ""))
+    .filter((name) => name.includes("Allura"));
+  if (!resourceNames.length) return 0;
+  const content = pageContent(page);
+  return resourceNames.reduce(
+    (count, name) =>
+      count +
+      [...content.matchAll(new RegExp(`/${name}\\s+[\\d.]+\\s+Tf`, "g"))]
+        .length,
+    0,
+  );
 }
 
 describe("official roster PDF templates", () => {
@@ -221,7 +277,7 @@ describe("official roster PDF templates", () => {
     expect(form.getTextField("KEMSIS IDRow2").getText() ?? "").toBe("");
   });
 
-  it("paginates the E16 and renders no electronic signature", async () => {
+  it("paginates the E16", async () => {
     const attendee = snapshot.attendance[0];
     if (!attendee) throw new Error("fixture attendee is missing");
     const many: FinalizationSnapshot = {
@@ -250,9 +306,120 @@ describe("official roster PDF templates", () => {
         .getText(),
     ).toBe("2");
     expect(form.getTextField("of").getText()).toBe("2");
-    expect(
-      form.getFields().some((field) => /signature/i.test(field.getName())),
-    ).toBe(false);
+  });
+
+  it("prints instructor and confirmed attendee signatures", async () => {
+    const [attested, unattested] = snapshot.attendance;
+    if (!attested || !unattested) {
+      throw new Error("fixture attendees are missing");
+    }
+    const signed: FinalizationSnapshot = {
+      ...snapshot,
+      signature: {
+        name: "Xavier Quinn",
+        signedAt: "2026-09-05T18:00:00.000Z",
+        attestationVersion: "roster-attestation-001",
+      },
+      attendance: [
+        {
+          ...attested,
+          attendanceId: "attested-attendance",
+          attestedAt: "2026-09-05T17:00:00.000Z",
+        },
+        {
+          ...unattested,
+          attendanceId: "unattested-attendance",
+          attestedAt: null,
+        },
+      ],
+    };
+
+    expect(kbemsE16Signatures(signed, signed.attendance)).toEqual([
+      { kind: "instructor", row: 0, text: "Xavier Quinn" },
+      { kind: "attendee", row: 1, text: "Student0 Roster" },
+    ]);
+
+    const page = await renderKbemsE16Page(signed, signed.attendance, {
+      flatten: false,
+    });
+    expect(alluraTextRuns(page.getPage(0))).toBe(2);
+  });
+
+  it("prints attendee signatures from an older snapshot sign-in record", async () => {
+    const [attested, unattested] = snapshot.attendance;
+    if (!attested || !unattested) {
+      throw new Error("fixture attendees are missing");
+    }
+    const older: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: [
+        { ...attested, attendanceId: "older-attested", attestedAt: undefined },
+        {
+          ...unattested,
+          attendanceId: "older-unattested",
+          attestedAt: undefined,
+        },
+      ],
+      signInRecord: {
+        active: [
+          {
+            attendanceId: "older-attested",
+            attestation: { confirmedAt: "2026-09-05T17:00:00.000Z" },
+          },
+          { attendanceId: "older-unattested", attestation: null },
+        ],
+      },
+    };
+
+    expect(kbemsE16Signatures(older, older.attendance)).toEqual([
+      { kind: "attendee", row: 1, text: "Student0 Roster" },
+    ]);
+
+    const page = await renderKbemsE16Page(older, older.attendance, {
+      flatten: false,
+    });
+    expect(alluraTextRuns(page.getPage(0))).toBe(1);
+  });
+
+  it("leaves unattested and legacy E16 signature lines blank", async () => {
+    const legacy: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: snapshot.attendance.slice(0, 2).map((attendee) => ({
+        ...attendee,
+        attestedAt: null,
+      })),
+    };
+    expect(kbemsE16Signatures(legacy, legacy.attendance)).toEqual([]);
+
+    const page = await renderKbemsE16Page(legacy, legacy.attendance, {
+      flatten: false,
+    });
+    expect(alluraTextRuns(page.getPage(0))).toBe(0);
+  });
+
+  it("keeps attendee signatures aligned on each E16 page", async () => {
+    const attendee = snapshot.attendance[0];
+    if (!attendee) throw new Error("fixture attendee is missing");
+    const many: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: Array.from({ length: 17 }, (_, index) => ({
+        ...attendee,
+        attendanceId: `signed-attendance-${index}`,
+        firstName: `Signed Student ${index}`,
+        attestedAt: "2026-09-05T17:00:00.000Z",
+      })),
+    };
+    const pageTwoAttendees = many.attendance.slice(16);
+    expect(kbemsE16Signatures(many, pageTwoAttendees)).toEqual([
+      { kind: "attendee", row: 1, text: "Signed Student 16 Roster" },
+    ]);
+
+    const page = await renderKbemsE16Page(many, pageTwoAttendees, {
+      flatten: false,
+      page: 2,
+      pageCount: 2,
+    });
+    expect(alluraTextRuns(page.getPage(0))).toBe(1);
   });
 
   it("wraps long KFS-1A subject values across two lines at a larger size", async () => {

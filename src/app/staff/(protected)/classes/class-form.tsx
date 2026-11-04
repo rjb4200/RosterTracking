@@ -34,6 +34,7 @@ export function ClassForm({
   agencies,
   reportingSystems,
   trainingCodes = [],
+  initialCertificationPrograms = [],
   mtuCatalog = [],
   mtuActiveParticipantCount = 0,
   hideMtuUsage = false,
@@ -48,6 +49,10 @@ export function ClassForm({
   agencies: Option[];
   reportingSystems: Option[];
   trainingCodes?: Array<{ id: string; title: string; kind: string }>;
+  initialCertificationPrograms?: Array<{
+    id: string;
+    trainingCodeId: string;
+  }>;
   mtuCatalog?: MtuCatalogOption[];
   mtuActiveParticipantCount?: number;
   hideMtuUsage?: boolean;
@@ -82,9 +87,20 @@ export function ClassForm({
   const [deliveryMethods, setDeliveryMethods] = useState(() =>
     parseDeliveryMethods(values?.deliveryMethod ?? "classroom"),
   );
-  const emsCategories = trainingCodes.filter(
-    (category) => category.kind === "ems",
+  const [courseType, setCourseType] = useState(values?.courseType ?? "");
+  const initialCertificationCategoryIds = new Set(
+    initialCertificationPrograms.map((program) => program.trainingCodeId),
   );
+  const emsCategories = trainingCodes.filter((category) => {
+    if (category.kind !== "ems") return false;
+    if (courseType === "initial_certification") {
+      return (
+        initialCertificationCategoryIds.has(category.id) ||
+        category.id === values?.emsCategoryId
+      );
+    }
+    return !initialCertificationCategoryIds.has(category.id);
+  });
   const [mtuUsage, setMtuUsage] = useState(() =>
     mtuUsageValueFromDetail(values?.mtuUsage),
   );
@@ -211,7 +227,8 @@ export function ClassForm({
             id="courseType"
             name="courseType"
             className="select-input"
-            defaultValue={values?.courseType ?? ""}
+            value={courseType}
+            onChange={(event) => setCourseType(event.target.value)}
           >
             <option value="">No course type</option>
             <option value="continuing_education">Continuing education</option>

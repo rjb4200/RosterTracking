@@ -27,6 +27,19 @@ export interface TemplateFonts {
   unsubsettedFields?: readonly string[];
 }
 
+export interface SignatureLine {
+  x: number;
+  baselineY: number;
+  maxWidth: number;
+  fontSize: number;
+}
+
+export interface SignatureAreas {
+  instructor: SignatureLine;
+  attendeeRow1: SignatureLine;
+  rowGap: number;
+}
+
 export interface TemplateMapping {
   formType: DocumentType;
   templateVersion: string;
@@ -56,6 +69,10 @@ export interface TemplateMapping {
   centerFields?: readonly string[];
   // Embedded fonts for this template. Absent keeps the standard Helvetica path.
   fonts?: TemplateFonts;
+  // Bundled script face used for signatures drawn over static form lines.
+  signatureFont?: string;
+  // Static signature lines used when the approved form has no signature fields.
+  signatureAreas?: SignatureAreas;
 }
 
 export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
@@ -159,6 +176,22 @@ export const KBEMS_E16_TEMPLATE: TemplateMapping = {
       height: 21.12,
     },
   },
+  signatureFont: "Allura-Regular.ttf",
+  signatureAreas: {
+    instructor: {
+      x: 488.28,
+      baselineY: 57.5,
+      maxWidth: 268,
+      fontSize: 18,
+    },
+    attendeeRow1: {
+      x: 314.8,
+      baselineY: 451.2,
+      maxWidth: 198,
+      fontSize: 13,
+    },
+    rowGap: 22.56,
+  },
   fields: {
     courseName: "Course Name",
     instructor: "Instructor Name",
@@ -172,8 +205,8 @@ export const KBEMS_E16_TEMPLATE: TemplateMapping = {
     pageCount: "of",
   },
   wrapFields: ["Course Description or Objectives"],
-  // The supplied E16 has no electronic signature fields; its signature areas
-  // stay blank for physical signing.
+  // The supplied E16 has no signature fields; its static lines are signed by
+  // drawing the attested names over them.
   blankFields: [],
 };
 

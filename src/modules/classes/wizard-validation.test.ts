@@ -17,6 +17,7 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     kbemsCourseName: "",
     emsCategoryId: "",
     courseType: "",
+    initialCertificationProgramId: "",
     objectives: "",
     courseNumber: "",
     transportIds: [] as string[],
@@ -188,7 +189,7 @@ describe("wizard step validation", () => {
           objectives: "Initial EMT certification",
         }),
       ),
-    ).toEqual(["courseNumber"]);
+    ).toEqual(["initialCertificationProgramId", "courseNumber"]);
     expect(
       wizardStepErrors(
         "kbems",
@@ -196,11 +197,27 @@ describe("wizard step validation", () => {
           emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Initial",
           courseType: "initial_certification",
+          initialCertificationProgramId: "program-1",
           objectives: "Initial EMT certification",
           courseNumber: "EMS-100",
         }),
       ),
     ).toEqual([]);
+    // Fire cannot be combined with an initial-certification program.
+    expect(
+      wizardStepErrors(
+        "kbems",
+        base({
+          destinationCodes: ["fire", "kbems"],
+          emsCategoryId: "ems-1",
+          kbemsCourseName: "EMT Initial",
+          courseType: "initial_certification",
+          initialCertificationProgramId: "program-1",
+          objectives: "Initial EMT certification",
+          courseNumber: "EMS-100",
+        }),
+      ),
+    ).toEqual(["initialCertificationFireConflict"]);
     // The number's shape is advisory: a present but non-conforming value is
     // not reported by the blocking step validation.
     expect(
@@ -210,6 +227,7 @@ describe("wizard step validation", () => {
           emsCategoryId: "ems-1",
           kbemsCourseName: "EMT Initial",
           courseType: "initial_certification",
+          initialCertificationProgramId: "program-1",
           objectives: "Initial EMT certification",
           courseNumber: "not-a-code",
         }),

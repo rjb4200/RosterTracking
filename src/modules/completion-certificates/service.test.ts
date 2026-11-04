@@ -179,6 +179,27 @@ function pageText(page: PDFPage): string {
   return [...hex, ...literal].join("");
 }
 
+/** How many text draws on a page use the embedded Allura signature face. */
+function alluraTextRuns(page: PDFPage): number {
+  const fontResources = page.node
+    .Resources()
+    ?.lookup(PDFName.of("Font"), PDFDict);
+  if (!(fontResources instanceof PDFDict)) return 0;
+  const resourceNames = fontResources
+    .keys()
+    .map((key) => key.toString().replace(/^\//, ""))
+    .filter((name) => name.includes("Allura"));
+  if (!resourceNames.length) return 0;
+  const content = pageContent(page);
+  return resourceNames.reduce(
+    (count, name) =>
+      count +
+      [...content.matchAll(new RegExp(`/${name}\\s+[\\d.]+\\s+Tf`, "g"))]
+        .length,
+    0,
+  );
+}
+
 /** Number of document catalogs in a loaded PDF. */
 function documentCatalogCount(pdf: PDFDocument): number {
   let count = 0;
@@ -251,6 +272,25 @@ describe("completion certificates", () => {
     expect(certificateClassHours({ ...snapshot, components: undefined })).toBe(
       "2",
     );
+  });
+
+  it("uses an initial-certification program block's hours", () => {
+    const programSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          title: "EMT-B",
+          startsAt: "2026-08-01T08:00:00.000Z",
+          endsAt: "2026-08-08T00:00:00.000Z",
+          creditedHours: "160",
+        },
+      ],
+      attendance: snapshot.attendance.map((participant) => ({
+        ...participant,
+        creditedHours: "160",
+      })),
+    } satisfies FinalizationSnapshot;
+    expect(certificateClassHours(programSnapshot)).toBe("160");
   });
 
   it("detects a KBEMS destination", () => {
@@ -337,6 +377,29 @@ describe("completion certificates", () => {
     expect(documentCatalogCount(pdf)).toBe(1);
     expect(text).not.toContain("/EmbeddedFiles");
     expect(text).not.toContain("application#2Fc2pa");
+  });
+
+  it("puts signed E16 pages before the certificates and cover", async () => {
+    const signedPacket: FinalizationSnapshot = {
+      ...signedSnapshot,
+      attendance: signedSnapshot.attendance.map((participant) => ({
+        ...participant,
+        attestedAt: "2026-09-05T17:00:00.000Z",
+      })),
+    };
+    const pdf = await PDFDocument.load(
+      await renderCompletionCertificateBatch(signedPacket),
+    );
+    const pages = pdf.getPages();
+    const first = pages[0];
+    const last = pages.at(-1);
+    if (!first || !last) throw new Error("packet pages are missing");
+
+    // Instructor plus two attendee signatures.
+    expect(alluraTextRuns(first)).toBe(3);
+    expect(pageText(first)).toContain("KEMSIS ID");
+    expect(pageText(first)).not.toContain("Completion Certificates");
+    expect(pageText(last)).toContain("Completion Certificates");
   });
 
   it("paginates the E16 and cover for a large batch", async () => {
