@@ -345,6 +345,42 @@ describe("official roster PDF templates", () => {
     expect(alluraTextRuns(page.getPage(0))).toBe(2);
   });
 
+  it("prints attendee signatures from an older snapshot sign-in record", async () => {
+    const [attested, unattested] = snapshot.attendance;
+    if (!attested || !unattested) {
+      throw new Error("fixture attendees are missing");
+    }
+    const older: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: [
+        { ...attested, attendanceId: "older-attested", attestedAt: undefined },
+        {
+          ...unattested,
+          attendanceId: "older-unattested",
+          attestedAt: undefined,
+        },
+      ],
+      signInRecord: {
+        active: [
+          {
+            attendanceId: "older-attested",
+            attestation: { confirmedAt: "2026-09-05T17:00:00.000Z" },
+          },
+          { attendanceId: "older-unattested", attestation: null },
+        ],
+      },
+    };
+
+    expect(kbemsE16Signatures(older, older.attendance)).toEqual([
+      { kind: "attendee", row: 1, text: "Student0 Roster" },
+    ]);
+
+    const page = await renderKbemsE16Page(older, older.attendance, {
+      flatten: false,
+    });
+    expect(alluraTextRuns(page.getPage(0))).toBe(1);
+  });
+
   it("leaves unattested and legacy E16 signature lines blank", async () => {
     const legacy: FinalizationSnapshot = {
       ...snapshot,

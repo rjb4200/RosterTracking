@@ -130,6 +130,14 @@ export interface FinalizationSnapshot {
     ffn?: string | null;
     level?: number | null;
   }>;
+  // Frozen sign-in record. Revisions finalized before SnapshotAttendance carried
+  // `attestedAt` still retain each attendee's attestation here.
+  signInRecord?: {
+    active: Array<{
+      attendanceId: string;
+      attestation: { confirmedAt: string } | null;
+    }>;
+  };
   attendance: SnapshotAttendance[];
   fieldSnapshots: Array<{
     attendanceId: string;
@@ -602,8 +610,17 @@ export function kbemsE16Signatures(
   if (instructor) {
     signatures.push({ kind: "instructor", row: 0, text: instructor });
   }
+  // Older revisions carry the attestation on the frozen sign-in record rather
+  // than on SnapshotAttendance, so accept either source.
+  const signInAttested = new Set(
+    (snapshot.signInRecord?.active ?? [])
+      .filter((entry) => entry.attestation)
+      .map((entry) => entry.attendanceId),
+  );
   attendees.forEach((attendee, index) => {
-    if (!attendee.attestedAt) return;
+    if (!attendee.attestedAt && !signInAttested.has(attendee.attendanceId)) {
+      return;
+    }
     const name = attendeeName(attendee).trim();
     if (name) {
       signatures.push({ kind: "attendee", row: index + 1, text: name });

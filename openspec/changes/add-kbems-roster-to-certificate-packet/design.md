@@ -50,7 +50,7 @@ Alternative considered: use the Fire-eligible subset. Rejected because KBEMS inc
 
 ### Sign the E16 from recorded attestations
 
-The E16 has static signature lines but no AcroForm signature fields. Draw the recorded roster signer's name on the instructor line and each active attendee's name on that attendee's line only when the revision records a confirmed sign-in attestation. Preserve the per-attendee confirmation time as `attestedAt` on `SnapshotAttendance` from the existing `attendanceAttestations.confirmedAt` join at finalization. A manual or legacy attendance row without an attestation leaves its signature line blank.
+The E16 has static signature lines but no AcroForm signature fields. Draw the recorded roster signer's name on the instructor line and each active attendee's name on that attendee's line only when the revision records a confirmed sign-in attestation. Preserve the per-attendee confirmation time as `attestedAt` on `SnapshotAttendance` from the existing `attendanceAttestations.confirmedAt` join at finalization. Revisions finalized before `attestedAt` existed fall back to the confirmed attestation already frozen in the snapshot's sign-in record. A manual or legacy attendance row without an attestation leaves its signature line blank.
 
 Render the names with the bundled Allura signature face over the template's signature lines, fitting each name to the line. Add the signature-line coordinates to the E16 mapping; keep the approved PDF and its fields unchanged.
 
