@@ -23,6 +23,7 @@ import {
   setClassInstructors,
   transitionClass,
   updateClass,
+  updateClassMethodSet,
   updateClassMtuUsage,
 } from "@/modules/classes/services";
 import {
@@ -141,6 +142,7 @@ function readSubjects(formData: FormData) {
     .getAll("fireCurriculumChapter")
     .map(String);
   const lessonPlans = formData.getAll("fireLessonPlan").map(String);
+  const creditedHours = formData.getAll("fireSubjectCreditedHours").map(String);
   return codes
     .map((trainingCodeId, index) => ({
       trainingCodeId,
@@ -149,6 +151,7 @@ function readSubjects(formData: FormData) {
       curriculumName: curriculumNames[index] ?? "",
       curriculumChapter: curriculumChapters[index] ?? "",
       lessonPlan: lessonPlans[index] ?? "",
+      creditedHours: creditedHours[index] || undefined,
     }))
     .filter(
       (subject) =>
@@ -277,7 +280,6 @@ export async function saveComponentAction(
       curriculumName: read(formData, "curriculumName"),
       curriculumChapter: read(formData, "curriculumChapter"),
       lessonPlan: read(formData, "lessonPlan"),
-      method: read(formData, "method"),
     });
     revalidatePath(`/staff/classes/${classId}`);
     return { classId };
@@ -285,6 +287,29 @@ export async function saveComponentAction(
     return {
       error:
         error instanceof Error ? error.message : "Could not save component.",
+    };
+  }
+}
+
+export async function saveClassMethodAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  try {
+    await updateClassMethodSet(
+      getDatabase(),
+      actor,
+      classId,
+      read(formData, "deliveryMethod"),
+    );
+    revalidatePath(`/staff/classes/${classId}`);
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return { classId, success: "Methods saved." };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not save methods.",
     };
   }
 }

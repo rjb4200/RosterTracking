@@ -4,15 +4,15 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { componentMethodLabels } from "@/modules/classes/delivery-methods";
 import { formatHours } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
+import { ClassMethodForm } from "./class-method-form";
 import { ComponentForm } from "./component-form";
 import type { CurriculumChapterOption } from "./fire-subject-fields";
 import { useWorkspace } from "./workspace-areas";
 
-const FORM_ID = "session-form";
+const FORM_ID = "subject-form";
 
 export type ScheduleSession = {
   id: string;
@@ -20,6 +20,7 @@ export type ScheduleSession = {
   creditedHours: string;
   startsAtInput: string;
   startsAtLabel: string;
+  endsAtInput: string;
   endsAtLabel: string;
   trainingCodeId: string | null;
   className: string | null;
@@ -27,7 +28,6 @@ export type ScheduleSession = {
   curriculumName: string | null;
   curriculumChapter: string | null;
   lessonPlan: string | null;
-  method: string | null;
 };
 
 export type ScheduleEditor = {
@@ -35,6 +35,11 @@ export type ScheduleEditor = {
     prev: ActionState | undefined,
     formData: FormData,
   ) => Promise<ActionState>;
+  methodAction: (
+    prev: ActionState | undefined,
+    formData: FormData,
+  ) => Promise<ActionState>;
+  deliveryMethod: string;
   trainingCodes: Array<{
     id: string;
     code: string;
@@ -51,10 +56,9 @@ export type ScheduleEditor = {
   curriculumChapters: CurriculumChapterOption[];
   recentCurriculumIds: string[];
   defaultStartsAt: string;
-  defaultMethod?: string | null;
 };
 
-/** Shows one editable session while keeping the remaining schedule compact. */
+/** Shows one editable subject while keeping the remaining subjects compact. */
 export function ScheduleSessions({
   classId,
   sessions,
@@ -64,11 +68,14 @@ export function ScheduleSessions({
   sessions: ScheduleSession[];
   editor?: ScheduleEditor;
 }) {
+  const canAddSubject = Boolean(editor) && sessions.length < 2;
   const { confirmDiscard } = useWorkspace();
   const [selected, setSelected] = useState(() =>
-    editor ? (sessions[0]?.id ?? "new") : "",
+    editor ? (sessions[0]?.id ?? (canAddSubject ? "new" : "")) : "",
   );
   const selectedSession = sessions.find((session) => session.id === selected);
+  const newStartsAt =
+    sessions[sessions.length - 1]?.endsAtInput ?? editor?.defaultStartsAt ?? "";
 
   const choose = (next: string) => {
     if (next === selected) return;
@@ -77,6 +84,13 @@ export function ScheduleSessions({
 
   return (
     <>
+      {editor ? (
+        <ClassMethodForm
+          classId={classId}
+          value={editor.deliveryMethod}
+          action={editor.methodAction}
+        />
+      ) : null}
       <ul className="member-list">
         {sessions.map((session) => {
           const isEditing = Boolean(editor) && session.id === selected;
@@ -86,12 +100,9 @@ export function ScheduleSessions({
               className={isEditing ? "member-row is-editing" : "member-row"}
               aria-current={isEditing ? "true" : undefined}
             >
-              <span>{session.title ?? "Training session"}</span>
+              <span>{session.title ?? "Training subject"}</span>
               <span>
                 {session.startsAtLabel} to {session.endsAtLabel}
-              </span>
-              <span>
-                {componentMethodLabels(session.method) || "No method"}
               </span>
               <Badge variant="outline">
                 {formatHours(session.creditedHours)}
@@ -110,60 +121,56 @@ export function ScheduleSessions({
           );
         })}
       </ul>
-      {editor ? (
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => choose("new")}
-          >
-            Add session
-          </Button>
-          {selected === "new" || !selectedSession ? (
-            <ComponentForm
-              key="new"
-              classId={classId}
-              action={editor.action}
-              formId={FORM_ID}
-              hideSubmit
-              defaultStartsAt={editor.defaultStartsAt}
-              defaultMethod={editor.defaultMethod}
-              trainingCodes={editor.trainingCodes}
-              trainingCodeKind={editor.trainingCodeKind}
-              curricula={editor.curricula}
-              curriculumChapters={editor.curriculumChapters}
-              recentCurriculumIds={editor.recentCurriculumIds}
-            />
-          ) : (
-            <ComponentForm
-              key={selectedSession.id}
-              classId={classId}
-              action={editor.action}
-              formId={FORM_ID}
-              hideSubmit
-              component={{
-                id: selectedSession.id,
-                title: selectedSession.title,
-                creditedHours: selectedSession.creditedHours,
-                startsAt: selectedSession.startsAtInput,
-                trainingCodeId: selectedSession.trainingCodeId,
-                className: selectedSession.className,
-                curriculumId: selectedSession.curriculumId,
-                curriculumName: selectedSession.curriculumName,
-                curriculumChapter: selectedSession.curriculumChapter,
-                lessonPlan: selectedSession.lessonPlan,
-                method: selectedSession.method,
-              }}
-              defaultMethod={editor.defaultMethod}
-              trainingCodes={editor.trainingCodes}
-              trainingCodeKind={editor.trainingCodeKind}
-              curricula={editor.curricula}
-              curriculumChapters={editor.curriculumChapters}
-              recentCurriculumIds={editor.recentCurriculumIds}
-            />
-          )}
-        </>
+      {editor && canAddSubject ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => choose("new")}
+        >
+          Add subject
+        </Button>
+      ) : null}
+      {editor && canAddSubject && (selected === "new" || !selectedSession) ? (
+        <ComponentForm
+          key="new"
+          classId={classId}
+          action={editor.action}
+          formId={FORM_ID}
+          hideSubmit
+          defaultStartsAt={newStartsAt}
+          trainingCodes={editor.trainingCodes}
+          trainingCodeKind={editor.trainingCodeKind}
+          curricula={editor.curricula}
+          curriculumChapters={editor.curriculumChapters}
+          recentCurriculumIds={editor.recentCurriculumIds}
+        />
+      ) : null}
+      {editor && selectedSession && selected !== "new" ? (
+        <ComponentForm
+          key={selectedSession.id}
+          classId={classId}
+          action={editor.action}
+          formId={FORM_ID}
+          hideSubmit
+          component={{
+            id: selectedSession.id,
+            title: selectedSession.title,
+            creditedHours: selectedSession.creditedHours,
+            startsAt: selectedSession.startsAtInput,
+            trainingCodeId: selectedSession.trainingCodeId,
+            className: selectedSession.className,
+            curriculumId: selectedSession.curriculumId,
+            curriculumName: selectedSession.curriculumName,
+            curriculumChapter: selectedSession.curriculumChapter,
+            lessonPlan: selectedSession.lessonPlan,
+          }}
+          trainingCodes={editor.trainingCodes}
+          trainingCodeKind={editor.trainingCodeKind}
+          curricula={editor.curricula}
+          curriculumChapters={editor.curriculumChapters}
+          recentCurriculumIds={editor.recentCurriculumIds}
+        />
       ) : null}
     </>
   );

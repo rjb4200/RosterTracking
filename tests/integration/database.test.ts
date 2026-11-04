@@ -246,42 +246,64 @@ describeDatabase("database foundation", () => {
       replacementLead.id,
       true,
     );
+    const [existing] = await database
+      .select({ id: classComponents.id })
+      .from(classComponents)
+      .where(eq(classComponents.classId, created.classRecord.id))
+      .limit(1);
+    if (!existing) throw new Error("Initial class component was not created.");
     const component = await saveClassComponent(
       database,
       actor,
       created.classRecord.id,
       {
+        id: existing.id,
         title: "Session one",
         startsAt: "2026-09-10T13:00:00Z",
         creditedHours: 4,
         position: 0,
       },
     );
-    await expect(
-      saveClassComponent(database, actor, created.classRecord.id, {
-        title: "Different roster day",
+    const second = await saveClassComponent(
+      database,
+      actor,
+      created.classRecord.id,
+      {
+        title: "Second subject",
         startsAt: "2026-09-11T13:00:00Z",
-        creditedHours: 4,
+        creditedHours: 3,
         position: 1,
-      }),
-    ).rejects.toThrow(/one roster day/i);
-    // A start time near midnight rounds to the next day, which must still be
-    // rejected by the single-roster-day rule rather than silently accepted.
+      },
+    );
+    expect(second.startsAt).toEqual(component.endsAt);
     await expect(
       saveClassComponent(database, actor, created.classRecord.id, {
-        title: "Rounds into the next roster day",
-        startsAt: "2026-09-11T03:53:00Z",
-        creditedHours: 4,
+        title: "Third subject",
+        startsAt: "2026-09-11T13:00:00Z",
+        creditedHours: 1,
         position: 2,
       }),
-    ).rejects.toThrow(/one roster day/i);
+    ).rejects.toThrow(/at most two subjects/i);
     await saveClassComponent(database, actor, created.classRecord.id, {
       id: component.id,
-      title: "Updated session",
+      title: "Updated subject",
       startsAt: "2026-09-10T13:00:00Z",
       creditedHours: 4,
       position: 0,
     });
+    // A class whose duration crosses the department-calendar day is rejected.
+    await expect(
+      createOpenClass(database, actor, {
+        name: `Rounds past midnight ${suffix}`,
+        trainingSiteId: site.id,
+        hostAgencyId: agency.id,
+        deliveryMethod: "classroom",
+        startsAt: "2026-09-11T03:30:00Z",
+        creditedHours: 4,
+        leadInstructorId: actor.id,
+        reportingSystemIds: [system.id],
+      }),
+    ).rejects.toThrow(/one roster day/i);
     expect(
       await resolveOpenClassToken(database, created.rawToken),
     ).toMatchObject({ id: created.classRecord.id });

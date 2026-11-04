@@ -54,7 +54,6 @@ async function completeClassStep(
     .getByLabel("Training site", { exact: true })
     .selectOption(fixture.siteId);
   await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
-  await page.getByLabel("Scheduled duration").selectOption("4");
   await page.getByLabel("Host agency").selectOption(fixture.agencyId);
 }
 
@@ -94,12 +93,18 @@ test("captures a single Fire subject", async ({ page }) => {
     .getByLabel("Curriculum", { exact: true })
     .selectOption(fixture.curriculumId);
   await row1.getByLabel("Lesson plan").fill("Chapter 10 Hose & App.");
+  await row1.getByLabel("Subject duration").selectOption("4");
 
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await completeClassStep(page, fixture);
+  await expect(page.getByLabel("Scheduled duration")).toHaveCount(0);
+  await expect(
+    page.getByText("Set each subject's duration on the Fire step."),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   await expect(page.getByText("Review class")).toBeVisible();
+  await expect(page.getByText("Total 4h")).toBeVisible();
   await page.getByRole("button", { name: "Create & open" }).click();
   await expect(page.getByText("Class is open")).toBeVisible();
 });
@@ -131,6 +136,7 @@ test("captures a second Fire subject", async ({ page }) => {
     .getByLabel("Category", { exact: true })
     .selectOption(fixture.trainingCodeId);
   await row1.getByLabel("Lesson plan").fill("Chapter 10");
+  await row1.getByLabel("Subject duration").selectOption("1.5");
 
   await page.getByRole("button", { name: "Add second subject" }).click();
   const row2 = subjectRow(page, 2);
@@ -138,12 +144,18 @@ test("captures a second Fire subject", async ({ page }) => {
     .getByLabel("Category", { exact: true })
     .selectOption(fixture.trainingCodeId);
   await row2.getByLabel("Class name").fill("SCBA Donning");
+  await row2.getByLabel("Subject duration").selectOption("0.5");
 
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await completeClassStep(page, fixture);
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   await expect(page.getByText("Review class")).toBeVisible();
+  await expect(page.getByText("Total 2h")).toBeVisible();
+  await expect(page.getByText(/Hose Loads: .*9:00 AM.*10:30 AM/)).toBeVisible();
+  await expect(
+    page.getByText(/SCBA Donning: .*10:30 AM.*11:00 AM/),
+  ).toBeVisible();
   await expect(page.getByText("Hose Loads, SCBA Donning")).toBeVisible();
   await page.getByRole("button", { name: "Create & open" }).click();
   await expect(page.getByText("Class is open")).toBeVisible();

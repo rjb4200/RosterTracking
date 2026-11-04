@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
-import { defaultComponentMethod } from "@/modules/classes/delivery-methods";
 import { getFinalizationHistory } from "@/modules/classes/finalization";
 import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import type { MtuUsage } from "@/modules/classes/mtu";
@@ -38,6 +37,7 @@ import {
   finalizeClassAction,
   reopenClassAction,
   resendParticipantCertificateAction,
+  saveClassMethodAction,
   saveComponentAction,
   saveInstructorsAction,
   sendOfficialRosterEmailAction,
@@ -592,17 +592,17 @@ export default async function ClassReviewPage({
               label="Schedule & hours"
               summary={
                 <>
-                  {classRecord.components.length} session
-                  {classRecord.components.length === 1 ? "" : "s"} ·{" "}
+                  {classRecord.components.length} subject
+                  {classRecord.components.length === 1 ? "" : "s"} A�{" "}
                   {formatHours(roster.scheduledHours)}
                 </>
               }
             >
               <p className="roster-note">
-                A class that ran long is recorded by raising a session&apos;s
-                credited hours. Everyone still credited at the full total
-                follows the new total; a participant already adjusted down keeps
-                their value.
+                A class that ran long is recorded by raising a subject&apos;s
+                duration. Everyone still credited at the full total follows the
+                new total; a participant already adjusted down keeps their
+                value.
               </p>
               <ScheduleSessions
                 classId={classRecord.id}
@@ -614,6 +614,7 @@ export default async function ClassReviewPage({
                     component.startsAt,
                   ),
                   startsAtLabel: formatDepartmentDateTime(component.startsAt),
+                  endsAtInput: formatDepartmentDateTimeInput(component.endsAt),
                   endsAtLabel: formatDepartmentDateTime(component.endsAt),
                   trainingCodeId: component.trainingCodeId ?? null,
                   className: component.className ?? null,
@@ -621,12 +622,13 @@ export default async function ClassReviewPage({
                   curriculumName: component.curriculumName ?? null,
                   curriculumChapter: component.curriculumChapter ?? null,
                   lessonPlan: component.lessonPlan ?? null,
-                  method: component.method ?? null,
                 }))}
                 editor={
                   classOptions
                     ? {
                         action: saveComponentAction,
+                        methodAction: saveClassMethodAction,
+                        deliveryMethod: classRecord.deliveryMethod,
                         trainingCodes: classOptions.trainingCodes,
                         trainingCodeKind: componentKind,
                         curricula: classOptions.curricula,
@@ -634,9 +636,6 @@ export default async function ClassReviewPage({
                         recentCurriculumIds: classOptions.recentCurriculumIds,
                         defaultStartsAt: roundDepartmentDateTimeToQuarterHour(
                           new Date(),
-                        ),
-                        defaultMethod: defaultComponentMethod(
-                          classRecord.deliveryMethod,
                         ),
                       }
                     : undefined

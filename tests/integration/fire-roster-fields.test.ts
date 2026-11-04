@@ -97,6 +97,7 @@ async function createFireClassFixture(
   db: Db,
   suffix: string,
   deliveryMethod = "classroom",
+  subjectHours: [number, number] = [4, 4],
 ) {
   const instructor = await createInstructor(db, suffix);
   const [site] = await db
@@ -145,12 +146,14 @@ async function createFireClassFixture(
         className: "Hose Loads",
         curriculumId: curriculum.id,
         lessonPlan: "Chapter 10 Hose & App.",
+        creditedHours: subjectHours[0],
       },
       {
         trainingCodeId: trainingCode.id,
         className: "SCBA Donning",
         curriculumId: "",
         lessonPlan: "",
+        creditedHours: subjectHours[1],
       },
     ],
   });
@@ -269,6 +272,29 @@ describeDatabase("fire roster fields", () => {
     expect(second?.startsAt).toEqual(first?.endsAt);
   });
 
+  it("derives subject times and the class total from per-subject durations", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId } = await createFireClassFixture(
+      db,
+      crypto.randomUUID(),
+      "classroom",
+      [1.5, 0.5],
+    );
+
+    const detail = await getClassDetail(db, instructor, classId);
+    const [first, second] = detail.components;
+    expect(Number(first?.creditedHours)).toBe(1.5);
+    expect(Number(second?.creditedHours)).toBe(0.5);
+    expect(second?.startsAt).toEqual(first?.endsAt);
+    expect(
+      detail.components.reduce(
+        (sum, component) => sum + Number(component.creditedHours),
+        0,
+      ),
+    ).toBe(2);
+  });
+
   it("re-derives the KFS-1A method when the delivery method changes", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
@@ -318,7 +344,7 @@ describeDatabase("fire roster fields", () => {
     ]);
   });
 
-  it("preserves a session method that differs from the delivery default", async () => {
+  it("applies the class method set to every subject", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const { instructor, classId } = await createFireClassFixture(
@@ -327,7 +353,8 @@ describeDatabase("fire roster fields", () => {
     );
     const before = await getClassDetail(db, instructor, classId);
     const [first, second] = before.components;
-    if (!first || !second) throw new Error("Sessions were not created.");
+    if (!first || !second) throw new Error("Subjects were not created.");
+    // A stale per-subject value is normalized on the next class save.
     await db
       .update(classComponents)
       .set({ method: "ho" })
@@ -344,10 +371,10 @@ describeDatabase("fire roster fields", () => {
     });
 
     const after = await getClassDetail(db, instructor, classId);
-    expect(after.components.find((c) => c.id === first.id)?.method).toBe("ho");
-    expect(after.components.find((c) => c.id === second.id)?.method).toBe(
+    expect(after.components.map((component) => component.method)).toEqual([
       "cr,ol",
-    );
+      "cr,ol",
+    ]);
 
     const listed = await listClasses(db, instructor, {
       status: "open",
@@ -355,9 +382,55 @@ describeDatabase("fire roster fields", () => {
     });
     expect(
       listed.find((classRecord) => classRecord.id === classId)?.deliveryMethod,
-    ).toBe("classroom,hands_on,online");
+    ).toBe("classroom,online");
     const signInRecord = await getClassSignInRecord(db, instructor, classId);
-    expect(signInRecord.deliveryMethod).toBe("classroom,hands_on,online");
+    expect(signInRecord.deliveryMethod).toBe("classroom,online");
+  });
+
+  it("normalizes a gapped, mixed-method class on subject save", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId } = await createFireClassFixture(
+      db,
+      crypto.randomUUID(),
+    );
+    const before = await getClassDetail(db, instructor, classId);
+    const [first, second] = before.components;
+    if (!first || !second) throw new Error("Subjects were not created.");
+
+    await db
+      .update(classComponents)
+      .set({
+        startsAt: new Date(second.startsAt.getTime() + 60 * 60 * 1000),
+        endsAt: new Date(second.endsAt.getTime() + 60 * 60 * 1000),
+        method: "ol",
+      })
+      .where(eq(classComponents.id, second.id));
+    await db
+      .update(classComponents)
+      .set({ method: "ho" })
+      .where(eq(classComponents.id, first.id));
+
+    await saveClassComponent(db, instructor, classId, {
+      id: second.id,
+      startsAt: formatDepartmentDateTimeInput(second.startsAt),
+      creditedHours: 1,
+      position: 1,
+    });
+
+    const after = await getClassDetail(db, instructor, classId);
+    const normalizedFirst = after.components.find(
+      (component) => component.id === first.id,
+    );
+    const normalizedSecond = after.components.find(
+      (component) => component.id === second.id,
+    );
+    expect(normalizedSecond?.startsAt).toEqual(normalizedFirst?.endsAt);
+    expect(Number(normalizedSecond?.creditedHours)).toBe(1);
+    expect(after.components.map((component) => component.method)).toEqual([
+      "cr",
+      "cr",
+    ]);
   });
 
   it("stores quarter-hour session durations and rejects other increments", async () => {
@@ -378,10 +451,20 @@ describeDatabase("fire roster fields", () => {
       method: first.method ?? "cr",
     });
     const after = await getClassDetail(db, instructor, classId);
+    const edited = after.components.find(
+      (component) => component.id === first.id,
+    );
+    const following = after.components.find(
+      (component) => component.id !== first.id,
+    );
+    expect(edited?.creditedHours).toBe("2.25");
+    expect(following?.startsAt).toEqual(edited?.endsAt);
     expect(
-      after.components.find((component) => component.id === first.id)
-        ?.creditedHours,
-    ).toBe("2.25");
+      after.components.reduce(
+        (sum, component) => sum + Number(component.creditedHours),
+        0,
+      ),
+    ).toBe(6.25);
 
     await expect(
       saveClassComponent(db, instructor, classId, {
