@@ -20,6 +20,6 @@
 
 - [x] 4.1 Run `npm run check` and `npm run test`.
 - [x] 4.2 Run `openspec validate fix-pdf-attachment-content-type --strict`.
-- [ ] 4.3 Deploy, resend one completion certificate, and confirm the attachment is recognized by an iPhone mail client.
-- [ ] 4.4 Confirm the same attachment still opens on a desktop client.
-- [ ] 4.5 If the iPhone still refuses the PDF, verify the generated PDF separately before treating the MIME change as complete.
+- [x] 4.3 Deploy, resend one completion certificate, and confirm the attachment is recognized by an iPhone mail client.
+- [x] 4.4 Confirm the same attachment still opens on a desktop client.
+- [x] 4.5 If the iPhone still refuses the PDF, verify the generated PDF separately before treating the MIME change as complete.
