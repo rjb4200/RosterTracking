@@ -4,7 +4,7 @@
 
 See proposal.md — Why. The KBEMS-E16 template (`kbems-e16-september-2012.pdf`) is still tracked, but its mapping and generator were removed in `b85e7dd` when EMS completion certificates were introduced. The certificate batch currently renders a generated student-list cover followed by one certificate per participant; the cover stops after roughly 22 rows.
 
-The finalization revision already preserves the class name, objectives, one-day subject components, attendance, and credential snapshots. The certificate batch is generated on demand from that revision and no bytes are retained.
+The finalization revision already preserves the class name, objectives, one-day subject components, attendance, credential snapshots, and the roster signature. It does not yet preserve each attendee's attestation confirmation in the E16-facing attendance snapshot, even though the finalization query already joins `attendanceAttestations` and reads `confirmedAt`. The certificate batch is generated on demand from that revision and no bytes are retained.
 
 ## Goals / Non-Goals
 
@@ -12,11 +12,13 @@ The finalization revision already preserves the class name, objectives, one-day 
 - Restore the E16 as a generated roster document for KBEMS classes.
 - Make the E16 the first pages of the existing certificate batch, with the cover moved to the end and paginated.
 - Use one-day aggregate schedule facts so the E16 matches the app's single-roster-day model.
+- Print the instructor and attendee signatures from recorded attestations.
 - Keep the existing certificate-batch authority and keep the roster out of participant emails.
 
 **Non-Goals:**
 - No standalone E16 document action or API route.
 - No database, migration, permission, or email-template changes.
+- No separate typed-signature capture at login and no change to the approved E16 template.
 - No change to KFS-1A or individual training notice output.
 - No schedule simplification in this change; the E16 aggregates the current subject components.
 
@@ -46,11 +48,13 @@ The E16 uses the KBEMS inclusion rule: every active attendee appears, with name,
 
 Alternative considered: use the Fire-eligible subset. Rejected because KBEMS includes every attendee.
 
-### Leave the E16 physical signature areas blank
+### Sign the E16 from recorded attestations
 
-The supplied E16 template has no electronic signature fields. Render the class and attendee facts and leave all signature areas blank for physical signing. Attendance is already recorded through sign-in, the audit log, and the roster attestation.
+The E16 has static signature lines but no AcroForm signature fields. Draw the recorded roster signer's name on the instructor line and each active attendee's name on that attendee's line only when the revision records a confirmed sign-in attestation. Preserve the per-attendee confirmation time as `attestedAt` on `SnapshotAttendance` from the existing `attendanceAttestations.confirmedAt` join at finalization. A manual or legacy attendance row without an attestation leaves its signature line blank.
 
-Alternative considered: add a signature field or reproduce attendee initials. Rejected because that changes the approved form and an initial in a signature field is a different claim.
+Render the names with the bundled Allura signature face over the template's signature lines, fitting each name to the line. Add the signature-line coordinates to the E16 mapping; keep the approved PDF and its fields unchanged.
+
+Alternative considered: add a separate typed-signature field at login. Rejected because the selected behavior is the attested name, and a new field would require login, schema, and UI changes. Alternative considered: modify the approved E16 to add signature fields. Rejected because it changes the official form. Alternative considered: print initials. Rejected because an initial is a different claim from the attested name.
 
 ### Packet order: roster, certificates, paginated cover
 
@@ -70,15 +74,18 @@ Alternative considered: gate the roster to Training Majors only. Rejected as unn
 - [A class has more attendees than one E16 page] → Reuse the 16-row page capacity and paginate with page numbers; test overflow.
 - [The cover page previously truncated] → Paginate the cover with repeated headers and test a class larger than one page.
 - [Fire + KBEMS classes get both a KFS-1A and an E16] → Accepted redundancy; the KFS-1A remains the Fire document and the E16 is the KBEMS roster inside the packet.
-- [The E16 signature lines are blank] → The form is physically signed, consistent with the existing sign-in and audit evidence; the template has no electronic signature fields.
+- [An attested attendee name is not a distinct handwritten signature] → The sign-in attestation remains the evidence; the printed name is gated by that attestation and stays blank without it.
+- [Legacy or manual attendance has no confirmation timestamp] → Leave attendee signatures blank; no backfill.
 
 ## Migration Plan
 
-1. Restore the E16 mapping and generator.
-2. Add the E16 pages to the certificate batch and move/paginate the cover.
-3. Add unit and PDF tests; validate the packet order and field values.
-4. Deploy the code. No database migration or backfill is required.
-5. Rollback: revert the code change; existing revisions and certificates are unaffected.
+1. Restore the E16 mapping and generator, including signature-line coordinates.
+2. Preserve each attendee's confirmed attestation timestamp in the signed snapshot.
+3. Draw the instructor and attendee signatures from those attestations.
+4. Add the E16 pages to the certificate batch and move/paginate the cover.
+5. Add unit and PDF tests; validate the packet order, field values, and signature boundaries.
+6. Deploy the code. New revisions carry `attestedAt`; older revisions render blank attendee signatures. No database migration or backfill is required.
+7. Rollback: revert the code change; existing revisions and certificates are unaffected.
 
 ## Open Questions
 

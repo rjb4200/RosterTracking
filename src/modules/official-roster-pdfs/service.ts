@@ -8,6 +8,8 @@ import {
   PDFDocument,
   type PDFFont,
   PDFName,
+  type PDFPage,
+  rgb,
   StandardFonts,
   TextAlignment,
 } from "pdf-lib";
@@ -65,6 +67,10 @@ export interface SnapshotAttendance {
   // Frozen at finalization: the attendee had a valid FFN. Absent on revisions
   // that predate this fact, where it is derived from the credential snapshots.
   fireEligible?: boolean;
+  // Frozen at finalization: the attendee confirmed the sign-in attestation.
+  // Absent on revisions that predate this fact, so their signature lines stay
+  // blank.
+  attestedAt?: string | null;
 }
 
 export interface FinalizationSnapshot {
@@ -575,8 +581,75 @@ function kbemsRosterSchedule(
   };
 }
 
+export interface KbemsE16Signature {
+  kind: "instructor" | "attendee";
+  // 1-based attendee row; 0 for the instructor line.
+  row: number;
+  text: string;
+}
+
+/**
+ * The names the E16 is entitled to print: the recorded roster signer and the
+ * name of each attendee whose sign-in attestation was confirmed at
+ * finalization. Missing facts leave the corresponding line blank.
+ */
+export function kbemsE16Signatures(
+  snapshot: FinalizationSnapshot,
+  attendees: SnapshotAttendance[],
+): KbemsE16Signature[] {
+  const signatures: KbemsE16Signature[] = [];
+  const instructor = snapshot.signature?.name.trim();
+  if (instructor) {
+    signatures.push({ kind: "instructor", row: 0, text: instructor });
+  }
+  attendees.forEach((attendee, index) => {
+    if (!attendee.attestedAt) return;
+    const name = attendeeName(attendee).trim();
+    if (name) {
+      signatures.push({ kind: "attendee", row: index + 1, text: name });
+    }
+  });
+  return signatures;
+}
+
+const MIN_SIGNATURE_FONT_SIZE = 7;
+
+function fitSignatureFontSize(
+  font: PDFFont,
+  text: string,
+  maxWidth: number,
+  maxSize: number,
+): number {
+  let size = maxSize;
+  while (
+    size > MIN_SIGNATURE_FONT_SIZE &&
+    font.widthOfTextAtSize(text, size) > maxWidth
+  ) {
+    size -= 0.5;
+  }
+  return size;
+}
+
+function drawSignatureLine(
+  page: PDFPage,
+  font: PDFFont,
+  line: { x: number; baselineY: number; maxWidth: number; fontSize: number },
+  text: string,
+) {
+  const value = text.trim();
+  if (!value) return;
+  page.drawText(value, {
+    x: line.x,
+    y: line.baselineY,
+    size: fitSignatureFontSize(font, value, line.maxWidth, line.fontSize),
+    font,
+    color: rgb(0, 0, 0),
+  });
+}
+
 function fillKbemsPage(
   pdf: PDFDocument,
+  fonts: TemplateRenderFonts,
   snapshot: FinalizationSnapshot,
   attendees: SnapshotAttendance[],
   schedule: KbemsRosterSchedule,
@@ -608,6 +681,23 @@ function fillKbemsPage(
     );
     setText(pdf, `Affiliated ServiceRow${row}`, attendee.agencyName);
   });
+
+  const signatureFont = fonts.signature;
+  const signatureAreas = mapping.signatureAreas;
+  const signaturePage = pdf.getPages()[0];
+  if (!signatureFont || !signatureAreas || !signaturePage) return;
+  for (const signature of kbemsE16Signatures(snapshot, attendees)) {
+    const line =
+      signature.kind === "instructor"
+        ? signatureAreas.instructor
+        : {
+            ...signatureAreas.attendeeRow1,
+            baselineY:
+              signatureAreas.attendeeRow1.baselineY -
+              (signature.row - 1) * signatureAreas.rowGap,
+          };
+    drawSignatureLine(signaturePage, signatureFont, line, signature.text);
+  }
 }
 
 /**
@@ -622,9 +712,10 @@ export async function renderKbemsE16Page(
   const schedule = kbemsRosterSchedule(snapshot);
   return renderPage(
     KBEMS_E16_TEMPLATE,
-    (pdf) =>
+    (pdf, fonts) =>
       fillKbemsPage(
         pdf,
+        fonts,
         snapshot,
         attendees,
         schedule,
@@ -675,6 +766,8 @@ export interface TemplateRenderFonts {
   body: PDFFont;
   // Resolves the face a named field renders in.
   forField: (name: string) => PDFFont;
+  // The script face drawn over static signature lines, when the mapping has one.
+  signature?: PDFFont;
 }
 
 /**
@@ -716,9 +809,14 @@ export async function renderPage(
       }),
     );
   }
+  // Allura's subsetter drops glyph outlines, so signatures embed the full face.
+  const signatureFont = mapping.signatureFont
+    ? await embedTemplateFont(pdf, mapping.signatureFont, { subset: false })
+    : undefined;
   const fonts: TemplateRenderFonts = {
     body: bodyFont,
     forField: (name) => overrideFonts.get(name) ?? bodyFont,
+    signature: signatureFont,
   };
 
   await fill(pdf, fonts);

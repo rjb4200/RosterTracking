@@ -362,6 +362,7 @@ async function buildSnapshot(
       guestFirstName: entry.guestFirstName,
       guestLastName: entry.guestLastName,
       email: entry.studentEmail ?? entry.guestEmail ?? null,
+      attestedAt: entry.attestedAt ? entry.attestedAt.toISOString() : null,
       fireEligible: isFireEligibleFromSnapshots(
         { attendance: [], fieldSnapshots, credentialSnapshots },
         entry.attendanceId,

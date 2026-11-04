@@ -10,12 +10,14 @@ import {
   reopenFinalizedClass,
 } from "../../src/modules/classes/finalization";
 import { createOpenClass } from "../../src/modules/classes/services";
+import { decryptCredential } from "../../src/modules/reference/crypto";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
   agencies,
   attendance,
+  attendanceAttestations,
   attendanceReportingContexts,
   finalizationReportingStatuses,
   finalizationRevisions,
@@ -200,6 +202,50 @@ describeDatabase("digital roster signing", () => {
     expect(row?.signedByUserId).toBe(lead.id);
     expect(row?.signedAt).toBeInstanceOf(Date);
     expect(row?.attestationVersion).toBe(ROSTER_ATTESTATION_VERSION);
+    await retireRevision(db, revision.id);
+  });
+
+  it("preserves the confirmed sign-in attestation in the finalized snapshot", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { lead, classId } = await createRosterReadyClass(
+      db,
+      crypto.randomUUID().slice(0, 8),
+    );
+    const [record] = await db
+      .select({ id: attendance.id })
+      .from(attendance)
+      .where(eq(attendance.classId, classId));
+    if (!record) throw new Error("Roster attendance fixture is missing.");
+
+    const confirmedAt = new Date("2026-09-10T13:30:00.000Z");
+    await db.insert(attendanceAttestations).values({
+      attendanceId: record.id,
+      renderedText: "I confirm that I am Zoe Zeta and attended this class.",
+      textVersion: 1,
+      confirmedAt,
+      signInMethod: "current_phone",
+      originatingIp: "203.0.113.10",
+      requestSourceFingerprint: "fixture-source",
+      requestCorrelationId: "fixture-correlation",
+    });
+
+    const revision = await finalizeClass(db, lead, classId, {
+      certified: true,
+      typedName: "Ada Lead",
+    });
+    const [row] = await db
+      .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
+      .from(finalizationRevisions)
+      .where(eq(finalizationRevisions.id, revision.id));
+    if (!row) throw new Error("Finalization revision was not stored.");
+    const snapshot = JSON.parse(decryptCredential(row.encryptedSnapshot)) as {
+      attendance: Array<{ attendanceId: string; attestedAt?: string | null }>;
+    };
+    expect(snapshot.attendance[0]).toMatchObject({
+      attendanceId: record.id,
+      attestedAt: confirmedAt.toISOString(),
+    });
     await retireRevision(db, revision.id);
   });
 

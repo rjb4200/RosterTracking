@@ -53,17 +53,25 @@ The system SHALL print every active attendee of the finalized KBEMS revision on 
 - **WHEN** a participant's attendance was removed before finalization
 - **THEN** the E16 omits that participant
 
-### Requirement: KBEMS-E16 leaves physical signature areas blank
-The KBEMS-E16 template has no electronic signature fields. The system SHALL NOT render an electronic signature on the E16 and SHALL leave its instructor and attendee signature areas blank for physical signing.
+### Requirement: KBEMS-E16 prints electronic signatures from attestations
+The system SHALL print the recorded roster signer's name on the E16 instructor signature line. It SHALL print each active attendee's name on that attendee's signature line only when the finalized revision records a confirmed sign-in attestation. A signature line SHALL remain blank when the corresponding attestation is absent.
 
-#### Scenario: Do not render an electronic signature
-- **WHEN** the E16 is generated for a revision with a roster attestation
-- **THEN** no electronic signature or typed signer name is written into a signature area
+#### Scenario: Print the instructor signature
+- **WHEN** the finalized revision records a roster signature by "Xavier Quinn"
+- **THEN** the E16 instructor signature line shows "Xavier Quinn"
 
-#### Scenario: Leave attendee signature lines blank
-- **WHEN** the E16 is generated
-- **THEN** every attendee signature area remains blank for physical signing
+#### Scenario: Print attendee signatures
+- **WHEN** an active attendee has a confirmed sign-in attestation in the finalized revision
+- **THEN** that attendee's signature line shows the attendee's name
 
-#### Scenario: Keep the legacy blank signature
-- **WHEN** a legacy revision predates attestations and has no recorded signature
-- **THEN** the E16 still leaves its signature areas blank
+#### Scenario: Leave an unattested attendee blank
+- **WHEN** an active attendee has no confirmed sign-in attestation in the finalized revision
+- **THEN** that attendee's signature line remains blank
+
+#### Scenario: Keep a legacy signature area blank
+- **WHEN** a legacy revision has no roster signature or attendee attestation
+- **THEN** the corresponding E16 signature lines remain blank
+
+#### Scenario: Keep signatures aligned across pages
+- **WHEN** the E16 paginates attendees across multiple pages
+- **THEN** each attendee's signature appears on the same row as that attendee
