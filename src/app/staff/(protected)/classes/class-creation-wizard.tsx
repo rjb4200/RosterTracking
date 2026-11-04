@@ -84,6 +84,7 @@ export function ClassCreationWizard({
   reportingSystems,
   inclusionRules,
   trainingCodes,
+  initialCertificationPrograms = [],
   agencyTags,
   curricula,
   curriculumChapters,
@@ -128,6 +129,13 @@ export function ClassCreationWizard({
     isPinned: boolean;
     mapsToId: string | null;
   }>;
+  initialCertificationPrograms?: Array<{
+    id: string;
+    code: string;
+    title: string;
+    hours: string;
+    trainingCodeId: string;
+  }>;
   agencyTags: Array<{ id: string; code: string; name: string }>;
   curricula: Array<{
     id: string;
@@ -169,6 +177,7 @@ export function ClassCreationWizard({
     objectives: "",
     courseType: "",
     courseNumber: "",
+    initialCertificationProgramId: "",
     mtuUsage: emptyMtuUsageValue(),
   });
   const [subjects, setSubjects] = useState<FireSubjectValue[]>(() => [
@@ -288,6 +297,38 @@ export function ClassCreationWizard({
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  function updateCourseType(nextCourseType: string) {
+    setValues((current) => ({
+      ...current,
+      courseType: nextCourseType,
+      initialCertificationProgramId:
+        nextCourseType === "initial_certification"
+          ? ""
+          : current.initialCertificationProgramId,
+      emsCategoryId:
+        nextCourseType === "initial_certification"
+          ? ""
+          : current.initialCertificationProgramId
+            ? ""
+            : current.emsCategoryId,
+    }));
+  }
+
+  function selectInitialCertificationProgram(programId: string) {
+    const program = initialCertificationPrograms.find(
+      (entry) => entry.id === programId,
+    );
+    setValues((current) => ({
+      ...current,
+      initialCertificationProgramId: programId,
+      emsCategoryId: program?.trainingCodeId ?? "",
+      kbemsCourseName: program?.title ?? current.kbemsCourseName,
+      creditedHours: program
+        ? String(Number(program.hours))
+        : current.creditedHours,
+    }));
+  }
+
   function toggleDeliveryMethod(method: string, selected: boolean) {
     update(
       "deliveryMethods",
@@ -299,13 +340,18 @@ export function ClassCreationWizard({
 
   const fireSelected = selectedCodes.includes("fire");
   const kbemsSelected = selectedCodes.includes("kbems");
+  const initialCertificationProgram = initialCertificationPrograms.find(
+    (program) => program.id === values.initialCertificationProgramId,
+  );
   const fireClassHours = subjects.reduce(
     (sum, subject) => sum + Number(subject.creditedHours || 0),
     0,
   );
-  const effectiveCreditedHours = fireSelected
-    ? String(fireClassHours)
-    : values.creditedHours;
+  const effectiveCreditedHours = initialCertificationProgram
+    ? String(Number(initialCertificationProgram.hours))
+    : fireSelected
+      ? String(fireClassHours)
+      : values.creditedHours;
   const classStartLabel = values.startsAt
     ? formatDepartmentDateTime(parseDepartmentDateTime(values.startsAt))
     : "";
@@ -332,8 +378,14 @@ export function ClassCreationWizard({
   const fireCategories = trainingCodes.filter(
     (category) => category.kind === "fire",
   );
-  const emsCategories = trainingCodes.filter(
+  const initialCertificationCategoryIds = new Set(
+    initialCertificationPrograms.map((program) => program.trainingCodeId),
+  );
+  const allEmsCategories = trainingCodes.filter(
     (category) => category.kind === "ems",
+  );
+  const emsCategories = allEmsCategories.filter(
+    (category) => !initialCertificationCategoryIds.has(category.id),
   );
   const emsCategoryOptions: SearchSelectOption[] = emsCategories.map(
     (category) => ({
@@ -342,7 +394,7 @@ export function ClassCreationWizard({
       group: category.isPinned ? "Pinned" : "All categories",
     }),
   );
-  const selectedEmsCategory = emsCategories.find(
+  const selectedEmsCategory = allEmsCategories.find(
     (category) => category.id === values.emsCategoryId,
   );
 
@@ -453,6 +505,7 @@ export function ClassCreationWizard({
     kbemsCourseName: values.kbemsCourseName,
     emsCategoryId: values.emsCategoryId,
     courseType: values.courseType,
+    initialCertificationProgramId: values.initialCertificationProgramId,
     objectives: values.objectives,
     courseNumber: values.courseNumber,
     transportIds: values.mtuUsage.transportIds,
@@ -621,30 +674,74 @@ export function ClassCreationWizard({
       {currentKey === "kbems" ? (
         <section className="stack-form">
           <h2>KBEMS reporting</h2>
-          <SearchSelect
-            id="emsCategoryId"
-            label="Category"
-            placeholder="Search EMS categories…"
-            emptyLabel="Select an EMS category"
-            required
-            invalid={errors.includes("emsCategoryId")}
-            options={emsCategoryOptions}
-            value={values.emsCategoryId}
-            onChange={(nextId) => {
-              const selected = emsCategories.find(
-                (category) => category.id === nextId,
-              );
-              setEmsCategoryTouched(true);
-              update("emsCategoryId", nextId);
-              setValues((current) => ({
-                ...current,
-                emsCategoryId: nextId,
-                kbemsCourseName: selected
-                  ? selected.title
-                  : current.kbemsCourseName,
-              }));
-            }}
-          />
+          {values.courseType === "initial_certification" ? (
+            <>
+              <div className="field">
+                <Label htmlFor="initialCertificationProgramId">
+                  Initial certification program
+                  <span className="required-mark" aria-hidden="true">
+                    {" "}
+                    *
+                  </span>
+                </Label>
+                <select
+                  id="initialCertificationProgramId"
+                  className="select-input"
+                  value={values.initialCertificationProgramId}
+                  onChange={(event) =>
+                    selectInitialCertificationProgram(event.target.value)
+                  }
+                  aria-invalid={
+                    errors.includes("initialCertificationProgramId") ||
+                    undefined
+                  }
+                  required
+                >
+                  <option value="">Select a program</option>
+                  {initialCertificationPrograms.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.title} ({formatHours(program.hours)})
+                    </option>
+                  ))}
+                </select>
+                {errors.includes("initialCertificationProgramId") ? (
+                  <p className="form-error">
+                    Select an initial-certification program.
+                  </p>
+                ) : null}
+              </div>
+              {selectedEmsCategory ? (
+                <p className="roster-note">
+                  EMS category: {selectedEmsCategory.title}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <SearchSelect
+              id="emsCategoryId"
+              label="Category"
+              placeholder="Search EMS categories…"
+              emptyLabel="Select an EMS category"
+              required
+              invalid={errors.includes("emsCategoryId")}
+              options={emsCategoryOptions}
+              value={values.emsCategoryId}
+              onChange={(nextId) => {
+                const selected = emsCategories.find(
+                  (category) => category.id === nextId,
+                );
+                setEmsCategoryTouched(true);
+                update("emsCategoryId", nextId);
+                setValues((current) => ({
+                  ...current,
+                  emsCategoryId: nextId,
+                  kbemsCourseName: selected
+                    ? selected.title
+                    : current.kbemsCourseName,
+                }));
+              }}
+            />
+          )}
           <div className="field">
             <Label htmlFor="kbemsCourseName">
               EMS course name
@@ -660,6 +757,7 @@ export function ClassCreationWizard({
                 update("kbemsCourseName", event.target.value)
               }
               aria-invalid={errors.includes("kbemsCourseName") || undefined}
+              readOnly={values.courseType === "initial_certification"}
               required
             />
           </div>
@@ -675,7 +773,7 @@ export function ClassCreationWizard({
               id="courseType"
               className="select-input"
               value={values.courseType}
-              onChange={(event) => update("courseType", event.target.value)}
+              onChange={(event) => updateCourseType(event.target.value)}
               aria-invalid={errors.includes("courseType") || undefined}
               required
             >
@@ -686,6 +784,12 @@ export function ClassCreationWizard({
               </option>
               <option value="refresher">Refresher</option>
             </select>
+            {values.courseType === "initial_certification" && fireSelected ? (
+              <p className="form-error" role="alert">
+                Initial-certification programs are KBEMS-only. Uncheck Fire to
+                continue.
+              </p>
+            ) : null}
           </div>
           {values.courseType === "initial_certification" ? (
             <InitialCertNumberField
@@ -925,7 +1029,16 @@ export function ClassCreationWizard({
                 required
               />
             </div>
-            {!fireSelected ? (
+            {initialCertificationProgram ? (
+              <div className="field">
+                <span className="field-label">Program hours</span>
+                <p>{formatHours(initialCertificationProgram.hours)}</p>
+                <p className="roster-note">
+                  {initialCertificationProgram.title} runs for its fixed program
+                  hours; no separate duration is needed.
+                </p>
+              </div>
+            ) : !fireSelected ? (
               <>
                 <DurationFields
                   fieldLabel="Scheduled duration"
@@ -1043,7 +1156,12 @@ export function ClassCreationWizard({
             <dt>Schedule</dt>
             <dd>
               {classStartLabel ? <div>Starts {classStartLabel}</div> : null}
-              {fireSelected ? (
+              {initialCertificationProgram ? (
+                <div>
+                  {initialCertificationProgram.title} program (
+                  {formatHours(initialCertificationProgram.hours)})
+                </div>
+              ) : fireSelected ? (
                 <ul>
                   {subjects.map((subject, index) => {
                     const schedule = derivedSubjectSchedule[index];
@@ -1059,12 +1177,7 @@ export function ClassCreationWizard({
                   })}
                 </ul>
               ) : null}
-              <div>
-                Total{" "}
-                {formatHours(
-                  fireSelected ? fireClassHours : values.creditedHours,
-                )}
-              </div>
+              <div>Total {formatHours(effectiveCreditedHours)}</div>
             </dd>
             <dt>Delivery</dt>
             <dd>{deliveryMethodLabels(values.deliveryMethods.join(","))}</dd>
@@ -1108,6 +1221,15 @@ export function ClassCreationWizard({
             ) : null}
             {selectedCodes.includes("kbems") ? (
               <>
+                {initialCertificationProgram ? (
+                  <>
+                    <dt>Initial certification program</dt>
+                    <dd>
+                      {initialCertificationProgram.title} (
+                      {formatHours(initialCertificationProgram.hours)})
+                    </dd>
+                  </>
+                ) : null}
                 <dt>EMS category</dt>
                 <dd>{selectedEmsCategory?.title ?? "Not provided"}</dd>
                 <dt>Course type</dt>
@@ -1235,6 +1357,11 @@ export function ClassCreationWizard({
             type="hidden"
             name="courseNumber"
             value={values.courseNumber}
+          />
+          <input
+            type="hidden"
+            name="initialCertificationProgramId"
+            value={values.initialCertificationProgramId}
           />
         </>
       ) : null}

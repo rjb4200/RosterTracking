@@ -35,6 +35,15 @@ export function ClassSummary({
         (system) => system.code === "kbems",
       ) ? (
         <>
+          {classRecord.initialCertificationProgram ? (
+            <>
+              <dt>Initial certification program</dt>
+              <dd>
+                {classRecord.initialCertificationProgram.title} (
+                {formatHours(classRecord.initialCertificationProgram.hours)})
+              </dd>
+            </>
+          ) : null}
           <dt>EMS category</dt>
           <dd>{classRecord.emsCategory?.title ?? "Not set"}</dd>
         </>

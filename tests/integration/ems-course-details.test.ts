@@ -11,6 +11,8 @@ import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
   agencies,
+  classComponents,
+  initialCertificationPrograms,
   reportingSystems,
   roles,
   trainingCodes,
@@ -64,19 +66,40 @@ async function fixtureRefs(db: Db, suffix: string) {
         eq(reportingSystems.isActive, true),
       ),
     );
+  const [fire] = await db
+    .select({ id: reportingSystems.id })
+    .from(reportingSystems)
+    .where(
+      and(
+        eq(reportingSystems.code, REPORTING_SYSTEM_CODES.FIRE),
+        eq(reportingSystems.isActive, true),
+      ),
+    );
   const [emsCategory] = await db
     .select({ id: trainingCodes.id })
     .from(trainingCodes)
     .where(eq(trainingCodes.kind, "ems"))
     .limit(1);
-  if (!site || !agency || !kbems || !emsCategory) {
+  const [emrProgram] = await db
+    .select({
+      id: initialCertificationPrograms.id,
+      hours: initialCertificationPrograms.hours,
+      trainingCodeId: initialCertificationPrograms.trainingCodeId,
+    })
+    .from(initialCertificationPrograms)
+    .where(eq(initialCertificationPrograms.code, "emr"));
+  if (!site || !agency || !kbems || !fire || !emsCategory || !emrProgram) {
     throw new Error("EMS fixture references failed.");
   }
   return {
     siteId: site.id,
     agencyId: agency.id,
     kbemsId: kbems.id,
+    fireId: fire.id,
     emsCategoryId: emsCategory.id,
+    programId: emrProgram.id,
+    programCategoryId: emrProgram.trainingCodeId,
+    programHours: Number(emrProgram.hours),
   };
 }
 
@@ -93,15 +116,45 @@ afterAll(async () => {
 });
 
 describeDatabase("EMS course details", () => {
+  it("seeds the fixed initial-certification programs", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const programs = await db
+      .select({
+        code: initialCertificationPrograms.code,
+        title: initialCertificationPrograms.title,
+        hours: initialCertificationPrograms.hours,
+      })
+      .from(initialCertificationPrograms)
+      .orderBy(initialCertificationPrograms.hours);
+    expect(
+      programs.map((program) => ({
+        code: program.code,
+        title: program.title,
+        hours: Number(program.hours),
+      })),
+    ).toEqual([
+      { code: "emr", title: "EMR", hours: 40 },
+      { code: "emt_b", title: "EMT-B", hours: 160 },
+      { code: "aemt", title: "AEMT", hours: 190 },
+    ]);
+  });
+
   it("requires the EMS details for a KBEMS class at creation", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID().slice(0, 8);
     const instructor = await createInstructor(db, suffix);
-    const { siteId, agencyId, kbemsId, emsCategoryId } = await fixtureRefs(
-      db,
-      suffix,
-    );
+    const {
+      siteId,
+      agencyId,
+      kbemsId,
+      fireId,
+      emsCategoryId,
+      programId,
+      programCategoryId,
+      programHours,
+    } = await fixtureRefs(db, suffix);
     const baseInput = {
       name: "EMT Refresher",
       trainingSiteId: siteId,
@@ -164,15 +217,53 @@ describeDatabase("EMS course details", () => {
     });
     expect(refresherWithNumber.classRecord.courseNumber).toBe("A0000");
 
-    // An initial-certification class is accepted with a course number.
+    // An initial-certification class requires a fixed program.
+    await expect(
+      createOpenClass(db, instructor, {
+        ...baseInput,
+        name: "EMT Initial",
+        courseType: "initial_certification",
+        objectives: "Initial EMT certification",
+        courseNumber: "EMS-100",
+      }),
+    ).rejects.toThrow(/initial-certification program/i);
+
+    // The program supplies the category, course name, and program hours.
     const initial = await createOpenClass(db, instructor, {
       ...baseInput,
       name: "EMT Initial",
+      emsCategoryId: programCategoryId,
       courseType: "initial_certification",
+      initialCertificationProgramId: programId,
       objectives: "Initial EMT certification",
       courseNumber: "EMS-100",
+      creditedHours: 1,
     });
     expect(initial.classRecord.id).toBeTruthy();
     expect(initial.classRecord.courseNumber).toBe("EMS-100");
+    expect(initial.classRecord.name).toBe("EMR");
+    expect(initial.classRecord.initialCertificationProgramId).toBe(programId);
+    const [programComponent] = await db
+      .select()
+      .from(classComponents)
+      .where(eq(classComponents.classId, initial.classRecord.id));
+    expect(Number(programComponent?.creditedHours)).toBe(programHours);
+    expect(programComponent?.endsAt.getTime()).toBeGreaterThan(
+      programComponent?.startsAt.getTime() ?? 0,
+    );
+
+    // Fire reporting cannot be combined with an initial-certification program.
+    await expect(
+      createOpenClass(db, instructor, {
+        ...baseInput,
+        name: "EMT Initial",
+        emsCategoryId: programCategoryId,
+        courseType: "initial_certification",
+        initialCertificationProgramId: programId,
+        objectives: "Initial EMT certification",
+        courseNumber: "EMS-100",
+        reportingSystemIds: [kbemsId, fireId],
+      }),
+    ).rejects.toThrow(/KBEMS-only/i);
   });
 });

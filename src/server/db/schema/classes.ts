@@ -18,6 +18,7 @@ import { users } from "./auth";
 import {
   agencies,
   curricula,
+  initialCertificationPrograms,
   mtuCatalogItems,
   reportingSystems,
   trainingCodes,
@@ -61,6 +62,12 @@ export const trainingClasses = pgTable(
     emsCategoryId: uuid("ems_category_id").references(() => trainingCodes.id, {
       onDelete: "set null",
     }),
+    // The fixed EMR/EMT-B/AEMT program for an initial-certification class.
+    initialCertificationProgramId: uuid(
+      "initial_certification_program_id",
+    ).references(() => initialCertificationPrograms.id, {
+      onDelete: "restrict",
+    }),
     status: text("status").default("draft").notNull(),
     signInTokenHash: text("sign_in_token_hash").notNull(),
     signInTokenVersion: integer("sign_in_token_version").default(1).notNull(),
@@ -77,6 +84,9 @@ export const trainingClasses = pgTable(
     index("classes_host_agency_idx").on(table.hostAgencyId),
     index("classes_creator_status_idx").on(table.createdByUserId, table.status),
     index("classes_status_idx").on(table.status),
+    index("classes_initial_certification_program_idx").on(
+      table.initialCertificationProgramId,
+    ),
     uniqueIndex("classes_sign_in_token_hash_unique").on(table.signInTokenHash),
     uniqueIndex("classes_public_code_unique")
       .on(table.publicCode)

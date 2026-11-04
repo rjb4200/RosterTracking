@@ -379,6 +379,13 @@
       "when": 1792768078475,
       "tag": "0053_repair_users_ffn_format",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793828566127,
+      "tag": "0054_smart_blizzard",
+      "breakpoints": true
     }
   ]
 }

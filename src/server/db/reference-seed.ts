@@ -1,6 +1,10 @@
 import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 
 import {
+  INITIAL_CERTIFICATION_CATEGORY_SOURCE_REVISION,
+  INITIAL_CERTIFICATION_PROGRAMS,
+} from "@/modules/classes/initial-certification-programs";
+import {
   AGENCY_TAG_CODES,
   AGENCY_TAG_NAMES,
   CREDENTIAL_TYPE_CODES,
@@ -17,6 +21,7 @@ import type { DatabaseTransaction } from "./client";
 import {
   agencyTags,
   credentialTypes,
+  initialCertificationPrograms,
   mtuCatalogItems,
   reportingRequirementSets,
   reportingSystems,
@@ -187,6 +192,76 @@ export async function seedReferenceData(
         trainingCodes.code,
         trainingCodes.sourceRevision,
       ],
+    });
+
+  // Fixed categories for the initial-certification programs. They remain EMS
+  // training codes, but the class wizard offers them only through the program
+  // selector and hides them from continuing-education category lists.
+  await transaction
+    .insert(trainingCodes)
+    .values(
+      INITIAL_CERTIFICATION_PROGRAMS.map((program) => ({
+        kind: TRAINING_CATEGORY_KINDS.EMS,
+        code: program.categoryName,
+        title: program.categoryName,
+        isPinned: false,
+        sortOrder: 0,
+        sourceRevision: INITIAL_CERTIFICATION_CATEGORY_SOURCE_REVISION,
+      })),
+    )
+    .onConflictDoNothing({
+      target: [
+        trainingCodes.kind,
+        trainingCodes.code,
+        trainingCodes.sourceRevision,
+      ],
+    });
+
+  const initialCertificationCategoryRows = await transaction
+    .select({ id: trainingCodes.id, code: trainingCodes.code })
+    .from(trainingCodes)
+    .where(
+      and(
+        eq(trainingCodes.kind, TRAINING_CATEGORY_KINDS.EMS),
+        eq(
+          trainingCodes.sourceRevision,
+          INITIAL_CERTIFICATION_CATEGORY_SOURCE_REVISION,
+        ),
+      ),
+    );
+  const initialCertificationCategoryByCode = new Map(
+    initialCertificationCategoryRows.map((row) => [row.code, row.id]),
+  );
+  const initialCertificationProgramValues = INITIAL_CERTIFICATION_PROGRAMS.map(
+    (program) => {
+      const trainingCodeId = initialCertificationCategoryByCode.get(
+        program.categoryName,
+      );
+      if (!trainingCodeId) {
+        throw new Error(
+          `Reference seed could not resolve the ${program.title} category.`,
+        );
+      }
+      return {
+        code: program.code,
+        title: program.title,
+        hours: String(program.hours),
+        trainingCodeId,
+      };
+    },
+  );
+  await transaction
+    .insert(initialCertificationPrograms)
+    .values(initialCertificationProgramValues)
+    .onConflictDoUpdate({
+      target: initialCertificationPrograms.code,
+      set: {
+        title: sql`excluded.title`,
+        hours: sql`excluded.hours`,
+        trainingCodeId: sql`excluded.training_code_id`,
+        isActive: true,
+        updatedAt: new Date(),
+      },
     });
 
   // Pair matching Fire codes and EMS categories symmetrically so a value filled

@@ -300,6 +300,32 @@ export const trainingCodes = pgTable(
   ],
 );
 
+export const initialCertificationPrograms = pgTable(
+  "initial_certification_programs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    title: text("title").notNull(),
+    hours: numeric("hours", { precision: 5, scale: 2 }).notNull(),
+    // The fixed EMS category offered only for this initial-certification program.
+    trainingCodeId: uuid("training_code_id")
+      .notNull()
+      .references(() => trainingCodes.id, { onDelete: "restrict" }),
+    isActive: boolean("is_active").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("initial_certification_programs_code_unique").on(table.code),
+    uniqueIndex("initial_certification_programs_training_code_unique").on(
+      table.trainingCodeId,
+    ),
+    check(
+      "initial_certification_programs_hours_positive",
+      sql`${table.hours} > 0`,
+    ),
+  ],
+);
+
 export const curricula = pgTable(
   "curricula",
   {

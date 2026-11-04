@@ -106,6 +106,11 @@ test("Fire picker excludes EMS categories and the EMS picker fills the course na
   await expect(
     emsCategory.locator("option", { hasText: fireOnlyTitle }),
   ).toHaveCount(0);
+  // Initial-certification program categories are offered through the program
+  // selector, not the continuing-education category picker.
+  await expect(emsCategory.locator("option", { hasText: "EMT-B" })).toHaveCount(
+    0,
+  );
 
   await emsCategory.selectOption({ label: "Airway" });
   const courseName = page.getByLabel("EMS course name");

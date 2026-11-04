@@ -36,6 +36,7 @@ import {
   curriculumChapters,
   finalizationFireAttestations,
   finalizationRevisions,
+  initialCertificationPrograms,
   mtuCatalogItems,
   mtuUsage,
   reportingRequirementSets,
@@ -159,6 +160,9 @@ const draftInput = z.object({
     .optional(),
   courseNumber: z.string().trim().max(100).default(""),
   emsCategoryId: z.union([z.string().uuid(), z.literal("")]).optional(),
+  initialCertificationProgramId: z
+    .union([z.string().uuid(), z.literal("")])
+    .optional(),
   mtuEquipmentUsed: z.string().trim().max(500).default(""),
   mtuMileage: z.string().trim().max(200).default(""),
   mtuUsedSupplies: z.string().trim().max(500).default(""),
@@ -357,6 +361,105 @@ async function assertKbemsCourseDetails(
       "Enter the course number for an initial-certification class.",
     );
   }
+}
+
+interface ResolvedInitialCertificationProgram {
+  id: string;
+  title: string;
+  hours: number;
+  trainingCodeId: string;
+}
+
+async function selectsReportingDestination(
+  transaction: DatabaseTransaction,
+  reportingSystemIds: string[],
+  code: string,
+): Promise<boolean> {
+  if (reportingSystemIds.length === 0) return false;
+  const [destination] = await transaction
+    .select({ id: reportingSystems.id })
+    .from(reportingSystems)
+    .where(
+      and(
+        inArray(reportingSystems.id, reportingSystemIds),
+        eq(reportingSystems.code, code),
+      ),
+    )
+    .limit(1);
+  return Boolean(destination);
+}
+
+/**
+ * Resolves the fixed program for an initial-certification class and enforces
+ * the program's KBEMS-only shape. The program supplies the category, course
+ * name, and hours; the caller must not use a separately entered duration.
+ */
+async function resolveInitialCertificationProgram(
+  transaction: DatabaseTransaction,
+  input: z.infer<typeof draftInput>,
+): Promise<ResolvedInitialCertificationProgram | null> {
+  const reportingSystemIds = input.reportingSystemIds ?? [];
+  const programId = input.initialCertificationProgramId?.trim() ?? "";
+  if (programId === "" && input.courseType !== "initial_certification") {
+    return null;
+  }
+  const isKbems = await selectsReportingDestination(
+    transaction,
+    reportingSystemIds,
+    REPORTING_SYSTEM_CODES.KBEMS,
+  );
+  if (input.courseType === "initial_certification") {
+    if (!isKbems) {
+      throw new Error(
+        "Initial-certification programs require KBEMS reporting.",
+      );
+    }
+    if (!programId) {
+      throw new Error("Select an initial-certification program.");
+    }
+  }
+  if (!programId) return null;
+  if (input.courseType !== "initial_certification") {
+    throw new Error(
+      "Select Initial certification before choosing an initial-certification program.",
+    );
+  }
+  if (!isKbems) {
+    throw new Error("Initial-certification programs require KBEMS reporting.");
+  }
+  if (
+    await selectsReportingDestination(
+      transaction,
+      reportingSystemIds,
+      REPORTING_SYSTEM_CODES.FIRE,
+    )
+  ) {
+    throw new Error(
+      "Initial-certification programs are KBEMS-only; remove Fire reporting.",
+    );
+  }
+  const [program] = await transaction
+    .select({
+      id: initialCertificationPrograms.id,
+      title: initialCertificationPrograms.title,
+      hours: initialCertificationPrograms.hours,
+      trainingCodeId: initialCertificationPrograms.trainingCodeId,
+    })
+    .from(initialCertificationPrograms)
+    .where(
+      and(
+        eq(initialCertificationPrograms.id, programId),
+        eq(initialCertificationPrograms.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (!program)
+    throw new Error("Select an active initial-certification program.");
+  const hours = Number(program.hours);
+  if (!Number.isFinite(hours) || hours <= 0) {
+    throw new Error("The initial-certification program hours are invalid.");
+  }
+  return { ...program, hours };
 }
 
 /**
@@ -837,6 +940,15 @@ export async function createOpenClass(
       parsed.reportingSystemIds ?? [],
     );
     await assertKbemsCourseDetails(transaction, parsed);
+    const program = await resolveInitialCertificationProgram(
+      transaction,
+      parsed,
+    );
+    if (program && (parsed.subjects?.length ?? 0) > 0) {
+      throw new Error(
+        "Initial-certification programs cannot include Fire subjects.",
+      );
+    }
     const reportingSystemIds = parsed.reportingSystemIds ?? [];
     const [leadInstructor] = await transaction
       .select({ id: users.id })
@@ -870,8 +982,11 @@ export async function createOpenClass(
     if (await selectsFireDestination(transaction, reportingSystemIds)) {
       await requireFireInstructor(transaction, instructorIds);
     }
-    // The class name: the entered/EMS course name, else the first Fire subject.
-    const className = parsed.name || parsed.subjects?.[0]?.className || null;
+    // The class name: the fixed program title, the entered/EMS course name, or
+    // the first Fire subject.
+    const className =
+      program?.title ??
+      (parsed.name || parsed.subjects?.[0]?.className || null);
     const publicCode = await findAvailablePublicCode(transaction);
     const accessPin = parsed.accessPinEnabled ? generateClassAccessPin() : null;
     const now = new Date();
@@ -887,7 +1002,9 @@ export async function createOpenClass(
         objectives: parsed.objectives || null,
         courseType: parsed.courseType || null,
         courseNumber: parsed.courseNumber || null,
-        emsCategoryId: parsed.emsCategoryId || null,
+        emsCategoryId:
+          program?.trainingCodeId ?? (parsed.emsCategoryId || null),
+        initialCertificationProgramId: program?.id ?? null,
         status: CLASS_STATUSES.OPEN,
         signInTokenHash: hashClassSignInToken(rawToken),
         signInTokenVersion: 1,
@@ -946,43 +1063,56 @@ export async function createOpenClass(
     }
     const method = defaultComponentMethod(parsed.deliveryMethod);
     let cursor = parsed.startsAt;
-    const componentValues = subjects.length
-      ? subjects.map((subject, index) => {
-          const duration = subject.creditedHours ?? parsed.creditedHours;
-          const startsAt = cursor;
-          const subjectEndsAt = calculateComponentEndTime(startsAt, duration);
-          validateComponentRange(startsAt, subjectEndsAt, duration);
-          cursor = subjectEndsAt;
-          return {
-            classId: created.id,
-            startsAt,
-            endsAt: subjectEndsAt,
-            creditedHours: String(duration),
-            position: index,
-            trainingCodeId: subject.trainingCodeId,
-            className: subject.className,
-            curriculumId: subject.curriculumId || null,
-            curriculumName: subject.curriculumName || null,
-            curriculumChapter: subject.curriculumChapter || null,
-            lessonPlan: subject.lessonPlan || null,
-            method,
-          };
-        })
-      : [
+    const componentValues = program
+      ? [
           {
             classId: created.id,
             startsAt: parsed.startsAt,
-            endsAt: calculateComponentEndTime(
-              parsed.startsAt,
-              parsed.creditedHours,
-            ),
-            creditedHours: String(parsed.creditedHours),
+            endsAt: calculateComponentEndTime(parsed.startsAt, program.hours),
+            creditedHours: String(program.hours),
             position: 0,
+            title: program.title,
             method,
           },
-        ];
+        ]
+      : subjects.length
+        ? subjects.map((subject, index) => {
+            const duration = subject.creditedHours ?? parsed.creditedHours;
+            const startsAt = cursor;
+            const subjectEndsAt = calculateComponentEndTime(startsAt, duration);
+            validateComponentRange(startsAt, subjectEndsAt, duration);
+            cursor = subjectEndsAt;
+            return {
+              classId: created.id,
+              startsAt,
+              endsAt: subjectEndsAt,
+              creditedHours: String(duration),
+              position: index,
+              trainingCodeId: subject.trainingCodeId,
+              className: subject.className,
+              curriculumId: subject.curriculumId || null,
+              curriculumName: subject.curriculumName || null,
+              curriculumChapter: subject.curriculumChapter || null,
+              lessonPlan: subject.lessonPlan || null,
+              method,
+            };
+          })
+        : [
+            {
+              classId: created.id,
+              startsAt: parsed.startsAt,
+              endsAt: calculateComponentEndTime(
+                parsed.startsAt,
+                parsed.creditedHours,
+              ),
+              creditedHours: String(parsed.creditedHours),
+              position: 0,
+              method,
+            },
+          ];
     const rosterDay = getDepartmentCalendarDate(parsed.startsAt);
     if (
+      !program &&
       componentValues.some(
         (value) =>
           getDepartmentCalendarDate(value.startsAt) !== rosterDay ||
@@ -1090,6 +1220,9 @@ export async function updateClass(
         courseType: parsed.courseType || null,
         courseNumber: parsed.courseNumber || null,
         emsCategoryId: parsed.emsCategoryId || null,
+        initialCertificationProgramId:
+          parsed.initialCertificationProgramId ||
+          existing.initialCertificationProgramId,
         accessPinEnabled: parsed.accessPinEnabled,
         accessPinEncrypted: accessPin,
         updatedAt: new Date(),
@@ -2242,6 +2375,25 @@ export async function getClassDetail(
           .where(eq(trainingCodes.id, classRecord.emsCategoryId))
           .limit(1)
       : [];
+    const initialCertificationProgram =
+      classRecord.initialCertificationProgramId
+        ? await transaction
+            .select({
+              id: initialCertificationPrograms.id,
+              code: initialCertificationPrograms.code,
+              title: initialCertificationPrograms.title,
+              hours: initialCertificationPrograms.hours,
+              trainingCodeId: initialCertificationPrograms.trainingCodeId,
+            })
+            .from(initialCertificationPrograms)
+            .where(
+              eq(
+                initialCertificationPrograms.id,
+                classRecord.initialCertificationProgramId,
+              ),
+            )
+            .limit(1)
+        : [];
     const itemRows = await transaction
       .select({
         itemId: classMtuUsageItems.itemId,
@@ -2327,6 +2479,7 @@ export async function getClassDetail(
       instructors,
       reportingSystems: systems,
       emsCategory: emsCategory[0] ?? null,
+      initialCertificationProgram: initialCertificationProgram[0] ?? null,
       mtuUsage: usage,
       mtuActiveParticipantCount: activeParticipantCount,
     };
@@ -2341,6 +2494,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     staffRows,
     inclusionRuleRows,
     trainingCodeRows,
+    initialCertificationProgramRows,
     curriculumRows,
     curriculumChapterRows,
     mtuItemRows,
@@ -2416,6 +2570,17 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         desc(trainingCodes.isPinned),
         sql`lower(${trainingCodes.title})`,
       ),
+    db
+      .select({
+        id: initialCertificationPrograms.id,
+        code: initialCertificationPrograms.code,
+        title: initialCertificationPrograms.title,
+        hours: initialCertificationPrograms.hours,
+        trainingCodeId: initialCertificationPrograms.trainingCodeId,
+      })
+      .from(initialCertificationPrograms)
+      .where(eq(initialCertificationPrograms.isActive, true))
+      .orderBy(initialCertificationPrograms.hours),
     db
       .select({
         id: curricula.id,
@@ -2517,6 +2682,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
     staff: staffRows,
     inclusionRules: inclusionRuleRows,
     trainingCodes: trainingCodeRows,
+    initialCertificationPrograms: initialCertificationProgramRows,
     curricula: curriculumRows,
     curriculumChapters: curriculumChapterRows,
     mtuCatalog: mtuItemRows,

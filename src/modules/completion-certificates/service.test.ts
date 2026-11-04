@@ -274,6 +274,25 @@ describe("completion certificates", () => {
     );
   });
 
+  it("uses an initial-certification program block's hours", () => {
+    const programSnapshot = {
+      ...snapshot,
+      components: [
+        {
+          title: "EMT-B",
+          startsAt: "2026-08-01T08:00:00.000Z",
+          endsAt: "2026-08-08T00:00:00.000Z",
+          creditedHours: "160",
+        },
+      ],
+      attendance: snapshot.attendance.map((participant) => ({
+        ...participant,
+        creditedHours: "160",
+      })),
+    } satisfies FinalizationSnapshot;
+    expect(certificateClassHours(programSnapshot)).toBe("160");
+  });
+
   it("detects a KBEMS destination", () => {
     expect(revisionReportsToKbems(snapshot)).toBe(true);
     expect(
