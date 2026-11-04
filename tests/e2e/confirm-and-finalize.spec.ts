@@ -338,6 +338,7 @@ test("raising a session's hours carries the full credit to the participant", asy
   // Raise the session's credited hours from the schedule area.
   const schedule = page.locator("#area-schedule");
   await schedule.getByRole("button", { name: "Edit" }).click();
+  await expect(schedule.getByLabel("Starts")).toHaveAttribute("readonly", "");
   await schedule.getByLabel("Credited hours").first().selectOption("5");
   await schedule.getByRole("button", { name: "Save and close" }).click();
   await expect(schedule.getByLabel("Credited hours")).toHaveCount(0);
@@ -383,6 +384,42 @@ test("preserves an out-of-range session duration when editing", async ({
   await expect(schedule.getByLabel("Credited hours").first()).toHaveValue(
     "0.25",
   );
+});
+
+test("the schedule edits the class method set", async ({ page }) => {
+  skipUnlessEnabled();
+  if (!username || !password || !connectionString) return;
+  const { classId } = await createOpenClass({ attendance: true });
+
+  await signIn(page, username, password);
+  await page.goto(`/staff/classes/${classId}/review`);
+
+  const schedule = page.locator("#area-schedule");
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  const handsOn = schedule.getByRole("checkbox", { name: "Hands-On (HO)" });
+  await expect(handsOn).not.toBeChecked();
+  await handsOn.check();
+  await schedule.getByRole("button", { name: "Save methods" }).click();
+  await expect
+    .poll(
+      async () => {
+        const pool = new Pool({ connectionString, max: 1 });
+        const result = await pool.query<{ delivery_method: string }>(
+          "select delivery_method from classes where id = $1",
+          [classId],
+        );
+        await pool.end();
+        return result.rows[0]?.delivery_method;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe("classroom,hands_on");
+
+  await page.reload();
+  await schedule.getByRole("button", { name: "Edit" }).click();
+  await expect(
+    schedule.getByRole("checkbox", { name: "Hands-On (HO)" }),
+  ).toBeChecked();
 });
 
 test("a session uses the shared chapter picker and clears it on curriculum change", async ({
@@ -463,11 +500,11 @@ test("the workspace opens one correction area at a time", async ({ page }) => {
   ).toHaveAttribute("rows", "2");
 
   await scheduleArea.getByRole("button", { name: "Edit" }).click();
-  await expect(scheduleArea.getByText("Training session")).toBeVisible();
+  await expect(scheduleArea.getByText("Training subject")).toBeVisible();
   await expect(classArea.getByLabel("Class name")).toHaveCount(0);
-  await expect(scheduleArea.locator("form")).toHaveCount(1);
-  await scheduleArea.getByRole("button", { name: "Add session" }).click();
-  await expect(scheduleArea.locator("form")).toHaveCount(1);
+  await expect(scheduleArea.locator("form.component-form")).toHaveCount(1);
+  await scheduleArea.getByRole("button", { name: "Add subject" }).click();
+  await expect(scheduleArea.locator("form.component-form")).toHaveCount(1);
 });
 
 test("discard confirmation preserves or abandons workspace edits", async ({

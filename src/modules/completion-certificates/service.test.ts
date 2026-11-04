@@ -9,6 +9,7 @@ import {
   PDFDict,
   PDFDocument,
   PDFName,
+  type PDFPage,
   PDFRawStream,
   TextAlignment,
 } from "pdf-lib";
@@ -144,6 +145,38 @@ function hasFieldBackground(page: PDFDocument, fieldName: string): boolean {
     widget?.getAppearanceCharacteristics()?.dict.lookup(PDFName.of("BG")) !==
     undefined
   );
+}
+
+/** Decoded content streams for one page, used to assert packet page order. */
+function pageContent(page: PDFPage): string {
+  const contents = page.node.Contents();
+  if (!contents) return "";
+  const context = page.doc.context;
+  const streams =
+    contents instanceof PDFArray
+      ? Array.from({ length: contents.size() }, (_, index) =>
+          context.lookup(contents.get(index)),
+        )
+      : [context.lookup(contents)];
+  return streams
+    .map((stream) =>
+      stream instanceof PDFRawStream
+        ? Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1")
+        : "",
+    )
+    .join("\n");
+}
+
+/** Decoded text drawn on one page, including hex and kerning-split runs. */
+function pageText(page: PDFPage): string {
+  const raw = pageContent(page);
+  const hex = [...raw.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)].map((match) =>
+    Buffer.from(match[1] ?? "", "hex").toString("latin1"),
+  );
+  const literal = [...raw.matchAll(/\(((?:[^()\\]|\\.)*)\)/g)].map((match) =>
+    (match[1] ?? "").replace(/\\([()\\])/g, "$1"),
+  );
+  return [...hex, ...literal].join("");
 }
 
 /** Number of document catalogs in a loaded PDF. */
@@ -287,25 +320,58 @@ describe("completion certificates", () => {
     ).toBe("");
   });
 
-  it("builds a batch with a cover page and one certificate per participant", async () => {
+  it("builds a roster-first batch with certificates and a cover last", async () => {
     const bytes = await renderCompletionCertificateBatch(snapshot);
     const pdf = await PDFDocument.load(bytes);
     const text = Buffer.from(bytes).toString("latin1");
-    expect(pdf.getPageCount()).toBe(snapshot.attendance.length + 1);
+    const pages = pdf.getPages();
+    const firstPage = pages[0];
+    const lastPage = pages[pages.length - 1];
+    if (!firstPage || !lastPage) throw new Error("packet pages are missing");
+    // One E16 page, two certificates, one cover.
+    expect(pdf.getPageCount()).toBe(4);
+    expect(pageText(firstPage)).toContain("Course Description");
+    expect(pageText(firstPage)).toContain("KEMSIS ID");
+    expect(pageText(firstPage)).not.toContain("Completion Certificates");
+    expect(pageText(lastPage)).toContain("Completion Certificates");
     expect(documentCatalogCount(pdf)).toBe(1);
     expect(text).not.toContain("/EmbeddedFiles");
     expect(text).not.toContain("application#2Fc2pa");
   });
 
+  it("paginates the E16 and cover for a large batch", async () => {
+    const first = snapshot.attendance[0];
+    if (!first) throw new Error("fixture participant is missing");
+    const large: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: Array.from({ length: 30 }, (_, index) => ({
+        ...first,
+        attendanceId: `large-${index}`,
+        firstName: `Student${index}`,
+        lastName: "Roster",
+      })),
+    };
+
+    const pdf = await PDFDocument.load(
+      await renderCompletionCertificateBatch(large),
+    );
+    // 2 E16 pages, 30 certificates, 2 cover pages.
+    expect(pdf.getPageCount()).toBe(34);
+    const lastPage = pdf.getPages().at(-1);
+    if (!lastPage) throw new Error("packet is missing its cover page");
+    expect(pageText(lastPage)).toContain("Student29 Roster");
+  });
+
   it("excludes removed participants from the batch", async () => {
     // A finalized snapshot only carries active attendance, so a removed
-    // participant is absent and the batch is a cover plus active pages only.
+    // participant is absent and the packet has one E16 page, one certificate,
+    // and one cover page.
     const activeOnly: FinalizationSnapshot = {
       ...snapshot,
       attendance: snapshot.attendance.slice(0, 1),
     };
     const bytes = await renderCompletionCertificateBatch(activeOnly);
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(3);
   });
 
   it("fingerprints the certificate values and ignores the template version", () => {
@@ -531,6 +597,8 @@ describe("completion certificates", () => {
     expect(text).not.toContain("application#2Fc2pa");
     expect(text).not.toContain("C2PA_Manifest");
     expect(text).not.toContain("Content Credentials");
+    expect(text).not.toContain("Completion Certificates");
+    expect(text).not.toContain("KEMSIS IDRow");
 
     const root = pdf.context.lookup(pdf.context.trailerInfo.Root);
     expect(root).toBeInstanceOf(PDFDict);

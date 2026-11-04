@@ -208,6 +208,9 @@ const fireSubjectInput = z.object({
   curriculumName: z.string().trim().max(300).optional().or(z.literal("")),
   curriculumChapter: z.string().trim().max(500).optional().or(z.literal("")),
   lessonPlan: z.string().trim().max(500).optional().or(z.literal("")),
+  // Optional for callers that predate per-subject durations; those use the
+  // class-level duration as the fallback.
+  creditedHours: z.coerce.number().positive().max(999).optional(),
 });
 
 const scheduledDraftInput = draftInput.extend({
@@ -818,11 +821,14 @@ export async function createOpenClass(
   input: z.input<typeof scheduledDraftInput>,
 ) {
   const parsed = scheduledDraftInput.parse(input);
-  const endsAt = calculateComponentEndTime(
-    parsed.startsAt,
-    parsed.creditedHours,
-  );
-  validateComponentRange(parsed.startsAt, endsAt, parsed.creditedHours);
+  const hasSubjects = (parsed.subjects?.length ?? 0) > 0;
+  if (!hasSubjects) {
+    const endsAt = calculateComponentEndTime(
+      parsed.startsAt,
+      parsed.creditedHours,
+    );
+    validateComponentRange(parsed.startsAt, endsAt, parsed.creditedHours);
+  }
   const rawToken = generateClassSignInToken();
   return db.transaction(async (transaction) => {
     await validateReferences(transaction, parsed);
@@ -931,27 +937,27 @@ export async function createOpenClass(
         assistantInstructorId,
       },
     });
-    // Each Fire subject becomes its own session. The first uses the class
-    // schedule; a second subject is auto-placed immediately after it.
+    // Every subject is an ordered block on the one class start. Durations come
+    // from the subject rows; a caller that predates per-subject durations uses
+    // the class-level duration for each subject.
     const subjects = parsed.subjects ?? [];
     for (const subject of subjects) {
       await assertCurriculumChapter(transaction, subject);
     }
     const method = defaultComponentMethod(parsed.deliveryMethod);
+    let cursor = parsed.startsAt;
     const componentValues = subjects.length
       ? subjects.map((subject, index) => {
-          const subjectStartsAt = new Date(
-            parsed.startsAt.getTime() +
-              index * parsed.creditedHours * 60 * 60 * 1000,
-          );
+          const duration = subject.creditedHours ?? parsed.creditedHours;
+          const startsAt = cursor;
+          const subjectEndsAt = calculateComponentEndTime(startsAt, duration);
+          validateComponentRange(startsAt, subjectEndsAt, duration);
+          cursor = subjectEndsAt;
           return {
             classId: created.id,
-            startsAt: subjectStartsAt,
-            endsAt: calculateComponentEndTime(
-              subjectStartsAt,
-              parsed.creditedHours,
-            ),
-            creditedHours: String(parsed.creditedHours),
+            startsAt,
+            endsAt: subjectEndsAt,
+            creditedHours: String(duration),
             position: index,
             trainingCodeId: subject.trainingCodeId,
             className: subject.className,
@@ -966,20 +972,24 @@ export async function createOpenClass(
           {
             classId: created.id,
             startsAt: parsed.startsAt,
-            endsAt,
+            endsAt: calculateComponentEndTime(
+              parsed.startsAt,
+              parsed.creditedHours,
+            ),
             creditedHours: String(parsed.creditedHours),
             position: 0,
             method,
           },
         ];
+    const rosterDay = getDepartmentCalendarDate(parsed.startsAt);
     if (
-      new Set(
-        componentValues.map((value) =>
-          getDepartmentCalendarDate(value.startsAt),
-        ),
-      ).size > 1
+      componentValues.some(
+        (value) =>
+          getDepartmentCalendarDate(value.startsAt) !== rosterDay ||
+          getDepartmentCalendarDate(value.endsAt) !== rosterDay,
+      )
     ) {
-      throw new Error("All class sessions must occur on one roster day.");
+      throw new Error("All class subjects must occur on one roster day.");
     }
     const createdComponents = await transaction
       .insert(classComponents)
@@ -1087,23 +1097,15 @@ export async function updateClass(
       .where(eq(trainingClasses.id, classId))
       .returning();
     if (!updated) throw new Error("Class was not updated.");
-    // A delivery change updates only sessions that still use the previous
-    // default. Sessions an operator already changed (for example to hands-on)
-    // keep their method.
+    // The class method set applies to every subject. A delivery change
+    // rewrites every subject's method rather than preserving an override.
     if (existing.deliveryMethod !== parsed.deliveryMethod) {
-      const previousDefault = defaultComponentMethod(existing.deliveryMethod);
       const nextDefault = defaultComponentMethod(parsed.deliveryMethod);
+      if (!nextDefault) throw new Error("Select at least one method.");
       await transaction
         .update(classComponents)
         .set({ method: nextDefault, updatedAt: new Date() })
-        .where(
-          and(
-            eq(classComponents.classId, classId),
-            previousDefault
-              ? eq(classComponents.method, previousDefault)
-              : isNull(classComponents.method),
-          ),
-        );
+        .where(eq(classComponents.classId, classId));
     }
     await replaceReportingSystems(
       transaction,
@@ -1137,6 +1139,49 @@ export async function updateClass(
       entityType: "class",
       entityId: classId,
       details: { name: updated.name },
+    });
+    return updated;
+  });
+}
+
+const deliveryMethodSetInput = z
+  .string()
+  .transform((value) => formatDeliveryMethods(value))
+  .refine((value) => value.length > 0, "Select at least one delivery method.");
+
+/** Replace the class method set and apply it to every subject. */
+export async function updateClassMethodSet(
+  db: Database,
+  actor: ClassActor,
+  classId: string,
+  deliveryMethod: string,
+) {
+  const parsed = deliveryMethodSetInput.parse(deliveryMethod);
+  const method = defaultComponentMethod(parsed);
+  if (!method) throw new Error("Select at least one method.");
+  return db.transaction(async (transaction) => {
+    const classRecord = await requireClassAccess(transaction, actor, classId);
+    assertClassEditable(classRecord.status);
+    const [updated] = await transaction
+      .update(trainingClasses)
+      .set({ deliveryMethod: parsed, updatedAt: new Date() })
+      .where(eq(trainingClasses.id, classId))
+      .returning({ id: trainingClasses.id });
+    if (!updated) throw new Error("Class was not updated.");
+    await transaction
+      .update(classComponents)
+      .set({ method, updatedAt: new Date() })
+      .where(eq(classComponents.classId, classId));
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "class.delivery_methods.changed",
+      entityType: "class",
+      entityId: classId,
+      details: {
+        previousDeliveryMethod: classRecord.deliveryMethod,
+        deliveryMethod: parsed,
+      },
     });
     return updated;
   });
@@ -1206,83 +1251,143 @@ export async function saveClassComponent(
   input: z.input<typeof componentInput>,
 ) {
   const parsed = componentInput.parse(input);
-  const endsAt = calculateComponentEndTime(
-    parsed.startsAt,
-    parsed.creditedHours,
-  );
-  validateComponentRange(parsed.startsAt, endsAt, parsed.creditedHours);
   return db.transaction(async (transaction) => {
     const classRecord = await requireClassAccess(transaction, actor, classId);
     assertClassEditable(classRecord.status);
     const existingComponents = await transaction
-      .select({ startsAt: classComponents.startsAt })
+      .select()
       .from(classComponents)
-      .where(
-        and(
-          eq(classComponents.classId, classId),
-          parsed.id ? sql`${classComponents.id} <> ${parsed.id}` : undefined,
-        ),
-      )
-      .limit(1);
-    const existing = existingComponents[0];
+      .where(eq(classComponents.classId, classId))
+      .orderBy(asc(classComponents.position), asc(classComponents.startsAt));
     if (
-      existing &&
-      getDepartmentCalendarDate(existing.startsAt) !==
-        getDepartmentCalendarDate(parsed.startsAt)
+      parsed.id &&
+      !existingComponents.some((component) => component.id === parsed.id)
     ) {
-      throw new Error("All class sessions must occur on one roster day.");
+      throw new Error("Class component was not found.");
+    }
+    if (!parsed.id && existingComponents.length >= 2) {
+      throw new Error("A class can have at most two subjects.");
     }
     const previousTotal = await scheduledHoursTotal(transaction, classId);
-    // A new session starts from the class delivery default. An omitted method
-    // on an update leaves the existing method untouched.
-    const method =
-      parsed.method ??
-      (parsed.id
-        ? undefined
-        : defaultComponentMethod(classRecord.deliveryMethod));
-    if (!parsed.id && !method) {
-      throw new Error("Select at least one method.");
-    }
-    const values = {
-      classId,
+    const method = defaultComponentMethod(classRecord.deliveryMethod);
+    if (!method) throw new Error("Select at least one method.");
+    const classStart = existingComponents[0]?.startsAt ?? parsed.startsAt;
+
+    const working = existingComponents.map((component) => ({
+      id: component.id as string | undefined,
+      title: component.title,
+      creditedHours: Number(component.creditedHours),
+      trainingCodeId: component.trainingCodeId,
+      className: component.className,
+      curriculumId: component.curriculumId,
+      curriculumName: component.curriculumName,
+      curriculumChapter: component.curriculumChapter,
+      lessonPlan: component.lessonPlan,
+    }));
+    const target = parsed.id
+      ? working.find((component) => component.id === parsed.id)
+      : undefined;
+    const subjectValues = {
       title: parsed.title || null,
-      startsAt: parsed.startsAt,
-      endsAt,
-      creditedHours: String(parsed.creditedHours),
-      position: parsed.position,
+      creditedHours: parsed.creditedHours,
       trainingCodeId: parsed.trainingCodeId || null,
       className: parsed.className || null,
       curriculumId: parsed.curriculumId || null,
       curriculumName: parsed.curriculumName || null,
       curriculumChapter: parsed.curriculumChapter || null,
       lessonPlan: parsed.lessonPlan || null,
-      method,
-      updatedAt: new Date(),
     };
+    if (target) {
+      Object.assign(target, subjectValues);
+    } else {
+      working.push({
+        id: undefined,
+        ...subjectValues,
+      });
+    }
+
     await assertCurriculumChapter(transaction, parsed);
-    const [component] = parsed.id
-      ? await transaction
+    let cursor = classStart;
+    const derived = working.map((subject, index) => {
+      const startsAt = cursor;
+      const endsAt = calculateComponentEndTime(startsAt, subject.creditedHours);
+      validateComponentRange(startsAt, endsAt, subject.creditedHours);
+      cursor = endsAt;
+      return {
+        ...subject,
+        startsAt,
+        endsAt,
+        position: index,
+        method,
+      };
+    });
+    const rosterDay = getDepartmentCalendarDate(classStart);
+    if (
+      derived.some(
+        (subject) =>
+          getDepartmentCalendarDate(subject.startsAt) !== rosterDay ||
+          getDepartmentCalendarDate(subject.endsAt) !== rosterDay,
+      )
+    ) {
+      throw new Error("All class subjects must occur on one roster day.");
+    }
+
+    let saved: typeof classComponents.$inferSelect | undefined;
+    for (const subject of derived) {
+      const scheduleValues = {
+        startsAt: subject.startsAt,
+        endsAt: subject.endsAt,
+        creditedHours: String(subject.creditedHours),
+        position: subject.position,
+        method,
+        updatedAt: new Date(),
+      };
+      const fields =
+        subject.id === parsed.id || !subject.id
+          ? {
+              ...scheduleValues,
+              title: subject.title,
+              trainingCodeId: subject.trainingCodeId,
+              className: subject.className,
+              curriculumId: subject.curriculumId,
+              curriculumName: subject.curriculumName,
+              curriculumChapter: subject.curriculumChapter,
+              lessonPlan: subject.lessonPlan,
+            }
+          : scheduleValues;
+      if (subject.id) {
+        const [updated] = await transaction
           .update(classComponents)
-          .set(values)
+          .set(fields)
           .where(
             and(
-              eq(classComponents.id, parsed.id),
+              eq(classComponents.id, subject.id),
               eq(classComponents.classId, classId),
             ),
           )
-          .returning()
-      : await transaction.insert(classComponents).values(values).returning();
-    if (!component) throw new Error("Class component was not saved.");
+          .returning();
+        if (!updated) throw new Error("Class component was not saved.");
+        if (subject.id === parsed.id) saved = updated;
+      } else {
+        const [inserted] = await transaction
+          .insert(classComponents)
+          .values({ classId, ...fields })
+          .returning();
+        if (!inserted) throw new Error("Class component was not saved.");
+        saved = inserted;
+      }
+    }
+    if (!saved) throw new Error("Class component was not saved.");
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
       actorType: "user",
       action: "class.component.saved",
       entityType: "class",
       entityId: classId,
-      details: { componentId: component.id },
+      details: { componentId: saved.id },
     });
     await carryRaisedScheduledTotal(transaction, actor, classId, previousTotal);
-    return component;
+    return saved;
   });
 }
 

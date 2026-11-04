@@ -5,10 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import {
-  componentMethodLabels,
-  defaultComponentMethod,
-} from "@/modules/classes/delivery-methods";
-import {
   getClassDetail,
   listClassFormOptions,
 } from "@/modules/classes/services";
@@ -21,13 +17,14 @@ import {
 import { requirePagePermission } from "@/modules/staff-auth/guards";
 import { PERMISSIONS } from "@/modules/staff-auth/permissions";
 import { getDatabase } from "@/server/db/client";
-
 import {
+  saveClassMethodAction,
   saveComponentAction,
   saveInstructorsAction,
   updateClassAction,
 } from "../../actions";
 import { ClassForm } from "../../class-form";
+import { ClassMethodForm } from "../../class-method-form";
 import { ComponentForm } from "../../component-form";
 import { InstructorAssignmentForm } from "../../instructor-assignment-form";
 
@@ -57,7 +54,12 @@ export default async function EditClassPage({
   const currentAssistantId =
     classRecord.instructors.find((instructor) => !instructor.isLead)?.userId ??
     null;
-  const newSessionStartsAt = roundDepartmentDateTimeToQuarterHour(new Date());
+  const lastComponent =
+    classRecord.components[classRecord.components.length - 1];
+  const newSessionStartsAt = lastComponent
+    ? formatDepartmentDateTimeInput(lastComponent.endsAt)
+    : roundDepartmentDateTimeToQuarterHour(new Date());
+  const canAddSubject = classRecord.components.length < 2;
   const componentKind = classRecord.reportingSystems.some(
     (system) => system.code === "fire",
   )
@@ -107,17 +109,19 @@ export default async function EditClassPage({
       </section>
 
       <section className="admin-section">
-        <h2>Sessions</h2>
+        <h2>Subjects</h2>
+        <ClassMethodForm
+          classId={classRecord.id}
+          value={classRecord.deliveryMethod}
+          action={saveClassMethodAction}
+        />
         <ul className="member-list">
           {classRecord.components.map((component) => (
             <li key={component.id} className="member-row">
-              <span>{component.title ?? "Training session"}</span>
+              <span>{component.title ?? "Training subject"}</span>
               <span>
                 {formatDepartmentDateTime(component.startsAt)} to{" "}
                 {formatDepartmentDateTime(component.endsAt)}
-              </span>
-              <span>
-                {componentMethodLabels(component.method) || "No method"}
               </span>
               <Badge variant="outline">
                 {formatHours(component.creditedHours)}
@@ -125,9 +129,6 @@ export default async function EditClassPage({
               <ComponentForm
                 classId={classRecord.id}
                 action={saveComponentAction}
-                defaultMethod={defaultComponentMethod(
-                  classRecord.deliveryMethod,
-                )}
                 trainingCodes={options.trainingCodes}
                 trainingCodeKind={componentKind}
                 curricula={options.curricula}
@@ -144,23 +145,23 @@ export default async function EditClassPage({
                   curriculumName: component.curriculumName,
                   curriculumChapter: component.curriculumChapter,
                   lessonPlan: component.lessonPlan,
-                  method: component.method,
                 }}
               />
             </li>
           ))}
         </ul>
-        <ComponentForm
-          classId={classRecord.id}
-          action={saveComponentAction}
-          defaultStartsAt={newSessionStartsAt}
-          defaultMethod={defaultComponentMethod(classRecord.deliveryMethod)}
-          trainingCodes={options.trainingCodes}
-          trainingCodeKind={componentKind}
-          curricula={options.curricula}
-          curriculumChapters={options.curriculumChapters}
-          recentCurriculumIds={options.recentCurriculumIds}
-        />
+        {canAddSubject ? (
+          <ComponentForm
+            classId={classRecord.id}
+            action={saveComponentAction}
+            defaultStartsAt={newSessionStartsAt}
+            trainingCodes={options.trainingCodes}
+            trainingCodeKind={componentKind}
+            curricula={options.curricula}
+            curriculumChapters={options.curriculumChapters}
+            recentCurriculumIds={options.recentCurriculumIds}
+          />
+        ) : null}
       </section>
 
       <section className="admin-section">

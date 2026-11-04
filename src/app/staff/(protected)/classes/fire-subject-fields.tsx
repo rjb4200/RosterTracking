@@ -10,12 +10,14 @@ import {
 
 import { ChapterSelect } from "./chapter-select";
 import { CurriculumSelect } from "./curriculum-select";
+import { DurationFields } from "./duration-fields";
 import { SearchSelect } from "./search-select";
 
 export interface FireSubjectValue {
   id: string;
   trainingCodeId: string;
   className: string;
+  creditedHours: string;
   curriculumId: string;
   curriculumName: string;
   curriculumChapter: string;
@@ -34,6 +36,7 @@ export function newFireSubject(): FireSubjectValue {
     id: crypto.randomUUID(),
     trainingCodeId: "",
     className: "",
+    creditedHours: "2",
     curriculumId: "",
     curriculumName: "",
     curriculumChapter: "",
@@ -81,6 +84,7 @@ export function FireSubjectRow({
     : [];
   const categoryError = errors.includes(`fire.${index}.trainingCodeId`);
   const classNameError = errors.includes(`fire.${index}.className`);
+  const durationError = errors.includes(`fire.${index}.creditedHours`);
   const chapterError = errors.includes(`fire.${index}.curriculumChapter`);
   const categoryOptions = trainingCodes.map((code) => ({
     value: code.id,
@@ -126,6 +130,14 @@ export function FireSubjectRow({
           }
         />
       </div>
+      <DurationFields
+        fieldLabel="Subject duration"
+        value={value.creditedHours}
+        onChange={(creditedHours) => onChange({ ...value, creditedHours })}
+      />
+      {durationError ? (
+        <p className="form-error">Choose a duration greater than zero.</p>
+      ) : null}
       <CurriculumSelect
         id={`fireCurriculum-${index}`}
         curricula={curricula}

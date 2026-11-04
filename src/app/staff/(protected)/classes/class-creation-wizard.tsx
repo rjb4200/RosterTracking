@@ -33,6 +33,8 @@ import {
   normalizeInitialCertNumber,
 } from "@/modules/classes/initial-cert-code";
 import {
+  calculateDepartmentEndTimeInput,
+  formatDepartmentDateTime,
   formatHours,
   parseDepartmentDateTime,
   roundDepartmentDateTimeToQuarterHour,
@@ -297,6 +299,35 @@ export function ClassCreationWizard({
 
   const fireSelected = selectedCodes.includes("fire");
   const kbemsSelected = selectedCodes.includes("kbems");
+  const fireClassHours = subjects.reduce(
+    (sum, subject) => sum + Number(subject.creditedHours || 0),
+    0,
+  );
+  const effectiveCreditedHours = fireSelected
+    ? String(fireClassHours)
+    : values.creditedHours;
+  const classStartLabel = values.startsAt
+    ? formatDepartmentDateTime(parseDepartmentDateTime(values.startsAt))
+    : "";
+  const derivedSubjectSchedule = (() => {
+    if (!values.startsAt) return [];
+    let cursor = values.startsAt;
+    return subjects.map((subject) => {
+      const duration = Number(subject.creditedHours || 0);
+      const startsAtLabel = formatDepartmentDateTime(
+        parseDepartmentDateTime(cursor),
+      );
+      if (duration <= 0) {
+        return { startsAtLabel, endsAtLabel: "", duration };
+      }
+      const endsAtInput = calculateDepartmentEndTimeInput(cursor, duration);
+      const endsAtLabel = formatDepartmentDateTime(
+        parseDepartmentDateTime(endsAtInput),
+      );
+      cursor = endsAtInput;
+      return { startsAtLabel, endsAtLabel, duration };
+    });
+  })();
   const firstFireTrainingCodeId = subjects[0]?.trainingCodeId ?? "";
   const fireCategories = trainingCodes.filter(
     (category) => category.kind === "fire",
@@ -416,7 +447,7 @@ export function ClassCreationWizard({
     deliveryMethod: values.deliveryMethods.join(","),
     trainingSiteId: values.trainingSiteId,
     startsAt: values.startsAt,
-    creditedHours: values.creditedHours,
+    creditedHours: effectiveCreditedHours,
     leadInstructorId: values.leadInstructorId,
     hostAgencyId: values.hostAgencyId,
     kbemsCourseName: values.kbemsCourseName,
@@ -894,14 +925,28 @@ export function ClassCreationWizard({
                 required
               />
             </div>
-            <DurationFields
-              fieldLabel="Scheduled duration"
-              value={values.creditedHours}
-              onChange={(next) => update("creditedHours", next)}
-            />
-            {errors.includes("creditedHours") ? (
-              <p className="form-error">Choose a duration greater than zero.</p>
-            ) : null}
+            {!fireSelected ? (
+              <>
+                <DurationFields
+                  fieldLabel="Scheduled duration"
+                  value={values.creditedHours}
+                  onChange={(next) => update("creditedHours", next)}
+                />
+                {errors.includes("creditedHours") ? (
+                  <p className="form-error">
+                    Choose a duration greater than zero.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <div className="field">
+                <span className="field-label">Class total</span>
+                <p>{formatHours(fireClassHours)}</p>
+                <p className="roster-note">
+                  Set each subject&apos;s duration on the Fire step.
+                </p>
+              </div>
+            )}
             <div className="field">
               <Label htmlFor="leadInstructorId">
                 Lead instructor
@@ -997,7 +1042,29 @@ export function ClassCreationWizard({
             <dd>{selectedSite?.name ?? "No site"}</dd>
             <dt>Schedule</dt>
             <dd>
-              {values.startsAt} for {formatHours(values.creditedHours)}
+              {classStartLabel ? <div>Starts {classStartLabel}</div> : null}
+              {fireSelected ? (
+                <ul>
+                  {subjects.map((subject, index) => {
+                    const schedule = derivedSubjectSchedule[index];
+                    return (
+                      <li key={subject.id}>
+                        {subject.className || `Subject ${index + 1}`}
+                        {schedule?.endsAtLabel
+                          ? `: ${schedule.startsAtLabel} to ${schedule.endsAtLabel}`
+                          : ""}
+                        {` (${formatHours(subject.creditedHours)})`}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              <div>
+                Total{" "}
+                {formatHours(
+                  fireSelected ? fireClassHours : values.creditedHours,
+                )}
+              </div>
             </dd>
             <dt>Delivery</dt>
             <dd>{deliveryMethodLabels(values.deliveryMethods.join(","))}</dd>
@@ -1088,7 +1155,11 @@ export function ClassCreationWizard({
         value={values.deliveryMethods.join(",")}
       />
       <input type="hidden" name="startsAt" value={values.startsAt} />
-      <input type="hidden" name="creditedHours" value={values.creditedHours} />
+      <input
+        type="hidden"
+        name="creditedHours"
+        value={effectiveCreditedHours}
+      />
       <input
         type="hidden"
         name="leadInstructorId"
@@ -1142,6 +1213,12 @@ export function ClassCreationWizard({
               type="hidden"
               name="fireLessonPlan"
               value={subject.lessonPlan}
+            />,
+            <input
+              key={`${subject.id}-hours`}
+              type="hidden"
+              name="fireSubjectCreditedHours"
+              value={subject.creditedHours}
             />,
           ])
         : null}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 
 import { wizardStepErrors } from "./wizard-validation";
 
@@ -25,6 +25,7 @@ function base(overrides: Partial<Parameters<typeof wizardStepErrors>[1]> = {}) {
     subjects: [] as Array<{
       trainingCodeId: string;
       className: string;
+      creditedHours: string;
       curriculumId: string;
       curriculumChapter: string;
     }>,
@@ -79,6 +80,7 @@ describe("wizard step validation", () => {
             {
               trainingCodeId: "",
               className: "",
+              creditedHours: "2",
               curriculumId: "",
               curriculumChapter: "",
             },
@@ -94,6 +96,7 @@ describe("wizard step validation", () => {
             {
               trainingCodeId: "code",
               className: "Hose Loads",
+              creditedHours: "2",
               curriculumId: "",
               curriculumChapter: "",
             },
@@ -114,6 +117,7 @@ describe("wizard step validation", () => {
             {
               trainingCodeId: "code",
               className: "Hose Loads",
+              creditedHours: "2",
               curriculumId: "cur-a",
               curriculumChapter: "",
             },
@@ -131,6 +135,7 @@ describe("wizard step validation", () => {
             {
               trainingCodeId: "code",
               className: "Hose Loads",
+              creditedHours: "2",
               curriculumId: "cur-b",
               curriculumChapter: "",
             },

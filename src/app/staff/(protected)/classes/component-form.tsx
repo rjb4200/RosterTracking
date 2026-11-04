@@ -6,19 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  KFS_METHOD_CODES,
-  kfsMethodLabel,
-  parseComponentMethod,
-} from "@/modules/classes/delivery-methods";
-import {
   chapterTitleForLessonPlan,
   lessonPlanForChapterChange,
 } from "@/modules/classes/fire-subjects";
-import {
-  calculateDepartmentEndTimeInput,
-  parseDepartmentDateTime,
-  roundDepartmentDateTimeToQuarterHour,
-} from "@/modules/classes/time";
+import { calculateDepartmentEndTimeInput } from "@/modules/classes/time";
 
 import type { ActionState } from "./actions";
 import { ChapterSelect } from "./chapter-select";
@@ -32,7 +23,6 @@ export function ComponentForm({
   action,
   component,
   defaultStartsAt,
-  defaultMethod,
   formId,
   hideSubmit = false,
   trainingCodes = [],
@@ -56,7 +46,6 @@ export function ComponentForm({
     method?: string | null;
   };
   defaultStartsAt?: string;
-  defaultMethod?: string | null;
   formId?: string;
   hideSubmit?: boolean;
   trainingCodes?: Array<{
@@ -87,14 +76,9 @@ export function ComponentForm({
   const categoryOptions = trainingCodeKind
     ? trainingCodes.filter((code) => code.kind === trainingCodeKind)
     : trainingCodes;
-  const [startsAt, setStartsAt] = useState(
-    component?.startsAt ?? defaultStartsAt ?? "",
-  );
+  const startsAt = component?.startsAt ?? defaultStartsAt ?? "";
   const [creditedHours, setCreditedHours] = useState(
     component?.creditedHours ?? "2.00",
-  );
-  const [methods, setMethods] = useState(() =>
-    parseComponentMethod(component?.method ?? defaultMethod),
   );
   const [curriculumId, setCurriculumId] = useState(
     component?.curriculumId ?? "",
@@ -128,7 +112,7 @@ export function ComponentForm({
       ) : null}
       <div className="form-grid">
         <div className="field">
-          <Label htmlFor={`title-${suffix}`}>Session title</Label>
+          <Label htmlFor={`title-${suffix}`}>Subject title</Label>
           <Input
             id={`title-${suffix}`}
             name="title"
@@ -149,17 +133,7 @@ export function ComponentForm({
             type="datetime-local"
             step="900"
             value={startsAt}
-            onChange={(event) => setStartsAt(event.target.value)}
-            onBlur={(event) =>
-              setStartsAt(
-                event.target.value
-                  ? roundDepartmentDateTimeToQuarterHour(
-                      parseDepartmentDateTime(event.target.value),
-                    )
-                  : "",
-              )
-            }
-            required
+            readOnly
           />
         </div>
         <div className="field">
@@ -238,31 +212,6 @@ export function ComponentForm({
             );
           }}
         />
-        <div className="field">
-          <span className="field-label">Method</span>
-          <div className="checkbox-list">
-            {KFS_METHOD_CODES.map((code) => (
-              <Label key={code} className="checkbox-field">
-                <Input
-                  type="checkbox"
-                  checked={methods.includes(code)}
-                  onChange={(event) =>
-                    setMethods((current) =>
-                      event.target.checked
-                        ? [...new Set([...current, code])]
-                        : current.filter((value) => value !== code),
-                    )
-                  }
-                />
-                {kfsMethodLabel(code)}
-              </Label>
-            ))}
-          </div>
-          <input type="hidden" name="method" value={methods.join(",")} />
-          {methods.length === 0 ? (
-            <p className="form-error">Select at least one method.</p>
-          ) : null}
-        </div>
         <div className="field field-wide">
           <Label htmlFor={`lessonPlan-${suffix}`}>Lesson plan</Label>
           <textarea
@@ -284,7 +233,7 @@ export function ComponentForm({
         ) : null
       ) : (
         <Button type="submit" disabled={pending}>
-          {pending ? "Saving..." : component ? "Update session" : "Add session"}
+          {pending ? "Saving..." : component ? "Update subject" : "Add subject"}
         </Button>
       )}
     </form>

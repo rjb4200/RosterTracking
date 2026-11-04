@@ -22,6 +22,7 @@ export interface WizardValidationInput {
   subjects: ReadonlyArray<{
     trainingCodeId: string;
     className: string;
+    creditedHours: string;
     curriculumId: string;
     curriculumChapter: string;
   }>;
@@ -59,6 +60,9 @@ export function wizardStepErrors(
       if (!subject.className.trim()) {
         missing.push(`fire.${index}.className`);
       }
+      if (!subject.creditedHours || Number(subject.creditedHours) <= 0) {
+        missing.push(`fire.${index}.creditedHours`);
+      }
       const hasChapters = Boolean(
         subject.curriculumId &&
           input.curriculaWithChapters.has(subject.curriculumId),
@@ -87,8 +91,12 @@ export function wizardStepErrors(
     if (!input.deliveryMethod.trim()) missing.push("deliveryMethod");
     if (!input.trainingSiteId) missing.push("trainingSiteId");
     if (!input.startsAt) missing.push("startsAt");
-    if (!input.creditedHours || Number(input.creditedHours) <= 0)
+    if (
+      !input.destinationCodes.includes("fire") &&
+      (!input.creditedHours || Number(input.creditedHours) <= 0)
+    ) {
       missing.push("creditedHours");
+    }
     if (!input.leadInstructorId) missing.push("leadInstructorId");
     if (!input.hostAgencyId) missing.push("hostAgencyId");
     return missing;

@@ -32,6 +32,7 @@ import {
   type FinalizationSnapshot,
   formatDate,
   readSnapshot,
+  renderKbemsE16Roster,
   renderPage,
   type TemplateRenderFonts,
 } from "@/modules/official-roster-pdfs/service";
@@ -340,78 +341,124 @@ function truncate(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
+const COVER_PAGE_WIDTH = 792;
+const COVER_PAGE_HEIGHT = 612;
+const COVER_MARGIN_X = 56;
+const COVER_BOTTOM = 56;
+const COVER_ROW_HEIGHT = 18;
+const COVER_FIRST_ROW_Y = 452;
+
 /**
- * A generated student-list cover page. Not a state form, so it needs no
- * approved template or checksum; it indexes the certificates behind it.
+ * Paginated student-list covers. Not a state form, so they need no approved
+ * template or checksum; they index the certificates ahead of them.
  */
-async function renderStudentListCover(
+async function renderStudentListCovers(
   snapshot: FinalizationSnapshot,
 ): Promise<PDFDocument> {
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([792, 612]);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const { width, height } = page.getSize();
-  let y = height - 56;
-  page.drawText("Completion Certificates", { x: 56, y, size: 20, font: bold });
-  y -= 28;
-  page.drawText(truncate(snapshot.class.courseName, 80), {
-    x: 56,
-    y,
-    size: 14,
-    font,
-  });
-  y -= 18;
-  page.drawText(certificateCoverHeader(snapshot), { x: 56, y, size: 11, font });
-  y -= 30;
-  page.drawText("Participant", { x: 56, y, size: 11, font: bold });
-  page.drawText("Agency", { x: 360, y, size: 11, font: bold });
-  page.drawText("Hours", { x: 700, y, size: 11, font: bold });
-  y -= 8;
-  page.drawLine({
-    start: { x: 56, y },
-    end: { x: width - 56, y },
-    thickness: 0.5,
-  });
-  y -= 20;
-  for (const participant of snapshot.attendance) {
-    if (y < 56) break;
-    page.drawText(truncate(participantName(participant), 48), {
-      x: 56,
-      y,
-      size: 11,
+  const rowsPerPage = Math.max(
+    1,
+    Math.floor((COVER_FIRST_ROW_Y - COVER_BOTTOM) / COVER_ROW_HEIGHT) + 1,
+  );
+  const pageCount = Math.max(
+    1,
+    Math.ceil(snapshot.attendance.length / rowsPerPage),
+  );
+
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const page = pdf.addPage([COVER_PAGE_WIDTH, COVER_PAGE_HEIGHT]);
+    const { width, height } = page.getSize();
+    let y = height - 56;
+    page.drawText(
+      pageIndex === 0
+        ? "Completion Certificates"
+        : "Completion Certificates (continued)",
+      { x: COVER_MARGIN_X, y, size: 20, font: bold },
+    );
+    const pageLabel = `Page ${pageIndex + 1} of ${pageCount}`;
+    page.drawText(pageLabel, {
+      x: width - COVER_MARGIN_X - font.widthOfTextAtSize(pageLabel, 9),
+      y: height - 56,
+      size: 9,
       font,
     });
-    page.drawText(truncate(participant.agencyName, 48), {
-      x: 360,
+    y -= 28;
+    page.drawText(truncate(snapshot.class.courseName, 80), {
+      x: COVER_MARGIN_X,
       y,
-      size: 11,
-      font,
-    });
-    page.drawText(certificateCoverRowHours(participant), {
-      x: 700,
-      y,
-      size: 11,
+      size: 14,
       font,
     });
     y -= 18;
+    page.drawText(certificateCoverHeader(snapshot), {
+      x: COVER_MARGIN_X,
+      y,
+      size: 11,
+      font,
+    });
+    y -= 30;
+    page.drawText("Participant", {
+      x: COVER_MARGIN_X,
+      y,
+      size: 11,
+      font: bold,
+    });
+    page.drawText("Agency", { x: 360, y, size: 11, font: bold });
+    page.drawText("Hours", { x: 700, y, size: 11, font: bold });
+    y -= 8;
+    page.drawLine({
+      start: { x: COVER_MARGIN_X, y },
+      end: { x: width - COVER_MARGIN_X, y },
+      thickness: 0.5,
+    });
+    y -= 20;
+
+    const start = pageIndex * rowsPerPage;
+    for (const participant of snapshot.attendance.slice(
+      start,
+      start + rowsPerPage,
+    )) {
+      page.drawText(truncate(participantName(participant), 48), {
+        x: COVER_MARGIN_X,
+        y,
+        size: 11,
+        font,
+      });
+      page.drawText(truncate(participant.agencyName, 48), {
+        x: 360,
+        y,
+        size: 11,
+        font,
+      });
+      page.drawText(certificateCoverRowHours(participant), {
+        x: 700,
+        y,
+        size: 11,
+        font,
+      });
+      y -= COVER_ROW_HEIGHT;
+    }
   }
   return pdf;
 }
 
 /**
- * The admin batch: a student-list cover page followed by one certificate page
- * per active participant, in one PDF.
+ * The admin packet: the KBEMS-E16 roster pages, one certificate page per
+ * active participant, then the paginated student-list covers.
  */
 export async function renderCompletionCertificateBatch(
   snapshot: FinalizationSnapshot,
 ): Promise<Uint8Array> {
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
   const output = await PDFDocument.create();
-  const cover = await renderStudentListCover(snapshot);
-  for (const page of await output.copyPages(cover, cover.getPageIndices())) {
+
+  const roster = await PDFDocument.load(await renderKbemsE16Roster(snapshot));
+  for (const page of await output.copyPages(roster, roster.getPageIndices())) {
     output.addPage(page);
   }
+
   for (const participant of snapshot.attendance) {
     const page = await renderPage(mapping, (pdf, fonts) =>
       fillCertificate(pdf, fonts, snapshot, participant),
@@ -419,6 +466,12 @@ export async function renderCompletionCertificateBatch(
     const copied = await output.copyPages(page, [0]);
     output.addPage(copied[0]);
   }
+
+  const cover = await renderStudentListCovers(snapshot);
+  for (const page of await output.copyPages(cover, cover.getPageIndices())) {
+    output.addPage(page);
+  }
+
   setCertificateMetadata(output, `${mapping.formType}-batch`);
   return output.save({ useObjectStreams: false });
 }
@@ -445,6 +498,11 @@ export async function generateCompletionCertificates(
   revisionId: string,
 ): Promise<GeneratedCertificates> {
   const snapshot = await readSnapshot(db, actor, revisionId);
+  if (!revisionReportsToKbems(snapshot)) {
+    throw new Error(
+      "Completion certificates are only available for KBEMS classes.",
+    );
+  }
   if (!snapshot.rosterAttested && !snapshot.legacy) {
     throw new Error(
       "The roster must be signed by the lead instructor before completion certificates can be generated.",
