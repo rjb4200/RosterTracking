@@ -7,12 +7,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { encryptCredential } from "@/modules/reference/crypto";
 import type { Database } from "@/server/db/client";
 
-import { getTemplateMapping, TEMPLATE_MAPPINGS } from "./mappings";
+import {
+  getTemplateMapping,
+  KBEMS_E16_TEMPLATE,
+  TEMPLATE_MAPPINGS,
+} from "./mappings";
 import {
   emailOfficialRoster,
   type FinalizationSnapshot,
   generateOfficialRoster,
   hasOfficialRosterAuthority,
+  renderKbemsE16Page,
+  renderKbemsE16Roster,
   renderOfficialRoster,
   renderPage,
   renderRosterPage,
@@ -112,6 +118,141 @@ describe("official roster PDF templates", () => {
       for (const name of Object.values(mapping.fields))
         expect(fields.has(name)).toBe(true);
     }
+  });
+
+  it("uses the supplied KBEMS-E16 template and mapped fields", async () => {
+    const bytes = await readFile(
+      new URL(`./${KBEMS_E16_TEMPLATE.assetName}`, import.meta.url),
+    );
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+      KBEMS_E16_TEMPLATE.sourceChecksum,
+    );
+    const fields = new Set(
+      (await PDFDocument.load(bytes))
+        .getForm()
+        .getFields()
+        .map((field) => field.getName()),
+    );
+    for (const name of Object.values(KBEMS_E16_TEMPLATE.fields)) {
+      expect(fields.has(name)).toBe(true);
+    }
+    expect(KBEMS_E16_TEMPLATE.pageCapacity).toBe(16);
+  });
+
+  it("aggregates the E16 one-day schedule and objectives", async () => {
+    const aggregate: FinalizationSnapshot = {
+      ...snapshot,
+      class: {
+        ...snapshot.class,
+        courseName: "Airway Management",
+        siteName: "Station 2",
+        objectives: "Airway management",
+      },
+      components: [
+        {
+          title: "Forcible Entry",
+          startsAt: "2026-09-05T15:00:00.000Z",
+          endsAt: "2026-09-05T16:30:00.000Z",
+          creditedHours: "1.5",
+        },
+        {
+          title: "Trauma",
+          startsAt: "2026-09-05T16:30:00.000Z",
+          endsAt: "2026-09-05T17:00:00.000Z",
+          creditedHours: "0.5",
+        },
+      ],
+      attendance: snapshot.attendance.slice(0, 1),
+    };
+
+    const page = await renderKbemsE16Page(aggregate, aggregate.attendance, {
+      flatten: false,
+    });
+    const form = page.getForm();
+    expect(form.getTextField("Course Name").getText()).toBe(
+      "Airway Management",
+    );
+    expect(form.getTextField("Instructor Name").getText()).toBe(
+      "Lead Instructor, Assistant Instructor",
+    );
+    expect(form.getTextField("Location").getText()).toBe("Station 2");
+    expect(form.getTextField("Date").getText()).toBe("09/05/2026");
+    expect(form.getTextField("Start Time").getText()).toBe("11:00 AM");
+    expect(form.getTextField("End Time").getText()).toBe("1:00 PM");
+    expect(form.getTextField("Total Hours").getText()).toBe("2");
+    expect(
+      form.getTextField("Course Description or Objectives").getText(),
+    ).toBe("Airway management");
+  });
+
+  it("prints every E16 attendee and leaves a missing KEMSIS ID blank", async () => {
+    vi.stubEnv(
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    );
+    const withIdentifiers: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: snapshot.attendance.slice(0, 2),
+      credentialSnapshots: [
+        {
+          attendanceId: "attendance-0",
+          credentialTypeCode: "kemsis",
+          encryptedValue: encryptCredential("KEMSIS-456"),
+        },
+      ],
+    };
+
+    const page = await renderKbemsE16Page(
+      withIdentifiers,
+      withIdentifiers.attendance,
+      { flatten: false },
+    );
+    const form = page.getForm();
+    expect(form.getTextField("Student Name PrintRow1").getText()).toBe(
+      "Student0 Roster",
+    );
+    expect(form.getTextField("KEMSIS IDRow1").getText()).toBe("KEMSIS-456");
+    expect(form.getTextField("Affiliated ServiceRow1").getText()).toBe(
+      "Example Fire",
+    );
+    expect(form.getTextField("Student Name PrintRow2").getText()).toBe(
+      "Student1 Roster",
+    );
+    expect(form.getTextField("KEMSIS IDRow2").getText() ?? "").toBe("");
+  });
+
+  it("paginates the E16 and renders no electronic signature", async () => {
+    const attendee = snapshot.attendance[0];
+    if (!attendee) throw new Error("fixture attendee is missing");
+    const many: FinalizationSnapshot = {
+      ...snapshot,
+      attendance: Array.from({ length: 17 }, (_, index) => ({
+        ...attendee,
+        attendanceId: `e16-attendance-${index}`,
+        firstName: `E16 Student ${index}`,
+      })),
+    };
+
+    const pdf = await PDFDocument.load(await renderKbemsE16Roster(many));
+    expect(pdf.getPageCount()).toBe(2);
+
+    const page = await renderKbemsE16Page(many, many.attendance.slice(16), {
+      flatten: false,
+      page: 2,
+      pageCount: 2,
+    });
+    const form = page.getForm();
+    expect(
+      form
+        .getTextField(
+          "Please mark out blank lines at the conclusion of the course",
+        )
+        .getText(),
+    ).toBe("2");
+    expect(form.getTextField("of").getText()).toBe("2");
+    expect(
+      form.getFields().some((field) => /signature/i.test(field.getName())),
+    ).toBe(false);
   });
 
   it("wraps long KFS-1A subject values across two lines at a larger size", async () => {
@@ -412,6 +553,9 @@ describe("official roster PDF templates", () => {
     };
 
     expect(snapshotIdentifier(identifiers, "attendance-0")).toBe("FFN-123");
+    expect(snapshotIdentifier(identifiers, "attendance-0", "kbems-e16")).toBe(
+      "KEMSIS-456",
+    );
   });
 
   it("renders a direct download without database metadata writes", async () => {

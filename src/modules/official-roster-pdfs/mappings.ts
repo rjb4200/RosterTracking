@@ -7,6 +7,7 @@ export type OfficialRosterForm =
 
 export const DOCUMENT_TYPES = {
   ...OFFICIAL_ROSTER_FORMS,
+  KBEMS_E16: "kbems-e16",
   COMPLETION_CERTIFICATE: "completion-certificate",
   INDIVIDUAL_TRAINING_NOTICE: "individual-training-notice",
 } as const;
@@ -129,6 +130,51 @@ export const TEMPLATE_MAPPINGS: Record<OfficialRosterForm, TemplateMapping> = {
     blankFields: [],
     attendeeInitialsField: "INITIALSRow",
   },
+};
+
+// The KBEMS-E16 attendance roster. It is generated only inside the KBEMS
+// completion-certificate packet; it is not a standalone official-roster choice.
+export const KBEMS_E16_TEMPLATE: TemplateMapping = {
+  formType: "kbems-e16",
+  templateVersion: "kbems-e16-september-2012",
+  assetName: "kbems-e16-september-2012.pdf",
+  sourceChecksum:
+    "5c56ffcd9b6481ce9019a9fdecd827ecaefc7bc63b9dc6d5f4d5fd0021796416",
+  pageCapacity: 16,
+  pageSize: { width: 792, height: 612 },
+  typography: { font: "Helvetica", fontSize: 8 },
+  fieldCoordinates: {
+    courseName: { x: 228.36, y: 567.12, width: 286.68, height: 12.84 },
+    attendeeNameRow1: { x: 31.56, y: 445.68, width: 180.96, height: 21.12 },
+    attendeeKemsisIdRow1: {
+      x: 214.32,
+      y: 445.68,
+      width: 95.4,
+      height: 21.12,
+    },
+    attendeeServiceRow1: {
+      x: 518.52,
+      y: 445.68,
+      width: 242.04,
+      height: 21.12,
+    },
+  },
+  fields: {
+    courseName: "Course Name",
+    instructor: "Instructor Name",
+    location: "Location",
+    date: "Date",
+    startTime: "Start Time",
+    endTime: "End Time",
+    totalHours: "Total Hours",
+    objectives: "Course Description or Objectives",
+    page: "Please mark out blank lines at the conclusion of the course",
+    pageCount: "of",
+  },
+  wrapFields: ["Course Description or Objectives"],
+  // The supplied E16 has no electronic signature fields; its signature areas
+  // stay blank for physical signing.
+  blankFields: [],
 };
 
 export const COMPLETION_CERTIFICATE_TEMPLATE: TemplateMapping = {

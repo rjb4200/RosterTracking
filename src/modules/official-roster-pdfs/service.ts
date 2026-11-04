@@ -38,6 +38,7 @@ import {
 import { attendeeInitials } from "./initials";
 import {
   getTemplateMapping,
+  KBEMS_E16_TEMPLATE,
   type OfficialRosterForm,
   type TemplateMapping,
 } from "./mappings";
@@ -191,15 +192,20 @@ function attendeeName(attendee: SnapshotAttendance): string {
 export function snapshotIdentifier(
   snapshot: FinalizationSnapshot,
   attendanceId: string,
+  formType: "kfs-1a" | "kbems-e16" = "kfs-1a",
 ): string {
+  const expectedFields =
+    formType === "kfs-1a" ? ["ffn", "studentNumber"] : ["kemsisId"];
+  const expectedCredentialCode = formType === "kfs-1a" ? "ffn" : "kemsis";
   const field = snapshot.fieldSnapshots.find(
     (value) =>
       value.attendanceId === attendanceId &&
-      ["ffn", "studentNumber"].includes(value.studentField),
+      expectedFields.includes(value.studentField),
   );
   const credential = snapshot.credentialSnapshots.find(
     (value) =>
-      value.attendanceId === attendanceId && value.credentialTypeCode === "ffn",
+      value.attendanceId === attendanceId &&
+      value.credentialTypeCode === expectedCredentialCode,
   );
   const legacyCredentials = snapshot.credentialSnapshots.filter(
     (value) =>
@@ -521,6 +527,138 @@ function fillKfsPage(
     mapping.fields.instructorInitials,
     fireSignatureName ? attendeeInitials(fireSignatureName) : "",
   );
+}
+
+interface KbemsRosterSchedule {
+  date: string;
+  startsAt: string;
+  endsAt: string;
+  totalHours: string;
+}
+
+function formatHoursValue(value: number): string {
+  return String(Number(value.toFixed(2)));
+}
+
+/** One-day aggregate used by the E16's single date/time block. */
+function kbemsRosterSchedule(
+  snapshot: FinalizationSnapshot,
+): KbemsRosterSchedule {
+  const components = snapshot.components ?? [];
+  if (components.length === 0) {
+    return {
+      date: snapshot.class.completedAt ?? "",
+      startsAt: "",
+      endsAt: "",
+      totalHours: "",
+    };
+  }
+  const first = components[0];
+  if (!first) throw new Error("Class component is missing.");
+  let earliest = first.startsAt;
+  let latest = first.endsAt;
+  let total = 0;
+  for (const component of components) {
+    if (new Date(component.startsAt) < new Date(earliest)) {
+      earliest = component.startsAt;
+    }
+    if (new Date(component.endsAt) > new Date(latest)) {
+      latest = component.endsAt;
+    }
+    total += Number(component.creditedHours || 0);
+  }
+  return {
+    date: earliest,
+    startsAt: earliest,
+    endsAt: latest,
+    totalHours: formatHoursValue(total),
+  };
+}
+
+function fillKbemsPage(
+  pdf: PDFDocument,
+  snapshot: FinalizationSnapshot,
+  attendees: SnapshotAttendance[],
+  schedule: KbemsRosterSchedule,
+  page: number,
+  pageCount: number,
+) {
+  const mapping = KBEMS_E16_TEMPLATE;
+  const instructorNames = snapshot.instructors
+    .map((instructor) => instructor.name)
+    .join(", ");
+  setText(pdf, mapping.fields.courseName, snapshot.class.courseName);
+  setText(pdf, mapping.fields.instructor, instructorNames);
+  setText(pdf, mapping.fields.location, snapshot.class.siteName ?? "");
+  setText(pdf, mapping.fields.date, formatDate(schedule.date));
+  setText(pdf, mapping.fields.startTime, formatTime(schedule.startsAt));
+  setText(pdf, mapping.fields.endTime, formatTime(schedule.endsAt));
+  setText(pdf, mapping.fields.totalHours, schedule.totalHours);
+  setText(pdf, mapping.fields.objectives, snapshot.class.objectives ?? "");
+  setText(pdf, mapping.fields.page, String(page));
+  setText(pdf, mapping.fields.pageCount, String(pageCount));
+
+  attendees.forEach((attendee, index) => {
+    const row = index + 1;
+    setText(pdf, `Student Name PrintRow${row}`, attendeeName(attendee));
+    setText(
+      pdf,
+      `KEMSIS IDRow${row}`,
+      snapshotIdentifier(snapshot, attendee.attendanceId, "kbems-e16"),
+    );
+    setText(pdf, `Affiliated ServiceRow${row}`, attendee.agencyName);
+  });
+}
+
+/**
+ * One E16 page. Exposed so verification tests can inspect the populated fields
+ * before flattening; the certificate packet uses `renderKbemsE16Roster`.
+ */
+export async function renderKbemsE16Page(
+  snapshot: FinalizationSnapshot,
+  attendees: SnapshotAttendance[],
+  options: { flatten?: boolean; page?: number; pageCount?: number } = {},
+): Promise<PDFDocument> {
+  const schedule = kbemsRosterSchedule(snapshot);
+  return renderPage(
+    KBEMS_E16_TEMPLATE,
+    (pdf) =>
+      fillKbemsPage(
+        pdf,
+        snapshot,
+        attendees,
+        schedule,
+        options.page ?? 1,
+        options.pageCount ?? 1,
+      ),
+    { flatten: options.flatten ?? true },
+  );
+}
+
+/**
+ * The multi-page KBEMS-E16 roster embedded at the top of the certificate
+ * packet. Every active attendee appears once.
+ */
+export async function renderKbemsE16Roster(
+  snapshot: FinalizationSnapshot,
+): Promise<Uint8Array> {
+  const pages = split(snapshot.attendance, KBEMS_E16_TEMPLATE.pageCapacity);
+  if (!pages.length) pages.push([]);
+  const output = await PDFDocument.create();
+  for (const [index, attendees] of pages.entries()) {
+    const page = await renderKbemsE16Page(snapshot, attendees, {
+      page: index + 1,
+      pageCount: pages.length,
+    });
+    const copied = await output.copyPages(page, [0]);
+    output.addPage(copied[0]);
+  }
+  output.setCreationDate(new Date(0));
+  output.setModificationDate(new Date(0));
+  output.setCreator("Roster Command");
+  output.setProducer("Roster Command");
+  output.setTitle("kbems-e16 roster");
+  return output.save({ useObjectStreams: false });
 }
 
 const TEMPLATE_ASSET_DIR = join(
