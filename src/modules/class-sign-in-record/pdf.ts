@@ -27,6 +27,11 @@ export interface ClassSignInRecordRemovedEntry extends ClassSignInRecordEntry {
   removalReason: string;
 }
 
+export interface ClassSignInRecordDay {
+  date: string;
+  entries: ClassSignInRecordEntry[];
+}
+
 export interface ClassSignInRecord {
   classId: string;
   courseName: string;
@@ -36,6 +41,8 @@ export interface ClassSignInRecord {
   generatedAt: Date;
   active: ClassSignInRecordEntry[];
   removed: ClassSignInRecordRemovedEntry[];
+  // Present for an initial-certification record built from daily check-ins.
+  days?: ClassSignInRecordDay[];
 }
 
 export const SIGN_IN_RECORD_ATTESTATION_VERSION =
@@ -71,6 +78,13 @@ function formatDepartmentDateTime(date: Date): string {
   }).format(date);
 }
 
+function formatCheckInDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    dateStyle: "full",
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
 function wrap(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -95,10 +109,20 @@ interface EntryLine {
 }
 
 type SignInRow =
+  | { kind: "date"; date: string; continued?: boolean }
   | { kind: "active"; entry: ClassSignInRecordEntry }
   | { kind: "removed"; entry: ClassSignInRecordRemovedEntry };
 
 function entryLines(row: SignInRow): EntryLine[] {
+  if (row.kind === "date") {
+    return [
+      {
+        text: `${formatCheckInDate(row.date)}${row.continued ? " (continued)" : ""}`,
+        size: 12,
+        bold: true,
+      },
+    ];
+  }
   const entry = row.entry;
   const suffix = row.kind === "removed" ? " (REMOVED)" : "";
   const lines: EntryLine[] = [
@@ -142,22 +166,47 @@ export async function renderClassSignInRecordPdf(
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const rows: SignInRow[] = [
-    ...record.active.map((entry) => ({ kind: "active" as const, entry })),
+  const rows: SignInRow[] = [];
+  if (record.days?.length) {
+    for (const day of record.days) {
+      rows.push({ kind: "date", date: day.date });
+      for (const entry of day.entries) {
+        rows.push({ kind: "active", entry });
+      }
+    }
+  } else {
+    rows.push(
+      ...record.active.map((entry) => ({ kind: "active" as const, entry })),
+    );
+  }
+  rows.push(
     ...record.removed.map((entry) => ({ kind: "removed" as const, entry })),
-  ];
+  );
 
   // Pack entries onto pages by their real rendered height so a class of any
   // size flows onto additional pages instead of running off the bottom.
   const pageGroups: SignInRow[][] = [];
   let current: SignInRow[] = [];
   let usedHeight = 0;
+  let activeDate: string | null = null;
+  const heightOf = (row: SignInRow) =>
+    entryLines(row).length * LINE_HEIGHT + LINE_HEIGHT / 2;
   for (const row of rows) {
-    const entryHeight = entryLines(row).length * LINE_HEIGHT + LINE_HEIGHT / 2;
+    if (row.kind === "date") activeDate = row.date;
+    const entryHeight = heightOf(row);
     if (current.length > 0 && usedHeight + entryHeight > BODY_HEIGHT) {
       pageGroups.push(current);
       current = [];
       usedHeight = 0;
+      if (activeDate && row.kind === "active") {
+        const continuation: SignInRow = {
+          kind: "date",
+          date: activeDate,
+          continued: true,
+        };
+        current.push(continuation);
+        usedHeight += heightOf(continuation);
+      }
     }
     current.push(row);
     usedHeight += entryHeight;
@@ -187,7 +236,9 @@ export async function renderClassSignInRecordPdf(
     line(
       `Generated: ${formatDepartmentDateTime(record.generatedAt)}   Page ${pageIndex + 1} of ${pageGroups.length}`,
     );
-    line(`Active: ${record.active.length}   Removed: ${record.removed.length}`);
+    line(
+      `Active: ${record.active.length}   Removed: ${record.removed.length}${record.days?.length ? `   Dates: ${record.days.length}` : ""}`,
+    );
     y -= LINE_HEIGHT / 2;
 
     if (group.length === 0) {

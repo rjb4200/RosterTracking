@@ -37,6 +37,7 @@ import {
   resendParticipantNotice,
   sendParticipantNoticeOnDemand,
 } from "@/modules/individual-training-notices/service";
+import { saveCertificateDisposition } from "@/modules/instructor-roster/services";
 import { emailOfficialRoster } from "@/modules/official-roster-pdfs/service";
 import { createAgency, createSite } from "@/modules/reference/services";
 import { requireStaff } from "@/modules/staff-auth/authorization";
@@ -423,6 +424,34 @@ export async function rotateTokenAction(
     return {
       error:
         error instanceof Error ? error.message : "Could not rotate access.",
+    };
+  }
+}
+
+export async function saveCertificateDispositionAction(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await requireActor(PERMISSIONS.CLASSES_MANAGE);
+  const classId = read(formData, "classId");
+  const attendanceId = read(formData, "attendanceId");
+  const decision = read(formData, "decision");
+  const note = read(formData, "note");
+  try {
+    await saveCertificateDisposition(getDatabase(), actor, {
+      classId,
+      attendanceId,
+      decision: decision as "include" | "exclude",
+      note,
+    });
+    revalidatePath(`/staff/classes/${classId}/review`);
+    return { success: "Certificate disposition saved." };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not save the certificate disposition.",
     };
   }
 }

@@ -3,6 +3,10 @@ import "server-only";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
+import {
+  type CertificateDispositionDecision,
+  missingClassDays,
+} from "@/modules/classes/daily-check-ins";
 import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
 import { listClassCredentialCorrections } from "@/modules/credential-correction/service";
@@ -13,6 +17,8 @@ import {
   agencies,
   attendance,
   attendanceAttestations,
+  attendanceCertificateDispositions,
+  attendanceCheckIns,
   attendanceReportingContexts,
   classComponents,
   classGuests,
@@ -139,6 +145,100 @@ export function readinessIssue(
     : `${name} is missing required reporting context.`;
 }
 
+export interface MissingDayStudentRecord {
+  attendanceId: string;
+  name: string;
+  missingDates: string[];
+  disposition: {
+    decision: CertificateDispositionDecision;
+    note: string;
+    resolvedByName: string;
+    resolvedAt: Date;
+  } | null;
+}
+
+/**
+ * Active initial-certification students missing one or more inferred class days,
+ * with their current certificate disposition. Other class types return no rows.
+ */
+export async function listMissingDayStudents(
+  transaction: DatabaseTransaction,
+  classId: string,
+): Promise<MissingDayStudentRecord[]> {
+  const [classRow] = await transaction
+    .select({ courseType: trainingClasses.courseType })
+    .from(trainingClasses)
+    .where(eq(trainingClasses.id, classId))
+    .limit(1);
+  if (classRow?.courseType !== "initial_certification") return [];
+
+  const active = await transaction
+    .select({
+      attendanceId: attendance.id,
+      studentId: attendance.studentId,
+      firstName: students.firstName,
+      lastName: students.lastName,
+      guestFirstName: classGuests.firstName,
+      guestLastName: classGuests.lastName,
+    })
+    .from(attendance)
+    .leftJoin(students, eq(students.id, attendance.studentId))
+    .leftJoin(classGuests, eq(classGuests.id, attendance.guestId))
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const checkIns = await transaction
+    .select({
+      attendanceId: attendanceCheckIns.attendanceId,
+      checkInDate: attendanceCheckIns.checkInDate,
+    })
+    .from(attendanceCheckIns)
+    .innerJoin(attendance, eq(attendance.id, attendanceCheckIns.attendanceId))
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const dispositions = await transaction
+    .select({
+      attendanceId: attendanceCertificateDispositions.attendanceId,
+      decision: attendanceCertificateDispositions.decision,
+      note: attendanceCertificateDispositions.note,
+      resolvedByName: users.displayName,
+      resolvedAt: attendanceCertificateDispositions.resolvedAt,
+    })
+    .from(attendanceCertificateDispositions)
+    .innerJoin(
+      attendance,
+      eq(attendance.id, attendanceCertificateDispositions.attendanceId),
+    )
+    .innerJoin(
+      users,
+      eq(users.id, attendanceCertificateDispositions.resolvedByUserId),
+    )
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const dispositionByAttendance = new Map(
+    dispositions.map((disposition) => [disposition.attendanceId, disposition]),
+  );
+  return missingClassDays(
+    active.map((entry) => entry.attendanceId),
+    checkIns,
+  ).map((missing) => {
+    const entry = active.find(
+      (candidate) => candidate.attendanceId === missing.attendanceId,
+    );
+    if (!entry) throw new Error("Missing-day attendance is unavailable.");
+    const disposition = dispositionByAttendance.get(missing.attendanceId);
+    return {
+      attendanceId: missing.attendanceId,
+      name: participantLabel(entry),
+      missingDates: missing.missingDates,
+      disposition: disposition
+        ? {
+            decision: disposition.decision as CertificateDispositionDecision,
+            note: disposition.note,
+            resolvedByName: disposition.resolvedByName,
+            resolvedAt: disposition.resolvedAt,
+          }
+        : null,
+    };
+  });
+}
+
 export async function getScheduledClassHours(
   transaction: DatabaseTransaction,
   classId: string,
@@ -248,6 +348,83 @@ export async function removeAttendance(
   });
 }
 
+export async function saveCertificateDisposition(
+  db: Database,
+  actor: RosterActor,
+  input: {
+    classId: string;
+    attendanceId: string;
+    decision: CertificateDispositionDecision;
+    note: string;
+  },
+  now = new Date(),
+) {
+  const note = input.note.trim();
+  if (!note) throw new Error("Enter the certificate note or reason.");
+  if (input.decision !== "include" && input.decision !== "exclude") {
+    throw new Error("Choose whether to include or exclude the certificate.");
+  }
+  return db.transaction(async (transaction) => {
+    const [entry] = await transaction
+      .select({ id: attendance.id, classId: attendance.classId })
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.id, input.attendanceId),
+          eq(attendance.classId, input.classId),
+          isNull(attendance.removedAt),
+        ),
+      )
+      .limit(1);
+    if (!entry) throw new Error("Active attendance was not found.");
+    const classRecord = await requireAssignedInstructor(
+      transaction,
+      actor,
+      entry.classId,
+    );
+    requireMutableRosterClass(classRecord);
+    if (
+      classRecord.status !== CLASS_STATUSES.OPEN ||
+      classRecord.courseType !== "initial_certification"
+    ) {
+      throw new Error(
+        "Certificate dispositions are only available for open initial-certification classes.",
+      );
+    }
+    await transaction
+      .insert(attendanceCertificateDispositions)
+      .values({
+        attendanceId: entry.id,
+        decision: input.decision,
+        note,
+        resolvedByUserId: actor.id,
+        resolvedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: attendanceCertificateDispositions.attendanceId,
+        set: {
+          decision: input.decision,
+          note,
+          resolvedByUserId: actor.id,
+          resolvedAt: now,
+          updatedAt: now,
+        },
+      });
+    await writeAuditLog(transaction, {
+      actorUserId: actor.id,
+      actorType: "user",
+      action: "attendance.certificate_disposition.saved",
+      entityType: "attendance",
+      entityId: entry.id,
+      details: {
+        classId: entry.classId,
+        decision: input.decision,
+      },
+    });
+  });
+}
+
 export async function adjustCreditedHours(
   db: Database,
   actor: RosterActor,
@@ -325,6 +502,14 @@ export async function validateRosterCompletion(
       throw new Error(
         "Active attendance is missing required reporting context.",
       );
+  }
+  const unresolved = (await listMissingDayStudents(transaction, classId)).find(
+    (student) => !student.disposition,
+  );
+  if (unresolved) {
+    throw new Error(
+      `${unresolved.name} is missing a class day and needs a certificate disposition.`,
+    );
   }
 }
 
@@ -417,11 +602,23 @@ export async function getRosterReadiness(
         attentionIds.add(entry.id);
       }
     }
+    const missingDayStudents = await listMissingDayStudents(
+      transaction,
+      classId,
+    );
+    for (const student of missingDayStudents) {
+      if (student.disposition) continue;
+      issues.push(
+        `${student.name} is missing a class day and needs a certificate disposition.`,
+      );
+      attentionIds.add(student.attendanceId);
+    }
     return {
       ready: issues.length === 0,
       issues,
       scheduledHours,
       attentionIds: [...attentionIds],
+      missingDayStudents,
     };
   });
 }

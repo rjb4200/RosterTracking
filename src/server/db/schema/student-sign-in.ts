@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -375,6 +376,108 @@ export const attendanceAttestations = pgTable(
     check(
       "attendance_attestations_correlation_not_blank",
       sql`length(btrim(${table.requestCorrelationId})) > 0`,
+    ),
+  ],
+);
+
+/**
+ * One check-in per attendance and department-calendar date. The attendance row
+ * remains the single enrollment record; this table records daily evidence for
+ * initial-certification programs.
+ */
+export const attendanceCheckIns = pgTable(
+  "attendance_check_ins",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    attendanceId: uuid("attendance_id")
+      .notNull()
+      .references(() => attendance.id, { onDelete: "restrict" }),
+    checkInDate: date("check_in_date").notNull(),
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    renderedText: text("rendered_text").notNull(),
+    textVersion: integer("text_version").notNull(),
+    signInMethod: text("sign_in_method").notNull(),
+    originatingIp: text("originating_ip").notNull(),
+    requestSourceFingerprint: text("request_source_fingerprint").notNull(),
+    requestCorrelationId: text("request_correlation_id").notNull(),
+    rememberedDeviceId: uuid("remembered_device_id").references(
+      () => rememberedDevices.id,
+      { onDelete: "restrict" },
+    ),
+  },
+  (table) => [
+    uniqueIndex("attendance_check_ins_attendance_date_unique").on(
+      table.attendanceId,
+      table.checkInDate,
+    ),
+    index("attendance_check_ins_date_idx").on(table.checkInDate),
+    index("attendance_check_ins_attendance_idx").on(table.attendanceId),
+    index("attendance_check_ins_remembered_device_idx").on(
+      table.rememberedDeviceId,
+    ),
+    check(
+      "attendance_check_ins_text_not_blank",
+      sql`length(btrim(${table.renderedText})) > 0`,
+    ),
+    check(
+      "attendance_check_ins_text_version_positive",
+      sql`${table.textVersion} > 0`,
+    ),
+    check(
+      "attendance_check_ins_method_not_blank",
+      sql`length(btrim(${table.signInMethod})) > 0`,
+    ),
+    check(
+      "attendance_check_ins_ip_not_blank",
+      sql`length(btrim(${table.originatingIp})) > 0`,
+    ),
+    check(
+      "attendance_check_ins_source_not_blank",
+      sql`length(btrim(${table.requestSourceFingerprint})) > 0`,
+    ),
+    check(
+      "attendance_check_ins_correlation_not_blank",
+      sql`length(btrim(${table.requestCorrelationId})) > 0`,
+    ),
+  ],
+);
+
+/**
+ * The final per-student certificate decision for a missing-day attendee. The
+ * attendance and roster remain intact; only certificate generation is skipped
+ * when the decision is `exclude`.
+ */
+export const attendanceCertificateDispositions = pgTable(
+  "attendance_certificate_dispositions",
+  {
+    attendanceId: uuid("attendance_id")
+      .primaryKey()
+      .references(() => attendance.id, { onDelete: "restrict" }),
+    decision: text("decision").notNull(),
+    note: text("note").notNull(),
+    resolvedByUserId: uuid("resolved_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("attendance_certificate_dispositions_resolver_idx").on(
+      table.resolvedByUserId,
+    ),
+    check(
+      "attendance_certificate_dispositions_decision",
+      sql`${table.decision} in ('include', 'exclude')`,
+    ),
+    check(
+      "attendance_certificate_dispositions_note_not_blank",
+      sql`length(btrim(${table.note})) > 0`,
     ),
   ],
 );

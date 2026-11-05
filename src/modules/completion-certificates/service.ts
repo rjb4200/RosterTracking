@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { PDFFont } from "pdf-lib";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { isCertificateExcluded } from "@/modules/classes/daily-check-ins";
 import { loadLogoAttachment } from "@/modules/notifications/assets";
 import {
   EMAIL_SENDER,
@@ -41,6 +42,17 @@ import type { Database, DatabaseTransaction } from "@/server/db/client";
 import { EMAIL_DELIVERY_STATUSES, emailDeliveries } from "@/server/db/schema";
 
 type CertificateParticipant = FinalizationSnapshot["attendance"][number];
+
+/** Active participants who are not explicitly excluded from the certificate. */
+export function certificateEligibleAttendance(
+  snapshot: FinalizationSnapshot,
+): CertificateParticipant[] {
+  const dispositions = snapshot.dispositions ?? [];
+  return snapshot.attendance.filter(
+    (participant) =>
+      !isCertificateExcluded(dispositions, participant.attendanceId),
+  );
+}
 
 const COURSE_TYPE_LABELS: Record<string, string> = {
   continuing_education: "Continuing Education",
@@ -326,7 +338,7 @@ export async function renderCompletionCertificates(
 ): Promise<Uint8Array> {
   const mapping = COMPLETION_CERTIFICATE_TEMPLATE;
   const output = await PDFDocument.create();
-  for (const participant of snapshot.attendance) {
+  for (const participant of certificateEligibleAttendance(snapshot)) {
     const page = await renderPage(mapping, (pdf, fonts) =>
       fillCertificate(pdf, fonts, snapshot, participant),
     );
@@ -459,7 +471,7 @@ export async function renderCompletionCertificateBatch(
     output.addPage(page);
   }
 
-  for (const participant of snapshot.attendance) {
+  for (const participant of certificateEligibleAttendance(snapshot)) {
     const page = await renderPage(mapping, (pdf, fonts) =>
       fillCertificate(pdf, fonts, snapshot, participant),
     );
@@ -509,7 +521,7 @@ export async function generateCompletionCertificates(
     );
   }
   const bytes = await renderCompletionCertificateBatch(snapshot);
-  const participantCount = snapshot.attendance.length;
+  const participantCount = certificateEligibleAttendance(snapshot).length;
   const signed = Boolean(snapshot.signature?.name);
   await db.transaction(async (transaction) => {
     await writeAuditLog(transaction, {
@@ -556,7 +568,7 @@ export async function queueCertificateDeliveries(
     skipped: 0,
     undeliverable: 0,
   };
-  for (const participant of snapshot.attendance) {
+  for (const participant of certificateEligibleAttendance(snapshot)) {
     result.total += 1;
     const candidate = participant.email?.trim() ?? "";
     let recipient: string;
@@ -688,6 +700,11 @@ export async function resendParticipantCertificate(
     (entry) => entry.attendanceId === attendanceId,
   );
   if (!participant) throw new Error("Participant not found on this revision.");
+  if (
+    isCertificateExcluded(snapshot.dispositions ?? [], participant.attendanceId)
+  ) {
+    throw new Error("This participant is excluded from the certificate.");
+  }
   const supplied = recipientInput.trim();
   const recipient = supplied
     ? validateEmailRecipient(supplied)
@@ -790,7 +807,7 @@ export async function getCertificateDeliveryOverview(
       .filter((delivery) => delivery.attendanceId)
       .map((delivery) => [delivery.attendanceId as string, delivery]),
   );
-  return snapshot.attendance.map((participant) => {
+  return certificateEligibleAttendance(snapshot).map((participant) => {
     const email = participant.email?.trim() || null;
     const delivery = byAttendance.get(participant.attendanceId);
     let state: CertificateDeliveryState;
