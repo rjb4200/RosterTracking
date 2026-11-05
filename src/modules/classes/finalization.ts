@@ -1,7 +1,10 @@
 import "server-only";
 
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { buildClassSignInRecord } from "@/modules/class-sign-in-record/service";
+import {
+  buildClassSignInRecord,
+  buildClassSignInRecordFromCheckIns,
+} from "@/modules/class-sign-in-record/service";
 import { deliveryMethodsFromComponentMethods } from "@/modules/classes/delivery-methods";
 import {
   queueCertificateDeliveries,
@@ -30,6 +33,8 @@ import {
   agencies,
   attendance,
   attendanceAttestations,
+  attendanceCertificateDispositions,
+  attendanceCheckIns,
   attendanceCredentialSnapshots,
   attendanceRequiredFieldSnapshots,
   classComponents,
@@ -312,6 +317,44 @@ async function buildSnapshot(
       eq(attendance.id, attendanceCredentialSnapshots.attendanceId),
     )
     .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)));
+  const checkIns = await transaction
+    .select({
+      attendanceId: attendanceCheckIns.attendanceId,
+      checkInDate: attendanceCheckIns.checkInDate,
+      checkedInAt: attendanceCheckIns.checkedInAt,
+      signInMethod: attendanceCheckIns.signInMethod,
+      renderedText: attendanceCheckIns.renderedText,
+      textVersion: attendanceCheckIns.textVersion,
+      originatingIp: attendanceCheckIns.originatingIp,
+      rememberedDeviceId: attendanceCheckIns.rememberedDeviceId,
+    })
+    .from(attendanceCheckIns)
+    .innerJoin(attendance, eq(attendance.id, attendanceCheckIns.attendanceId))
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)))
+    .orderBy(
+      asc(attendanceCheckIns.checkInDate),
+      asc(attendanceCheckIns.checkedInAt),
+    );
+  const dispositions = await transaction
+    .select({
+      attendanceId: attendanceCertificateDispositions.attendanceId,
+      decision: attendanceCertificateDispositions.decision,
+      note: attendanceCertificateDispositions.note,
+      resolvedByUserId: attendanceCertificateDispositions.resolvedByUserId,
+      resolvedByName: users.displayName,
+      resolvedAt: attendanceCertificateDispositions.resolvedAt,
+    })
+    .from(attendanceCertificateDispositions)
+    .innerJoin(
+      attendance,
+      eq(attendance.id, attendanceCertificateDispositions.attendanceId),
+    )
+    .innerJoin(
+      users,
+      eq(users.id, attendanceCertificateDispositions.resolvedByUserId),
+    )
+    .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)))
+    .orderBy(asc(attendanceCertificateDispositions.attendanceId));
   if (!classRow) throw new Error("Class not found.");
   return {
     // Keep the historical snapshot key used by official PDF date fields;
@@ -372,6 +415,15 @@ async function buildSnapshot(
     requirements,
     fieldSnapshots,
     credentialSnapshots,
+    checkIns: checkIns.map((checkIn) => ({
+      ...checkIn,
+      checkedInAt: checkIn.checkedInAt.toISOString(),
+    })),
+    dispositions: dispositions.map((disposition) => ({
+      ...disposition,
+      decision: disposition.decision as "include" | "exclude",
+      resolvedAt: disposition.resolvedAt.toISOString(),
+    })),
   };
 }
 
@@ -504,7 +556,7 @@ export async function finalizeClass(
       .leftJoin(users, eq(users.id, attendance.removedByUserId))
       .where(eq(attendance.classId, classId))
       .orderBy(asc(attendance.signedInAt));
-    const signInRecord = buildClassSignInRecord(revisionRows, {
+    const signInRecordInfo = {
       classId,
       courseName: snapshot.class.courseName,
       siteName: snapshot.class.siteName,
@@ -514,7 +566,17 @@ export async function finalizeClass(
           snapshot.components.map((component) => component.method),
         ) || snapshot.class.deliveryMethod,
       generatedAt: new Date(),
-    });
+    };
+    const signInRecord = snapshot.checkIns?.length
+      ? buildClassSignInRecordFromCheckIns(
+          revisionRows,
+          snapshot.checkIns.map((checkIn) => ({
+            ...checkIn,
+            checkedInAt: new Date(checkIn.checkedInAt),
+          })),
+          signInRecordInfo,
+        )
+      : buildClassSignInRecord(revisionRows, signInRecordInfo);
     const [revision] = await transaction
       .insert(finalizationRevisions)
       .values({

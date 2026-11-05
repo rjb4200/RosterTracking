@@ -15,6 +15,6 @@
 
 - [x] 3.1 Run `npm run check` and `npm run test`.
 - [x] 3.2 Run `openspec validate fix-emailed-certificate-mobile-rendering --strict`.
-- [ ] 3.3 Deploy, resend one certificate, and confirm it opens on an iPhone.
-- [ ] 3.4 Confirm the same certificate still opens on a desktop client.
-- [ ] 3.5 If the clean certificate still fails on iPhone, investigate the certificate fonts or embedded image separately before closing this change.
+- [x] 3.3 Deploy, resend one certificate, and confirm it opens on an iPhone.
+- [x] 3.4 Confirm the same certificate still opens on a desktop client.
+- [x] 3.5 If the clean certificate still fails on iPhone, investigate the certificate fonts or embedded image separately before closing this change.

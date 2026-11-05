@@ -37,6 +37,7 @@ import {
   finalizeClassAction,
   reopenClassAction,
   resendParticipantCertificateAction,
+  saveCertificateDispositionAction,
   saveClassMethodAction,
   saveComponentAction,
   saveInstructorsAction,
@@ -45,6 +46,7 @@ import {
   updateClassAction,
 } from "../../actions";
 import { CertificateDeliveryControls } from "../../certificate-delivery-controls";
+import { CertificateDispositionControls } from "../../certificate-disposition-controls";
 import { ClassForm } from "../../class-form";
 import { CredentialCorrectionControl } from "../../credential-correction-control";
 import {
@@ -473,6 +475,7 @@ export default async function ClassReviewPage({
     }
   }
   const attentionIds = reviewData?.readiness.attentionIds ?? [];
+  const missingDayStudents = reviewData?.readiness.missingDayStudents ?? [];
   const usage = classRecord.mtuUsage;
   const mtuRecorded = Boolean(
     usage &&
@@ -761,6 +764,40 @@ export default async function ClassReviewPage({
               </details>
             ) : null}
           </section>
+
+          {missingDayStudents.length ? (
+            <section
+              className="workspace"
+              aria-label="Certificate dispositions"
+            >
+              <h2 className="workspace-heading">Certificate dispositions</h2>
+              <p className="roster-note">
+                Students who missed a class day need a certificate decision
+                before the roster can be finalized.
+              </p>
+              <div className="stack-form">
+                {missingDayStudents.map((student) => (
+                  <CertificateDispositionControls
+                    key={student.attendanceId}
+                    classId={id}
+                    attendanceId={student.attendanceId}
+                    name={student.name}
+                    missingDates={student.missingDates}
+                    disposition={
+                      student.disposition
+                        ? {
+                            decision: student.disposition.decision,
+                            note: student.disposition.note,
+                            resolvedByName: student.disposition.resolvedByName,
+                          }
+                        : null
+                    }
+                    action={saveCertificateDispositionAction}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="workspace" aria-label="Finalize">
             <h2 className="workspace-heading">Finalize</h2>

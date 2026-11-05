@@ -23,6 +23,7 @@ import {
   certificateContentFingerprint,
   certificateCoverHeader,
   certificateCoverRowHours,
+  certificateEligibleAttendance,
   courseTypeLabel,
   instructorTitleCourse,
   participantName,
@@ -435,6 +436,38 @@ describe("completion certificates", () => {
     };
     const bytes = await renderCompletionCertificateBatch(activeOnly);
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(3);
+  });
+
+  it("skips certificate-excluded participants but keeps them on the cover", async () => {
+    const excluded: FinalizationSnapshot = {
+      ...snapshot,
+      dispositions: [
+        {
+          attendanceId: "a1",
+          decision: "exclude",
+          note: "Missed a class day",
+          resolvedByUserId: "user-1",
+          resolvedByName: "Lead Medic",
+          resolvedAt: "2026-09-05T18:00:00.000Z",
+        },
+      ],
+    };
+    expect(
+      certificateEligibleAttendance(excluded).map(
+        (participant) => participant.attendanceId,
+      ),
+    ).toEqual(["a2"]);
+    // E16 + one eligible certificate + cover.
+    expect(
+      (
+        await PDFDocument.load(await renderCompletionCertificateBatch(excluded))
+      ).getPageCount(),
+    ).toBe(3);
+    expect(
+      (
+        await PDFDocument.load(await renderCompletionCertificateBatch(snapshot))
+      ).getPageCount(),
+    ).toBe(4);
   });
 
   it("fingerprints the certificate values and ignores the template version", () => {

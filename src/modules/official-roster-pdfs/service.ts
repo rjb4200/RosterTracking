@@ -138,6 +138,26 @@ export interface FinalizationSnapshot {
       attestation: { confirmedAt: string } | null;
     }>;
   };
+  // Frozen daily evidence and certificate dispositions for initial-certification
+  // revisions. Optional because older revisions predate the daily log.
+  checkIns?: Array<{
+    attendanceId: string;
+    checkInDate: string;
+    checkedInAt: string;
+    signInMethod: string;
+    renderedText: string;
+    textVersion: number;
+    originatingIp: string;
+    rememberedDeviceId: string | null;
+  }>;
+  dispositions?: Array<{
+    attendanceId: string;
+    decision: "include" | "exclude";
+    note: string;
+    resolvedByUserId: string;
+    resolvedByName: string;
+    resolvedAt: string;
+  }>;
   attendance: SnapshotAttendance[];
   fieldSnapshots: Array<{
     attendanceId: string;

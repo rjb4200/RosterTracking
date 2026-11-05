@@ -3,7 +3,9 @@
 ## Purpose
 
 Allow authorized staff to create, schedule, open, finalize, and cancel reusable training classes while preserving the reference data and audit trail needed by later attendance and reporting workflows.
+
 ## Requirements
+
 ### Requirement: Class records use reference data
 The system SHALL let authorized staff create an open class with a class name, a non-empty set of delivery methods drawn from Classroom, Hands-On, and Online, a required training site, selected reporting systems, an initial scheduled session, and an assigned lead instructor. The class name SHALL be the first Fire subject's class name when Fire is selected, or the EMS course name when KBEMS is selected. A class SHALL retain references to its selected catalog records for training sites and training codes rather than copied free-text values. Every class SHALL reference one active training site regardless of its delivery methods, and the delivery methods SHALL NOT affect whether a training site is required.
 
@@ -89,59 +91,71 @@ The system SHALL require every class to reference one active host agency from th
 - **THEN** the system still requires a host agency
 
 ### Requirement: Class components retain scheduled sessions
-The system SHALL let authorized staff add one or more components to a draft class. Each component SHALL store an optional session title, a scheduled start time normalized to a 15-minute increment, a scheduled end time derived from the selected start time and credited hours, and its credited hours. Each session start time SHALL be entered on a 15-minute cadence and SHALL default to the nearest quarter hour. A session start time that is not a whole 15-minute increment SHALL be rounded to the nearest one, which may roll to the next hour or the next day. Session credited hours SHALL be entered through a single duration selection that offers every 15-minute value from 30 minutes through 16 hours, presented as hours and minutes. A newly added component SHALL default to two credited hours. When a component's stored credited hours fall outside the offered range, the selection SHALL also offer that current value so an edit does not change it unless staff choose another. The session title SHALL identify the session in staff scheduling and SHALL fall back to the class name when no title is provided for official roster output.
+The system SHALL let authorized staff add one or more ordered subject components to a class. A class SHALL have one start time normalized to a 15-minute increment. Each subject SHALL store an optional title, a credited duration selected from 15-minute values from 30 minutes through 16 hours, and its position. The first subject SHALL start at the class start; each later subject SHALL start at the previous subject's end without a gap. The system SHALL derive each subject's end time from its start and duration. The class scheduled total SHALL be the sum of subject durations. A new subject SHALL default to two credited hours. A stored duration outside the offered range SHALL remain selectable so an edit does not change it unless staff choose another. The subject title SHALL identify the subject and SHALL fall back to the class name in official roster output.
 
 #### Scenario: Add multiple sessions
-- **WHEN** staff add separate morning and afternoon components to a draft class
-- **THEN** both components are retained in their scheduled order
+- **WHEN** staff add a second subject component to a class
+- **THEN** both subjects are retained in scheduled order with the second start derived from the first subject's end
 
 #### Scenario: Default a new session duration
-- **WHEN** staff add a new class component
-- **THEN** the component starts with two credited hours and its end time is calculated from its selected start time plus those hours
+- **WHEN** staff add a new subject component
+- **THEN** the subject starts with two credited hours and its end time is derived from its start time plus those hours
 
 #### Scenario: Calculate the end time from credited hours
-- **WHEN** staff select a component start time and change its credited hours
-- **THEN** the system recalculates and stores the end time as the start time plus the credited-hour duration
+- **WHEN** staff change a subject's credited hours
+- **THEN** the system recalculates that subject's end time and every later subject's start and end
 
 #### Scenario: Choose credited hours from the combined selection
-- **WHEN** staff select 2h 15m from a component's duration selection
-- **THEN** the component stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+- **WHEN** staff select 2h 15m from a subject's duration selection
+- **THEN** the subject stores 2.25 credited hours and its end time is derived from its start time plus two hours and fifteen minutes
 
 #### Scenario: Enter credited hours in quarter-hour steps
-- **WHEN** staff set a component's credited hours to two hours and fifteen minutes
-- **THEN** the system stores 2.25 credited hours and derives the end time as the start time plus two hours and fifteen minutes
+- **WHEN** staff set a subject's credited hours to two hours and fifteen minutes
+- **THEN** the system stores 2.25 credited hours and derives the end time from its start time plus two hours and fifteen minutes
 
 #### Scenario: Keep an out-of-range current duration
-- **WHEN** staff edit a component whose stored credited hours are 15m
+- **WHEN** staff edit a subject whose stored credited hours are 15m
 - **THEN** the duration selection includes 15m as the current value and saving without changing it preserves those credited hours
 
 #### Scenario: Reject a duration outside the quarter-hour cadence
-- **WHEN** a component is submitted with a credited duration that is not a whole 15-minute increment
-- **THEN** the system rejects the component
+- **WHEN** a subject is submitted with a credited duration that is not a whole 15-minute increment
+- **THEN** the system rejects the subject
 
 #### Scenario: Restrict session start times
-- **WHEN** staff select a component start time
+- **WHEN** staff select the class start time
 - **THEN** the system permits only times at :00, :15, :30, or :45 past the hour
 
 #### Scenario: Round a typed session start time
-- **WHEN** staff enter a component start time that is not a whole 15-minute increment, such as 09:07
+- **WHEN** staff enter a class start time that is not a whole 15-minute increment, such as 09:07
 - **THEN** the entered time is rounded to the nearest 15-minute value, 09:00, and that rounded time is what the field shows and what is stored
 
 #### Scenario: Roll a rounded session start time forward
-- **WHEN** rounding pushes a session start past the end of the day
+- **WHEN** rounding pushes the class start past the end of the day
 - **THEN** the rounded start is the next day at the earliest time on the cadence
 
 #### Scenario: Use a session title in official output
-- **WHEN** staff provide a session title and finalize a class
-- **THEN** official roster output uses that title for the session-specific field
+- **WHEN** staff provide a subject title and finalize a class
+- **THEN** official roster output uses that title for the subject-specific field
 
 #### Scenario: Fall back when a session title is omitted
-- **WHEN** staff leave a session title blank and finalize a class
-- **THEN** official roster output uses the class name for the session-specific field
+- **WHEN** staff leave a subject title blank and finalize a class
+- **THEN** official roster output uses the class name for the subject-specific field
 
 #### Scenario: Reject invalid component time range
-- **WHEN** staff enter a component whose end time is not after its start time
-- **THEN** the system rejects the component
+- **WHEN** a subject is submitted without a positive credited duration
+- **THEN** the system rejects the subject
+
+#### Scenario: Derive sequential times
+- **WHEN** a class starts at 11:00 with a 1.5-hour first subject and a 0.5-hour second subject
+- **THEN** the first subject runs from 11:00 to 12:30 and the second runs from 12:30 to 13:00
+
+#### Scenario: Sum the class total
+- **WHEN** a class has a 1.5-hour first subject and a 0.5-hour second subject
+- **THEN** the class scheduled total is 2.0 hours
+
+#### Scenario: No gap between subjects
+- **WHEN** staff save sequential subject durations
+- **THEN** each later subject starts at the previous subject's end and no gap is stored
 
 ### Requirement: Classes have assigned instructors
 
@@ -221,15 +235,23 @@ The system SHALL provide authorized staff a visibly stepped class-creation workf
 - **THEN** the stored class start time is the nearest 15-minute value, regardless of how the value was supplied
 
 ### Requirement: Class sessions share a roster day
-The system SHALL require every scheduled component of a class to occur on the same department-calendar day so one class has one roster for one day while retaining multiple subject sessions.
+
+The system SHALL require every scheduled component of a class to occur on the same department-calendar day so one class has one roster for one day while retaining multiple subject sessions. An initial-certification program class SHALL be exempt and MAY use one program block that spans multiple department-calendar days.
 
 #### Scenario: Add subjects on one day
+
 - **WHEN** staff add multiple subject sessions on the same department-calendar day
 - **THEN** the class retains the sessions under one class roster
 
 #### Scenario: Reject a session on another day
+
 - **WHEN** staff add or update a session whose department-calendar date differs from the class's existing sessions
 - **THEN** the system rejects the session with a single-day roster validation error
+
+#### Scenario: Allow an initial-certification program block to span days
+
+- **WHEN** staff create an initial-certification program class whose program block ends on a later department-calendar day
+- **THEN** the system accepts the program block
 
 ### Requirement: Staff configure optional student access PINs
 The class creation and editing workflow SHALL let authorized staff enable or disable a student access PIN before a class is opened. PIN protection SHALL default to disabled. When enabled, the system SHALL generate a four-digit numeric PIN; staff SHALL NOT choose the value manually.
@@ -422,33 +444,131 @@ When authorized staff add the Fire reporting system to a class, or change its as
 - **THEN** the system rejects the change even though the outgoing lead is still assigned at validation time
 
 ### Requirement: A session's KFS-1A method defaults from the class delivery method
-The system SHALL default every session's KFS-1A Method to the union of the method codes represented by the class delivery methods: Classroom marks CR, Hands-On marks HO, and Online marks OL. The class delivery methods SHALL form a non-empty set. Staff SHALL be able to change a session's Method to any non-empty combination of CR, HO, and OL independently of the class delivery methods. When staff change the delivery methods of an open class, the system SHALL update only those sessions whose Method still equals the previous default; sessions whose Method already differs SHALL retain their Method.
+The system SHALL store one method set for the class, derived from the class delivery methods: Classroom marks CR, Hands-On marks HO, and Online marks OL. The class delivery methods SHALL form a non-empty set. Every subject SHALL use the class method set for official output. Staff SHALL NOT set an independent method for an individual subject. When staff change the delivery methods of an open class, every subject's method SHALL update to the new set.
 
 #### Scenario: Derive the method at class creation
-- **WHEN** staff create a class with Classroom and Hands-On delivery and one or more Fire subjects
-- **THEN** each created session stores CR and HO as its KFS-1A method
+- **WHEN** staff create a class with Classroom and Hands-On delivery and one or more subjects
+- **THEN** every created subject stores CR and HO as its KFS-1A method
 
 #### Scenario: Mark any method combination
-- **WHEN** staff set a session's method to CR and HO
-- **THEN** the session stores both CR and HO
+- **WHEN** staff set the class method set to CR and HO
+- **THEN** every subject stores both CR and HO
 
 #### Scenario: Override one session independently
-- **WHEN** staff change one session's method to HO while its class uses Classroom delivery
-- **THEN** that session's method is HO and every other session keeps its method
+- **WHEN** staff edit a single subject
+- **THEN** the system does not offer an independent method for that subject and every subject uses the class method set
 
 #### Scenario: Preserve an overridden session when delivery changes
-- **WHEN** staff change the class delivery methods and a session's method already differs from the previous default
-- **THEN** that session keeps its method while sessions still on the previous default are updated
+- **WHEN** staff change the class delivery methods
+- **THEN** no subject keeps an independent method and every subject updates to the new class method set
 
 #### Scenario: Follow the new default for inherited sessions
-- **WHEN** staff change the class delivery methods and a session's method still equals the previous default
-- **THEN** the session's method is updated to the new default
+- **WHEN** staff change the class delivery methods
+- **THEN** every subject's method is the new class method set
 
 #### Scenario: Require at least one method
-- **WHEN** staff attempt to save a session with no method selected
+- **WHEN** staff attempt to save a class with no delivery method selected
 - **THEN** the system rejects the change and asks for at least one method
 
 #### Scenario: Read a legacy hybrid method
-- **WHEN** a session recorded the legacy `hybrid` method
+- **WHEN** a subject recorded the legacy `hybrid` method
 - **THEN** the system presents it as CR and OL
 
+### Requirement: Session lesson plan seeds from a catalog chapter
+
+The system SHALL fill an empty session lesson plan with the selected catalog chapter's title and SHALL preserve manually entered text. If the value still equals the previous chapter's title, the system SHALL replace it when the chapter changes and clear it when the chapter or curriculum is cleared. A typed chapter SHALL NOT seed the lesson plan.
+
+#### Scenario: Select a catalog chapter with an empty lesson plan
+
+- **WHEN** staff select a catalog chapter for a session whose lesson plan is empty
+- **THEN** the lesson plan is filled with that chapter's title
+
+#### Scenario: Preserve a manually entered session lesson plan
+
+- **WHEN** staff have typed a session lesson plan and then select a catalog chapter
+- **THEN** the typed lesson plan is preserved
+
+#### Scenario: Replace an auto-filled session lesson plan
+
+- **WHEN** the lesson plan still equals the previous chapter's title and staff select another catalog chapter
+- **THEN** the lesson plan is replaced with the new chapter's title
+
+#### Scenario: Clear an auto-filled session lesson plan
+
+- **WHEN** the lesson plan still equals the chapter title and staff clear the chapter or change the curriculum
+- **THEN** the lesson plan is cleared
+
+#### Scenario: Do not seed from a typed session chapter
+
+- **WHEN** staff choose `Not listed` and type a session chapter
+- **THEN** the lesson plan is not filled from the typed chapter
+
+### Requirement: Session lesson plan field is compact
+
+The session editor lesson plan SHALL be presented in a single-line text area.
+
+#### Scenario: Present a compact session lesson plan field
+
+- **WHEN** staff edit a session
+- **THEN** the lesson plan is a single-line text area
+
+### Requirement: Class-edit objectives field is compact
+
+The class edit form SHALL present the course description or objectives in a compact two-line text area and SHALL retain the full entered value without a hard character limit or counter.
+
+#### Scenario: Present a compact objectives field on class edit
+
+- **WHEN** staff edit a class
+- **THEN** the course description or objectives field is a two-line text area
+
+#### Scenario: Retain the edited objectives
+
+- **WHEN** staff change the course objectives and save the class
+- **THEN** the system retains the full entered value
+
+### Requirement: A session records a chapter with the shared catalog selection
+
+The system SHALL let staff attach a chapter to a scheduled session. When the session's selected curriculum has catalog chapters, the session editor SHALL offer every catalog chapter in a filterable selection grouped by section, SHALL present that selection in a scrollable control usable on small screens, and SHALL also accept a typed chapter through a `Not listed` choice. The chapter SHALL be required when the chosen curriculum has catalog chapters. Changing the session's curriculum SHALL clear its chapter value. When the chosen curriculum has no catalog chapters, the chapter SHALL be optional free text.
+
+#### Scenario: Offer session chapters
+- **WHEN** staff choose a curriculum with catalog chapters for a session
+- **THEN** the session editor offers every catalog chapter, grouped by section
+
+#### Scenario: Filter session chapters
+- **WHEN** staff type part of a chapter number or title in the session chapter filter
+- **THEN** the selection narrows to the matching catalog chapters
+
+#### Scenario: Accept a typed session chapter
+- **WHEN** staff choose `Not listed` and type a chapter for a session
+- **THEN** the system retains the typed chapter for that session
+
+#### Scenario: Preserve a stored non-catalog chapter
+- **WHEN** staff edit a session whose stored chapter is not in the selected curriculum's catalog
+- **THEN** the editor shows that chapter as the typed value without changing it
+
+#### Scenario: Clear a session chapter on curriculum change
+- **WHEN** staff change a session's curriculum
+- **THEN** the session's chapter value is cleared
+
+#### Scenario: Require a session chapter
+- **WHEN** staff save a session whose curriculum has catalog chapters without a chapter
+- **THEN** the system rejects the save and identifies the missing chapter
+
+### Requirement: Initial-certification program class
+
+The system SHALL store the selected initial-certification program on the class and SHALL represent the program as one program block whose credited hours equal the program hours. The program block SHALL be the class total and the default source of participant credit. The class SHALL remain KBEMS-only.
+
+#### Scenario: Store the program and hours
+
+- **WHEN** staff create an EMT-B initial-certification class
+- **THEN** the class stores the EMT-B program and one 160-hour program block
+
+#### Scenario: Default participant credit from the program
+
+- **WHEN** a participant signs in to an initial-certification program class
+- **THEN** the default credited hours equal the program hours
+
+#### Scenario: Keep program classes KBEMS-only
+
+- **WHEN** staff select Fire on an initial-certification program class
+- **THEN** the system rejects the combination

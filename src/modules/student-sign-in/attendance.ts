@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { CLASS_STATUSES } from "@/modules/classes/constants";
+import { getDepartmentCalendarDate } from "@/modules/classes/time";
 import { encryptCredential } from "@/modules/reference/crypto";
 import {
   includesParticipant,
@@ -14,6 +15,7 @@ import {
   agencies,
   attendance,
   attendanceAttestations,
+  attendanceCheckIns,
   attendanceCredentialSnapshots,
   attendanceReportingContexts,
   attendanceRequiredFieldSnapshots,
@@ -442,6 +444,60 @@ async function rememberRegularStudent(
   );
 }
 
+async function recordDailyCheckIn(
+  transaction: DatabaseTransaction,
+  input: {
+    attendanceId: string;
+    participantName: string;
+    signInMethod: string;
+    request: AttendanceRequestMetadata;
+    rememberedDeviceId?: string | null;
+  },
+  now: Date,
+): Promise<{ id: string; created: boolean }> {
+  const checkInDate = getDepartmentCalendarDate(now);
+  const [created] = await transaction
+    .insert(attendanceCheckIns)
+    .values({
+      attendanceId: input.attendanceId,
+      checkInDate,
+      checkedInAt: now,
+      renderedText: renderAttendanceAttestation(input.participantName),
+      textVersion: ATTENDANCE_ATTESTATION_VERSION,
+      signInMethod: input.signInMethod,
+      originatingIp: input.request.ipAddress,
+      requestSourceFingerprint: input.request.requestSourceFingerprint,
+      requestCorrelationId: input.request.requestCorrelationId,
+      rememberedDeviceId: input.rememberedDeviceId ?? null,
+    })
+    .onConflictDoNothing({
+      target: [attendanceCheckIns.attendanceId, attendanceCheckIns.checkInDate],
+    })
+    .returning({ id: attendanceCheckIns.id });
+  if (created) return { id: created.id, created: true };
+  const [existing] = await transaction
+    .select({ id: attendanceCheckIns.id })
+    .from(attendanceCheckIns)
+    .where(
+      and(
+        eq(attendanceCheckIns.attendanceId, input.attendanceId),
+        eq(attendanceCheckIns.checkInDate, checkInDate),
+      ),
+    )
+    .limit(1);
+  if (!existing)
+    throw new AttendanceConfirmationError("Attendance unavailable.");
+  return { id: existing.id, created: false };
+}
+
+function participantSignInMethod(
+  participant: NonNullable<SignInWorkflowState["participant"]>,
+): string {
+  if (participant.kind === "regular") return participant.signInMethod;
+  if (participant.kind === "new_student") return "new_student";
+  return "guest";
+}
+
 export async function confirmAttendance(
   db: Database,
   signedContext: string,
@@ -463,7 +519,10 @@ export async function confirmAttendance(
   try {
     return await db.transaction(async (transaction) => {
       const [classRecord] = await transaction
-        .select({ id: trainingClasses.id })
+        .select({
+          id: trainingClasses.id,
+          courseType: trainingClasses.courseType,
+        })
         .from(trainingClasses)
         .where(
           and(
@@ -609,9 +668,72 @@ export async function confirmAttendance(
             .update(signInWorkflowStaging)
             .set({ consumedAt: now, updatedAt: now })
             .where(eq(signInWorkflowStaging.id, staging.id));
+          if (classRecord.courseType !== "initial_certification") {
+            return {
+              attendanceId: activeAttendance.id,
+              status: "already_signed_in",
+            };
+          }
+          const checkInDate = getDepartmentCalendarDate(now);
+          const [existingCheckIn] = await transaction
+            .select({ id: attendanceCheckIns.id })
+            .from(attendanceCheckIns)
+            .where(
+              and(
+                eq(attendanceCheckIns.attendanceId, activeAttendance.id),
+                eq(attendanceCheckIns.checkInDate, checkInDate),
+              ),
+            )
+            .limit(1);
+          if (existingCheckIn) {
+            return {
+              attendanceId: activeAttendance.id,
+              status: "already_signed_in",
+            };
+          }
+          const [student] = await transaction
+            .select({
+              firstName: students.firstName,
+              lastName: students.lastName,
+            })
+            .from(students)
+            .where(eq(students.id, participant.studentId))
+            .limit(1);
+          if (!student) {
+            throw new AttendanceConfirmationError("Attendance unavailable.");
+          }
+          const rememberedDevice = input.rememberDevice
+            ? await rememberRegularStudent(transaction, participant, now)
+            : undefined;
+          await recordDailyCheckIn(
+            transaction,
+            {
+              attendanceId: activeAttendance.id,
+              participantName: `${student.firstName} ${student.lastName}`,
+              signInMethod: participant.signInMethod,
+              request: input.request,
+              rememberedDeviceId: rememberedDevice?.id,
+            },
+            now,
+          );
+          await writeAuditLog(transaction, {
+            actorType: "system",
+            action: "attendance.daily_check_in",
+            entityType: "attendance",
+            entityId: activeAttendance.id,
+            ipAddress: input.request.ipAddress,
+            details: {
+              classId: context.classId,
+              checkInDate,
+              participantKind: participant.kind,
+              signInMethod: participant.signInMethod,
+              requestCorrelationId: input.request.requestCorrelationId,
+            },
+          });
           return {
             attendanceId: activeAttendance.id,
-            status: "already_signed_in",
+            status: "created",
+            rememberedDevice,
           };
         }
         const facts = await prepareRegularFacts(
@@ -772,17 +894,26 @@ export async function confirmAttendance(
                 now,
               )
             : undefined;
+      const signInMethod = participantSignInMethod(participant);
+      if (classRecord.courseType === "initial_certification") {
+        await recordDailyCheckIn(
+          transaction,
+          {
+            attendanceId: created.id,
+            participantName,
+            signInMethod,
+            request: input.request,
+            rememberedDeviceId: rememberedDevice?.id,
+          },
+          now,
+        );
+      }
       await transaction.insert(attendanceAttestations).values({
         attendanceId: created.id,
         renderedText: renderAttendanceAttestation(participantName),
         textVersion: ATTENDANCE_ATTESTATION_VERSION,
         confirmedAt: now,
-        signInMethod:
-          participant.kind === "regular"
-            ? participant.signInMethod
-            : participant.kind === "new_student"
-              ? "new_student"
-              : "guest",
+        signInMethod,
         originatingIp: input.request.ipAddress,
         requestSourceFingerprint: input.request.requestSourceFingerprint,
         requestCorrelationId: input.request.requestCorrelationId,
@@ -827,12 +958,11 @@ export async function confirmAttendance(
         details: {
           classId: context.classId,
           participantKind: participant.kind,
-          signInMethod:
-            participant.kind === "regular"
-              ? participant.signInMethod
-              : participant.kind === "new_student"
-                ? "new_student"
-                : "guest",
+          signInMethod,
+          checkInDate:
+            classRecord.courseType === "initial_certification"
+              ? getDepartmentCalendarDate(now)
+              : null,
           requestCorrelationId: input.request.requestCorrelationId,
           requirementSetIds: requirements.sets.map(({ id }) => id),
         },

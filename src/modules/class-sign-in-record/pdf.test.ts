@@ -52,9 +52,8 @@ function record(count: number, withAttestation: boolean): ClassSignInRecord {
   };
 }
 
-async function renderedTextY(bytes: Uint8Array): Promise<number[]> {
-  const pdf = await PDFDocument.load(bytes);
-  const ys: number[] = [];
+function pageStrings(pdf: PDFDocument): string[] {
+  const strings: string[] = [];
   for (const page of pdf.getPages()) {
     const contents = page.node.Contents();
     if (!contents) continue;
@@ -71,10 +70,18 @@ async function renderedTextY(bytes: Uint8Array): Promise<number[]> {
           ? decodePDFRawStream(stream).decode()
           : (stream as { getContents?: () => Uint8Array }).getContents?.();
       if (!decoded) continue;
-      const text = Buffer.from(decoded).toString("latin1");
-      for (const match of text.matchAll(/1 0 0 1 ([\d.]+) ([\d.-]+) Tm/g)) {
-        ys.push(Number(match[2]));
-      }
+      strings.push(Buffer.from(decoded).toString("latin1"));
+    }
+  }
+  return strings;
+}
+
+async function renderedTextY(bytes: Uint8Array): Promise<number[]> {
+  const pdf = await PDFDocument.load(bytes);
+  const ys: number[] = [];
+  for (const text of pageStrings(pdf)) {
+    for (const match of text.matchAll(/1 0 0 1 ([\d.]+) ([\d.-]+) Tm/g)) {
+      ys.push(Number(match[2]));
     }
   }
   return ys;
@@ -102,6 +109,27 @@ describe("class sign-in record pdf", () => {
       const ys = await renderedTextY(bytes);
       expect(ys.length).toBeGreaterThan(0);
       expect(Math.min(...ys)).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("continues a date across pages without losing entries", async () => {
+    const base = record(0, false);
+    const entries = Array.from({ length: 200 }, (_, index) =>
+      entry(index, false),
+    );
+    const bytes = await renderClassSignInRecordPdf({
+      ...base,
+      active: entries,
+      days: [{ date: "2026-09-10", entries }],
+    });
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.getPageCount()).toBeGreaterThan(1);
+    const text = pageStrings(pdf).join("\n");
+    const decoded = [...text.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)]
+      .map((match) => Buffer.from(match[1] ?? "", "hex").toString("latin1"))
+      .join("");
+    for (const participant of entries) {
+      expect(decoded).toContain(participant.participantName);
     }
   });
 });

@@ -3,9 +3,11 @@
 ## Purpose
 
 Give authorized instructors a fast, reviewable guided path to create a scheduled class that is open for sign-in as soon as it is created, without exposing all setup choices at once.
+
 ## Requirements
+
 ### Requirement: Guided class creation
-The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect a non-empty set of delivery methods, a required training site, a scheduled start and a duration entered in 15-minute increments, lead instructor, optional assistant instructor, host agency, and optional student access PIN. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
+The system SHALL present class creation as a Destinations step first, then one step for each selected destination, then a shared class-and-schedule step, and a review step. It SHALL keep entered selections while staff move backward and forward, and SHALL show only the active step's inputs. The Destinations step SHALL let staff select Fire, KBEMS, and MTU, SHALL NOT offer FEMA, and SHALL require that MTU be selected together with Fire or KBEMS so a class is never MTU-only. The class-and-schedule step SHALL collect a non-empty set of delivery methods, a required training site, one class start time, lead instructor, optional assistant instructor, host agency, and optional student access PIN. When Fire is not selected, the step SHALL also collect the single subject duration. When Fire is selected, the Fire step SHALL collect each subject's duration and the class total SHALL be the sum of those durations. When neither Fire nor KBEMS is selected, the class-and-schedule step SHALL also collect a class name. Each selected destination SHALL contribute its own step, and that step SHALL collect the information its destination requires.
 
 #### Scenario: Move through class creation
 - **WHEN** authorized staff complete a valid step and choose Next
@@ -100,7 +102,7 @@ When MTU is a selected destination, the system SHALL provide an MTU step that ca
 - **THEN** the workflow does not present an MTU step
 
 ### Requirement: Fire destination step collects subject rows
-When Fire is a selected destination, the system SHALL provide a Fire step that collects up to two subject rows. Each subject row SHALL capture a Category from the searchable Fire training-category catalog, a Class Name, a Curriculum from the searchable approved-curricula catalog, and a free-text Lesson Plan. Selecting a Fire category SHALL pre-fill the Class Name, and staff SHALL be able to overwrite the Class Name manually.
+When Fire is a selected destination, the system SHALL provide a Fire step that collects up to two subject rows. Each subject row SHALL capture a Category from the searchable Fire training-category catalog, a Class Name, a Curriculum from the searchable approved-curricula catalog, a free-text Lesson Plan, and a credited duration. Selecting a Fire category SHALL pre-fill the Class Name, and staff SHALL be able to overwrite the Class Name manually. The first subject SHALL start at the class start; the second subject SHALL start at the first subject's end.
 
 #### Scenario: Select a Fire category
 - **WHEN** staff choose a Fire category on a Fire subject row
@@ -116,7 +118,7 @@ When Fire is a selected destination, the system SHALL provide a Fire step that c
 
 #### Scenario: Add a second subject
 - **WHEN** staff add a second Fire subject row
-- **THEN** the system collects its category, class name, curriculum, and lesson plan independently of the first
+- **THEN** the system collects its category, class name, curriculum, lesson plan, and duration independently of the first
 
 #### Scenario: Limit to two subjects
 - **WHEN** two Fire subject rows already exist
@@ -125,6 +127,10 @@ When Fire is a selected destination, the system SHALL provide a Fire step that c
 #### Scenario: Require the subject essentials
 - **WHEN** staff try to leave the Fire step with a subject row that has no category or class name
 - **THEN** the system blocks the step and identifies the missing field
+
+#### Scenario: Capture each subject duration
+- **WHEN** staff enter a 1.5-hour first subject and a 0.5-hour second subject
+- **THEN** the step retains both durations and derives the second subject's start from the first subject's end
 
 ### Requirement: KBEMS destination step collects EMS course details
 
@@ -314,23 +320,27 @@ The system SHALL set the class name from the first Fire subject's class name whe
 - **THEN** the class name is the EMS course name
 
 ### Requirement: Class duration defaults to two hours
-The class-and-schedule step SHALL default the scheduled duration to two hours and SHALL let staff change it through a single duration selection that offers every 15-minute value from 30 minutes through 16 hours. The selection SHALL present each option as hours and minutes (for example, 2h 30m). The step SHALL submit the selected duration as decimal hours.
+Each subject duration SHALL default to two hours and SHALL be chosen through a single duration selection that offers every 15-minute value from 30 minutes through 16 hours. The selection SHALL present each option as hours and minutes (for example, 2h 30m). The step SHALL submit each selected duration as decimal hours. The class scheduled total SHALL be the sum of the subject durations.
 
 #### Scenario: Default the scheduled duration
-- **WHEN** staff reach the class-and-schedule step
-- **THEN** the scheduled duration is two hours unless staff change it
+- **WHEN** staff reach a subject duration field
+- **THEN** the duration is two hours unless staff change it
 
 #### Scenario: Choose a combined duration
-- **WHEN** staff select 2h 30m from the duration selection
-- **THEN** the class retains 2.5 hours and submits that value
+- **WHEN** staff select 2h 30m from a subject's duration selection
+- **THEN** that subject retains 2.5 hours and submits that value
 
 #### Scenario: Enter a quarter-hour duration
-- **WHEN** staff set the scheduled duration to two hours and fifteen minutes
+- **WHEN** staff set a subject's duration to two hours and fifteen minutes
 - **THEN** the duration is retained as 2.25 hours and submitted with the class
 
 #### Scenario: Offer only the supported duration range
-- **WHEN** staff open the duration selection
+- **WHEN** staff open a duration selection
 - **THEN** the shortest option is 30m and the longest is 16h, at 15-minute steps
+
+#### Scenario: Show the summed class total
+- **WHEN** staff enter a 1.5-hour first subject and a 0.5-hour second subject
+- **THEN** the review shows a 2.0-hour class total
 
 ### Requirement: Inline site and agency creation captures details
 
@@ -431,3 +441,93 @@ When the class creation wizard opens, the system SHALL preselect the current def
 - **WHEN** staff change a field that was preselected from a default
 - **THEN** the changed value is used for the class and the default setting is not modified
 
+### Requirement: One class start drives the subject schedule
+The class-and-schedule step SHALL collect one class start time. Each subject's start and end SHALL be derived sequentially from that start and the subject durations. The workflow SHALL NOT collect independent subject start times and SHALL NOT allow a gap between subjects.
+
+#### Scenario: Derive dual-subject times
+- **WHEN** staff enter an 11:00 class start with a 1.5-hour first subject and a 0.5-hour second subject
+- **THEN** the review shows the first subject from 11:00 to 12:30 and the second from 12:30 to 13:00
+
+#### Scenario: Do not offer a subject start time
+- **WHEN** staff configure a subject row
+- **THEN** the workflow does not offer an independent start time for that subject
+
+#### Scenario: Show the derived total before creation
+- **WHEN** staff reach the review step
+- **THEN** the review shows the class start and the summed duration of all subjects
+
+### Requirement: Fire lesson plan seeds from a catalog chapter
+
+The system SHALL fill an empty Fire subject lesson plan with the selected catalog chapter's title and SHALL preserve manually entered text. If the value still equals the previous chapter's title, the system SHALL replace it when the chapter changes and clear it when the chapter or curriculum is cleared. A typed chapter SHALL NOT seed the lesson plan.
+
+#### Scenario: Select a catalog chapter with an empty lesson plan
+
+- **WHEN** staff select a catalog chapter on a Fire subject row whose lesson plan is empty
+- **THEN** the lesson plan is filled with that chapter's title
+
+#### Scenario: Preserve a manually entered lesson plan
+
+- **WHEN** staff have typed a lesson plan and then select a catalog chapter
+- **THEN** the typed lesson plan is preserved
+
+#### Scenario: Replace an auto-filled lesson plan
+
+- **WHEN** the lesson plan still equals the previous chapter's title and staff select another catalog chapter
+- **THEN** the lesson plan is replaced with the new chapter's title
+
+#### Scenario: Clear an auto-filled lesson plan
+
+- **WHEN** the lesson plan still equals the chapter title and staff clear the chapter or change the curriculum
+- **THEN** the lesson plan is cleared
+
+#### Scenario: Do not seed from a typed chapter
+
+- **WHEN** staff choose `Not listed` and type a chapter
+- **THEN** the lesson plan is not filled from the typed chapter
+
+### Requirement: Fire lesson plan field is compact
+
+The Fire subject lesson plan SHALL be presented in a single-line text area.
+
+#### Scenario: Present a compact lesson plan field
+
+- **WHEN** staff view a Fire subject row
+- **THEN** the lesson plan is a single-line text area
+
+### Requirement: KBEMS objectives field is compact
+
+The KBEMS course description or objectives SHALL be presented in a compact two-line text area and SHALL retain the full entered value without a hard character limit or counter.
+
+#### Scenario: Present a compact objectives field
+
+- **WHEN** staff view the KBEMS step
+- **THEN** the course description or objectives field is a two-line text area
+
+#### Scenario: Retain the entered objectives
+
+- **WHEN** staff enter course objectives and continue
+- **THEN** the system retains the full value for the class
+
+### Requirement: Initial-certification program step
+
+When KBEMS is selected and the course type is Initial certification, the KBEMS step SHALL offer the fixed EMR, EMT-B, and AEMT programs. Selecting a program SHALL set its category, course name, and program hours. The class-and-schedule step SHALL use the program start date and program hours instead of a one-day scheduled duration.
+
+#### Scenario: Select an initial-certification program
+
+- **WHEN** staff choose Initial certification on the KBEMS step
+- **THEN** the system offers EMR, EMT-B, and AEMT with their fixed hours
+
+#### Scenario: Autofill the KBEMS details
+
+- **WHEN** staff select an initial-certification program
+- **THEN** the EMS category and EMS course name are set from that program
+
+#### Scenario: Use program hours in the schedule
+
+- **WHEN** staff reach the class-and-schedule step for an initial-certification program
+- **THEN** the class total is the program hours and no separate duration is required
+
+#### Scenario: Block a Fire combination
+
+- **WHEN** Fire is selected together with an initial-certification program
+- **THEN** the system blocks advancement and explains that the program is KBEMS-only
