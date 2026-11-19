@@ -30,11 +30,8 @@ jobs:
       - run: npm ci
       - name: Migrations are append-only when promoting to the default branch
         # A promotion into the default branch may add migrations but never drop
-        # or rewrite one already there. The branch-scoped exception is limited to
-        # the one-time 0021 repair and is removed after that PR merges.
+        # or rewrite one already there.
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        env:
-          MIGRATION_REPAIR_TAGS: ${{ github.head_ref == 'feature/production-migration-gate' && '0021_burly_agent_zero' || '' }}
         run: |
           git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
           npm run check:migrations -- append-only "origin/${{ github.base_ref }}"

@@ -72,32 +72,15 @@ function checkAppendOnly(baseRef: string): void {
   const base = sqlRefsFromGit(baseRef);
   const current = sqlRefsFromGit("HEAD");
   const result = compareAppendOnly(base, current);
-  const allowedRepairTags = new Set(
-    (process.env.MIGRATION_REPAIR_TAGS ?? "")
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean),
-  );
-  if (allowedRepairTags.size > 0) {
-    console.log(
-      `Allowed one-time migration repair: ${[...allowedRepairTags].join(", ")}`,
-    );
-  }
-  const removedOrChanged = result.removedOrChanged.filter(
-    (tag) => !allowedRepairTags.has(tag),
-  );
-  const addedBeforeBase = result.addedBeforeBase.filter(
-    (tag) => !allowedRepairTags.has(tag),
-  );
-  for (const tag of removedOrChanged) {
+  for (const tag of result.removedOrChanged) {
     console.error(`Migration removed or changed since ${baseRef}: ${tag}`);
   }
-  for (const tag of addedBeforeBase) {
+  for (const tag of result.addedBeforeBase) {
     console.error(
       `Migration added before the ${baseRef} frontier (index order): ${tag}`,
     );
   }
-  if (removedOrChanged.length === 0 && addedBeforeBase.length === 0) {
+  if (result.ok) {
     console.log(`Migrations are append-only relative to ${baseRef}.`);
   } else {
     process.exitCode = 1;
