@@ -1,0 +1,38 @@
+name: Production migration gate
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-migration-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  production-migration-gate:
+    name: production-migration-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Read-only production role. Never use the production owner credential.
+      DATABASE_URL_DIRECT: ${{ secrets.PRODUCTION_DATABASE_READONLY_URL }}
+      PROTECTED_DATABASE_NAMES: roster_production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Require the read-only production database URL
+        run: |
+          if [ -z "$DATABASE_URL_DIRECT" ]; then
+            echo "::error::PRODUCTION_DATABASE_READONLY_URL is not configured. The production migration gate cannot run."
+            exit 1
+          fi
+      - name: Production migration ledger must be in sync
+        run: npm run db:status -- --allow-production
