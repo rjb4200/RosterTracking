@@ -98,8 +98,11 @@ export function InstructorAssignmentForm({
         </select>
       </div>
       {canEditAdditional ? (
-        <div className="field">
-          <span className="field-label">Additional instructors</span>
+        <details className="review-group">
+          <summary>
+            Additional instructors
+            {additionalIds.length ? ` (${additionalIds.length} selected)` : ""}
+          </summary>
           <p className="roster-note">
             The assistant is the second name on official forms. Additional
             instructors appear on the instructor supplement.
@@ -133,7 +136,7 @@ export function InstructorAssignmentForm({
               value={id}
             />
           ))}
-        </div>
+        </details>
       ) : null}
       <Button type="submit" variant="secondary" disabled={pending}>
         {pending ? "Saving..." : "Save instructors"}
