@@ -64,7 +64,7 @@ import {
   type AttestationScope,
   reportingScope,
 } from "./attestations";
-import { resolveFireSigner } from "./fire-signer";
+import { isFireInstructor } from "./fire-signer";
 import {
   validateFinalizationTransition,
   validateReopenReason,
@@ -236,6 +236,7 @@ async function buildSnapshot(
       userId: users.id,
       name: users.displayName,
       isLead: classInstructors.isLead,
+      isAssistant: classInstructors.isAssistant,
       ffn: users.ffn,
       level: users.instructorLevel,
     })
@@ -471,11 +472,21 @@ export async function finalizeClass(
     const fireDestination = snapshot.destinations.some(
       (destination) => destination.code === "fire",
     );
-    const fireSigner = fireDestination
-      ? resolveFireSigner(snapshot.instructors)
-      : null;
+    const leadInstructor = snapshot.instructors.find(
+      (instructor) => instructor.isLead,
+    );
+    if (
+      fireDestination &&
+      leadInstructor &&
+      !isFireInstructor(leadInstructor)
+    ) {
+      throw new Error(
+        "A Fire class requires a fire-qualified lead instructor. Correct the instructors before finalizing.",
+      );
+    }
+    const fireSigner = fireDestination ? (leadInstructor ?? null) : null;
     if (fireDestination && !fireSigner) {
-      throw new Error("A Fire class requires an assigned fire instructor.");
+      throw new Error("A Fire class requires an assigned lead instructor.");
     }
     const fireSignedByLead = Boolean(
       fireSigner && fireSigner.userId === actor.id,

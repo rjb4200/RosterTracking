@@ -17,6 +17,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
+  // The suite shares one dev server and one test database; many workers make
+  // auth and timing-sensitive journeys fail under load rather than exposing a
+  // product defect. CI runs this suite serially.
+  workers: process.env.CI ? 1 : undefined,
   reporter: "html",
   use: {
     baseURL: e2eBaseUrl,
@@ -51,6 +55,7 @@ export default defineConfig({
       CREDENTIAL_ENCRYPTION_KEY:
         process.env.CREDENTIAL_ENCRYPTION_KEY ??
         "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+      ADDITIONAL_INSTRUCTOR_EDITING: "1",
     },
   },
 });

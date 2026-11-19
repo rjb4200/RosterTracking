@@ -53,12 +53,16 @@ test("wizard highlights missing required fields and groups search with the selec
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   // Fire step: Next with an incomplete subject highlights and stays put.
-  await expect(page.getByText(/Lead and assisting instructors/)).toBeVisible();
+  await expect(
+    page.getByText(/A Fire class needs a lead instructor/),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(
     page.getByText("Complete the highlighted fields."),
   ).toBeVisible();
-  await expect(page.getByText(/Lead and assisting instructors/)).toBeVisible();
+  await expect(
+    page.getByText(/A Fire class needs a lead instructor/),
+  ).toBeVisible();
 
   // The grouped control filters and then selects a value.
   await page.getByLabel("Filter Category").fill(code);

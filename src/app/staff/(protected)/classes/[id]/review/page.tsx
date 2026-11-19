@@ -8,6 +8,7 @@ import { getFinalizationHistory } from "@/modules/classes/finalization";
 import { resolveFireSigner } from "@/modules/classes/fire-signer";
 import type { MtuUsage } from "@/modules/classes/mtu";
 import {
+  additionalInstructorEditingEnabled,
   getClassDetail,
   listClassFormOptions,
 } from "@/modules/classes/services";
@@ -389,13 +390,17 @@ export default async function ClassReviewPage({
     classRecord.instructors.find((instructor) => instructor.isLead)?.userId ??
     "";
   const currentAssistantId =
-    classRecord.instructors.find((instructor) => !instructor.isLead)?.userId ??
-    null;
+    classRecord.instructors.find((instructor) => instructor.isAssistant)
+      ?.userId ?? null;
+  const currentAdditionalIds = classRecord.instructors
+    .filter((instructor) => !instructor.isLead && !instructor.isAssistant)
+    .map((instructor) => instructor.userId);
   const isFireClass = classRecord.reportingSystems.some(
     (system) => system.code === "fire",
   );
   const fireSigner = isFireClass
-    ? resolveFireSigner(classRecord.instructors)
+    ? (classRecord.instructors.find((instructor) => instructor.isLead) ??
+      resolveFireSigner(classRecord.instructors))
     : null;
   const hasRosterAttestation = Boolean(
     latestRevision?.attestations.some(
@@ -689,7 +694,14 @@ export default async function ClassReviewPage({
             <WorkspaceArea
               id="instructors"
               label="Instructors"
-              summary={instructorNames}
+              summary={
+                <>
+                  {instructorNames}
+                  {isMtuClass ? (
+                    <Badge variant="outline">MTU instructor</Badge>
+                  ) : null}
+                </>
+              }
             >
               <ul className="member-list">
                 {classRecord.instructors.map((instructor) => (
@@ -697,19 +709,18 @@ export default async function ClassReviewPage({
                     <span>{instructor.displayName}</span>
                     {instructor.isLead ? (
                       <Badge>Lead</Badge>
+                    ) : instructor.isAssistant ? (
+                      <Badge variant="secondary">Assistant</Badge>
                     ) : (
-                      <Badge variant="secondary">Assisting</Badge>
+                      <Badge variant="outline">Additional</Badge>
                     )}
-                    {fireSigner?.userId === instructor.userId ? (
-                      <Badge variant="secondary">Fire signer</Badge>
-                    ) : null}
                   </li>
                 ))}
               </ul>
               <p className="roster-note">
                 The lead instructor finalizes the roster and signs the
-                certificate. The Fire signer signs the Fire roster and
-                individual training notice.
+                certificate. The lead also signs the Fire roster and individual
+                training notice when Fire is selected.
               </p>
               {classRecord.reportingSystems.some(
                 (system) => system.code === "fire",
@@ -726,6 +737,8 @@ export default async function ClassReviewPage({
                   staff={classOptions.staff}
                   currentLeadId={currentLeadId}
                   currentAssistantId={currentAssistantId}
+                  currentAdditionalIds={currentAdditionalIds}
+                  canEditAdditional={additionalInstructorEditingEnabled()}
                 />
               ) : null}
             </WorkspaceArea>

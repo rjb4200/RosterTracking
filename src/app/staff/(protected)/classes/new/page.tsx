@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-import { listClassFormOptions } from "@/modules/classes/services";
+import {
+  additionalInstructorEditingEnabled,
+  listClassFormOptions,
+} from "@/modules/classes/services";
 import { listAgencyTags } from "@/modules/reference/services";
 import { getCurrentStaff } from "@/modules/staff-auth/authorization";
 import { requirePagePermission } from "@/modules/staff-auth/guards";
@@ -44,6 +47,7 @@ export default async function NewClassPage() {
         canCreateAgency={Boolean(
           staff?.permissions.has(PERMISSIONS.AGENCIES_MANAGE),
         )}
+        canEditAdditional={additionalInstructorEditingEnabled()}
         agencyTags={agencyTags}
         {...options}
       />

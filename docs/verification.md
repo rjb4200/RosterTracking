@@ -5,7 +5,7 @@ Four commands, ordered by cost. Use the cheapest one that answers your question.
 ```text
 npm run check        lint + static types                 ~5s    no database, no browser
 npm run verify       check + unit + integration + build  ~3m    needs TEST_DATABASE_URL
-npm run verify:full  verify + smoke + browser suite      ~7m    needs E2E_DATABASE_URL
+CI=1 npm run verify:full  verify + smoke + browser suite  ~17m   stable serial browser run
 npm run smoke        read-only critical pages            ~1m    needs a running database
 ```
 
@@ -57,11 +57,11 @@ requires an explicit target (`--database=integration`, `--database=e2e`, or
 
 1. Install the browser once: `npx playwright install chromium`.
 2. Set `TEST_DATABASE_URL` and `E2E_DATABASE_URL` to **different** databases.
-3. Set `E2E_STAFF_USERNAME` and `E2E_STAFF_PASSWORD` for a staff account in the
-   end-to-end database. The browser suite skips itself when these are absent.
-4. Bootstrap that staff account in the end-to-end database before the first run
-   (see the README's staff account section), for example by pointing
-   `DATABASE_URL_DIRECT` at it and running `npm run admin -- bootstrap`.
+3. Set `E2E_STAFF_USERNAME`/`E2E_STAFF_PASSWORD` and
+   `E2E_INSTRUCTOR_USERNAME`/`E2E_INSTRUCTOR_PASSWORD`. The browser suite skips
+   itself when these are absent.
+4. `npm run db:reset:e2e` recreates both accounts in the end-to-end database.
+   `verify:full` runs that reset for you.
 
 ## The smoke subset
 
@@ -88,6 +88,11 @@ narrow-viewport reachability checks are read-only, so they run on every project.
 By default the suite runs against `next dev`. Set `E2E_PRODUCTION=1` to build and
 serve a production bundle instead, which is required to reproduce behavior that
 only appears with production cookie, prefetch, and caching semantics.
+
+`E2E_PRODUCTION=1` cannot run the full cross-browser suite over plain HTTP:
+production cookies are `secure`, and WebKit rejects them on `http://localhost`.
+Use `CI=1 npm run verify:full` for the stable cross-browser release gate; it runs
+one worker with retries.
 
 ## Official roster verification
 
@@ -123,31 +128,19 @@ review of the agency forms themselves.
 
 ## Known issues
 
-The browser suite passes the journeys it covers. Two checks are sensitive to a
-saturated `next dev` server and can trip only under the parallel suite; each
-passes in isolation and under `E2E_PRODUCTION=1`, and CI retries them
-(`retries: 2`):
+The browser suite is load-sensitive. CI runs it serially with one worker and
+two retries (`CI=1 npm run verify:full`). The performance tripwire
+(`performance.spec.ts`, `/staff` time-to-first-byte) can still exceed its dev
+server ceiling on a cold machine; rerun the serial command before treating it as
+a regression. Staff color-contrast remains an allowed known finding (H-8); the
+public landing contrast violation has been fixed.
 
-- `accessibility.spec.ts` "the public landing page has no blocking violations"
-  (axe `color-contrast`). The empty-directory text sits at the AA threshold, so
-  a scan taken before the page settles can flag it.
-- `performance.spec.ts` "the staff workspace and class list are within budget"
-  (`/staff` time-to-first-byte, 1500 ms). A cold or heavily concurrent dev server
-  can exceed the ceiling.
+### E2E staff accounts after `db:reset:e2e`
 
-Both are regression tripwires, not product defects. Run the browser suite with
-`E2E_PRODUCTION=1` for a pass/fail that is not sensitive to dev-server load.
-
-### Re-create the staff accounts after `db:reset:e2e`
-
-`npm run db:reset:e2e` truncates every application table and re-creates only the
-non-login `reference-import` actor, so the end-to-end **staff and instructor
-accounts are removed**. `npm run verify:full` resets before it runs the browser
-suite, so re-create them first: point `DATABASE_URL_DIRECT` at the end-to-end
-database and run `npm run admin -- bootstrap` (the `E2E_STAFF_USERNAME`
-administrator) and `npm run admin -- create instructor` (the
-`E2E_INSTRUCTOR_USERNAME` instructor). Without this, every staff journey fails
-on sign-in.
+`npm run db:reset:e2e` truncates every application table and then recreates the
+configured administrator and instructor from `E2E_STAFF_*` and
+`E2E_INSTRUCTOR_*`. Both credential pairs are required, and `verify:full` runs
+that reset automatically.
 
 The class creation wizard's action row no longer overlaps the
 step content on narrow mobile viewports - the wizard and the class command

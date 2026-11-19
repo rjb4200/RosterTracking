@@ -24,10 +24,7 @@ import {
   buildWizardSteps,
   DESTINATION_CODES,
 } from "@/modules/classes/destination-steps";
-import {
-  isFireInstructor,
-  resolveFireSigner,
-} from "@/modules/classes/fire-signer";
+import { isFireInstructor } from "@/modules/classes/fire-signer";
 import {
   isInitialCertNumberValid,
   normalizeInitialCertNumber,
@@ -98,6 +95,7 @@ export function ClassCreationWizard({
   defaultHostAgencyId,
   canCreateSite,
   canCreateAgency,
+  canEditAdditional,
 }: {
   action: (
     prev: ActionState | undefined,
@@ -154,6 +152,7 @@ export function ClassCreationWizard({
   defaultHostAgencyId: string | null;
   canCreateSite: boolean;
   canCreateAgency: boolean;
+  canEditAdditional: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [step, setStep] = useState(0);
@@ -172,6 +171,7 @@ export function ClassCreationWizard({
     creditedHours: "2",
     leadInstructorId: defaultLeadInstructorId,
     assistantInstructorId: "",
+    additionalInstructorIds: [] as string[],
     reportingSystemIds: [] as string[],
     accessPinEnabled: false,
     objectives: "",
@@ -215,32 +215,17 @@ export function ClassCreationWizard({
   const selectedAssistant = staff.find(
     (instructor) => instructor.id === values.assistantInstructorId,
   );
-  const fireSigner = resolveFireSigner([
-    ...(selectedInstructor
-      ? [
-          {
-            userId: selectedInstructor.id,
-            isLead: true,
-            ffn: selectedInstructor.ffn,
-            instructorLevel: selectedInstructor.instructorLevel,
-          },
-        ]
-      : []),
-    ...(selectedAssistant
-      ? [
-          {
-            userId: selectedAssistant.id,
-            isLead: false,
-            ffn: selectedAssistant.ffn,
-            instructorLevel: selectedAssistant.instructorLevel,
-          },
-        ]
-      : []),
-  ]);
-  const fireSignerName = fireSigner
-    ? (staff.find((instructor) => instructor.id === fireSigner.userId)?.name ??
-      null)
-    : null;
+  const selectedAdditional = values.additionalInstructorIds.flatMap((id) => {
+    const instructor = staff.find((entry) => entry.id === id);
+    return instructor ? [instructor] : [];
+  });
+  const fireLeadInvalid =
+    values.reportingSystemIds.includes(
+      reportingSystems.find((system) => system.code === "fire")?.id ?? "",
+    ) &&
+    Boolean(selectedInstructor) &&
+    !isFireInstructor(selectedInstructor ?? {});
+  const fireSignerName = selectedInstructor?.name ?? null;
   const selectedSystems = reportingSystems.filter((system) =>
     values.reportingSystemIds.includes(system.id),
   );
@@ -515,6 +500,9 @@ export function ClassCreationWizard({
     curriculaWithChapters,
   };
   const errors = attempted ? wizardStepErrors(currentKey, validationInput) : [];
+  if (attempted && currentKey === "class" && fireLeadInvalid) {
+    errors.push("leadInstructorId");
+  }
 
   // An initial-certification number that is present but not in the expected
   // shape warns and is acknowledged; its shape never blocks the step.
@@ -536,7 +524,10 @@ export function ClassCreationWizard({
   }
 
   function next() {
-    if (wizardStepErrors(currentKey, validationInput).length > 0) {
+    if (
+      wizardStepErrors(currentKey, validationInput).length > 0 ||
+      (currentKey === "class" && fireLeadInvalid)
+    ) {
       setAttempted(true);
       return;
     }
@@ -644,9 +635,9 @@ export function ClassCreationWizard({
       {currentKey === "fire" ? (
         <section className="stack-form">
           <p className="text-muted-foreground">
-            A Fire class needs at least one assigned instructor with a valid FFN
-            (0000-0000) and a Fire Instructor level (1, 2, or 3) on their staff
-            profile. That instructor signs the Fire roster and training notice.
+            A Fire class needs a lead instructor with a valid FFN (0000-0000)
+            and a Fire Instructor level (1, 2, or 3) on their staff profile. The
+            lead signs the Fire roster and training notice.
           </p>
           {subjects.map((subject, index) => (
             <FireSubjectRow
@@ -1078,6 +1069,12 @@ export function ClassCreationWizard({
                   if (values.assistantInstructorId === nextLead) {
                     update("assistantInstructorId", "");
                   }
+                  update(
+                    "additionalInstructorIds",
+                    values.additionalInstructorIds.filter(
+                      (id) => id !== nextLead,
+                    ),
+                  );
                 }}
                 aria-invalid={errors.includes("leadInstructorId") || undefined}
               >
@@ -1087,6 +1084,11 @@ export function ClassCreationWizard({
                   </option>
                 ))}
               </select>
+              {fireLeadInvalid ? (
+                <p className="form-error">
+                  Fire classes require a fire-qualified lead instructor.
+                </p>
+              ) : null}
             </div>
             <div className="field">
               <Label htmlFor="assistantInstructorId">
@@ -1096,9 +1098,16 @@ export function ClassCreationWizard({
                 id="assistantInstructorId"
                 className="select-input"
                 value={values.assistantInstructorId}
-                onChange={(event) =>
-                  update("assistantInstructorId", event.target.value)
-                }
+                onChange={(event) => {
+                  const nextAssistant = event.target.value;
+                  update("assistantInstructorId", nextAssistant);
+                  update(
+                    "additionalInstructorIds",
+                    values.additionalInstructorIds.filter(
+                      (id) => !nextAssistant || id !== nextAssistant,
+                    ),
+                  );
+                }}
               >
                 <option value="">No assistant</option>
                 {staff
@@ -1113,6 +1122,51 @@ export function ClassCreationWizard({
                   ))}
               </select>
             </div>
+            {canEditAdditional ? (
+              <div className="field">
+                <span className="field-label">Additional instructors</span>
+                <p className="roster-note">
+                  Additional instructors can access the class and appear on the
+                  instructor supplement. The assistant is the second name on
+                  official forms.
+                </p>
+                <div className="staff-role-list">
+                  {staff
+                    .filter(
+                      (instructor) =>
+                        instructor.id !== values.leadInstructorId &&
+                        instructor.id !== values.assistantInstructorId,
+                    )
+                    .map((instructor) => (
+                      <Label
+                        key={instructor.id}
+                        className="checkbox-field field-wide"
+                      >
+                        <Input
+                          type="checkbox"
+                          checked={values.additionalInstructorIds.includes(
+                            instructor.id,
+                          )}
+                          onChange={(event) =>
+                            update(
+                              "additionalInstructorIds",
+                              event.target.checked
+                                ? [
+                                    ...values.additionalInstructorIds,
+                                    instructor.id,
+                                  ]
+                                : values.additionalInstructorIds.filter(
+                                    (id) => id !== instructor.id,
+                                  ),
+                            )
+                          }
+                        />
+                        {instructor.name}
+                      </Label>
+                    ))}
+                </div>
+              </div>
+            ) : null}
             <Label className="checkbox-field field-wide">
               <Input
                 type="checkbox"
@@ -1191,15 +1245,20 @@ export function ClassCreationWizard({
                 <dd>{selectedAssistant.name}</dd>
               </>
             ) : null}
+            {selectedAdditional.length ? (
+              <>
+                <dt>Additional instructors</dt>
+                <dd>
+                  {selectedAdditional
+                    .map((instructor) => instructor.name)
+                    .join(", ")}
+                </dd>
+              </>
+            ) : null}
             {selectedCodes.includes("fire") ? (
               <>
-                <dt>Fire signer</dt>
-                <dd>
-                  {fireSignerName ?? "A fire instructor is required"}
-                  {fireSigner && fireSigner.userId !== values.leadInstructorId
-                    ? " (signs after finalization)"
-                    : ""}
-                </dd>
+                <dt>Fire roster signer</dt>
+                <dd>{fireSignerName ?? "A fire-qualified lead is required"}</dd>
               </>
             ) : null}
             {selectedCodes.includes("kbems") ? (
@@ -1292,6 +1351,16 @@ export function ClassCreationWizard({
         name="assistantInstructorId"
         value={values.assistantInstructorId}
       />
+      {canEditAdditional
+        ? values.additionalInstructorIds.map((id) => (
+            <input
+              key={`additional-${id}`}
+              type="hidden"
+              name="additionalInstructorIds"
+              value={id}
+            />
+          ))
+        : null}
       {values.accessPinEnabled ? (
         <input type="hidden" name="accessPinEnabled" value="on" />
       ) : null}

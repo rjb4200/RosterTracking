@@ -7,6 +7,7 @@ export const CERTIFICATE_EMAIL_TEMPLATE_VERSION =
 export interface CertificateEmailInstructor {
   name: string;
   isLead: boolean;
+  isAssistant?: boolean;
 }
 
 export interface CertificateEmailInput {
@@ -42,11 +43,21 @@ export function instructorLabel(
   instructors: CertificateEmailInstructor[],
 ): string {
   const lead = instructors.find((instructor) => instructor.isLead);
-  const assisting = instructors.filter((instructor) => !instructor.isLead);
+  const assistant = instructors.find((instructor) => instructor.isAssistant);
+  const additional = instructors.filter(
+    (instructor) => !instructor.isLead && instructor.isAssistant === false,
+  );
+  const legacyAssisting = instructors.filter(
+    (instructor) => !instructor.isLead && instructor.isAssistant === undefined,
+  );
   const parts: string[] = [];
   if (lead) parts.push(`${escapeHtml(lead.name)} (Lead)`);
-  for (const instructor of assisting) {
+  if (assistant) parts.push(`${escapeHtml(assistant.name)} (Assistant)`);
+  for (const instructor of legacyAssisting) {
     parts.push(`${escapeHtml(instructor.name)} (Assisting)`);
+  }
+  for (const instructor of additional) {
+    parts.push(`${escapeHtml(instructor.name)} (Additional instructor)`);
   }
   return parts.join("<br />");
 }

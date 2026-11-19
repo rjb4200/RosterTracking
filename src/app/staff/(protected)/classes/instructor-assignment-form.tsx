@@ -20,6 +20,8 @@ export function InstructorAssignmentForm({
   staff,
   currentLeadId,
   currentAssistantId,
+  currentAdditionalIds,
+  canEditAdditional,
 }: {
   action: (
     previous: ActionState | undefined,
@@ -29,10 +31,13 @@ export function InstructorAssignmentForm({
   staff: InstructorStaffOption[];
   currentLeadId: string;
   currentAssistantId: string | null;
+  currentAdditionalIds: string[];
+  canEditAdditional: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [leadId, setLeadId] = useState(currentLeadId);
   const [assistantId, setAssistantId] = useState(currentAssistantId ?? "");
+  const [additionalIds, setAdditionalIds] = useState(currentAdditionalIds);
   const assistantOptions = staff.filter(
     (instructor) => instructor.id !== leadId,
   );
@@ -51,6 +56,9 @@ export function InstructorAssignmentForm({
             const nextLeadId = event.target.value;
             setLeadId(nextLeadId);
             if (assistantId === nextLeadId) setAssistantId("");
+            setAdditionalIds((current) =>
+              current.filter((id) => id !== nextLeadId),
+            );
           }}
           required
         >
@@ -72,7 +80,13 @@ export function InstructorAssignmentForm({
           name="assistantInstructorId"
           className="select-input"
           value={assistantId}
-          onChange={(event) => setAssistantId(event.target.value)}
+          onChange={(event) => {
+            const nextAssistant = event.target.value;
+            setAssistantId(nextAssistant);
+            setAdditionalIds((current) =>
+              current.filter((id) => !nextAssistant || id !== nextAssistant),
+            );
+          }}
         >
           <option value="">No assistant</option>
           {assistantOptions.map((instructor) => (
@@ -83,6 +97,44 @@ export function InstructorAssignmentForm({
           ))}
         </select>
       </div>
+      {canEditAdditional ? (
+        <div className="field">
+          <span className="field-label">Additional instructors</span>
+          <p className="roster-note">
+            The assistant is the second name on official forms. Additional
+            instructors appear on the instructor supplement.
+          </p>
+          {staff
+            .filter(
+              (instructor) =>
+                instructor.id !== leadId && instructor.id !== assistantId,
+            )
+            .map((instructor) => (
+              <label key={instructor.id} className="checkbox-field field-wide">
+                <input
+                  type="checkbox"
+                  checked={additionalIds.includes(instructor.id)}
+                  onChange={(event) =>
+                    setAdditionalIds((current) =>
+                      event.target.checked
+                        ? [...current, instructor.id]
+                        : current.filter((id) => id !== instructor.id),
+                    )
+                  }
+                />
+                {instructor.name}
+              </label>
+            ))}
+          {additionalIds.map((id) => (
+            <input
+              key={id}
+              type="hidden"
+              name="additionalInstructorIds"
+              value={id}
+            />
+          ))}
+        </div>
+      ) : null}
       <Button type="submit" variant="secondary" disabled={pending}>
         {pending ? "Saving..." : "Save instructors"}
       </Button>

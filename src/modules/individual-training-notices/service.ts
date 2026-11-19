@@ -34,6 +34,7 @@ import {
 } from "@/modules/official-roster-pdfs/mappings";
 import type { OfficialRosterActor } from "@/modules/official-roster-pdfs/service";
 import {
+  appendInstructorSupplement,
   type FinalizationSnapshot,
   formatDate,
   formatTime,
@@ -107,10 +108,12 @@ export async function renderTrainingNoticePage(
       "The Fire roster cannot be generated until the fire instructor signs.",
     );
   }
-  const fireSigner =
-    resolveFireSigner(snapshot.instructors) ??
-    snapshot.instructors.find((instructor) => instructor.isLead) ??
-    snapshot.instructors[0];
+  const fireSigner = snapshot.instructors.some(
+    (instructor) => typeof instructor.isAssistant === "boolean",
+  )
+    ? snapshot.instructors.find((instructor) => instructor.isLead)
+    : (resolveFireSigner(snapshot.instructors) ??
+      snapshot.instructors.find((instructor) => instructor.isLead));
   const fireSignatureName =
     snapshot.fireSignature?.name ?? snapshot.signature?.name ?? "";
   const subjects = (snapshot.components ?? []).slice(0, ROW_LIMIT);
@@ -193,13 +196,16 @@ export async function generateFireRosterWithNotices(
   const filename = `kfs-1a-${mapping.templateVersion}.pdf`;
   const rosterBytes = await renderOfficialRoster("kfs-1a", snapshot);
   const qualifying = qualifyingParticipants(snapshot);
-  if (!qualifying.length) return { bytes: rosterBytes, filename };
+  if (!qualifying.length && snapshot.instructors.length <= 2) {
+    return { bytes: rosterBytes, filename };
+  }
 
   const output = await PDFDocument.create();
   const roster = await PDFDocument.load(rosterBytes);
   for (const page of await output.copyPages(roster, roster.getPageIndices())) {
     output.addPage(page);
   }
+  await appendInstructorSupplement(output, snapshot);
   for (const participant of qualifying) {
     const noticeBytes = await renderTrainingNotice(
       "lightYellow",
@@ -227,10 +233,13 @@ export function trainingNoticeContentFingerprint(
   snapshot: FinalizationSnapshot,
   participant: NoticeParticipant,
 ): string {
-  const fireSigner =
-    resolveFireSigner(snapshot.instructors) ??
-    snapshot.instructors.find((instructor) => instructor.isLead) ??
-    snapshot.instructors[0];
+  const fireSigner = snapshot.instructors.some(
+    (instructor) => typeof instructor.isAssistant === "boolean",
+  )
+    ? snapshot.instructors.find((instructor) => instructor.isLead)
+    : (resolveFireSigner(snapshot.instructors) ??
+      snapshot.instructors.find((instructor) => instructor.isLead) ??
+      snapshot.instructors[0]);
   const values = {
     participant: participantName(participant),
     courseName: snapshot.class.courseName,

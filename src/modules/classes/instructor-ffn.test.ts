@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { validateFireInstructors } from "./instructor-ffn";
 
 describe("Fire instructor policy", () => {
-  it("permits a Fire class with one fire instructor among the assignments", () => {
+  it("permits a Fire class whose lead is fire-qualified", () => {
     expect(() =>
       validateFireInstructors([
         {
@@ -37,7 +37,7 @@ describe("Fire instructor policy", () => {
     ).toThrow(/valid FFN.*Fire Instructor level/);
   });
 
-  it("identifies the assigned instructors without disclosing FFNs", () => {
+  it("identifies the lead without disclosing the FFN", () => {
     try {
       validateFireInstructors([
         {
@@ -52,14 +52,14 @@ describe("Fire instructor policy", () => {
         },
       ]);
     } catch (error) {
-      expect((error as Error).message).toContain("Lead, Assistant");
+      expect((error as Error).message).toContain("Lead");
       expect((error as Error).message).not.toContain("12345678");
     }
   });
 
   it("requires a lead instructor", () => {
     expect(() => validateFireInstructors([])).toThrow(
-      /Assign a lead instructor/,
+      /Assign a fire-qualified lead instructor/,
     );
   });
 });
