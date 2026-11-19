@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeading } from "@/components/ui/page-heading";
 import {
+  additionalInstructorEditingEnabled,
   getClassDetail,
   listClassFormOptions,
 } from "@/modules/classes/services";
@@ -52,8 +53,11 @@ export default async function EditClassPage({
     classRecord.instructors.find((instructor) => instructor.isLead)?.userId ??
     "";
   const currentAssistantId =
-    classRecord.instructors.find((instructor) => !instructor.isLead)?.userId ??
-    null;
+    classRecord.instructors.find((instructor) => instructor.isAssistant)
+      ?.userId ?? null;
+  const currentAdditionalIds = classRecord.instructors
+    .filter((instructor) => !instructor.isLead && !instructor.isAssistant)
+    .map((instructor) => instructor.userId);
   const lastComponent =
     classRecord.components[classRecord.components.length - 1];
   const newSessionStartsAt = lastComponent
@@ -180,6 +184,8 @@ export default async function EditClassPage({
           staff={options.staff}
           currentLeadId={currentLeadId}
           currentAssistantId={currentAssistantId}
+          currentAdditionalIds={currentAdditionalIds}
+          canEditAdditional={additionalInstructorEditingEnabled()}
         />
       </section>
     </main>

@@ -482,6 +482,25 @@ describe("completion certificates", () => {
       participant,
     );
     expect(changed).not.toBe(fingerprint);
+
+    const withAdditional = certificateContentFingerprint(
+      {
+        ...snapshot,
+        instructors: [
+          ...snapshot.instructors,
+          {
+            userId: "instructor-2",
+            name: "Additional Medic",
+            isLead: false,
+            isAssistant: false,
+            ffn: null,
+            level: null,
+          },
+        ],
+      },
+      participant,
+    );
+    expect(withAdditional).not.toBe(fingerprint);
   });
 
   it("maps the sentence blanks to the hours, type, class name, and number", async () => {

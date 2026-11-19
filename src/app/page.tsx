@@ -43,6 +43,7 @@ export default async function HomePage() {
           <EmptyState
             title="No classes are open"
             description="Classes appear here when an instructor opens them for sign-in. Check back soon."
+            descriptionClassName="text-[#3d4b53]"
           />
         ) : (
           <ul className="public-class-list">

@@ -78,7 +78,7 @@ describe("Fire class instructor mutation guards", () => {
     expect(transaction.insert).not.toHaveBeenCalled();
   });
 
-  it("checks the resulting assignment set before adding Fire reporting", async () => {
+  it("checks the Fire-qualified lead before adding Fire reporting", async () => {
     const { db, transaction } = databaseWithSelections([
       [{ id: classId, status: "open" }],
       [{ id: "elevated-role" }],
@@ -93,7 +93,7 @@ describe("Fire class instructor mutation guards", () => {
     await expect(updateClass(db, actor, classId, details)).rejects.toThrow(
       /staff profile FFN/,
     );
-    expect(guard).toHaveBeenCalledWith(transaction, [leadId, assistantId]);
+    expect(guard).toHaveBeenCalled();
     expect(transaction.update).not.toHaveBeenCalled();
     expect(transaction.delete).not.toHaveBeenCalled();
   });

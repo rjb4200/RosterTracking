@@ -222,6 +222,7 @@ const scheduledDraftInput = draftInput.extend({
   creditedHours: z.coerce.number().positive().max(999),
   leadInstructorId: z.string().uuid(),
   assistantInstructorId: optionalUuid,
+  additionalInstructorIds: z.array(z.string().uuid()).optional(),
   subjects: z.array(fireSubjectInput).max(2).optional(),
 });
 
@@ -570,7 +571,12 @@ async function assignedInstructorIds(
   const assignments = await transaction
     .select({ id: classInstructors.userId })
     .from(classInstructors)
-    .where(eq(classInstructors.classId, classId));
+    .where(
+      and(
+        eq(classInstructors.classId, classId),
+        eq(classInstructors.isLead, true),
+      ),
+    );
   return assignments.map(({ id }) => id);
 }
 
@@ -959,6 +965,10 @@ export async function createOpenClass(
       .limit(1);
     if (!leadInstructor) throw new Error("Select an active lead instructor.");
     const assistantInstructorId = parsed.assistantInstructorId ?? null;
+    const additionalInstructorIds = resolveAdditionalInstructors(
+      parsed.additionalInstructorIds,
+      [],
+    );
     if (assistantInstructorId === parsed.leadInstructorId) {
       throw new Error(
         "The assistant instructor must be different from the lead instructor.",
@@ -976,11 +986,14 @@ export async function createOpenClass(
         throw new Error("Select an active assistant instructor.");
       }
     }
-    const instructorIds = assistantInstructorId
-      ? [parsed.leadInstructorId, assistantInstructorId]
-      : [parsed.leadInstructorId];
+    const additional = validateInstructorRoles(
+      parsed.leadInstructorId,
+      assistantInstructorId,
+      additionalInstructorIds,
+    );
+    await assertActiveAdditionalInstructors(transaction, additional);
     if (await selectsFireDestination(transaction, reportingSystemIds)) {
-      await requireFireInstructor(transaction, instructorIds);
+      await requireFireInstructor(transaction, [parsed.leadInstructorId]);
     }
     // The class name: the fixed program title, the entered/EMS course name, or
     // the first Fire subject.
@@ -1039,9 +1052,16 @@ export async function createOpenClass(
               classId: created.id,
               userId: assistantInstructorId,
               isLead: false,
+              isAssistant: true,
             },
           ]
         : []),
+      ...additional.map((userId) => ({
+        classId: created.id,
+        userId,
+        isLead: false,
+        isAssistant: false,
+      })),
     ]);
     await writeAuditLog(transaction, {
       actorUserId: actor.id,
@@ -1052,6 +1072,7 @@ export async function createOpenClass(
       details: {
         leadInstructorId: parsed.leadInstructorId,
         assistantInstructorId,
+        additionalInstructorIds,
       },
     });
     // Every subject is an ordered block on the one class start. Durations come
@@ -1193,11 +1214,7 @@ export async function updateClass(
       parsed.reportingSystemIds ?? [],
     );
     if (
-      (await selectsFireDestination(
-        transaction,
-        parsed.reportingSystemIds ?? [],
-      )) &&
-      !(await classSelectsFire(transaction, classId))
+      await selectsFireDestination(transaction, parsed.reportingSystemIds ?? [])
     ) {
       await requireFireInstructor(
         transaction,
@@ -1527,6 +1544,47 @@ export async function saveClassComponent(
 interface InstructorAssignmentInput {
   leadInstructorId: string;
   assistantInstructorId: string | null;
+  additionalInstructorIds?: string[];
+}
+
+export function additionalInstructorEditingEnabled(): boolean {
+  return process.env.ADDITIONAL_INSTRUCTOR_EDITING === "1";
+}
+
+function resolveAdditionalInstructors(
+  requested: string[] | undefined,
+  current: string[],
+): string[] {
+  if (requested === undefined) return current;
+  if (!additionalInstructorEditingEnabled()) {
+    throw new Error("Editing additional instructors is not enabled.");
+  }
+  return requested;
+}
+
+function validateInstructorRoles(
+  lead: string,
+  assistant: string | null,
+  additional: string[],
+): string[] {
+  const ids = [lead, ...(assistant ? [assistant] : []), ...additional];
+  if (new Set(ids).size !== ids.length) {
+    throw new Error("Each instructor can only hold one role on this class.");
+  }
+  return additional;
+}
+
+async function assertActiveAdditionalInstructors(
+  transaction: DatabaseTransaction,
+  ids: string[],
+) {
+  if (!ids.length) return;
+  const active = await transaction
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, ids), eq(users.isActive, true)));
+  if (active.length !== ids.length)
+    throw new Error("Select active additional instructors.");
 }
 
 async function setClassInstructorsInTransaction(
@@ -1548,6 +1606,30 @@ async function setClassInstructorsInTransaction(
   const instructorIds = assistantInstructorId
     ? [leadInstructorId, assistantInstructorId]
     : [leadInstructorId];
+  const currentAdditional = await transaction
+    .select({ userId: classInstructors.userId })
+    .from(classInstructors)
+    .where(
+      and(
+        eq(classInstructors.classId, classId),
+        eq(classInstructors.isLead, false),
+        eq(classInstructors.isAssistant, false),
+      ),
+    );
+  const additionalInstructorIds = resolveAdditionalInstructors(
+    input.additionalInstructorIds,
+    currentAdditional.map(({ userId }) => userId),
+  );
+  validateInstructorRoles(
+    leadInstructorId,
+    assistantInstructorId,
+    additionalInstructorIds,
+  );
+  if (input.additionalInstructorIds !== undefined)
+    await assertActiveAdditionalInstructors(
+      transaction,
+      additionalInstructorIds,
+    );
   const activeUsers = await transaction
     .select({ id: users.id })
     .from(users)
@@ -1556,11 +1638,19 @@ async function setClassInstructorsInTransaction(
     throw new Error("Select active staff instructors.");
   }
   if (await classSelectsFire(transaction, classId)) {
-    await requireFireInstructor(transaction, instructorIds);
+    await requireFireInstructor(transaction, [leadInstructorId]);
   }
-  await transaction
-    .delete(classInstructors)
-    .where(eq(classInstructors.classId, classId));
+  const deleteWhere =
+    input.additionalInstructorIds === undefined
+      ? and(
+          eq(classInstructors.classId, classId),
+          or(
+            eq(classInstructors.isLead, true),
+            eq(classInstructors.isAssistant, true),
+          ),
+        )
+      : eq(classInstructors.classId, classId);
+  await transaction.delete(classInstructors).where(deleteWhere);
   await transaction.insert(classInstructors).values([
     {
       classId,
@@ -1573,9 +1663,18 @@ async function setClassInstructorsInTransaction(
             classId,
             userId: assistantInstructorId,
             isLead: false,
+            isAssistant: true,
           },
         ]
       : []),
+    ...(input.additionalInstructorIds === undefined
+      ? []
+      : additionalInstructorIds.map((userId) => ({
+          classId,
+          userId,
+          isLead: false,
+          isAssistant: false,
+        }))),
   ]);
   await writeAuditLog(transaction, {
     actorUserId: actor.id,
@@ -1583,14 +1682,17 @@ async function setClassInstructorsInTransaction(
     action: "class.instructors.changed",
     entityType: "class",
     entityId: classId,
-    details: { leadInstructorId, assistantInstructorId },
+    details: {
+      leadInstructorId,
+      assistantInstructorId,
+      additionalInstructorIds,
+    },
   });
-  return { leadInstructorId, assistantInstructorId };
+  return { leadInstructorId, assistantInstructorId, additionalInstructorIds };
 }
 
 /**
- * The only instructor write path. It replaces the 1+1 assignment atomically so
- * the Fire guard validates the set that will exist after the write.
+ * Update instructor roles atomically, including legacy forms without an additional list.
  */
 export async function setClassInstructors(
   db: Database,
@@ -1616,6 +1718,7 @@ export async function assignClassInstructor(
       .select({
         userId: classInstructors.userId,
         isLead: classInstructors.isLead,
+        isAssistant: classInstructors.isAssistant,
       })
       .from(classInstructors)
       .where(eq(classInstructors.classId, classId));
@@ -1623,7 +1726,7 @@ export async function assignClassInstructor(
       (assignment) => assignment.isLead,
     )?.userId;
     const currentAssistant = assignments.find(
-      (assignment) => !assignment.isLead,
+      (assignment) => assignment.isAssistant,
     )?.userId;
     if (!isLead) {
       if (!currentLead) throw new Error("Assign a lead instructor first.");
@@ -1650,7 +1753,10 @@ export async function removeClassInstructor(
   await db.transaction(async (transaction) => {
     await requireClassAccess(transaction, actor, classId);
     const [assignment] = await transaction
-      .select({ isLead: classInstructors.isLead })
+      .select({
+        isLead: classInstructors.isLead,
+        isAssistant: classInstructors.isAssistant,
+      })
       .from(classInstructors)
       .where(
         and(
@@ -1668,6 +1774,10 @@ export async function removeClassInstructor(
         "Replace the lead instructor instead of removing the lead.",
       );
     }
+    if (!assignment.isAssistant)
+      throw new Error(
+        "Use the instructor editor to remove an additional instructor.",
+      );
     const [lead] = await transaction
       .select({ userId: classInstructors.userId })
       .from(classInstructors)
@@ -2343,6 +2453,7 @@ export async function getClassDetail(
         userId: users.id,
         displayName: users.displayName,
         isLead: classInstructors.isLead,
+        isAssistant: classInstructors.isAssistant,
         ffn: users.ffn,
         instructorLevel: users.instructorLevel,
       })

@@ -158,6 +158,8 @@ test("class command controls stay reachable on a narrow viewport", async ({
   await page.goto(`/staff/classes/${classId}`);
 
   const finish = page.getByRole("link", { name: "Review and finalize" });
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
   await finish.scrollIntoViewIfNeeded();
 
   const overflow = await page.evaluate(
@@ -613,7 +615,7 @@ test("instructors can be set and the lead replaced", async ({ page }) => {
   await area.getByLabel("Assistant instructor").selectOption(instructorId);
   await area.getByRole("button", { name: "Save instructors" }).click();
   const row = area.locator(".member-row", { hasText: instructorName });
-  await expect(row.getByText("Assisting")).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText("Assistant")).toBeVisible({ timeout: 15_000 });
 
   // Replace the lead; the previous lead is removed rather than demoted, so the
   // class keeps exactly one instructor.

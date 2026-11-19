@@ -182,6 +182,13 @@ describe("MTU scope and totals", () => {
     ]);
     expect(input[0]?.students).toHaveLength(3);
   });
+  it("counts every assigned instructor, including additional instructors", () => {
+    const result = aggregateMtuSummary(
+      [fixture({ instructorCount: 3 })],
+      period,
+    );
+    expect(result.totals.instructorHours).toBe(15);
+  });
   it("keeps empty totals and the three zero transport lines", () => {
     const summary = aggregateMtuSummary([], period);
     expect(summary.totals).toEqual({

@@ -127,6 +127,7 @@ export interface FinalizationSnapshot {
     userId: string;
     name: string;
     isLead: boolean;
+    isAssistant?: boolean;
     ffn?: string | null;
     level?: number | null;
   }>;
@@ -430,6 +431,27 @@ function setText(pdf: PDFDocument, name: string | undefined, value: string) {
   field.setText(value.slice(0, 500));
 }
 
+function setFittedText(
+  pdf: PDFDocument,
+  fonts: TemplateRenderFonts,
+  name: string | undefined,
+  value: string,
+  maxSize: number,
+  minSize = 6,
+) {
+  if (!name) throw new Error("Approved template mapping is incomplete.");
+  const field = pdf.getForm().getTextField(name);
+  const width =
+    (field.acroField.getWidgets()[0]?.getRectangle().width ?? 0) * 0.98;
+  const font = fonts.forField(name);
+  let size = maxSize;
+  while (size > minSize && font.widthOfTextAtSize(value, size) > width) {
+    size -= 0.5;
+  }
+  field.setFontSize(size);
+  field.setText(value.slice(0, 500));
+}
+
 // KFS-1A checkbox fields, mapped by position from the approved template.
 const KFS_LEAD_LEVEL_FIELDS: Record<number, string> = {
   1: "Check Box2",
@@ -466,12 +488,19 @@ function fillKfsPage(
       "The Fire roster cannot be generated until the fire instructor signs.",
     );
   }
-  const fireSigner =
-    resolveFireSigner(snapshot.instructors) ??
-    snapshot.instructors.find((instructor) => instructor.isLead);
-  const otherInstructor = snapshot.instructors.find(
-    (instructor) => instructor !== fireSigner,
+  const roleAware = snapshot.instructors.some(
+    (instructor) => typeof instructor.isAssistant === "boolean",
   );
+  const lead = snapshot.instructors.find((instructor) => instructor.isLead);
+  const assistant = snapshot.instructors.find(
+    (instructor) => instructor.isAssistant,
+  );
+  const fireSigner = roleAware
+    ? lead
+    : (resolveFireSigner(snapshot.instructors) ?? lead);
+  const otherInstructor = roleAware
+    ? assistant
+    : snapshot.instructors.find((instructor) => instructor !== fireSigner);
   const fireSignatureName =
     snapshot.fireSignature?.name ?? snapshot.signature?.name ?? "";
   const subjects = snapshot.components ?? [];
@@ -694,11 +723,20 @@ function fillKbemsPage(
   pageCount: number,
 ) {
   const mapping = KBEMS_E16_TEMPLATE;
-  const instructorNames = snapshot.instructors
-    .map((instructor) => instructor.name)
+  const roleAware = snapshot.instructors.some(
+    (instructor) => typeof instructor.isAssistant === "boolean",
+  );
+  const assistant = roleAware
+    ? snapshot.instructors.find((instructor) => instructor.isAssistant)
+    : snapshot.instructors.find((instructor) => !instructor.isLead);
+  const instructorNames = [
+    snapshot.instructors.find((instructor) => instructor.isLead)?.name,
+    assistant?.name,
+  ]
+    .filter(Boolean)
     .join(", ");
   setText(pdf, mapping.fields.courseName, snapshot.class.courseName);
-  setText(pdf, mapping.fields.instructor, instructorNames);
+  setFittedText(pdf, fonts, mapping.fields.instructor, instructorNames, 8);
   setText(pdf, mapping.fields.location, snapshot.class.siteName ?? "");
   setText(pdf, mapping.fields.date, formatDate(schedule.date));
   setText(pdf, mapping.fields.startTime, formatTime(schedule.startsAt));
@@ -899,6 +937,86 @@ export async function renderRosterPage(
   return renderPage(mapping, (pdf) => fillKfsPage(pdf, snapshot, attendees), {
     flatten: options.flatten ?? true,
   });
+}
+
+/**
+ * Append the full instructor team when the revised roster carries more than
+ * the two official form names. The supplement is a listing, not a state form.
+ */
+export async function appendInstructorSupplement(
+  output: PDFDocument,
+  snapshot: FinalizationSnapshot,
+): Promise<void> {
+  if (snapshot.instructors.length <= 2) return;
+  const font = await output.embedFont(StandardFonts.Helvetica);
+  const bold = await output.embedFont(StandardFonts.HelveticaBold);
+  const page = output.addPage([792, 612]);
+  const { width, height } = page.getSize();
+  const margin = 42;
+  let y = height - 48;
+  page.drawText("Instructor Roster Supplement", {
+    x: margin,
+    y,
+    size: 20,
+    font: bold,
+  });
+  y -= 24;
+  page.drawText(snapshot.class.courseName, {
+    x: margin,
+    y,
+    size: 13,
+    font,
+  });
+  y -= 18;
+  page.drawText(
+    [
+      formatDate(snapshot.class.completedAt),
+      snapshot.class.siteName,
+      snapshot.class.hostAgencyName
+        ? `Host: ${snapshot.class.hostAgencyName}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("  |  "),
+    { x: margin, y, size: 10, font },
+  );
+  y -= 34;
+  for (const [label, x] of [
+    ["Instructor", margin],
+    ["FFN", 430],
+    ["Level", 550],
+    ["Role", 640],
+  ] as const) {
+    page.drawText(label, { x, y, size: 10, font: bold });
+  }
+  y -= 8;
+  page.drawLine({
+    start: { x: margin, y },
+    end: { x: width - margin, y },
+    thickness: 0.75,
+  });
+  y -= 20;
+  for (const instructor of snapshot.instructors) {
+    const role = instructor.isLead
+      ? "Lead"
+      : instructor.isAssistant
+        ? "Assistant"
+        : "Additional";
+    page.drawText(instructor.name, { x: margin, y, size: 10, font });
+    page.drawText(instructor.ffn ?? "", { x: 430, y, size: 10, font });
+    page.drawText(instructor.level ? String(instructor.level) : "", {
+      x: 550,
+      y,
+      size: 10,
+      font,
+    });
+    page.drawText(role, { x: 640, y, size: 10, font });
+    y -= 22;
+  }
+  page.drawText(
+    "Additional instructors are recorded for class access and reporting. This supplement carries no signatures.",
+    { x: margin, y: 36, size: 8, font },
+  );
 }
 
 export async function renderOfficialRoster(

@@ -30,6 +30,7 @@ import {
 import { COMPLETION_CERTIFICATE_TEMPLATE } from "@/modules/official-roster-pdfs/mappings";
 import type { OfficialRosterActor } from "@/modules/official-roster-pdfs/service";
 import {
+  appendInstructorSupplement,
   type FinalizationSnapshot,
   formatDate,
   readSnapshot,
@@ -139,9 +140,6 @@ export function certificateContentFingerprint(
   snapshot: FinalizationSnapshot,
   participant: CertificateParticipant,
 ): string {
-  const lead =
-    snapshot.instructors.find((instructor) => instructor.isLead) ??
-    snapshot.instructors[0];
   const values = {
     participant: participantName(participant),
     courseName: snapshot.class.courseName,
@@ -149,7 +147,14 @@ export function certificateContentFingerprint(
     courseType: snapshot.class.courseType ?? "",
     courseNumber: snapshot.class.courseNumber ?? "",
     completedAt: snapshot.class.completedAt ?? "",
-    instructor: lead?.name ?? "",
+    instructors: snapshot.instructors.map((instructor) => ({
+      name: instructor.name,
+      role: instructor.isLead
+        ? "lead"
+        : instructor.isAssistant
+          ? "assistant"
+          : "additional",
+    })),
   };
   return createHash("sha256").update(JSON.stringify(values)).digest("hex");
 }
@@ -470,6 +475,7 @@ export async function renderCompletionCertificateBatch(
   for (const page of await output.copyPages(roster, roster.getPageIndices())) {
     output.addPage(page);
   }
+  await appendInstructorSupplement(output, snapshot);
 
   for (const participant of certificateEligibleAttendance(snapshot)) {
     const page = await renderPage(mapping, (pdf, fonts) =>
@@ -620,6 +626,7 @@ async function certificateMessage(
     instructors: snapshot.instructors.map((instructor) => ({
       name: instructor.name,
       isLead: instructor.isLead,
+      isAssistant: instructor.isAssistant,
     })),
     agencyName: participant.agencyName || null,
   });

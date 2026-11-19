@@ -9,12 +9,14 @@ function EmptyState({
   description,
   action,
   className,
+  descriptionClassName,
 }: {
   icon?: LucideIcon
   title: ReactNode
   description?: ReactNode
   action?: ReactNode
   className?: string
+  descriptionClassName?: string
 }) {
   return (
     <div
@@ -29,7 +31,12 @@ function EmptyState({
       ) : null}
       <p className="text-sm font-medium text-foreground">{title}</p>
       {description ? (
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p
+          className={cn(
+            "max-w-prose text-sm text-muted-foreground",
+            descriptionClassName
+          )}
+        >
           {description}
         </p>
       ) : null}

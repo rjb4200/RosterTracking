@@ -55,6 +55,32 @@ export function ClassSummary({
           .map((instructor) => instructor.displayName)
           .join(", ") || "Not assigned"}
       </dd>
+      {classRecord.instructors.some((instructor) => instructor.isAssistant) ? (
+        <>
+          <dt>Assistant instructor</dt>
+          <dd>
+            {classRecord.instructors
+              .filter((instructor) => instructor.isAssistant)
+              .map((instructor) => instructor.displayName)
+              .join(", ")}
+          </dd>
+        </>
+      ) : null}
+      {classRecord.instructors.some(
+        (instructor) => !instructor.isLead && !instructor.isAssistant,
+      ) ? (
+        <>
+          <dt>Additional instructors</dt>
+          <dd>
+            {classRecord.instructors
+              .filter(
+                (instructor) => !instructor.isLead && !instructor.isAssistant,
+              )
+              .map((instructor) => instructor.displayName)
+              .join(", ")}
+          </dd>
+        </>
+      ) : null}
       <dt>Sessions</dt>
       <dd>
         {classRecord.components.length === 0
