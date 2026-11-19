@@ -416,6 +416,7 @@ test("class wizard records lead, assistant, and additional instructors", async (
   await page
     .getByLabel("Assistant instructor")
     .selectOption(assistant.rows[0].id);
+  await page.getByText("Additional instructors", { exact: true }).click();
   await page
     .getByRole("checkbox", { name: additional.rows[0].display_name })
     .check();

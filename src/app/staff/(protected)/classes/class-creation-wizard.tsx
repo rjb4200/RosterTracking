@@ -1123,8 +1123,13 @@ export function ClassCreationWizard({
               </select>
             </div>
             {canEditAdditional ? (
-              <div className="field">
-                <span className="field-label">Additional instructors</span>
+              <details className="review-group">
+                <summary>
+                  Additional instructors
+                  {values.additionalInstructorIds.length
+                    ? ` (${values.additionalInstructorIds.length} selected)`
+                    : ""}
+                </summary>
                 <p className="roster-note">
                   Additional instructors can access the class and appear on the
                   instructor supplement. The assistant is the second name on
@@ -1165,7 +1170,7 @@ export function ClassCreationWizard({
                       </Label>
                     ))}
                 </div>
-              </div>
+              </details>
             ) : null}
             <Label className="checkbox-field field-wide">
               <Input
