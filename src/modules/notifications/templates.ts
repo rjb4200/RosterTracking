@@ -13,6 +13,7 @@ export interface CertificateEmailInstructor {
 export interface CertificateEmailInput {
   participantName: string;
   courseName: string;
+  hoursRecord?: boolean;
   completedAt: string | null;
   classHours: string;
   instructors: CertificateEmailInstructor[];
@@ -73,6 +74,15 @@ export function renderCertificateEmail(
   const agency = input.agencyName ? escapeHtml(input.agencyName) : null;
   const instructors = instructorLabel(input.instructors);
 
+  const hoursRecord = input.hoursRecord === true;
+  const heading = hoursRecord ? "Hours Record" : "Certificate of Completion";
+  const summary = hoursRecord
+    ? "This records that the named participant completed the following course. It is not the official certification."
+    : "This certifies that the named participant has satisfactorily completed the following course.";
+  const attachmentNote = hoursRecord
+    ? "Your hours record is attached to this message. Keep it for your records."
+    : "Your signed certificate is attached to this message. Keep it for your records.";
+
   const rows = [
     detailRow("Course", course),
     completed ? detailRow("Completion date", completed) : "",
@@ -82,16 +92,16 @@ export function renderCertificateEmail(
   ].join("");
 
   const body = `
-    <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Certificate of Completion</p>
+    <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">${heading}</p>
     <h1 style="margin:0 0 16px;font-family:${FONT_STACK};color:#111827;font-size:24px;font-weight:700;">${participant}</h1>
     <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
-      This certifies that the named participant has satisfactorily completed the following course.
+      ${summary}
     </p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ${BRAND.border};border-bottom:1px solid ${BRAND.border};margin:0 0 20px;">
       ${rows}
     </table>
     <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
-      Your signed certificate is attached to this message. Keep it for your records.
+      ${attachmentNote}
     </p>
     <p style="margin:0;font-family:${FONT_STACK};color:${BRAND.muted};font-size:13px;line-height:1.6;">
       Winchester Fire Department<br />Training Division
@@ -99,10 +109,10 @@ export function renderCertificateEmail(
 
   const text = [
     "Winchester Fire Department",
-    "CERTIFICATE OF COMPLETION",
+    heading.toUpperCase(),
     "",
     input.participantName,
-    "This certifies that the named participant has satisfactorily completed the following course.",
+    summary,
     "",
     `Course: ${input.courseName}`,
     ...(input.completedAt ? [`Completion date: ${input.completedAt}`] : []),
@@ -119,12 +129,83 @@ export function renderCertificateEmail(
       : []),
     ...(input.agencyName ? [`Agency: ${input.agencyName}`] : []),
     "",
-    "Your signed certificate is attached to this message. Keep it for your records.",
+    attachmentNote,
     "Training Division",
   ].join("\n");
 
   return {
-    subject: `Certificate of Completion — ${input.courseName}`,
+    subject: `${heading} — ${input.courseName}`,
+    html: emailShell(body),
+    text,
+  };
+}
+
+export const COMPLETION_NOTICE_EMAIL_TEMPLATE = "completion-notice";
+export const COMPLETION_NOTICE_EMAIL_TEMPLATE_VERSION =
+  "completion-notice-email-001";
+
+export interface CompletionNoticeEmailInput {
+  participantName: string;
+  courseName: string;
+  completedAt: string | null;
+  classHours: string;
+  agencyName: string | null;
+  officialIssuer?: string | null;
+}
+
+/**
+ * Renders the course-completed notice for a class that issues an external
+ * certification but no internal certificate.
+ */
+export function renderCompletionNoticeEmail(
+  input: CompletionNoticeEmailInput,
+): RenderedEmail {
+  const participant = escapeHtml(input.participantName);
+  const course = escapeHtml(input.courseName);
+  const completed = input.completedAt ? escapeHtml(input.completedAt) : null;
+  const hours = escapeHtml(input.classHours);
+  const agency = input.agencyName ? escapeHtml(input.agencyName) : null;
+  const issuer = input.officialIssuer
+    ? escapeHtml(input.officialIssuer)
+    : "official";
+
+  const rows = [
+    detailRow("Course", course),
+    completed ? detailRow("Completion date", completed) : "",
+    input.classHours ? detailRow("Class hours", hours) : "",
+    agency ? detailRow("Agency", agency) : "",
+  ].join("");
+
+  const body = `
+    <p style="margin:0 0 6px;font-family:${FONT_STACK};color:${BRAND.red};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Course Completed</p>
+    <h1 style="margin:0 0 16px;font-family:${FONT_STACK};color:#111827;font-size:24px;font-weight:700;">${participant}</h1>
+    <p style="margin:0 0 20px;font-family:${FONT_STACK};color:#374151;font-size:15px;line-height:1.6;">
+      You have completed ${course}. Your ${issuer} certification will be sent separately — watch your email for it.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ${BRAND.border};border-bottom:1px solid ${BRAND.border};margin:0 0 20px;">
+      ${rows}
+    </table>
+    <p style="margin:0;font-family:${FONT_STACK};color:${BRAND.muted};font-size:13px;line-height:1.6;">
+      Winchester Fire Department<br />Training Division
+    </p>`;
+
+  const text = [
+    "Winchester Fire Department",
+    "COURSE COMPLETED",
+    "",
+    input.participantName,
+    `You have completed ${input.courseName}. Your ${input.officialIssuer ?? "official"} certification will be sent separately — watch your email for it.`,
+    "",
+    `Course: ${input.courseName}`,
+    ...(input.completedAt ? [`Completion date: ${input.completedAt}`] : []),
+    ...(input.classHours ? [`Class hours: ${input.classHours}`] : []),
+    ...(input.agencyName ? [`Agency: ${input.agencyName}`] : []),
+    "",
+    "Training Division",
+  ].join("\n");
+
+  return {
+    subject: `Course Completed — ${input.courseName}`,
     html: emailShell(body),
     text,
   };

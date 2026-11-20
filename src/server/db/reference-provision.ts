@@ -49,6 +49,7 @@ const chaptersFileSchema = z.object({ books: z.array(bookSchema) });
 const codeRowSchema = z.object({
   code: z.string(),
   title: z.string(),
+  externalCertIssuer: z.enum(["aha", "naemt", "other"]).nullable().optional(),
   sourceRevision: z.string(),
 });
 const mtuRowSchema = z.object({

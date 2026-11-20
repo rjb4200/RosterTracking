@@ -85,6 +85,11 @@ export interface FinalizationSnapshot {
     // EMS course details printed on the completion certificate.
     courseType?: string | null;
     courseNumber?: string | null;
+    // Whether the department issues its own certificate. Absent on legacy
+    // revisions, where it defaults to true.
+    issueInternalCert?: boolean;
+    // The external body that issues the official certification, if any.
+    externalCertIssuer?: "aha" | "naemt" | "other" | null;
     completedAt: string | null;
   };
   // Reporting destinations selected for the class at finalization.
@@ -130,6 +135,8 @@ export interface FinalizationSnapshot {
     isAssistant?: boolean;
     ffn?: string | null;
     level?: number | null;
+    // Frozen at finalization; absent means not an approved MTU instructor.
+    mtuInstructor?: boolean;
   }>;
   // Frozen sign-in record. Revisions finalized before SnapshotAttendance carried
   // `attestedAt` still retain each attendee's attestation here.

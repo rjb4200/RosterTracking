@@ -30,6 +30,7 @@ import {
 import {
   AGENCY_OTHER_SUBTYPES,
   AGENCY_TAG_CODES,
+  EXTERNAL_CERT_ISSUER_OPTIONS,
   MTU_CATALOG_KINDS,
   MTU_ROUNDING_MODES,
   type TrainingCategoryKind,
@@ -230,6 +231,22 @@ const trainingCodeInput = z.object({
   code: z.string().trim().min(1).max(300),
   title: z.string().trim().min(1).max(300),
   isPinned: z.boolean().optional().default(false),
+  externalCertIssuer: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((value) => {
+      const normalized = value?.trim() ?? "";
+      if (!normalized) return null;
+      if (
+        !EXTERNAL_CERT_ISSUER_OPTIONS.includes(
+          normalized as (typeof EXTERNAL_CERT_ISSUER_OPTIONS)[number],
+        )
+      ) {
+        throw new Error("Choose a valid external certificate issuer.");
+      }
+      return normalized as (typeof EXTERNAL_CERT_ISSUER_OPTIONS)[number];
+    }),
   mapsToId: z.union([z.string().uuid(), z.literal("")]).optional(),
   sourceRevision: z.string().trim().max(50).optional().default(""),
 });
@@ -985,6 +1002,7 @@ export async function listTrainingCategoryOptions(db: Database) {
       code: trainingCodes.code,
       title: trainingCodes.title,
       kind: trainingCodes.kind,
+      externalCertIssuer: trainingCodes.externalCertIssuer,
     })
     .from(trainingCodes)
     .where(eq(trainingCodes.isActive, true))
@@ -1304,7 +1322,10 @@ export async function importTrainingCodes(
     for (const row of parsed) {
       const result = await transaction
         .insert(trainingCodes)
-        .values(row)
+        .values({
+          ...row,
+          externalCertIssuer: row.externalCertIssuer || null,
+        })
         .onConflictDoUpdate({
           target: [
             trainingCodes.kind,
@@ -1602,6 +1623,7 @@ export async function createTrainingCode(
   const parsed = trainingCodeInput.parse(input);
   const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
   const mapsToId = parsed.mapsToId ? parsed.mapsToId : null;
+  const externalCertIssuer = parsed.externalCertIssuer || null;
   return db.transaction(async (transaction) => {
     try {
       const [code] = await transaction
@@ -1611,6 +1633,7 @@ export async function createTrainingCode(
           code: parsed.code,
           title: parsed.title,
           isPinned: parsed.isPinned,
+          externalCertIssuer,
           sourceRevision,
         })
         .returning();
@@ -1651,6 +1674,7 @@ export async function updateTrainingCode(
   const parsed = trainingCodeInput.parse(input);
   const sourceRevision = parsed.sourceRevision || MANUAL_SOURCE_REVISION;
   const mapsToId = parsed.mapsToId ? parsed.mapsToId : null;
+  const externalCertIssuer = parsed.externalCertIssuer || null;
   return db.transaction(async (transaction) => {
     try {
       const [code] = await transaction
@@ -1660,6 +1684,7 @@ export async function updateTrainingCode(
           code: parsed.code,
           title: parsed.title,
           isPinned: parsed.isPinned,
+          externalCertIssuer,
           sourceRevision,
           updatedAt: new Date(),
         })

@@ -68,6 +68,7 @@ export function ClassForm({
     objectives?: string | null;
     courseType?: string | null;
     courseNumber?: string | null;
+    issueInternalCert?: boolean;
     emsCategoryId?: string | null;
     mtuUsage?: {
       equipmentUsed: string | null;
@@ -260,6 +261,16 @@ export function ClassForm({
             defaultValue={values?.courseNumber ?? ""}
           />
         </div>
+        <Label className="checkbox-field field-wide">
+          <Input
+            type="checkbox"
+            name="issueInternalCert"
+            value="true"
+            defaultChecked={values?.issueInternalCert ?? true}
+          />
+          Issue a department certificate when the class finalizes
+        </Label>
+        <input type="hidden" name="issueInternalCert" value="false" />
         <div className="field field-wide">
           <Label htmlFor="objectives">Course description or objectives</Label>
           <textarea

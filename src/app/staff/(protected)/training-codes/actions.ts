@@ -27,6 +27,7 @@ export async function createTrainingCodeAction(
       code: read(formData, "code"),
       title: read(formData, "title"),
       isPinned: read(formData, "isPinned") === "on",
+      externalCertIssuer: read(formData, "externalCertIssuer"),
       mapsToId: read(formData, "mapsToId"),
     });
   } catch (error) {
@@ -53,6 +54,7 @@ export async function updateTrainingCodeAction(
       code: read(formData, "code"),
       title: read(formData, "title"),
       isPinned: read(formData, "isPinned") === "on",
+      externalCertIssuer: read(formData, "externalCertIssuer"),
       mapsToId: read(formData, "mapsToId"),
     });
     revalidatePath(`/staff/training-codes/${id}`);

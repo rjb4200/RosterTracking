@@ -53,6 +53,10 @@ export function AccountCreateForm() {
           </select>
         </div>
       </div>
+      <Label className="checkbox-field">
+        <Input type="checkbox" name="mtuInstructor" />
+        MTU instructor
+      </Label>
       {state?.error ? (
         <p className="form-error" role="alert">
           {state.error}

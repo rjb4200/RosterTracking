@@ -4,6 +4,7 @@ import {
   instructorLabel,
   renderCertificateEmail,
   renderClassReminderEmail,
+  renderCompletionNoticeEmail,
 } from "./templates";
 
 describe("certificate email template", () => {
@@ -75,6 +76,56 @@ describe("certificate email template", () => {
     });
     expect(message.text).not.toContain("Completion date:");
     expect(message.text).not.toContain("Class hours:");
+  });
+
+  it("marks an hours record distinctly", () => {
+    const message = renderCertificateEmail({ ...input, hoursRecord: true });
+    expect(message.subject).toContain("Hours Record");
+    expect(message.html).toContain("Hours Record");
+    expect(message.html).toContain("It is not the official certification");
+    expect(message.html).toContain("Your hours record is attached");
+    expect(message.text).toContain("HOURS RECORD");
+  });
+});
+
+describe("completion notice email template", () => {
+  const input = {
+    participantName: "Ada Lovelace",
+    courseName: "Advanced Cardiac Life Support",
+    completedAt: "09/05/2026",
+    classHours: "8",
+    agencyName: "Winchester EMS",
+    officialIssuer: "AHA",
+  };
+
+  it("states the class is complete and names the official issuer", () => {
+    const message = renderCompletionNoticeEmail(input);
+    expect(message.subject).toContain("Course Completed");
+    expect(message.html).toContain("Ada Lovelace");
+    expect(message.html).toContain(
+      "You have completed Advanced Cardiac Life Support",
+    );
+    expect(message.html).toContain("AHA certification will be sent separately");
+    expect(message.html).toContain("<!doctype html>");
+    expect(message.html).toContain('src="cid:wfd-logo"');
+    expect(message.text).toContain("COURSE COMPLETED");
+  });
+
+  it("escapes HTML in participant and course values", () => {
+    const message = renderCompletionNoticeEmail({
+      ...input,
+      participantName: 'Ada "Ace" <script>',
+      courseName: "Airway & Oxygen",
+    });
+    expect(message.html).not.toContain("<script>");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).toContain("Airway &amp; Oxygen");
+  });
+
+  it("does not attach a certificate", () => {
+    const message = renderCompletionNoticeEmail(input);
+    expect(message.html).not.toContain("certificate is attached");
+    expect(message.text).not.toContain("certificate is attached");
   });
 });
 

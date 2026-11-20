@@ -26,6 +26,22 @@ export const TRAINING_CATEGORY_KINDS = {
 export type TrainingCategoryKind =
   (typeof TRAINING_CATEGORY_KINDS)[keyof typeof TRAINING_CATEGORY_KINDS];
 
+/** Bodies that may issue a certification externally for a training category. */
+export const EXTERNAL_CERT_ISSUERS = {
+  AHA: "aha",
+  NAEMT: "naemt",
+  OTHER: "other",
+} as const;
+
+export type ExternalCertIssuer =
+  (typeof EXTERNAL_CERT_ISSUERS)[keyof typeof EXTERNAL_CERT_ISSUERS];
+
+export const EXTERNAL_CERT_ISSUER_OPTIONS = [
+  EXTERNAL_CERT_ISSUERS.AHA,
+  EXTERNAL_CERT_ISSUERS.NAEMT,
+  EXTERNAL_CERT_ISSUERS.OTHER,
+] as const;
+
 /** The source revision stamped on the shipped EMS category list. */
 export const EMS_CATEGORY_SOURCE_REVISION = "ems-2024";
 

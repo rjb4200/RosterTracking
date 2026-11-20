@@ -41,6 +41,8 @@ export const users = pgTable(
     ffn: text("ffn"),
     instructorLevel: integer("instructor_level"),
     emsProviderNumber: text("ems_provider_number"),
+    // Approved Mobile Training Unit instructor; hours taught are grant-reimbursable.
+    mtuInstructor: boolean("mtu_instructor").default(false).notNull(),
     ...timestamps,
   },
   (table) => [

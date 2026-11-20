@@ -25,7 +25,10 @@ import {
 import {
   CERTIFICATE_EMAIL_TEMPLATE,
   CERTIFICATE_EMAIL_TEMPLATE_VERSION,
+  COMPLETION_NOTICE_EMAIL_TEMPLATE,
+  COMPLETION_NOTICE_EMAIL_TEMPLATE_VERSION,
   renderCertificateEmail,
+  renderCompletionNoticeEmail,
 } from "@/modules/notifications/templates";
 import { COMPLETION_CERTIFICATE_TEMPLATE } from "@/modules/official-roster-pdfs/mappings";
 import type { OfficialRosterActor } from "@/modules/official-roster-pdfs/service";
@@ -115,9 +118,43 @@ export function certificateCoverRowHours(
   return participant.creditedHours ?? "";
 }
 
+export const HOURS_RECORD_SUFFIX =
+  " — Hours Completed (Not Official Certification)";
+
+/**
+ * True when the internal document records hours rather than the official
+ * certification: the class has an external issuer, or the participant was
+ * credited less than the class hours.
+ */
+export function isHoursRecord(
+  snapshot: FinalizationSnapshot,
+  participant: CertificateParticipant,
+): boolean {
+  if (snapshot.class.externalCertIssuer) return true;
+  const classHours = Number(certificateClassHours(snapshot) || 0);
+  const credited = Number(participant.creditedHours || 0);
+  return classHours > 0 && credited < classHours;
+}
+
+/** The class name with the hours-record marker when the document needs it. */
+export function certificateCourseTitle(
+  snapshot: FinalizationSnapshot,
+  participant: CertificateParticipant,
+): string {
+  return `${snapshot.class.courseName}${
+    isHoursRecord(snapshot, participant) ? HOURS_RECORD_SUFFIX : ""
+  }`;
+}
+
 /** The signature line reads "<class type> – <course>". */
-export function instructorTitleCourse(snapshot: FinalizationSnapshot): string {
-  return [courseTypeLabel(snapshot.class.courseType), snapshot.class.courseName]
+export function instructorTitleCourse(
+  snapshot: FinalizationSnapshot,
+  participant?: CertificateParticipant,
+): string {
+  const course = participant
+    ? certificateCourseTitle(snapshot, participant)
+    : snapshot.class.courseName;
+  return [courseTypeLabel(snapshot.class.courseType), course]
     .filter(Boolean)
     .join(" – ");
 }
@@ -146,6 +183,7 @@ export function certificateContentFingerprint(
     classHours: certificateClassHours(snapshot),
     courseType: snapshot.class.courseType ?? "",
     courseNumber: snapshot.class.courseNumber ?? "",
+    hoursRecord: isHoursRecord(snapshot, participant),
     completedAt: snapshot.class.completedAt ?? "",
     instructors: snapshot.instructors.map((instructor) => ({
       name: instructor.name,
@@ -242,7 +280,7 @@ async function fillCertificate(
     pdf,
     fonts,
     mapping.fields.courseType,
-    snapshot.class.courseName,
+    certificateCourseTitle(snapshot, participant),
     9,
   );
   setFittedText(
@@ -276,13 +314,13 @@ async function fillCertificate(
     throw new Error("Certificate template mapping is incomplete.");
   }
   const titleWidth = fieldWidth(pdf, titleFieldName);
-  const fullTitle = instructorTitleCourse(snapshot);
+  const fullTitle = instructorTitleCourse(snapshot, participant);
   const title =
     fullTitle &&
     fonts.body.widthOfTextAtSize(fullTitle, CERTIFICATE_MIN_FONT_SIZE) <=
       titleWidth
       ? fullTitle
-      : snapshot.class.courseName;
+      : certificateCourseTitle(snapshot, participant);
   setFittedText(pdf, fonts, titleFieldName, title, 9);
 
   // The lead instructor's typed-name electronic signature, taken from the
@@ -612,6 +650,142 @@ export async function queueCertificateDeliveries(
   return result;
 }
 
+const EXTERNAL_ISSUER_LABELS: Record<string, string> = {
+  aha: "AHA",
+  naemt: "NAEMT",
+  other: "external",
+};
+
+function completionNoticeFingerprint(
+  snapshot: FinalizationSnapshot,
+  participant: CertificateParticipant,
+): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        participant: participantName(participant),
+        courseName: snapshot.class.courseName,
+        completedAt: snapshot.class.completedAt ?? "",
+        issuer: snapshot.class.externalCertIssuer ?? "",
+      }),
+    )
+    .digest("hex");
+}
+
+/**
+ * Writes one completion notice per active participant of a class that issues an
+ * external certification but no internal certificate. The participant is told
+ * the class is complete and to watch for the official certification.
+ */
+export async function queueCompletionNoticeDeliveries(
+  transaction: DatabaseTransaction,
+  revisionId: string,
+  snapshot: FinalizationSnapshot,
+): Promise<CertificateQueueResult> {
+  const result: CertificateQueueResult = {
+    total: 0,
+    queued: 0,
+    skipped: 0,
+    undeliverable: 0,
+  };
+  for (const participant of snapshot.attendance) {
+    result.total += 1;
+    const candidate = participant.email?.trim() ?? "";
+    let recipient: string;
+    try {
+      recipient = candidate ? validateEmailRecipient(candidate) : "";
+    } catch {
+      recipient = "";
+    }
+    if (!recipient) {
+      result.undeliverable += 1;
+      continue;
+    }
+    const fingerprint = completionNoticeFingerprint(snapshot, participant);
+    const lastSent = await findLastSentFingerprint(
+      transaction,
+      participant.attendanceId,
+      COMPLETION_NOTICE_EMAIL_TEMPLATE,
+    );
+    const unchanged = lastSent === fingerprint;
+    await enqueueEmail(transaction, {
+      template: COMPLETION_NOTICE_EMAIL_TEMPLATE,
+      templateVersion: COMPLETION_NOTICE_EMAIL_TEMPLATE_VERSION,
+      referenceType: EMAIL_REFERENCE_TYPES.FINALIZATION_REVISION,
+      referenceId: revisionId,
+      attendanceId: participant.attendanceId,
+      recipient,
+      contentFingerprint: fingerprint,
+      status: unchanged
+        ? EMAIL_DELIVERY_STATUSES.SKIPPED
+        : EMAIL_DELIVERY_STATUSES.QUEUED,
+    });
+    if (unchanged) result.skipped += 1;
+    else result.queued += 1;
+  }
+  return result;
+}
+
+async function completionNoticeMessage(
+  snapshot: FinalizationSnapshot,
+  participant: CertificateParticipant,
+  recipient: string,
+) {
+  const issuer = snapshot.class.externalCertIssuer ?? null;
+  const rendered = renderCompletionNoticeEmail({
+    participantName: participantName(participant),
+    courseName: snapshot.class.courseName,
+    completedAt: formatDate(snapshot.class.completedAt) || null,
+    classHours: certificateClassHours(snapshot),
+    agencyName: participant.agencyName || null,
+    officialIssuer: issuer ? (EXTERNAL_ISSUER_LABELS[issuer] ?? null) : null,
+  });
+  const logo = await loadLogoAttachment();
+  return {
+    recipient,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+    attachments: [logo],
+  };
+}
+
+/**
+ * Sends the queued completion notices for a revision after its transaction has
+ * committed. Failures are recorded and retryable; this never throws into the
+ * caller.
+ */
+export async function dispatchCompletionNoticeDeliveries(
+  db: Database,
+  actor: OfficialRosterActor,
+  revisionId: string,
+): Promise<void> {
+  const deliveries = await listQueuedDeliveries(
+    db,
+    EMAIL_REFERENCE_TYPES.FINALIZATION_REVISION,
+    revisionId,
+    COMPLETION_NOTICE_EMAIL_TEMPLATE,
+  );
+  if (!deliveries.length) return;
+  let snapshot: FinalizationSnapshot;
+  try {
+    snapshot = await readSnapshot(db, actor, revisionId);
+  } catch {
+    return;
+  }
+  await dispatchDeliveries(db, deliveries, async (delivery) => {
+    const participant = snapshot.attendance.find(
+      (entry) => entry.attendanceId === delivery.attendanceId,
+    );
+    if (!participant) return null;
+    return await completionNoticeMessage(
+      snapshot,
+      participant,
+      delivery.recipient,
+    );
+  });
+}
+
 async function certificateMessage(
   snapshot: FinalizationSnapshot,
   participant: CertificateParticipant,
@@ -621,6 +795,7 @@ async function certificateMessage(
   const rendered = renderCertificateEmail({
     participantName: participantName(participant),
     courseName: snapshot.class.courseName,
+    hoursRecord: isHoursRecord(snapshot, participant),
     completedAt: formatDate(snapshot.class.completedAt) || null,
     classHours: certificateClassHours(snapshot),
     instructors: snapshot.instructors.map((instructor) => ({
@@ -785,7 +960,8 @@ export type CertificateDeliveryState =
   | "queued"
   | "failed"
   | "skipped"
-  | "undeliverable";
+  | "undeliverable"
+  | "not_sent";
 
 export interface CertificateDeliveryParticipant {
   attendanceId: string;
@@ -819,7 +995,7 @@ export async function getCertificateDeliveryOverview(
     const delivery = byAttendance.get(participant.attendanceId);
     let state: CertificateDeliveryState;
     if (!email) state = "undeliverable";
-    else if (!delivery) state = "queued";
+    else if (!delivery) state = "not_sent";
     else if (delivery.status === "sent") state = "delivered";
     else if (delivery.status === "skipped") state = "skipped";
     else if (delivery.status === "failed") state = "failed";

@@ -176,3 +176,21 @@ Maintenance and data commands — `db:migrate`, `db:seed`, `import:*`, `admin`,
 and `db:reset:*` — refuse to run against a database named in
 `PROTECTED_DATABASE_NAMES`. Pass `--allow-production` (or set
 `ALLOW_PRODUCTION=1`) only for an approved production operation.
+
+## Certificate issuance and external certifications
+
+A training category may record an external certificate issuer (AHA, NAEMT, or
+Other). The class's EMS category wins; otherwise the first Fire subject's
+category supplies the issuer. At finalization the issuer and the class's
+"issue internal certificate" flag are frozen into the revision, so later
+category or class edits do not change a finalized document.
+
+When the internal-certificate flag is on, the automatic certificate batch is
+sent. When it is off, no batch is sent, but staff can still send a certificate
+to an individual participant from the review screen. A class that also has an
+external issuer, or a participant credited fewer hours than the class, produces
+an internal document labeled "— Hours Completed (Not Official Certification)"
+in the certificate title and in the email subject and heading. When a class has
+an external issuer and the internal flag is off, finalization sends a
+course-completed notice instead, reminding each participant to watch for the
+official certification.
