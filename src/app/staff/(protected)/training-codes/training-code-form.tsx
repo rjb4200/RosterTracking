@@ -21,6 +21,13 @@ function optionLabel(category: TrainingCodeOption): string {
     : category.title;
 }
 
+const EXTERNAL_CERT_ISSUER_OPTIONS = [
+  ["", "No external certification"],
+  ["aha", "AHA"],
+  ["naemt", "NAEMT"],
+  ["other", "Other"],
+] as const;
+
 export function TrainingCodeForm({
   action,
   submitLabel = "Add training category",
@@ -39,6 +46,7 @@ export function TrainingCodeForm({
     code: string;
     title: string;
     isPinned: boolean;
+    externalCertIssuer: string | null;
     mapsToId: string | null;
   };
 }) {
@@ -89,6 +97,27 @@ export function TrainingCodeForm({
             defaultValue={values?.title}
             required
           />
+        </div>
+        <div className="field">
+          <Label htmlFor={`externalCertIssuer-${suffix}`}>
+            External certification
+          </Label>
+          <select
+            id={`externalCertIssuer-${suffix}`}
+            name="externalCertIssuer"
+            className="select-input"
+            defaultValue={values?.externalCertIssuer ?? ""}
+          >
+            {EXTERNAL_CERT_ISSUER_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <p className="text-muted-foreground">
+            The body that issues the official certification, when the department
+            does not.
+          </p>
         </div>
         <div className="field">
           <Label htmlFor={`mapsToId-${suffix}`}>

@@ -180,4 +180,45 @@ describeDatabase("staff account management", () => {
       }),
     ).rejects.toThrow(/final active administrator/i);
   });
+
+  it("stores and clears the MTU instructor designation without changing the role", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const suffix = crypto.randomUUID();
+    const administrator = await createUser(
+      db,
+      suffix,
+      ROLE_CODES.ADMINISTRATOR,
+    );
+    const account = await createStaffAccount(db, administrator.id, {
+      username: `mtu-${suffix}`,
+      displayName: "MTU Instructor",
+      password: "A secure fixture password 1!",
+      roleCode: ROLE_CODES.INSTRUCTOR,
+      mtuInstructor: true,
+    });
+
+    const [created] = await db
+      .select({ mtuInstructor: users.mtuInstructor })
+      .from(users)
+      .where(eq(users.id, account.id));
+    expect(created?.mtuInstructor).toBe(true);
+
+    await updateStaffAccount(db, administrator.id, {
+      userId: account.id,
+      mtuInstructor: false,
+    });
+    const [updated] = await db
+      .select({ mtuInstructor: users.mtuInstructor })
+      .from(users)
+      .where(eq(users.id, account.id));
+    expect(updated?.mtuInstructor).toBe(false);
+
+    const roleRows = await db
+      .select({ code: roles.code })
+      .from(userRoles)
+      .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(eq(userRoles.userId, account.id));
+    expect(roleRows.map((row) => row.code)).toEqual([ROLE_CODES.INSTRUCTOR]);
+  });
 });

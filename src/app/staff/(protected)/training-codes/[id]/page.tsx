@@ -82,6 +82,7 @@ export default async function TrainingCodeDetailPage({
             code: code.code,
             title: code.title,
             isPinned: code.isPinned,
+            externalCertIssuer: code.externalCertIssuer,
             mapsToId: code.mapsToId,
           }}
         />

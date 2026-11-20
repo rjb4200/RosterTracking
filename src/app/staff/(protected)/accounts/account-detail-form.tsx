@@ -24,6 +24,7 @@ export function AccountDetailForm({
     email: string | null;
     roleCodes: string[];
     isActive: boolean;
+    mtuInstructor: boolean;
   };
 }) {
   const [state, action, pending] = useActionState(accountAction, undefined);
@@ -83,6 +84,14 @@ export function AccountDetailForm({
           <Input id="password" name="password" type="password" />
         </div>
       </div>
+      <Label className="checkbox-field">
+        <Input
+          type="checkbox"
+          name="mtuInstructor"
+          defaultChecked={account.mtuInstructor}
+        />
+        MTU instructor
+      </Label>
       {state?.error ? (
         <p className="form-error" role="alert">
           {state.error}

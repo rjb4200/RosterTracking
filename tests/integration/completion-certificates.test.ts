@@ -10,7 +10,12 @@ import {
   dispatchCertificateDeliveries,
   generateCompletionCertificates,
   queueCertificateDeliveries,
+  resendParticipantCertificate,
 } from "../../src/modules/completion-certificates/service";
+import {
+  CERTIFICATE_EMAIL_TEMPLATE,
+  COMPLETION_NOTICE_EMAIL_TEMPLATE,
+} from "../../src/modules/notifications/templates";
 import { readSnapshot } from "../../src/modules/official-roster-pdfs/service";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
@@ -79,8 +84,22 @@ async function activeSetId(db: Db, code: string) {
   return { systemId: system.id, setId: set.id };
 }
 
-async function createFinalizedKbemsClass(db: Db, suffix: string) {
+async function createFinalizedKbemsClass(
+  db: Db,
+  suffix: string,
+  options: {
+    issueInternalCert?: boolean;
+    externalCertIssuer?: "aha" | "naemt" | "other";
+    mtuInstructor?: boolean;
+  } = {},
+) {
   const instructor = await createInstructor(db, suffix);
+  if (options.mtuInstructor) {
+    await db
+      .update(users)
+      .set({ mtuInstructor: true })
+      .where(eq(users.id, instructor.id));
+  }
   const [site] = await db
     .insert(trainingSites)
     .values({ name: `EMS Site ${suffix}` })
@@ -94,10 +113,15 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
   }
   const { systemId, setId } = await activeSetId(db, "kbems");
   const [emsCategory] = await db
-    .select({ id: trainingCodes.id })
-    .from(trainingCodes)
-    .where(eq(trainingCodes.kind, "ems"))
-    .limit(1);
+    .insert(trainingCodes)
+    .values({
+      kind: "ems",
+      code: `CERT-${suffix}`,
+      title: `Certificate fixture ${suffix}`,
+      sourceRevision: `test-${suffix}`,
+      externalCertIssuer: options.externalCertIssuer ?? null,
+    })
+    .returning({ id: trainingCodes.id });
   if (!emsCategory) throw new Error("EMS category fixture is missing.");
   const created = await createOpenClass(db, instructor, {
     name: `EMS Course ${suffix}`,
@@ -112,6 +136,7 @@ async function createFinalizedKbemsClass(db: Db, suffix: string) {
     courseType: "continuing_education",
     courseNumber: `CE-${suffix.slice(0, 6)}`,
     objectives: "Continuing education for EMTs",
+    issueInternalCert: options.issueInternalCert ?? true,
     emsCategoryId: emsCategory.id,
   });
   const classId = created.classRecord.id;
@@ -333,5 +358,111 @@ describeDatabase("completion certificates", () => {
     await expect(
       generateCompletionCertificates(db, instructor, crypto.randomUUID()),
     ).rejects.toThrow(/not found/i);
+  });
+
+  it("freezes the certificate facts and MTU instructor designation", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+      { externalCertIssuer: "aha", mtuInstructor: true },
+    );
+
+    const snapshot = await readSnapshot(db, instructor, revisionId);
+    expect(snapshot.class.externalCertIssuer).toBe("aha");
+    expect(snapshot.class.issueInternalCert).toBe(true);
+    expect(snapshot.instructors[0]?.mtuInstructor).toBe(true);
+    await retireRevision(db, revisionId);
+  });
+
+  it("queues a completion notice instead of certificates when internal certificates are off", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+      { externalCertIssuer: "naemt", issueInternalCert: false },
+    );
+
+    const deliveries = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.referenceId, revisionId));
+    expect(
+      deliveries.filter(
+        (delivery) => delivery.template === CERTIFICATE_EMAIL_TEMPLATE,
+      ),
+    ).toHaveLength(0);
+    const notices = deliveries.filter(
+      (delivery) => delivery.template === COMPLETION_NOTICE_EMAIL_TEMPLATE,
+    );
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.status).toBe("queued");
+    await retireRevision(db, revisionId);
+  });
+
+  it("queues nothing when internal certificates are off without an external issuer", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+      { issueInternalCert: false },
+    );
+
+    const deliveries = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.referenceId, revisionId));
+    expect(deliveries).toHaveLength(0);
+    await retireRevision(db, revisionId);
+  });
+
+  it("sends an individual certificate when the class flag is off", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const { instructor, classId, revisionId } = await createFinalizedKbemsClass(
+      db,
+      crypto.randomUUID(),
+      { issueInternalCert: false },
+    );
+    const [record] = await db
+      .select({ attendanceId: attendance.id })
+      .from(attendance)
+      .where(eq(attendance.classId, classId))
+      .limit(1);
+    if (!record) throw new Error("Certificate fixture attendance is missing.");
+
+    vi.stubEnv("RESEND_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: "m" }) }),
+    );
+    try {
+      const result = await resendParticipantCertificate(
+        db,
+        instructor,
+        revisionId,
+        record.attendanceId,
+        "manual@example.com",
+      );
+      expect(result.state).toBe("delivered");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+
+    const [delivery] = await db
+      .select()
+      .from(emailDeliveries)
+      .where(
+        and(
+          eq(emailDeliveries.referenceId, revisionId),
+          eq(emailDeliveries.template, CERTIFICATE_EMAIL_TEMPLATE),
+        ),
+      );
+    expect(delivery?.recipient).toBe("manual@example.com");
+    await retireRevision(db, revisionId);
   });
 });

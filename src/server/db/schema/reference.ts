@@ -270,6 +270,8 @@ export const trainingCodes = pgTable(
     title: text("title").notNull(),
     // Pinned categories are listed and offered above a separator.
     isPinned: boolean("is_pinned").default(false).notNull(),
+    // The external body that issues the official certification, if any.
+    externalCertIssuer: text("external_cert_issuer"),
     // Alphabetical index within a kind, retained for future manual ordering.
     sortOrder: integer("sort_order").default(0).notNull(),
     // A matching category in the other kind, set symmetrically. FK added below.
@@ -293,6 +295,10 @@ export const trainingCodes = pgTable(
       name: "training_codes_maps_to_id_fk",
     }).onDelete("set null"),
     check("training_codes_kind", sql`${table.kind} in ('fire', 'ems')`),
+    check(
+      "training_codes_external_cert_issuer",
+      sql`${table.externalCertIssuer} is null or ${table.externalCertIssuer} in ('aha', 'naemt', 'other')`,
+    ),
     check(
       "training_codes_archived_state",
       sql`${table.archivedAt} is null or not ${table.isActive}`,

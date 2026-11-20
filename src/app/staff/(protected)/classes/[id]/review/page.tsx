@@ -583,6 +583,7 @@ export default async function ClassReviewPage({
                     objectives: classRecord.objectives,
                     courseType: classRecord.courseType,
                     courseNumber: classRecord.courseNumber,
+                    issueInternalCert: classRecord.issueInternalCert,
                     emsCategoryId: classRecord.emsCategoryId,
                     mtuUsage: classRecord.mtuUsage,
                     reportingSystemIds: classRecord.reportingSystems.map(
@@ -714,6 +715,9 @@ export default async function ClassReviewPage({
                     ) : (
                       <Badge variant="outline">Additional</Badge>
                     )}
+                    {instructor.mtuInstructor ? (
+                      <Badge variant="secondary">MTU instructor</Badge>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -967,8 +971,9 @@ export default async function ClassReviewPage({
             <section className="admin-section">
               <h2>Certificate delivery</h2>
               <p className="roster-note">
-                Each participant is emailed their own certificate when the class
-                is finalized. Resend one, or send to a different address.
+                {classRecord.issueInternalCert
+                  ? "Each participant is emailed their own certificate when the class is finalized. Resend one, or send to a different address."
+                  : "Automatic certificates are off for this class. You can still send one to an individual participant."}
               </p>
               <CertificateDeliveryControls
                 revisionId={latestRevision.id}

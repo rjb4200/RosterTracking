@@ -159,6 +159,7 @@ const draftInput = z.object({
     ])
     .optional(),
   courseNumber: z.string().trim().max(100).default(""),
+  issueInternalCert: z.boolean().default(true),
   emsCategoryId: z.union([z.string().uuid(), z.literal("")]).optional(),
   initialCertificationProgramId: z
     .union([z.string().uuid(), z.literal("")])
@@ -1015,6 +1016,7 @@ export async function createOpenClass(
         objectives: parsed.objectives || null,
         courseType: parsed.courseType || null,
         courseNumber: parsed.courseNumber || null,
+        issueInternalCert: parsed.issueInternalCert,
         emsCategoryId:
           program?.trainingCodeId ?? (parsed.emsCategoryId || null),
         initialCertificationProgramId: program?.id ?? null,
@@ -1236,6 +1238,7 @@ export async function updateClass(
         objectives: parsed.objectives || null,
         courseType: parsed.courseType || null,
         courseNumber: parsed.courseNumber || null,
+        issueInternalCert: parsed.issueInternalCert,
         emsCategoryId: parsed.emsCategoryId || null,
         initialCertificationProgramId:
           parsed.initialCertificationProgramId ||
@@ -2456,6 +2459,7 @@ export async function getClassDetail(
         isAssistant: classInstructors.isAssistant,
         ffn: users.ffn,
         instructorLevel: users.instructorLevel,
+        mtuInstructor: users.mtuInstructor,
       })
       .from(classInstructors)
       .innerJoin(users, eq(users.id, classInstructors.userId))
@@ -2645,6 +2649,7 @@ export async function listClassFormOptions(db: Database, actor?: ClassActor) {
         name: users.displayName,
         ffn: users.ffn,
         instructorLevel: users.instructorLevel,
+        mtuInstructor: users.mtuInstructor,
       })
       .from(users)
       .where(eq(users.isActive, true))

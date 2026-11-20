@@ -12,6 +12,7 @@ export interface InstructorStaffOption {
   name: string;
   ffn: string | null;
   instructorLevel: number | null;
+  mtuInstructor: boolean;
 }
 
 export function InstructorAssignmentForm({
@@ -65,6 +66,7 @@ export function InstructorAssignmentForm({
           {staff.map((instructor) => (
             <option key={instructor.id} value={instructor.id}>
               {instructor.name}
+              {instructor.mtuInstructor ? " (MTU instructor)" : ""}
             </option>
           ))}
         </select>
@@ -93,6 +95,7 @@ export function InstructorAssignmentForm({
             <option key={instructor.id} value={instructor.id}>
               {instructor.name}
               {isFireInstructor(instructor) ? " (fire instructor)" : ""}
+              {instructor.mtuInstructor ? " (MTU instructor)" : ""}
             </option>
           ))}
         </select>

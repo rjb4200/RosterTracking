@@ -29,6 +29,7 @@ import {
 } from "@/modules/classes/services";
 import {
   dispatchCertificateDeliveries,
+  dispatchCompletionNoticeDeliveries,
   resendParticipantCertificate,
 } from "@/modules/completion-certificates/service";
 import { correctCredential } from "@/modules/credential-correction/service";
@@ -121,6 +122,7 @@ function draftValues(formData: FormData) {
       | "initial_certification"
       | "refresher",
     courseNumber: read(formData, "courseNumber"),
+    issueInternalCert: read(formData, "issueInternalCert") !== "false",
     emsCategoryId: read(formData, "emsCategoryId"),
     initialCertificationProgramId: read(
       formData,
@@ -494,6 +496,11 @@ export async function finalizeClassAction(
     // on its delivery row and never affects the finalized class.
     after(async () => {
       await dispatchCertificateDeliveries(getDatabase(), actor, revision.id);
+      await dispatchCompletionNoticeDeliveries(
+        getDatabase(),
+        actor,
+        revision.id,
+      );
       await dispatchTrainingNoticeDeliveries(getDatabase(), actor, revision.id);
     });
     revalidatePath(`/staff/classes/${classId}`);

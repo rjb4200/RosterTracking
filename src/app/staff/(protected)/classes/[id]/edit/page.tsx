@@ -106,6 +106,7 @@ export default async function EditClassPage({
             objectives: classRecord.objectives,
             courseType: classRecord.courseType,
             courseNumber: classRecord.courseNumber,
+            issueInternalCert: classRecord.issueInternalCert,
             emsCategoryId: classRecord.emsCategoryId,
             mtuUsage: classRecord.mtuUsage,
           }}
@@ -175,6 +176,9 @@ export default async function EditClassPage({
             <li key={instructor.userId} className="member-row">
               <span>{instructor.displayName}</span>
               {instructor.isLead ? <Badge>Lead</Badge> : null}
+              {instructor.mtuInstructor ? (
+                <Badge variant="secondary">MTU instructor</Badge>
+              ) : null}
             </li>
           ))}
         </ul>
