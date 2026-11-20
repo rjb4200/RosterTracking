@@ -58,6 +58,8 @@ export const trainingClasses = pgTable(
     // EMS course details printed on the completion certificate.
     courseType: text("course_type"),
     courseNumber: text("course_number"),
+    // Whether the department sends its own certificate when the class finalizes.
+    issueInternalCert: boolean("issue_internal_cert").default(true).notNull(),
     // The EMS category selected on the KBEMS step, kept for reporting/audits.
     emsCategoryId: uuid("ems_category_id").references(() => trainingCodes.id, {
       onDelete: "set null",

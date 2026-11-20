@@ -177,6 +177,7 @@ export function ClassCreationWizard({
     objectives: "",
     courseType: "",
     courseNumber: "",
+    issueInternalCert: true,
     initialCertificationProgramId: "",
     mtuUsage: emptyMtuUsageValue(),
   });
@@ -1325,6 +1326,16 @@ export function ClassCreationWizard({
               </>
             ) : null}
           </dl>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={values.issueInternalCert}
+              onChange={(event) =>
+                update("issueInternalCert", event.target.checked)
+              }
+            />
+            Issue a department certificate when the class finalizes
+          </label>
         </section>
       ) : null}
 
@@ -1366,6 +1377,11 @@ export function ClassCreationWizard({
             />
           ))
         : null}
+      <input
+        type="hidden"
+        name="issueInternalCert"
+        value={values.issueInternalCert ? "true" : "false"}
+      />
       {values.accessPinEnabled ? (
         <input type="hidden" name="accessPinEnabled" value="on" />
       ) : null}

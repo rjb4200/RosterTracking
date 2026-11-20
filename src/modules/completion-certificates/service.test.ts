@@ -21,11 +21,14 @@ import type { FinalizationSnapshot } from "@/modules/official-roster-pdfs/servic
 import {
   certificateClassHours,
   certificateContentFingerprint,
+  certificateCourseTitle,
   certificateCoverHeader,
   certificateCoverRowHours,
   certificateEligibleAttendance,
   courseTypeLabel,
+  HOURS_RECORD_SUFFIX,
   instructorTitleCourse,
+  isHoursRecord,
   participantName,
   renderCertificateForParticipant,
   renderCertificatePage,
@@ -817,5 +820,62 @@ describe("completion certificates", () => {
     const participant = mixed.attendance[0];
     if (!participant) throw new Error("fixture participant is missing");
     expect(certificateCoverRowHours(participant)).toBe("2");
+  });
+
+  describe("hours record labeling", () => {
+    const participant = snapshot.attendance[0];
+
+    it("leaves an ordinary internal certificate unlabeled", () => {
+      if (!participant) throw new Error("fixture participant is missing");
+      expect(isHoursRecord(snapshot, participant)).toBe(false);
+      expect(certificateCourseTitle(snapshot, participant)).toBe(
+        "Airway Management",
+      );
+    });
+
+    it("labels a class with an external issuer", async () => {
+      const external: FinalizationSnapshot = {
+        ...snapshot,
+        class: { ...snapshot.class, externalCertIssuer: "aha" },
+      };
+      if (!participant) throw new Error("fixture participant is missing");
+      expect(isHoursRecord(external, participant)).toBe(true);
+      expect(certificateCourseTitle(external, participant)).toBe(
+        `Airway Management${HOURS_RECORD_SUFFIX}`,
+      );
+      const page = await renderCertificatePage(external, participant, {
+        flatten: false,
+      });
+      expect(page.getForm().getTextField("Course_Type").getText()).toBe(
+        `Airway Management${HOURS_RECORD_SUFFIX}`,
+      );
+      expect(
+        page.getForm().getTextField("Instructor_Title_Course").getText(),
+      ).toContain(HOURS_RECORD_SUFFIX.trim());
+    });
+
+    it("labels a participant with partial credit", async () => {
+      if (!participant) throw new Error("fixture participant is missing");
+      const partial: FinalizationSnapshot = {
+        ...snapshot,
+        attendance: snapshot.attendance.map((entry, index) =>
+          index === 0 ? { ...entry, creditedHours: "1" } : entry,
+        ),
+      };
+      const partialParticipant = partial.attendance[0];
+      if (!partialParticipant) {
+        throw new Error("fixture participant is missing");
+      }
+      expect(isHoursRecord(partial, partialParticipant)).toBe(true);
+      const page = await renderCertificatePage(partial, partialParticipant, {
+        flatten: false,
+      });
+      expect(page.getForm().getTextField("Course_Type").getText()).toBe(
+        `Airway Management${HOURS_RECORD_SUFFIX}`,
+      );
+      expect(
+        certificateContentFingerprint(partial, partialParticipant),
+      ).not.toBe(certificateContentFingerprint(snapshot, participant));
+    });
   });
 });

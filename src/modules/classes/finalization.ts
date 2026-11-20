@@ -8,6 +8,7 @@ import {
 import { deliveryMethodsFromComponentMethods } from "@/modules/classes/delivery-methods";
 import {
   queueCertificateDeliveries,
+  queueCompletionNoticeDeliveries,
   revisionReportsToKbems,
 } from "@/modules/completion-certificates/service";
 import {
@@ -217,6 +218,8 @@ async function buildSnapshot(
       objectives: trainingClasses.objectives,
       courseType: trainingClasses.courseType,
       courseNumber: trainingClasses.courseNumber,
+      issueInternalCert: trainingClasses.issueInternalCert,
+      emsCategoryId: trainingClasses.emsCategoryId,
       courseName: sql<string>`coalesce(${trainingClasses.name}, '')`,
       siteName: trainingSites.name,
       hostAgencyId: trainingClasses.hostAgencyId,
@@ -239,6 +242,7 @@ async function buildSnapshot(
       isAssistant: classInstructors.isAssistant,
       ffn: users.ffn,
       level: users.instructorLevel,
+      mtuInstructor: users.mtuInstructor,
     })
     .from(classInstructors)
     .innerJoin(users, eq(users.id, classInstructors.userId))
@@ -357,11 +361,34 @@ async function buildSnapshot(
     .where(and(eq(attendance.classId, classId), isNull(attendance.removedAt)))
     .orderBy(asc(attendanceCertificateDispositions.attendanceId));
   if (!classRow) throw new Error("Class not found.");
+  // The EMS category's issuer wins for a dual-destination class; otherwise the
+  // first Fire subject's category supplies it.
+  const [emsCategory] = classRow.emsCategoryId
+    ? await transaction
+        .select({ externalCertIssuer: trainingCodes.externalCertIssuer })
+        .from(trainingCodes)
+        .where(eq(trainingCodes.id, classRow.emsCategoryId))
+        .limit(1)
+    : [];
+  const [fireCategory] = await transaction
+    .select({ externalCertIssuer: trainingCodes.externalCertIssuer })
+    .from(classComponents)
+    .innerJoin(
+      trainingCodes,
+      eq(trainingCodes.id, classComponents.trainingCodeId),
+    )
+    .where(eq(classComponents.classId, classId))
+    .orderBy(asc(classComponents.position))
+    .limit(1);
+  const externalCertIssuer = (emsCategory?.externalCertIssuer ??
+    fireCategory?.externalCertIssuer ??
+    null) as "aha" | "naemt" | "other" | null;
   return {
     // Keep the historical snapshot key used by official PDF date fields;
     // completion now occurs at the same instant as finalization.
     class: {
       ...classRow,
+      externalCertIssuer,
       status: "finalized",
       completedAt: finalizedAt.toISOString(),
     },
@@ -688,8 +715,26 @@ export async function finalizeClass(
     // EMS classes deliver a personal certificate to each participant. The rows
     // are written in this transaction and dispatched after it commits, so a
     // mail failure can never block or roll back finalization.
-    if (revisionReportsToKbems(snapshot)) {
+    if (
+      revisionReportsToKbems(snapshot) &&
+      snapshot.class.issueInternalCert !== false
+    ) {
       await queueCertificateDeliveries(transaction, revision.id, {
+        ...snapshot,
+        signature: {
+          name: typedName,
+          signedAt: finalizedAt.toISOString(),
+          attestationVersion: ROSTER_ATTESTATION_VERSION,
+        },
+      });
+    }
+    // A class that issues an external certification but no internal one still
+    // tells each participant the class is complete.
+    if (
+      snapshot.class.externalCertIssuer &&
+      snapshot.class.issueInternalCert === false
+    ) {
+      await queueCompletionNoticeDeliveries(transaction, revision.id, {
         ...snapshot,
         signature: {
           name: typedName,

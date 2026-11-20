@@ -11,7 +11,13 @@ export interface CertificateDeliveryParticipantView {
   attendanceId: string;
   name: string;
   email: string | null;
-  state: "delivered" | "queued" | "failed" | "skipped" | "undeliverable";
+  state:
+    | "delivered"
+    | "queued"
+    | "failed"
+    | "skipped"
+    | "undeliverable"
+    | "not_sent";
 }
 
 const STATE_LABELS: Record<
@@ -23,6 +29,7 @@ const STATE_LABELS: Record<
   failed: "Failed",
   skipped: "Unchanged — not re-sent",
   undeliverable: "No email",
+  not_sent: "Not sent",
 };
 
 function ResendControl({
@@ -43,7 +50,10 @@ function ResendControl({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [open, setOpen] = useState(false);
-  const label = participant.state === "undeliverable" ? "Send" : "Resend";
+  const label =
+    participant.state === "undeliverable" || participant.state === "not_sent"
+      ? "Send"
+      : "Resend";
   useEffect(() => {
     if (state?.success) setOpen(false);
   }, [state?.success]);

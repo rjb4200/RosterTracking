@@ -421,4 +421,43 @@ describeDatabase("training categories", () => {
     expect(detail.emsCategoryId).toBe(category.id);
     expect(detail.emsCategory?.title).toBe(category.title);
   });
+
+  it("stores, changes, and clears an external certificate issuer", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
+    const db = drizzle(pool, { schema });
+    const actor = await createStaffUser(db, {
+      username: `tc-ext-${crypto.randomUUID().slice(0, 8)}`,
+      displayName: "Training Category Author",
+    });
+    const revision = `ext-${crypto.randomUUID().slice(0, 8)}`;
+    const created = await createTrainingCode(db, actor, {
+      kind: "ems",
+      code: `EXT-${revision}`,
+      title: `ACLS ${revision}`,
+      externalCertIssuer: "aha",
+      sourceRevision: revision,
+    });
+    expect(created.externalCertIssuer).toBe("aha");
+
+    const changed = await updateTrainingCode(db, actor, created.id, {
+      kind: "ems",
+      code: `EXT-${revision}`,
+      title: `ACLS ${revision}`,
+      externalCertIssuer: "naemt",
+      sourceRevision: revision,
+    });
+    expect(changed.externalCertIssuer).toBe("naemt");
+
+    const cleared = await updateTrainingCode(db, actor, created.id, {
+      kind: "ems",
+      code: `EXT-${revision}`,
+      title: `ACLS ${revision}`,
+      externalCertIssuer: "",
+      sourceRevision: revision,
+    });
+    expect(cleared.externalCertIssuer).toBeNull();
+
+    const listed = await listTrainingCodes(db, revision, "ems");
+    expect(listed[0]?.externalCertIssuer).toBeNull();
+  });
 });

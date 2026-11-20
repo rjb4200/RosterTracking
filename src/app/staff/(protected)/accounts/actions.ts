@@ -42,6 +42,7 @@ export async function accountAction(
           | "administrator"
           | "instructor"
           | "training-major",
+        mtuInstructor: read(formData, "mtuInstructor") === "on",
       });
     } else if (read(formData, "operation") === "update") {
       await updateStaffAccount(getDatabase(), actor.id, {
@@ -51,6 +52,7 @@ export async function accountAction(
         roleCode: read(formData, "roleCode") || undefined,
         isActive: read(formData, "isActive") === "true",
         password: read(formData, "password") || undefined,
+        mtuInstructor: read(formData, "mtuInstructor") === "on",
       });
     } else {
       return { error: "Invalid account action." };

@@ -22,6 +22,7 @@ const accountInput = z.object({
   displayName: z.string().trim().min(1).max(100),
   password: z.string(),
   roleCode: roleSchema,
+  mtuInstructor: z.boolean().optional().default(false),
 });
 
 /** Normalizes an optional email, treating blank input as "not set". */
@@ -133,6 +134,7 @@ const accountColumns = {
   ffn: users.ffn,
   instructorLevel: users.instructorLevel,
   emsProviderNumber: users.emsProviderNumber,
+  mtuInstructor: users.mtuInstructor,
   roleCode: roles.code,
 };
 
@@ -146,6 +148,7 @@ type AccountRow = {
   ffn: string | null;
   instructorLevel: number | null;
   emsProviderNumber: string | null;
+  mtuInstructor: boolean;
   roleCode: string | null;
 };
 
@@ -243,6 +246,7 @@ export async function createStaffAccount(
           passwordHash,
           isActive: true,
           archivedAt: null,
+          mtuInstructor: parsed.mtuInstructor,
           failedLoginCount: 0,
           lockedUntil: null,
           sessionVersion: sql`${users.sessionVersion} + 1`,
@@ -276,6 +280,7 @@ export async function createStaffAccount(
         email,
         displayName: parsed.displayName,
         passwordHash,
+        mtuInstructor: parsed.mtuInstructor,
       })
       .returning({ id: users.id });
     if (!account) throw new Error("Staff account was not created.");
@@ -340,6 +345,7 @@ export async function updateStaffAccount(
     roleCode?: string;
     isActive?: boolean;
     password?: string;
+    mtuInstructor?: boolean;
   },
 ) {
   const parsed = z
@@ -350,6 +356,7 @@ export async function updateStaffAccount(
       roleCode: roleSchema.optional(),
       isActive: z.boolean().optional(),
       password: z.string().optional(),
+      mtuInstructor: z.boolean().optional(),
     })
     .parse(input);
   const email =
@@ -383,7 +390,12 @@ export async function updateStaffAccount(
       parsed.isActive !== undefined ||
       Boolean(passwordHash) ||
       Boolean(parsed.roleCode);
-    if (parsed.displayName || email !== undefined || invalidatesSessions) {
+    if (
+      parsed.displayName ||
+      email !== undefined ||
+      invalidatesSessions ||
+      parsed.mtuInstructor !== undefined
+    ) {
       await transaction
         .update(users)
         .set({
@@ -392,6 +404,9 @@ export async function updateStaffAccount(
           ...(parsed.isActive === undefined
             ? {}
             : { isActive: parsed.isActive }),
+          ...(parsed.mtuInstructor === undefined
+            ? {}
+            : { mtuInstructor: parsed.mtuInstructor }),
           ...(passwordHash ? { passwordHash } : {}),
           ...(invalidatesSessions
             ? { sessionVersion: sql`${users.sessionVersion} + 1` }
@@ -411,6 +426,7 @@ export async function updateStaffAccount(
         emailChanged: email !== undefined,
         roleCode: parsed.roleCode,
         isActive: parsed.isActive,
+        mtuInstructor: parsed.mtuInstructor,
         passwordReset: Boolean(passwordHash),
       },
     });
