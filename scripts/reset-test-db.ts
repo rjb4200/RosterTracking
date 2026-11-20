@@ -2,14 +2,18 @@ import "dotenv/config";
 
 import { randomBytes } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { z } from "zod";
 
-import { hashPassword } from "../src/modules/staff-auth/password";
-import type { Database } from "../src/server/db/client";
+import {
+  hashPassword,
+  normalizeUsername,
+} from "../src/modules/staff-auth/password";
+import { ROLE_CODES } from "../src/modules/staff-auth/permissions";
+import type { Database, DatabaseTransaction } from "../src/server/db/client";
 import { assertNotProtectedTarget } from "../src/server/db/maintenance-guard";
 import {
   importReferenceData,
@@ -17,7 +21,7 @@ import {
 } from "../src/server/db/reference-provision";
 import { seedReferenceData } from "../src/server/db/reference-seed";
 import * as schema from "../src/server/db/schema";
-import { users } from "../src/server/db/schema";
+import { roles, userRoles, users } from "../src/server/db/schema";
 import { seedFoundation } from "../src/server/db/seed";
 
 const databaseUrl = z.string().url().startsWith("postgresql://");
@@ -130,6 +134,91 @@ async function ensureImportActor(
   return { id: created.id, username: IMPORT_ACTOR_USERNAME };
 }
 
+function e2eCredentials(
+  usernameKey: "E2E_STAFF_USERNAME" | "E2E_INSTRUCTOR_USERNAME",
+  passwordKey: "E2E_STAFF_PASSWORD" | "E2E_INSTRUCTOR_PASSWORD",
+): { username: string; password: string } {
+  const username = process.env[usernameKey]?.trim();
+  const password = process.env[passwordKey];
+  if (!username || !password) {
+    throw new Error(
+      `${usernameKey} and ${passwordKey} are required to reset the e2e database.`,
+    );
+  }
+  return { username: normalizeUsername(username), password };
+}
+
+async function ensureE2eAccount(
+  transaction: DatabaseTransaction,
+  roleCode: string,
+  username: string,
+  password: string,
+): Promise<void> {
+  const [role] = await transaction
+    .select({ id: roles.id })
+    .from(roles)
+    .where(and(eq(roles.code, roleCode), eq(roles.isActive, true)))
+    .limit(1);
+  if (!role) {
+    throw new Error(
+      `Role '${roleCode}' is missing or inactive. Foundation seed did not run.`,
+    );
+  }
+
+  const passwordHash = await hashPassword(password);
+  const [user] = await transaction
+    .insert(users)
+    .values({ username, displayName: username, passwordHash })
+    .onConflictDoUpdate({
+      target: users.username,
+      set: {
+        displayName: username,
+        passwordHash,
+        isActive: true,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        updatedAt: new Date(),
+      },
+    })
+    .returning({ id: users.id });
+  if (!user) throw new Error(`E2E account '${username}' was not created.`);
+
+  await transaction
+    .insert(userRoles)
+    .values({ userId: user.id, roleId: role.id })
+    .onConflictDoNothing();
+}
+
+/**
+ * `db:reset:e2e` truncates every application table. The browser suite needs the
+ * configured staff and instructor accounts to exist after that reset, so create
+ * them from the E2E credentials instead of leaving the suite to fail on sign-in.
+ */
+async function ensureE2eAccounts(db: Database): Promise<void> {
+  if (target.label !== "e2e") return;
+
+  const staff = e2eCredentials("E2E_STAFF_USERNAME", "E2E_STAFF_PASSWORD");
+  const instructor = e2eCredentials(
+    "E2E_INSTRUCTOR_USERNAME",
+    "E2E_INSTRUCTOR_PASSWORD",
+  );
+
+  await db.transaction(async (transaction) => {
+    await ensureE2eAccount(
+      transaction,
+      ROLE_CODES.ADMINISTRATOR,
+      staff.username,
+      staff.password,
+    );
+    await ensureE2eAccount(
+      transaction,
+      ROLE_CODES.INSTRUCTOR,
+      instructor.username,
+      instructor.password,
+    );
+  });
+}
+
 const target = resolveTarget();
 assertNotProduction(target.url);
 assertNotProtectedTarget(target.url, "db:reset");
@@ -149,6 +238,7 @@ try {
   const actor = await ensureImportActor(db);
   const sources = await readReferenceSources("scripts/data");
   const result = await importReferenceData(db, actor, sources);
+  await ensureE2eAccounts(db);
 
   console.log(
     `Reset the ${target.label} database: migrations applied, application tables cleared, ` +

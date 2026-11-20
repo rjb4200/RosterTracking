@@ -921,8 +921,15 @@ h1 {
 /* The content area is a grid, and a grid item's automatic minimum width would
    let a wide table expand the track and scroll the whole page. Zeroing it lets
    the table's own overflow container scroll instead. */
-.admin-content [data-slot="table-container"] {
+.admin-content > *,
+.admin-content [data-slot="table-container"],
+.admin-heading > div {
   min-width: 0;
+}
+
+.admin-heading h1,
+.admin-heading h2 {
+  overflow-wrap: anywhere;
 }
 
 /* Reference tables wrap their text so they fit the content width. */
@@ -1289,6 +1296,12 @@ h1 {
 .inline-form .select-input {
   width: auto;
   min-width: 0;
+}
+
+.inline-form .search-input {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 10rem;
 }
 
 /* A genuine search box: distinct from the generic input style so a filter never

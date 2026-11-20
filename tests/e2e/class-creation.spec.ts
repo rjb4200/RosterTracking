@@ -333,3 +333,102 @@ test("unknown public class code returns a generic unavailable response", async (
     page.getByRole("heading", { name: "Class sign-in unavailable" }),
   ).toBeVisible();
 });
+
+test("class wizard records lead, assistant, and additional instructors", async ({
+  page,
+}) => {
+  test.skip(
+    test.info().project.name !== "chromium",
+    "Mutating instructor-role coverage runs once on chromium.",
+  );
+  test.skip(
+    !username || !password || !connectionString,
+    "Set E2E staff credentials and E2E_DATABASE_URL.",
+  );
+  if (!username || !password || !connectionString) return;
+  test.setTimeout(120_000);
+  const suffix = crypto.randomUUID();
+  const pool = new Pool({ connectionString, max: 1 });
+  const [staff, instructorRole] = await Promise.all([
+    pool.query<{ id: string }>("select id from users where username = $1", [
+      username,
+    ]),
+    pool.query<{ id: string }>(
+      "select id from roles where code = 'instructor'",
+    ),
+  ]);
+  const assistant = await pool.query<{ id: string }>(
+    "select id from users where username = $1",
+    [process.env.E2E_INSTRUCTOR_USERNAME],
+  );
+  const roleId = instructorRole.rows[0]?.id;
+  if (!staff.rows[0] || !assistant.rows[0] || !roleId) {
+    await pool.end();
+    throw new Error("E2E staff fixtures are missing.");
+  }
+  const passwordHash = await hashPassword("unused-e2e-password");
+  const additional = await pool.query<{ id: string; display_name: string }>(
+    "insert into users (username, display_name, password_hash) values ($1, $2, $3) returning id, display_name",
+    [`e2e-additional-${suffix}`, `E2E Additional ${suffix}`, passwordHash],
+  );
+  if (!additional.rows[0]) {
+    await pool.end();
+    throw new Error("Additional instructor fixture failed.");
+  }
+  await pool.query(
+    "insert into user_roles (user_id, role_id) values ($1, $2)",
+    [additional.rows[0].id, roleId],
+  );
+  const site = await pool.query<{ id: string }>(
+    "insert into training_sites (name) values ($1) returning id",
+    [`Role Site ${suffix}`],
+  );
+  const agency = await pool.query<{ id: string }>(
+    "insert into agencies (name) values ($1) returning id",
+    [`Role Agency ${suffix}`],
+  );
+  await pool.end();
+  if (!site.rows[0] || !agency.rows[0]) {
+    throw new Error("Role fixtures failed.");
+  }
+
+  await signIn(page, username, password);
+  await page.goto("/staff/classes/new");
+  await page.getByLabel("KBEMS / KEMSIS").check();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Category" })
+    .selectOption({ label: "Airway" });
+  await page.getByLabel("EMS course name").fill(`Role EMS ${suffix}`);
+  await page.getByLabel("Course type").selectOption("continuing_education");
+  await page
+    .getByLabel("Course description or objectives")
+    .fill("Role coverage");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  await page
+    .getByRole("combobox", { name: "Training site" })
+    .selectOption(site.rows[0].id);
+  await page
+    .getByRole("combobox", { name: "Host agency" })
+    .selectOption(agency.rows[0].id);
+  await page.getByLabel("Lead instructor").selectOption(staff.rows[0].id);
+  await page
+    .getByLabel("Assistant instructor")
+    .selectOption(assistant.rows[0].id);
+  await page.getByText("Additional instructors", { exact: true }).click();
+  await page
+    .getByRole("checkbox", { name: additional.rows[0].display_name })
+    .check();
+  await page.getByLabel("Date and start time").fill("2026-09-10T09:00");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+
+  await expect(page.getByText("Additional instructors")).toBeVisible();
+  await expect(
+    page.getByText(additional.rows[0].display_name).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Create & open" }).click();
+  await page.getByRole("link", { name: "Go to class" }).click();
+  await expect(page.getByText("Additional instructors")).toBeVisible();
+  await expect(page.getByText(additional.rows[0].display_name)).toBeVisible();
+});

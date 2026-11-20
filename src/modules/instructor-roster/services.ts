@@ -7,7 +7,7 @@ import {
   type CertificateDispositionDecision,
   missingClassDays,
 } from "@/modules/classes/daily-check-ins";
-import { resolveFireSigner } from "@/modules/classes/fire-signer";
+import { isFireInstructor } from "@/modules/classes/fire-signer";
 import { formatDepartmentDateTime } from "@/modules/classes/time";
 import { listClassCredentialCorrections } from "@/modules/credential-correction/service";
 import { reconcileAttendanceReportingContexts } from "@/modules/reporting-contexts/service";
@@ -579,8 +579,9 @@ export async function getRosterReadiness(
         .from(classInstructors)
         .innerJoin(users, eq(users.id, classInstructors.userId))
         .where(eq(classInstructors.classId, classId));
-      if (!resolveFireSigner(instructors)) {
-        issues.push("A Fire class requires an assigned fire instructor.");
+      const lead = instructors.find((instructor) => instructor.isLead);
+      if (!lead || !isFireInstructor(lead)) {
+        issues.push("A Fire class requires a fire-qualified lead instructor.");
       }
     }
     for (const entry of active) {

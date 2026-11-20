@@ -16,6 +16,7 @@ import {
   getClassSignInBaseUrl,
 } from "@/modules/classes/qr";
 import {
+  additionalInstructorEditingEnabled,
   createOpenClass,
   getClassPublicAccess,
   rotateClassSignInToken,
@@ -181,6 +182,9 @@ export async function createClassAction(
         leadInstructorId: read(formData, "leadInstructorId"),
         assistantInstructorId:
           read(formData, "assistantInstructorId") || undefined,
+        additionalInstructorIds: additionalInstructorEditingEnabled()
+          ? formData.getAll("additionalInstructorIds").map(String)
+          : undefined,
         subjects: readSubjects(formData),
       },
     );
@@ -329,6 +333,9 @@ export async function saveInstructorsAction(
     await setClassInstructors(getDatabase(), actor, classId, {
       leadInstructorId: read(formData, "leadInstructorId"),
       assistantInstructorId: read(formData, "assistantInstructorId") || null,
+      additionalInstructorIds: additionalInstructorEditingEnabled()
+        ? formData.getAll("additionalInstructorIds").map(String)
+        : undefined,
     });
     revalidatePath(`/staff/classes/${classId}`);
     revalidatePath(`/staff/classes/${classId}/review`);

@@ -14,18 +14,21 @@ export interface FireInstructorProfile {
 }
 
 /**
- * A Fire class needs at least one assigned instructor who is a fire instructor:
- * a valid Fire Commission FFN and a Fire Instructor level of 1, 2, or 3.
+ * A Fire class needs a fire-qualified lead: a valid Fire Commission FFN and a
+ * Fire Instructor level of 1, 2, or 3.
  */
 export function validateFireInstructors(
   profiles: FireInstructorProfile[],
 ): void {
-  if (profiles.length === 0) {
-    throw new Error("Assign a lead instructor for Fire reporting.");
+  const lead = profiles[0];
+  if (!lead) {
+    throw new Error(
+      "Assign a fire-qualified lead instructor for Fire reporting.",
+    );
   }
-  if (profiles.some((profile) => isFireInstructor(profile))) return;
+  if (isFireInstructor(lead)) return;
   throw new Error(
-    `Fire classes require at least one assigned instructor with a valid FFN in the format 0000-0000 and a Fire Instructor level (1, 2, or 3). Update the staff profile for: ${profiles.map(({ displayName }) => displayName).join(", ")}.`,
+    `Fire classes require the lead instructor to have a valid FFN in the format 0000-0000 and a Fire Instructor level (1, 2, or 3). Update the staff profile for: ${lead.displayName}.`,
   );
 }
 

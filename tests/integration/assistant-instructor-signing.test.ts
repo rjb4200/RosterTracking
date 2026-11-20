@@ -1,38 +1,23 @@
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { PDFDocument } from "pdf-lib";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  finalizeClass,
-  reopenFinalizedClass,
-  signFireRoster,
-  updateReportingDestination,
-} from "../../src/modules/classes/finalization";
+import { finalizeClass } from "../../src/modules/classes/finalization";
 import {
   createOpenClass,
-  removeClassInstructor,
+  getClassDetail,
   setClassInstructors,
 } from "../../src/modules/classes/services";
-import { generateCompletionCertificates } from "../../src/modules/completion-certificates/service";
-import {
-  generateFireRosterWithNotices,
-  renderParticipantNotice,
-} from "../../src/modules/individual-training-notices/service";
-import { readSnapshot } from "../../src/modules/official-roster-pdfs/service";
-import {
-  decryptCredential,
-  encryptCredential,
-} from "../../src/modules/reference/crypto";
+import { generateFireRosterWithNotices } from "../../src/modules/individual-training-notices/service";
 import { ROLE_CODES } from "../../src/modules/staff-auth/permissions";
 import { seedReferenceData } from "../../src/server/db/reference-seed";
 import * as schema from "../../src/server/db/schema";
 import {
   agencies,
   attendance,
-  attendanceReportingContexts,
   classInstructors,
-  finalizationReportingStatuses,
   finalizationRevisions,
   reportingRequirementSets,
   reportingSystems,
@@ -71,38 +56,26 @@ async function activeSetId(db: Db, code: string) {
   return { systemId: system.id, setId: set.id };
 }
 
-async function activeFireSetId(db: Db) {
-  return activeSetId(db, "fire");
-}
-
-async function fireReferences(db: Db, suffix: string) {
+async function references(db: Db, suffix: string) {
   const [site] = await db
     .insert(trainingSites)
-    .values({ name: `Assistant Site ${suffix}` })
+    .values({ name: `Multi Site ${suffix}` })
     .returning({ id: trainingSites.id });
   const [agency] = await db
     .insert(agencies)
-    .values({ name: `Assistant Agency ${suffix}` })
+    .values({ name: `Multi Agency ${suffix}` })
     .returning({ id: agencies.id });
   const [code] = await db
     .insert(trainingCodes)
     .values({
-      code: `A0000-${suffix.slice(0, 6)}`,
+      code: `M0000-${suffix.slice(0, 6)}`,
       title: "Hose Loads",
       sourceRevision: "test",
     })
     .returning({ id: trainingCodes.id });
-  if (!site || !agency || !code) {
-    throw new Error("Assistant fixture references failed.");
-  }
-  const { systemId, setId } = await activeFireSetId(db);
-  return {
-    siteId: site.id,
-    agencyId: agency.id,
-    codeId: code.id,
-    systemId,
-    setId,
-  };
+  if (!site || !agency || !code) throw new Error("Fixture setup failed.");
+  const fire = await activeSetId(db, "fire");
+  return { siteId: site.id, agencyId: agency.id, codeId: code.id, ...fire };
 }
 
 async function addParticipant(
@@ -118,56 +91,69 @@ async function addParticipant(
     .slice(0, 10);
   const [student] = await db
     .insert(students)
-    .values({ firstName: "Zoe", lastName: "Zeta", phone: `+1${digits}` })
+    .values({
+      firstName: "Multi",
+      lastName: "Student",
+      studentNumber: digits,
+      phone: `555${digits.slice(0, 7)}`,
+    })
     .returning({ id: students.id });
-  if (!student) throw new Error("Assistant fixture student failed.");
-  const [record] = await db
+  if (!student) throw new Error("Student fixture failed.");
+  const [row] = await db
     .insert(attendance)
     .values({
       classId,
       studentId: student.id,
       agencyId,
-      idempotencyKey: crypto.randomUUID(),
-      payloadFingerprint: "fixture",
       creditedHours: "4",
+      idempotencyKey: crypto.randomUUID(),
+      payloadFingerprint: crypto.randomUUID(),
     })
     .returning({ id: attendance.id });
-  if (!record) throw new Error("Assistant fixture attendance failed.");
-  await db.insert(attendanceReportingContexts).values({
-    attendanceId: record.id,
+  if (!row) throw new Error("Attendance fixture failed.");
+  await db.insert(schema.attendanceReportingContexts).values({
+    attendanceId: row.id,
     requirementSetId,
   });
-  return record.id;
+  return row.id;
 }
 
-async function createEmsLedFireClass(db: Db, suffix: string) {
+async function createTeamClass(db: Db, suffix: string) {
   const lead = await createStaffUser(db, {
-    username: `ems-lead-${suffix}`,
-    displayName: "EMS Lead",
+    username: `fire-lead-${suffix}`,
+    displayName: "Fire Lead",
+    roleCode: ROLE_CODES.INSTRUCTOR,
+  });
+  const assistant = await createStaffUser(db, {
+    username: `ems-assistant-${suffix}`,
+    displayName: "EMS Assistant",
     roleCode: ROLE_CODES.INSTRUCTOR,
     ffn: null,
     instructorLevel: null,
   });
-  const fire = await createStaffUser(db, {
-    username: `fire-assistant-${suffix}`,
-    displayName: "Fire Assistant",
+  const additional = await createStaffUser(db, {
+    username: `additional-${suffix}`,
+    displayName: "Additional Instructor",
     roleCode: ROLE_CODES.INSTRUCTOR,
+    ffn: null,
+    instructorLevel: null,
   });
-  const references = await fireReferences(db, suffix);
+  const refs = await references(db, suffix);
   const created = await createOpenClass(db, lead, {
-    name: `EMS Led Fire ${suffix}`,
-    trainingSiteId: references.siteId,
-    hostAgencyId: references.agencyId,
+    name: `Team Fire ${suffix}`,
+    trainingSiteId: refs.siteId,
+    hostAgencyId: refs.agencyId,
     deliveryMethod: "classroom",
     startsAt: "2026-09-10T09:00",
     creditedHours: 4,
     leadInstructorId: lead.id,
-    assistantInstructorId: fire.id,
-    reportingSystemIds: [references.systemId],
+    assistantInstructorId: assistant.id,
+    additionalInstructorIds: [additional.id],
+    reportingSystemIds: [refs.systemId],
     accessPinEnabled: false,
     subjects: [
       {
-        trainingCodeId: references.codeId,
+        trainingCodeId: refs.codeId,
         className: "Hose Loads",
         curriculumId: "",
         lessonPlan: "",
@@ -178,96 +164,15 @@ async function createEmsLedFireClass(db: Db, suffix: string) {
   const attendanceId = await addParticipant(
     db,
     classId,
-    references.agencyId,
-    references.setId,
+    refs.agencyId,
+    refs.setId,
   );
-  return { lead, fire, classId, attendanceId, ...references };
-}
-
-async function createEmsLedFireKbemsClass(db: Db, suffix: string) {
-  const lead = await createStaffUser(db, {
-    username: `both-lead-${suffix}`,
-    displayName: "EMS Lead",
-    roleCode: ROLE_CODES.INSTRUCTOR,
-    ffn: null,
-    instructorLevel: null,
-  });
-  const fire = await createStaffUser(db, {
-    username: `both-fire-${suffix}`,
-    displayName: "Fire Assistant",
-    roleCode: ROLE_CODES.INSTRUCTOR,
-  });
-  const admin = await createStaffUser(db, {
-    username: `both-admin-${suffix}`,
-    displayName: "Training Major",
-    roleCode: ROLE_CODES.ADMINISTRATOR,
-  });
-  const [site] = await db
-    .insert(trainingSites)
-    .values({ name: `Both Site ${suffix}` })
-    .returning({ id: trainingSites.id });
-  const [agency] = await db
-    .insert(agencies)
-    .values({ name: `Both Agency ${suffix}` })
-    .returning({ id: agencies.id });
-  const [code] = await db
-    .insert(trainingCodes)
-    .values({
-      code: `B0000-${suffix.slice(0, 6)}`,
-      title: "Hose Loads",
-      sourceRevision: "test",
-    })
-    .returning({ id: trainingCodes.id });
-  const [emsCategory] = await db
-    .select({ id: trainingCodes.id })
-    .from(trainingCodes)
-    .where(eq(trainingCodes.kind, "ems"))
-    .limit(1);
-  if (!site || !agency || !code || !emsCategory) {
-    throw new Error("Both-destination fixture references failed.");
-  }
-  const fireSet = await activeSetId(db, "fire");
-  const kbemsSet = await activeSetId(db, "kbems");
-  const created = await createOpenClass(db, lead, {
-    name: `EMS Led Fire and KBEMS ${suffix}`,
-    trainingSiteId: site.id,
-    hostAgencyId: agency.id,
-    deliveryMethod: "classroom",
-    startsAt: "2026-09-10T09:00",
-    creditedHours: 4,
-    leadInstructorId: lead.id,
-    assistantInstructorId: fire.id,
-    reportingSystemIds: [fireSet.systemId, kbemsSet.systemId],
-    accessPinEnabled: false,
-    courseType: "continuing_education",
-    courseNumber: `CE-${suffix.slice(0, 6)}`,
-    objectives: "Continuing education for EMTs",
-    emsCategoryId: emsCategory.id,
-    subjects: [
-      {
-        trainingCodeId: code.id,
-        className: "Hose Loads",
-        curriculumId: "",
-        lessonPlan: "",
-      },
-    ],
-  });
-  const classId = created.classRecord.id;
-  const attendanceId = await addParticipant(
-    db,
-    classId,
-    agency.id,
-    fireSet.setId,
-  );
-  await db.insert(attendanceReportingContexts).values({
-    attendanceId,
-    requirementSetId: kbemsSet.setId,
-  });
-  return { lead, fire, admin, classId, ...fireSet, kbemsSet };
+  return { lead, assistant, additional, classId, attendanceId, ...refs };
 }
 
 beforeAll(async () => {
   if (!pool) return;
+  process.env.ADDITIONAL_INSTRUCTOR_EDITING = "1";
   const db = drizzle(pool, { schema });
   await migrate(db, { migrationsFolder: "drizzle" });
   await db.transaction(seedFoundation);
@@ -275,14 +180,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  delete process.env.ADDITIONAL_INSTRUCTOR_EDITING;
   await pool?.end();
 });
 
-describeDatabase("assistant instructor and Fire signing", () => {
-  it("records a non-fire lead with a fire assistant", async () => {
+describeDatabase("multi-instructor class rosters", () => {
+  it("records a fire-qualified lead, assistant, and additional instructors", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
-    const { lead, fire, classId } = await createEmsLedFireClass(
+    const { lead, assistant, additional, classId } = await createTeamClass(
       db,
       crypto.randomUUID().slice(0, 8),
     );
@@ -290,314 +196,115 @@ describeDatabase("assistant instructor and Fire signing", () => {
       .select({
         userId: classInstructors.userId,
         isLead: classInstructors.isLead,
+        isAssistant: classInstructors.isAssistant,
       })
       .from(classInstructors)
       .where(eq(classInstructors.classId, classId));
-    expect(assignments.find((row) => row.userId === lead.id)?.isLead).toBe(
-      true,
+    expect(assignments).toEqual(
+      expect.arrayContaining([
+        { userId: lead.id, isLead: true, isAssistant: false },
+        { userId: assistant.id, isLead: false, isAssistant: true },
+        { userId: additional.id, isLead: false, isAssistant: false },
+      ]),
     );
-    expect(assignments.find((row) => row.userId === fire.id)?.isLead).toBe(
-      false,
-    );
+    await expect(
+      getClassDetail(db, additional, classId),
+    ).resolves.toMatchObject({
+      id: classId,
+    });
   });
 
-  it("blocks a Fire class with no fire instructor", async () => {
+  it("rejects a Fire class whose lead is not fire-qualified", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
     const suffix = crypto.randomUUID().slice(0, 8);
     const lead = await createStaffUser(db, {
-      username: `no-fire-lead-${suffix}`,
-      displayName: "No Fire Lead",
+      username: `nonfire-lead-${suffix}`,
+      displayName: "Non Fire Lead",
       roleCode: ROLE_CODES.INSTRUCTOR,
       ffn: null,
       instructorLevel: null,
     });
-    const assistant = await createStaffUser(db, {
-      username: `no-fire-assistant-${suffix}`,
-      displayName: "No Fire Assistant",
+    const fireAssistant = await createStaffUser(db, {
+      username: `fire-assistant-${suffix}`,
+      displayName: "Fire Assistant",
       roleCode: ROLE_CODES.INSTRUCTOR,
-      ffn: null,
-      instructorLevel: null,
     });
-    const references = await fireReferences(db, suffix);
+    const refs = await references(db, suffix);
     await expect(
       createOpenClass(db, lead, {
-        name: `No Fire Instructor ${suffix}`,
-        trainingSiteId: references.siteId,
-        hostAgencyId: references.agencyId,
+        name: `Non Fire Lead ${suffix}`,
+        trainingSiteId: refs.siteId,
+        hostAgencyId: refs.agencyId,
         deliveryMethod: "classroom",
         startsAt: "2026-09-10T09:00",
         creditedHours: 4,
         leadInstructorId: lead.id,
-        assistantInstructorId: assistant.id,
-        reportingSystemIds: [references.systemId],
+        assistantInstructorId: fireAssistant.id,
+        reportingSystemIds: [refs.systemId],
         accessPinEnabled: false,
         subjects: [
           {
-            trainingCodeId: references.codeId,
+            trainingCodeId: refs.codeId,
             className: "Hose Loads",
             curriculumId: "",
             lessonPlan: "",
           },
         ],
       }),
-    ).rejects.toThrow(/fire instructor/i);
+    ).rejects.toThrow(/lead.*fire instructor/i);
   });
 
-  it("replaces the lead and sets, changes, or clears the assistant", async () => {
+  it("preserves additional instructors when a compatibility submission omits them", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
-    const suffix = crypto.randomUUID().slice(0, 8);
-    const { lead, fire, classId } = await createEmsLedFireClass(db, suffix);
+    const { lead, assistant, additional, classId } = await createTeamClass(
+      db,
+      crypto.randomUUID().slice(0, 8),
+    );
 
+    process.env.ADDITIONAL_INSTRUCTOR_EDITING = "0";
     await setClassInstructors(db, lead, classId, {
-      leadInstructorId: fire.id,
-      assistantInstructorId: lead.id,
+      leadInstructorId: lead.id,
+      assistantInstructorId: assistant.id,
     });
-    let assignments = await db
-      .select({
-        userId: classInstructors.userId,
-        isLead: classInstructors.isLead,
-      })
+    let rows = await db
+      .select({ userId: classInstructors.userId })
       .from(classInstructors)
       .where(eq(classInstructors.classId, classId));
-    expect(assignments.find((row) => row.userId === fire.id)?.isLead).toBe(
-      true,
-    );
-    expect(assignments.find((row) => row.userId === lead.id)?.isLead).toBe(
-      false,
-    );
+    expect(rows.map((row) => row.userId)).toContain(additional.id);
 
-    await expect(
-      setClassInstructors(db, lead, classId, {
-        leadInstructorId: fire.id,
-        assistantInstructorId: fire.id,
-      }),
-    ).rejects.toThrow(/different from the lead/i);
-
-    await removeClassInstructor(db, lead, classId, lead.id);
-    assignments = await db
-      .select({
-        userId: classInstructors.userId,
-        isLead: classInstructors.isLead,
-      })
+    process.env.ADDITIONAL_INSTRUCTOR_EDITING = "1";
+    await setClassInstructors(db, lead, classId, {
+      leadInstructorId: lead.id,
+      assistantInstructorId: assistant.id,
+      additionalInstructorIds: [],
+    });
+    rows = await db
+      .select({ userId: classInstructors.userId })
       .from(classInstructors)
       .where(eq(classInstructors.classId, classId));
-    expect(assignments).toHaveLength(1);
-    expect(assignments[0]?.userId).toBe(fire.id);
-
-    await expect(
-      removeClassInstructor(db, lead, classId, fire.id),
-    ).rejects.toThrow(/replace the lead/i);
+    expect(rows.map((row) => row.userId)).not.toContain(additional.id);
   });
 
-  it("keeps a fire instructor after an instructor change", async () => {
+  it("finalizes with the lead as the only Fire signer and appends the instructor supplement", async () => {
     if (!pool) throw new Error("TEST_DATABASE_URL is required.");
     const db = drizzle(pool, { schema });
-    const suffix = crypto.randomUUID().slice(0, 8);
-    const nonFire = await createStaffUser(db, {
-      username: `retention-nonfire-${suffix}`,
-      displayName: "Non Fire",
-      roleCode: ROLE_CODES.INSTRUCTOR,
-      ffn: null,
-      instructorLevel: null,
-    });
-    const fire = await createStaffUser(db, {
-      username: `retention-fire-${suffix}`,
-      displayName: "Fire Only",
-      roleCode: ROLE_CODES.INSTRUCTOR,
-    });
-    const references = await fireReferences(db, suffix);
-    const created = await createOpenClass(db, fire, {
-      name: `Fire Retention ${suffix}`,
-      trainingSiteId: references.siteId,
-      hostAgencyId: references.agencyId,
-      deliveryMethod: "classroom",
-      startsAt: "2026-09-10T09:00",
-      creditedHours: 4,
-      leadInstructorId: fire.id,
-      reportingSystemIds: [references.systemId],
-      accessPinEnabled: false,
-      subjects: [
-        {
-          trainingCodeId: references.codeId,
-          className: "Hose Loads",
-          curriculumId: "",
-          lessonPlan: "",
-        },
-      ],
-    });
-    const classId = created.classRecord.id;
-
-    await expect(
-      setClassInstructors(db, fire, classId, {
-        leadInstructorId: nonFire.id,
-        assistantInstructorId: null,
-      }),
-    ).rejects.toThrow(/fire instructor/i);
-
-    await setClassInstructors(db, fire, classId, {
-      leadInstructorId: nonFire.id,
-      assistantInstructorId: fire.id,
-    });
-    const assignments = await db
-      .select({
-        userId: classInstructors.userId,
-        isLead: classInstructors.isLead,
-      })
-      .from(classInstructors)
-      .where(eq(classInstructors.classId, classId));
-    expect(assignments.find((row) => row.userId === nonFire.id)?.isLead).toBe(
-      true,
+    const { lead, classId } = await createTeamClass(
+      db,
+      crypto.randomUUID().slice(0, 8),
     );
-    expect(assignments.find((row) => row.userId === fire.id)?.isLead).toBe(
-      false,
-    );
-  });
-
-  it("gates the Fire documents, reporting, and signer, then signs the locked revision", async () => {
-    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
-    const db = drizzle(pool, { schema });
-    const suffix = crypto.randomUUID().slice(0, 8);
-    const { lead, fire, classId, attendanceId, systemId } =
-      await createEmsLedFireClass(db, suffix);
-    const admin = await createStaffUser(db, {
-      username: `assistant-admin-${suffix}`,
-      displayName: "Assistant Admin",
-      roleCode: ROLE_CODES.ADMINISTRATOR,
-    });
 
     const revision = await finalizeClass(db, lead, classId, {
       certified: true,
-      typedName: "EMS Lead",
+      typedName: "Fire Lead",
     });
-    const [row] = await db
-      .select({
-        fireSignerUserId: finalizationRevisions.fireSignerUserId,
-        signedByName: finalizationRevisions.signedByName,
-      })
-      .from(finalizationRevisions)
-      .where(eq(finalizationRevisions.id, revision.id));
-    expect(row?.fireSignerUserId).toBe(fire.id);
-    expect(row?.signedByName).toBe("EMS Lead");
-    const [pendingAttestation] = await db
-      .select({ revisionId: revisionAttestations.revisionId })
-      .from(revisionAttestations)
-      .where(
-        and(
-          eq(revisionAttestations.revisionId, revision.id),
-          eq(revisionAttestations.scope, "fire"),
-        ),
-      );
-    expect(pendingAttestation).toBeUndefined();
-
-    await expect(
-      generateFireRosterWithNotices(db, lead, revision.id),
-    ).rejects.toThrow(/fire instructor signs/i);
-    await expect(
-      renderParticipantNotice(db, lead, revision.id, attendanceId, "yellow"),
-    ).rejects.toThrow(/fire instructor signs/i);
-
-    const [status] = await db
-      .select({ id: finalizationReportingStatuses.id })
-      .from(finalizationReportingStatuses)
-      .where(
-        and(
-          eq(finalizationReportingStatuses.revisionId, revision.id),
-          eq(finalizationReportingStatuses.reportingSystemId, systemId),
-        ),
-      );
-    if (!status) throw new Error("Fire reporting status is missing.");
-    await expect(
-      updateReportingDestination(db, admin, {
-        revisionId: revision.id,
-        reportingSystemId: systemId,
-        status: "entered",
-      }),
-    ).rejects.toThrow(/signed by the fire instructor/i);
-
-    await expect(
-      signFireRoster(db, lead, revision.id, {
-        certified: true,
-        typedName: "EMS Lead",
-      }),
-    ).rejects.toThrow(/Fire signer/i);
-
-    await signFireRoster(db, fire, revision.id, {
-      certified: true,
-      typedName: "Fire Assistant",
-    });
-    const [signed] = await db
-      .select({
-        fireSignedByName: revisionAttestations.signedByName,
-        fireSignedAt: revisionAttestations.signedAt,
-      })
-      .from(revisionAttestations)
-      .where(
-        and(
-          eq(revisionAttestations.revisionId, revision.id),
-          eq(revisionAttestations.scope, "fire"),
-        ),
-      );
-    expect(signed?.fireSignedByName).toBe("Fire Assistant");
-    expect(signed?.fireSignedAt).toBeInstanceOf(Date);
-
-    const snapshot = await readSnapshot(db, lead, revision.id);
-    expect(snapshot.signature?.name).toBe("EMS Lead");
-    expect(snapshot.fireSignature?.name).toBe("Fire Assistant");
-    await expect(
-      generateFireRosterWithNotices(db, lead, revision.id),
-    ).resolves.toMatchObject({ filename: expect.stringMatching(/^kfs-1a-/) });
-
-    await updateReportingDestination(db, admin, {
-      revisionId: revision.id,
-      reportingSystemId: systemId,
-      status: "entered",
-    });
-
-    await reopenFinalizedClass(db, admin, classId, "Correct the assistant");
-    await expect(
-      signFireRoster(db, fire, revision.id, {
-        certified: true,
-        typedName: "Fire Assistant",
-      }),
-    ).rejects.toThrow(/finalized class/i);
-
-    const nextRevision = await finalizeClass(db, lead, classId, {
-      certified: true,
-      typedName: "EMS Lead",
-    });
-    const [next] = await db
+    const [revisionRow] = await db
       .select({ fireSignerUserId: finalizationRevisions.fireSignerUserId })
       .from(finalizationRevisions)
-      .where(eq(finalizationRevisions.id, nextRevision.id));
-    expect(next?.fireSignerUserId).toBe(fire.id);
-    const [nextAttestation] = await db
-      .select({ revisionId: revisionAttestations.revisionId })
-      .from(revisionAttestations)
-      .where(
-        and(
-          eq(revisionAttestations.revisionId, nextRevision.id),
-          eq(revisionAttestations.scope, "fire"),
-        ),
-      );
-    expect(nextAttestation).toBeUndefined();
-  });
+      .where(eq(finalizationRevisions.id, revision.id));
+    expect(revisionRow?.fireSignerUserId).toBe(lead.id);
 
-  it("issues the certificate after the roster attestation while the Fire documents wait", async () => {
-    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
-    const db = drizzle(pool, { schema });
-    const {
-      lead,
-      fire,
-      admin,
-      classId,
-      systemId: fireSystemId,
-    } = await createEmsLedFireKbemsClass(db, crypto.randomUUID().slice(0, 8));
-    const revision = await finalizeClass(db, lead, classId, {
-      certified: true,
-      typedName: "EMS Lead",
-    });
     const attestations = await db
       .select({
         scope: revisionAttestations.scope,
@@ -605,100 +312,15 @@ describeDatabase("assistant instructor and Fire signing", () => {
       })
       .from(revisionAttestations)
       .where(eq(revisionAttestations.revisionId, revision.id));
-    expect(attestations).toEqual([
-      { scope: "roster", signedByUserId: lead.id },
-    ]);
-
-    const snapshot = await readSnapshot(db, lead, revision.id);
-    expect(snapshot.signature?.name).toBe("EMS Lead");
-    expect(snapshot.fireSignature).toBeUndefined();
-
-    await expect(
-      generateCompletionCertificates(db, lead, revision.id),
-    ).resolves.toMatchObject({ participantCount: 1 });
-    await expect(
-      generateFireRosterWithNotices(db, lead, revision.id),
-    ).rejects.toThrow(/fire instructor signs/i);
-    await expect(
-      updateReportingDestination(db, admin, {
-        revisionId: revision.id,
-        reportingSystemId: fireSystemId,
-        status: "entered",
-      }),
-    ).rejects.toThrow(/fire instructor/i);
-
-    await signFireRoster(db, fire, revision.id, {
-      certified: true,
-      typedName: "Fire Assistant",
-    });
-    const [fireAttestation] = await db
-      .select({
-        signedByName: revisionAttestations.signedByName,
-        signedByUserId: revisionAttestations.signedByUserId,
-      })
-      .from(revisionAttestations)
-      .where(
-        and(
-          eq(revisionAttestations.revisionId, revision.id),
-          eq(revisionAttestations.scope, "fire"),
-        ),
-      );
-    expect(fireAttestation).toMatchObject({
-      signedByName: "Fire Assistant",
-      signedByUserId: fire.id,
-    });
-    await expect(
-      generateFireRosterWithNotices(db, lead, revision.id),
-    ).resolves.toMatchObject({ filename: expect.stringMatching(/^kfs-1a-/) });
-    await updateReportingDestination(db, admin, {
-      revisionId: revision.id,
-      reportingSystemId: fireSystemId,
-      status: "entered",
-    });
-  });
-
-  it("dual-reads a legacy revision's single signature for both scopes", async () => {
-    if (!pool) throw new Error("TEST_DATABASE_URL is required.");
-    const db = drizzle(pool, { schema });
-    const { lead, classId } = await createEmsLedFireClass(
-      db,
-      crypto.randomUUID().slice(0, 8),
+    expect(attestations).toEqual(
+      expect.arrayContaining([
+        { scope: "roster", signedByUserId: lead.id },
+        { scope: "fire", signedByUserId: lead.id },
+      ]),
     );
-    const current = await finalizeClass(db, lead, classId, {
-      certified: true,
-      typedName: "Current Lead",
-    });
-    const [currentRow] = await db
-      .select({ encryptedSnapshot: finalizationRevisions.encryptedSnapshot })
-      .from(finalizationRevisions)
-      .where(eq(finalizationRevisions.id, current.id));
-    if (!currentRow) throw new Error("Current revision is missing.");
-    const parsed = JSON.parse(
-      decryptCredential(currentRow.encryptedSnapshot),
-    ) as Record<string, unknown>;
-    delete parsed.fireSignerUserId;
-    delete parsed.fireSignature;
-    const [legacy] = await db
-      .insert(finalizationRevisions)
-      .values({
-        classId,
-        revisionNumber: 2,
-        finalizedByUserId: lead.id,
-        signedByUserId: lead.id,
-        signedByName: "Legacy Lead",
-        signedAt: new Date(),
-        attestationVersion: "roster-attestation-001",
-        fireSignerUserId: null,
-        encryptedSnapshot: encryptCredential(JSON.stringify(parsed)),
-        summary: {},
-      })
-      .returning({ id: finalizationRevisions.id });
-    if (!legacy) throw new Error("Legacy revision fixture failed.");
 
-    const snapshot = await readSnapshot(db, lead, legacy.id);
-    expect(snapshot.signature?.name).toBe("Legacy Lead");
-    expect(snapshot.fireSignature?.name).toBe("Legacy Lead");
-    expect(snapshot.rosterAttested).toBe(false);
-    expect(snapshot.fireAttested).toBe(false);
+    const roster = await generateFireRosterWithNotices(db, lead, revision.id);
+    const pdf = await PDFDocument.load(roster.bytes);
+    expect(pdf.getPageCount()).toBeGreaterThan(1);
   });
 });

@@ -185,6 +185,7 @@ export const classInstructors = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     isLead: boolean("is_lead").default(false).notNull(),
+    isAssistant: boolean("is_assistant").default(false).notNull(),
     assignedAt: timestamp("assigned_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -195,6 +196,13 @@ export const classInstructors = pgTable(
     uniqueIndex("class_instructors_lead_unique")
       .on(table.classId)
       .where(sql`${table.isLead}`),
+    uniqueIndex("class_instructors_assistant_unique")
+      .on(table.classId)
+      .where(sql`${table.isAssistant}`),
+    check(
+      "class_instructors_roles_exclusive",
+      sql`not (${table.isLead} and ${table.isAssistant})`,
+    ),
   ],
 );
 
