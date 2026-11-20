@@ -113,28 +113,16 @@ async function createFinalizedKbemsClass(
   }
   const { systemId, setId } = await activeSetId(db, "kbems");
   const [emsCategory] = await db
-    .select({ id: trainingCodes.id })
-    .from(trainingCodes)
-    .where(eq(trainingCodes.kind, "ems"))
-    .limit(1);
+    .insert(trainingCodes)
+    .values({
+      kind: "ems",
+      code: `CERT-${suffix}`,
+      title: `Certificate fixture ${suffix}`,
+      sourceRevision: `test-${suffix}`,
+      externalCertIssuer: options.externalCertIssuer ?? null,
+    })
+    .returning({ id: trainingCodes.id });
   if (!emsCategory) throw new Error("EMS category fixture is missing.");
-  let emsCategoryId = emsCategory.id;
-  if (options.externalCertIssuer) {
-    const [externalCategory] = await db
-      .insert(trainingCodes)
-      .values({
-        kind: "ems",
-        code: `EXT-${suffix}`,
-        title: `External ${suffix}`,
-        sourceRevision: `test-${suffix}`,
-        externalCertIssuer: options.externalCertIssuer,
-      })
-      .returning({ id: trainingCodes.id });
-    if (!externalCategory) {
-      throw new Error("External certificate category fixture failed.");
-    }
-    emsCategoryId = externalCategory.id;
-  }
   const created = await createOpenClass(db, instructor, {
     name: `EMS Course ${suffix}`,
     trainingSiteId: site.id,
@@ -149,7 +137,7 @@ async function createFinalizedKbemsClass(
     courseNumber: `CE-${suffix.slice(0, 6)}`,
     objectives: "Continuing education for EMTs",
     issueInternalCert: options.issueInternalCert ?? true,
-    emsCategoryId,
+    emsCategoryId: emsCategory.id,
   });
   const classId = created.classRecord.id;
 
